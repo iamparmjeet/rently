@@ -1,0 +1,99 @@
+# Node.js and TypeScript specific ignores
+# -------------------------------------
+# Dependency directories
+node_modules/
+**/node_modules/
+
+# Production dependencies (if you're using something like `pnpm store path`)
+.pnpm-store/
+
+# IDE and Editor ignores
+# --------------------
+# VS Code
+.vscode-test/
+
+# IntelliJ IDEA
+.idea/
+
+# Sublime Text
+*.sublime-project
+*.sublime-workspace
+
+# Atom
+.atom/
+
+# Vim
+*.swp
+*.bak
+*.swo
+*~
+.netrwhist
+[._]*.un~
+Session.vim
+.history
+
+# OS and Git specific ignores
+# --------------------------
+.DS_Store
+Thumbs.db
+ehthumbs.db
+.cache/
+.npm/
+
+# Build artifacts and compiled files
+# ---------------------------------
+# TypeScript compilation output (e.g., from `tsc`)
+dist/
+build/
+out/
+esbuild-cache/
+
+# Common build tools output
+.parcel-cache/
+.next/ # For Next.js, though Hono often doesn't use it directly for server-side
+.turbo/ # For Turborepo if you're using a monorepo manager
+
+# Log files
+# ---------
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+
+# Environment Variables and Secrets (CRUCIAL!)
+# ------------------------------------------
+# Cloudflare Workers environment variables
+.env
+.env.local
+wrangler.toml.local # Local overrides for wrangler.toml
+wrangler.toml.development # Specific development environment files
+wrangler.toml.staging
+wrangler.toml.production
+wrangler.jsonc
+
+# Any other specific secret files
+secrets/
+*.key
+*.pem
+*.pfx
+*.jks
+*.p12
+
+# Database files (if you have local development databases)
+*.sqlite
+*.sqlite3
+*.db
+*.mdb
+
+# Miscellaneous
+# -------------
+# Test coverage reports
+coverage/
+.nyc_output/
+
+# Temporary files
+*.tmp
+temp/
+
+# Editor config files that are machine-specific
+.editorconfig # If it's a personal override, otherwise it's fine to commit

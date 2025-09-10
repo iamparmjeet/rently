@@ -70,7 +70,7 @@ wrangler.toml.development # Specific development environment files
 wrangler.toml.staging
 wrangler.toml.production
 wrangler.jsonc
-
+*/wrangler.json
 # Any other specific secret files
 secrets/
 *.key

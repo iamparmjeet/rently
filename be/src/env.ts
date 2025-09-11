@@ -52,7 +52,9 @@ const EnvSchema = z
 
 export type Environment = z.infer<typeof EnvSchema>;
 
-export function parseEnv(data: Environment): Environment {
+export function parseEnv(
+  data: Record<string, string | undefined>
+): Environment {
   const { data: env, error } = EnvSchema.safeParse(data);
 
   if (error) {

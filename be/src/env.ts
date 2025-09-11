@@ -26,6 +26,7 @@ const EnvSchema = z
     GOOGLE_CLIENT_SECRET: z.string(),
     GITHUB_CLIENT_ID: z.string(),
     GITHUB_CLIENT_SECRET: z.string(),
+    EMAIL_FROM: z.string(),
   })
   .superRefine((input, ctx) => {
     if (input.NODE_ENV === "production") {

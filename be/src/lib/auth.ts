@@ -24,7 +24,20 @@ export function createAuth(env: Environment) {
     },
     baseURL: env.BETTER_AUTH_URL,
     secret: env.BETTER_AUTH_SECRET,
-    plugins: [openAPI()],
+    session: {
+      expiresIn: 7 * 24 * 60 * 60,
+      cookieName: "rently_session",
+      cookieOptions: {
+        httpOnly: true,
+        secure: process.env.NODE_ENV === "production",
+        sameSite: "lax",
+      },
+      emails: {
+        fromEmail: env.EMAIL_FROM || "noreply@rently.com",
+        fromName: "Rently App",
+      },
+      plugins: [openAPI()],
+    },
   });
 }
 

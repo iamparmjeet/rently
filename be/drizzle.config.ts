@@ -3,11 +3,11 @@ import { parseEnv } from "@/env";
 
 // import env from "@/env-runtime";
 
-const env = parseEnv(process.env as any);
-console.log("env", env);
+const env = parseEnv(process.env);
+// console.log("env", env);
 
 export default defineConfig({
-  schema: "./src/db/schema.ts",
+  schema: "./src/db/schema/schema.ts",
   out: "./src/db/migrations",
   dialect: "sqlite",
   driver: "d1-http",

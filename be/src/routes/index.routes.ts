@@ -1,9 +1,13 @@
 import { createRouter } from "@/lib/create-app";
+import { StatusCode } from "@/utils";
 
 const router = createRouter();
 
-router.get("/", (c) => {
-  return c.text("Hello Hono!");
+router.get("/health", (c) => {
+  return c.json({
+    message: "Hello World",
+    status: StatusCode.OK,
+  });
 });
 
 export default router;

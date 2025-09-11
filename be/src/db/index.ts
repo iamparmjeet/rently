@@ -1,5 +1,5 @@
 import { drizzle } from "drizzle-orm/d1";
-import * as schema from "@/db/schema";
+import * as schema from "@/db/schema/schema";
 import type { Environment } from "@/env";
 
 export function createDB(env: Environment) {

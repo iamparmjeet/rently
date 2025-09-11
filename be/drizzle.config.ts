@@ -1,13 +1,10 @@
 import { defineConfig } from "drizzle-kit";
 import { parseEnv } from "@/env";
 
-// import env from "@/env-runtime";
-
 const env = parseEnv(process.env);
-// console.log("env", env);
 
 export default defineConfig({
-  schema: "./src/db/schema/schema.ts",
+  schema: "./src/db/schema/*.ts",
   out: "./src/db/migrations",
   dialect: "sqlite",
   driver: "d1-http",

@@ -6,7 +6,7 @@ import type { Environment } from "@/env";
 
 export function createAuth(env: Environment) {
   return betterAuth({
-    database: drizzleAdapter(createDB, {
+    database: drizzleAdapter(() => createDB, {
       provider: "sqlite",
     }),
     emailAndPassword: {

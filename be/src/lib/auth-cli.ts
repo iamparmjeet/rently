@@ -4,13 +4,17 @@ import { openAPI } from "better-auth/plugins";
 import { createDB } from "@/db";
 import { parseEnv } from "@/env";
 
-// biome-ignore lint/suspicious/noExplicitAny: <Imp>
-const env = parseEnv(process.env as any);
+const env = parseEnv(process.env);
 
 const auth = betterAuth({
   database: drizzleAdapter(() => createDB, {
     provider: "sqlite",
   }),
+  account: {
+    accountLinking: {
+      enabled: true,
+    },
+  },
   emailAndPassword: {
     enabled: true,
   },
@@ -38,6 +42,10 @@ const auth = betterAuth({
       fromEmail: env.EMAIL_FROM || "noreply@rently.com",
       fromName: "Rently App",
     },
+    trustedOrigins: [
+      "http://localhost:8787",
+      "https://rently.parmjeetmishra.com",
+    ],
     plugins: [openAPI()],
   },
 });

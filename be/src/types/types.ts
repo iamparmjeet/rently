@@ -6,7 +6,7 @@ import type { Environment } from "@/env";
 export interface AppBindings {
   Bindings: Environment;
   Variables: {
-    database: Database;
+    db: Database;
     logger: PinoLogger;
     user?: User;
     session: Session;

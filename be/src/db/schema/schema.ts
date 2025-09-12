@@ -54,14 +54,14 @@ export const utilities = sqliteTable("utilities", {
   leaseId: text("lease_id")
     .notNull()
     .references(() => leases.id),
-  type: text("type", {
+  utilityType: text("utility_type", {
     enum: ["electricity", "water", "maintenance"],
   }).notNull(),
   readingDate: integer("reading_date", { mode: "timestamp" }).notNull(),
+  ratePerUnit: real("rate_per_unit"),
+  unitsUsed: real("units_used"),
   previousReading: real("previous_reading"),
   currentReading: real("current_reading"),
-  units: real("units"),
-  ratePerUnit: real("rate_per_unit"),
   fixedCharge: real("fixed_charge"),
   totalAmount: real("total_amount").notNull(),
   isPaid: integer("is_paid", { mode: "boolean" }).notNull().default(false),
@@ -83,4 +83,30 @@ export const payments = sqliteTable("payments", {
   utilityId: text("utility_id").references(() => utilities.id),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
+});
+
+export const referrers = sqliteTable("referrers", {
+  id: text("id").primaryKey().notNull(),
+  referredUserId: text("referred_user_id")
+    .notNull()
+    .references(() => user.id),
+  note: text("note"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .$onUpdate(() => /* @__PURE__ */ new Date())
+    .notNull(),
+});
+
+export const tenantInvites = sqliteTable("tenant_invites", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(), // to invite
+  token: text("token").unique().notNull(),
+  expiresAt: integer("expires_at", { mode: "timestamp" }),
+  invitedById: text("invited_by")
+    .notNull()
+    .references(() => user.id),
+  status: text("status", {
+    enum: ["pending", "accepted", "expired"],
+  }).default("pending"),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
 });

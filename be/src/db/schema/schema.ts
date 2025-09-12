@@ -100,7 +100,7 @@ export const referrers = sqliteTable("referrers", {
 export const tenantInvites = sqliteTable("tenant_invites", {
   id: text("id").primaryKey(),
   email: text("email").notNull(), // to invite
-  token: text("token").unique().notNull(),
+  token: text("token").unique().notNull(), // secret to validate user
   expiresAt: integer("expires_at", { mode: "timestamp" }),
   invitedById: text("invited_by")
     .notNull()
@@ -109,4 +109,7 @@ export const tenantInvites = sqliteTable("tenant_invites", {
     enum: ["pending", "accepted", "expired"],
   }).default("pending"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
+  updatedAt: integer("updated_at", { mode: "timestamp" })
+    .$onUpdate(() => new Date())
+    .notNull(),
 });

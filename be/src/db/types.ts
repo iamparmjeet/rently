@@ -4,7 +4,9 @@ import type {
   leases,
   payments,
   properties,
+  referrers,
   session,
+  tenantInvites,
   units,
   user,
   utilities,
@@ -19,6 +21,8 @@ export type Unit = InferSelectModel<typeof units>;
 export type Lease = InferSelectModel<typeof leases>;
 export type Utility = InferSelectModel<typeof utilities>;
 export type Payment = InferSelectModel<typeof payments>;
+export type Referrer = InferSelectModel<typeof referrers>;
+export type TenantInvites = InferSelectModel<typeof tenantInvites>;
 
 // Insert types (for creating new records)
 export type NewUser = InferInsertModel<typeof user>;
@@ -29,3 +33,5 @@ export type NewUnit = InferInsertModel<typeof units>;
 export type NewLease = InferInsertModel<typeof leases>;
 export type NewUtility = InferInsertModel<typeof utilities>;
 export type NewPayment = InferInsertModel<typeof payments>;
+export type NewReferrer = InferInsertModel<typeof referrers>;
+export type NewTenantInvite = InferInsertModel<typeof tenantInvites>;

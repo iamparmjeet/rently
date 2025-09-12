@@ -1,15 +1,17 @@
 import { sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { USER_ROLE_VALUES } from "@/constants/user-roles";
+import { generateUUID } from "@/utils";
 
 export const user = sqliteTable("user", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(generateUUID),
   name: text("name").notNull(),
   email: text("email").notNull().unique(),
   emailVerified: integer("email_verified", { mode: "boolean" })
     .default(false)
     .notNull(),
   image: text("image"),
-  role: text("role", { enum: ["tenant", "owner", "admin"] }).notNull(),
+  role: text("role", { enum: USER_ROLE_VALUES }).notNull(),
   phone: text("phone"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .default(sql`CURRENT_TIMESTAMP`)
@@ -21,7 +23,7 @@ export const user = sqliteTable("user", {
 });
 
 export const session = sqliteTable("session", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(generateUUID),
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
   token: text("token").notNull().unique(),
   createdAt: integer("created_at", { mode: "timestamp" })
@@ -38,7 +40,7 @@ export const session = sqliteTable("session", {
 });
 
 export const account = sqliteTable("account", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(generateUUID),
   accountId: text("account_id").notNull(),
   providerId: text("provider_id").notNull(),
   userId: text("user_id")
@@ -62,7 +64,7 @@ export const account = sqliteTable("account", {
 });
 
 export const verification = sqliteTable("verification", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(generateUUID),
   identifier: text("identifier").notNull(),
   value: text("value").notNull(),
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),

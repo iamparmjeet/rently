@@ -1,9 +1,8 @@
-// db/schema.ts
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
 import { user } from "./auth";
 
 export const properties = sqliteTable("properties", {
-  id: text("id").primaryKey().notNull(),
+  id: text("id").primaryKey().$defaultFn(generateUUID),
   ownerId: text("owner_id")
     .notNull()
     .references(() => user.id),
@@ -15,7 +14,7 @@ export const properties = sqliteTable("properties", {
 });
 
 export const units = sqliteTable("units", {
-  id: text("id").primaryKey().notNull(),
+  id: text("id").primaryKey().$defaultFn(generateUUID),
   propertyId: text("property_id")
     .notNull()
     .references(() => properties.id),
@@ -30,7 +29,7 @@ export const units = sqliteTable("units", {
 });
 
 export const leases = sqliteTable("leases", {
-  id: text("id").primaryKey().notNull(),
+  id: text("id").primaryKey().$defaultFn(generateUUID),
   unitId: text("unit_id")
     .notNull()
     .references(() => units.id),
@@ -50,7 +49,7 @@ export const leases = sqliteTable("leases", {
 });
 
 export const utilities = sqliteTable("utilities", {
-  id: text("id").primaryKey().notNull(),
+  id: text("id").primaryKey().$defaultFn(generateUUID),
   leaseId: text("lease_id")
     .notNull()
     .references(() => leases.id),
@@ -70,7 +69,7 @@ export const utilities = sqliteTable("utilities", {
 });
 
 export const payments = sqliteTable("payments", {
-  id: text("id").primaryKey().notNull(),
+  id: text("id").primaryKey().$defaultFn(generateUUID),
   leaseId: text("lease_id")
     .notNull()
     .references(() => leases.id),
@@ -86,7 +85,7 @@ export const payments = sqliteTable("payments", {
 });
 
 export const referrers = sqliteTable("referrers", {
-  id: text("id").primaryKey().notNull(),
+  id: text("id").primaryKey().$defaultFn(generateUUID),
   referredUserId: text("referred_user_id")
     .notNull()
     .references(() => user.id),
@@ -98,7 +97,7 @@ export const referrers = sqliteTable("referrers", {
 });
 
 export const tenantInvites = sqliteTable("tenant_invites", {
-  id: text("id").primaryKey(),
+  id: text("id").primaryKey().$defaultFn(generateUUID),
   email: text("email").notNull(), // to invite
   token: text("token").unique().notNull(), // secret to validate user
   expiresAt: integer("expires_at", { mode: "timestamp" }),

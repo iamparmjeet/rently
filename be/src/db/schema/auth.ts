@@ -1,3 +1,4 @@
+import { sql } from "drizzle-orm";
 import { integer, sqliteTable, text } from "drizzle-orm/sqlite-core";
 
 export const user = sqliteTable("user", {
@@ -11,10 +12,10 @@ export const user = sqliteTable("user", {
   role: text("role", { enum: ["tenant", "owner", "admin"] }).notNull(),
   phone: text("phone"),
   createdAt: integer("created_at", { mode: "timestamp" })
-    .defaultNow()
+    .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" })
-    .defaultNow()
+    .default(sql`CURRENT_TIMESTAMP`)
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });
@@ -24,7 +25,7 @@ export const session = sqliteTable("session", {
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
   token: text("token").notNull().unique(),
   createdAt: integer("created_at", { mode: "timestamp" })
-    .defaultNow()
+    .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" })
     .$onUpdate(() => /* @__PURE__ */ new Date())
@@ -54,9 +55,7 @@ export const account = sqliteTable("account", {
   }),
   scope: text("scope"),
   password: text("password"),
-  createdAt: integer("created_at", { mode: "timestamp" })
-    .defaultNow()
-    .notNull(),
+  createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" })
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
@@ -68,10 +67,10 @@ export const verification = sqliteTable("verification", {
   value: text("value").notNull(),
   expiresAt: integer("expires_at", { mode: "timestamp" }).notNull(),
   createdAt: integer("created_at", { mode: "timestamp" })
-    .defaultNow()
+    .default(sql`CURRENT_TIMESTAMP`)
     .notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" })
-    .defaultNow()
+    .default(sql`CURRENT_TIMESTAMP`)
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
 });

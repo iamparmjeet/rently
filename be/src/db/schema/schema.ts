@@ -1,4 +1,5 @@
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { generateUUID } from "@/utils";
 import { user } from "./auth";
 
 export const properties = sqliteTable("properties", {

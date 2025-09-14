@@ -1,17 +1,35 @@
 // src/lib/responses.ts
 
 import type { Context } from "hono";
-import { StatusCode, StatusPhrase } from "@/utils/http";
+import type { ContentfulStatusCode } from "hono/utils/http-status";
+import { StatusCode, StatusPhrase } from "@/utils";
+
+// safe sendError
+
+export function safeError(error: unknown): string {
+  if (error instanceof Error) return error.message;
+  if (typeof error === "string") return error;
+  if (typeof error === "object" && error !== null) {
+    try {
+      return JSON.stringify(error);
+    } catch {
+      return "[Unserializable Object]";
+    }
+  }
+  return String(error);
+}
 
 /**
- * Generic error response helper
+ * Generic error response helper with optional extra fields (like details)
  */
 export function sendError(
   c: Context,
   message: string,
-  statusCode: number
+  statusCode: ContentfulStatusCode,
+  extras?: Record<string, unknown>
 ): Response {
-  return c.json({ error: message }, statusCode);
+  const payload = { error: message, ...extras };
+  return c.json(payload, statusCode);
 }
 
 /**
@@ -19,9 +37,10 @@ export function sendError(
  */
 export function unauthorized(
   c: Context,
-  message = StatusPhrase.UNAUTHORIZED
+  message = StatusPhrase.UNAUTHORIZED,
+  extras?: Record<string, unknown>
 ): Response {
-  return sendError(c, message, StatusCode.UNAUTHORIZED);
+  return sendError(c, message, StatusCode.UNAUTHORIZED, extras);
 }
 
 /**
@@ -29,9 +48,10 @@ export function unauthorized(
  */
 export function forbidden(
   c: Context,
-  message = StatusPhrase.FORBIDDEN
+  message = StatusPhrase.FORBIDDEN,
+  extras?: Record<string, unknown>
 ): Response {
-  return sendError(c, message, StatusCode.FORBIDDEN);
+  return sendError(c, message, StatusCode.FORBIDDEN, extras);
 }
 
 /**
@@ -42,21 +62,35 @@ export function badRequest(
   message = StatusPhrase.BAD_REQUEST,
   details?: unknown
 ): Response {
-  const payload: { error: string; details?: unknown } = { error: message };
-  if (details) payload.details = details;
-  return c.json(payload, StatusCode.BAD_REQUEST);
+  return sendError(
+    c,
+    message,
+    StatusCode.BAD_REQUEST,
+    details ? { details } : undefined
+  );
 }
 
 /**
- * Success with data
+ * Success response with optional data
  */
-export function success(c: Context, data?: Record<string, unknown>): Response {
-  return c.json({ success: true, ...data }, StatusCode.OK);
+export function success(
+  c: Context,
+  data?: Record<string, unknown>,
+  statusCode: ContentfulStatusCode = StatusCode.OK
+): Response {
+  return c.json({ success: true, ...data }, statusCode);
 }
 
 /**
  * Created resource response
  */
 export function created(c: Context, data?: Record<string, unknown>): Response {
-  return c.json({ success: true, ...data }, StatusCode.CREATED);
+  return success(c, data, StatusCode.CREATED);
+}
+
+/**
+ * No Content response
+ */
+export function noContent(c: Context): Response {
+  return c.body(null, StatusCode.NO_CONTENT);
 }

@@ -10,6 +10,15 @@ const auth = betterAuth({
   database: drizzleAdapter(() => createDB, {
     provider: "sqlite",
   }),
+  user: {
+    additionalFields: {
+      role: {
+        type: "string",
+        required: false,
+        defaultValue: "tenant",
+      },
+    },
+  },
   account: {
     accountLinking: {
       enabled: true,
@@ -46,8 +55,8 @@ const auth = betterAuth({
       "http://localhost:8787",
       "https://rently.parmjeetmishra.com",
     ],
-    plugins: [openAPI()],
   },
+  plugins: [openAPI()],
 });
 
 export default auth;

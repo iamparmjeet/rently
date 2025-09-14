@@ -9,6 +9,20 @@ export function createAuth(env: Environment) {
     database: drizzleAdapter(() => createDB, {
       provider: "sqlite",
     }),
+    user: {
+      additionalFields: {
+        role: {
+          type: "string",
+          required: false,
+          defaultValue: "tenant",
+        },
+      },
+    },
+    account: {
+      accountLinking: {
+        enabled: true,
+      },
+    },
     emailAndPassword: {
       enabled: true,
     },
@@ -36,8 +50,12 @@ export function createAuth(env: Environment) {
         fromEmail: env.EMAIL_FROM || "noreply@rently.com",
         fromName: "Rently App",
       },
-      plugins: [openAPI()],
+      trustedOrigins: [
+        "http://localhost:8787",
+        "https://rently.parmjeetmishra.com",
+      ],
     },
+    plugins: [openAPI()],
   });
 }
 

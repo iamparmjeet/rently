@@ -1,4 +1,13 @@
 import { integer, real, sqliteTable, text } from "drizzle-orm/sqlite-core";
+import {
+  INVITE_STATUS_VALUES,
+  LEASE_STATUS_VALUES,
+  PAYMENT_TYPE_VALUES,
+  PROPERTY_TYPES_VALUES,
+  UNIT_STATUS_VALUES,
+  UNIT_TYPES_VALUES,
+  UTILITY_TYPE_VALUES,
+} from "@/constants/rent-constants";
 import { generateUUID } from "@/utils";
 import { user } from "./auth";
 
@@ -9,7 +18,7 @@ export const properties = sqliteTable("properties", {
     .references(() => user.id),
   name: text("name").notNull(),
   address: text("address").notNull(),
-  type: text("type", { enum: ["residential", "commercial"] }).notNull(),
+  type: text("type", { enum: PROPERTY_TYPES_VALUES }).notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
@@ -20,11 +29,11 @@ export const units = sqliteTable("units", {
     .notNull()
     .references(() => properties.id),
   unitNumber: text("unit_number").notNull(),
-  type: text("type", { enum: ["room", "shop"] }).notNull(),
+  type: text("type", { enum: UNIT_TYPES_VALUES }).notNull(),
   area: real("area"),
   baseRent: real("base_rent").notNull(),
   description: text("description"),
-  status: text("status", { enum: ["available", "occupied"] }).notNull(),
+  status: text("status", { enum: UNIT_STATUS_VALUES }).notNull(),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" }).notNull(),
 });
@@ -42,7 +51,7 @@ export const leases = sqliteTable("leases", {
   rent: real("rent").notNull(),
   deposit: real("deposit"),
   status: text("status", {
-    enum: ["active", "expired", "terminated"],
+    enum: LEASE_STATUS_VALUES,
   }).notNull(),
   referenceId: text("reference_id").references(() => user.id),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
@@ -55,7 +64,7 @@ export const utilities = sqliteTable("utilities", {
     .notNull()
     .references(() => leases.id),
   utilityType: text("utility_type", {
-    enum: ["electricity", "water", "maintenance"],
+    enum: UTILITY_TYPE_VALUES,
   }).notNull(),
   readingDate: integer("reading_date", { mode: "timestamp" }).notNull(),
   ratePerUnit: real("rate_per_unit"),
@@ -77,7 +86,7 @@ export const payments = sqliteTable("payments", {
   amount: real("amount").notNull(),
   paymentDate: integer("payment_date", { mode: "timestamp" }).notNull(),
   type: text("type", {
-    enum: ["rent", "utility", "deposit", "other"],
+    enum: PAYMENT_TYPE_VALUES,
   }).notNull(),
   description: text("description"),
   utilityId: text("utility_id").references(() => utilities.id),
@@ -106,7 +115,7 @@ export const tenantInvites = sqliteTable("tenant_invites", {
     .notNull()
     .references(() => user.id),
   status: text("status", {
-    enum: ["pending", "accepted", "expired"],
+    enum: INVITE_STATUS_VALUES,
   }).default("pending"),
   createdAt: integer("created_at", { mode: "timestamp" }).notNull(),
   updatedAt: integer("updated_at", { mode: "timestamp" })

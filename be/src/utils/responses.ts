@@ -169,3 +169,59 @@ export function created(c: Context, data?: Record<string, unknown>): Response {
 export function noContent(c: Context): Response {
   return c.body(null, StatusCode.NO_CONTENT);
 }
+
+/**
+ * Not Found response with optional structured input like success()
+ */
+export function notFound(
+  c: Context,
+  message?: string,
+  details?: unknown
+): Response;
+
+export function notFound(
+  c: Context,
+  options: {
+    message?: string;
+    details?: unknown;
+    context?: Record<string, unknown>;
+  }
+): Response;
+
+export function notFound(
+  c: Context,
+  messageOrOptions?:
+    | string
+    | {
+        message?: string;
+        details?: unknown;
+        context?: Record<string, unknown>;
+      },
+  details?: unknown
+): Response {
+  let message: string = StatusPhrase.NOT_FOUND;
+  let payloadDetails: unknown;
+  let context: Record<string, unknown> | undefined;
+
+  if (typeof messageOrOptions === "string") {
+    message = messageOrOptions;
+    payloadDetails = details;
+  } else if (messageOrOptions && typeof messageOrOptions === "object") {
+    const opts = messageOrOptions;
+    if (opts.message) message = opts.message;
+    if (opts.details) payloadDetails = opts.details;
+    if (opts.context) context = opts.context;
+  }
+
+  // Optionally log the context for debugging (you can plug in pino here)
+  if (context) {
+    console.warn("[NOT_FOUND]", { message, context });
+  }
+
+  return sendError(
+    c,
+    message,
+    StatusCode.NOT_FOUND,
+    payloadDetails ? { details: payloadDetails } : undefined
+  );
+}

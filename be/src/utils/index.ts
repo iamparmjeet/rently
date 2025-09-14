@@ -1,8 +1,10 @@
+export { addDays, now } from "./dates";
 export { getReasonPhrase, StatusCode, StatusPhrase } from "./http";
 export {
   badRequest,
   created,
   forbidden,
+  safeError,
   sendError,
   success,
   unauthorized,

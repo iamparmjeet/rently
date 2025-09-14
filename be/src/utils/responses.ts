@@ -76,9 +76,41 @@ export function badRequest(
 export function success(
   c: Context,
   data?: Record<string, unknown>,
+  statusCode?: ContentfulStatusCode
+): Response;
+
+export function success(
+  c: Context,
+  options: {
+    message?: string;
+    data?: Record<string, unknown>;
+  },
+  statusCode?: ContentfulStatusCode
+): Response;
+
+export function success(
+  c: Context,
+  dataOrOptions?:
+    | Record<string, unknown>
+    | { message?: string; data?: Record<string, unknown> },
   statusCode: ContentfulStatusCode = StatusCode.OK
 ): Response {
-  return c.json({ success: true, ...data }, statusCode);
+  const payload: Record<string, unknown> = { success: true };
+
+  if (dataOrOptions && typeof dataOrOptions === "object") {
+    if ("message" in dataOrOptions || "data" in dataOrOptions) {
+      const options = dataOrOptions as {
+        message?: string;
+        data?: Record<string, unknown>;
+      };
+      if (options.message) payload.message = options.message;
+      if (options.data) Object.assign(payload, options.data);
+    } else {
+      Object.assign(payload, dataOrOptions);
+    }
+  }
+
+  return c.json(payload, statusCode);
 }
 
 /**

@@ -11,7 +11,9 @@ export const user = sqliteTable("user", {
     .default(false)
     .notNull(),
   image: text("image"),
-  role: text("role", { enum: USER_ROLE_VALUES }).notNull(),
+  role: text("role", { enum: USER_ROLE_VALUES })
+    .default(USER_ROLE_VALUES[0])
+    .notNull(),
   phone: text("phone"),
   createdAt: integer("created_at", { mode: "timestamp" })
     .default(sql`CURRENT_TIMESTAMP`)

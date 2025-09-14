@@ -1,5 +1,3 @@
-// src/lib/responses.ts
-
 import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
 import { StatusCode, StatusPhrase } from "@/utils";
@@ -8,7 +6,9 @@ import { StatusCode, StatusPhrase } from "@/utils";
 
 export function safeError(error: unknown): string {
   if (error instanceof Error) return error.message;
+
   if (typeof error === "string") return error;
+
   if (typeof error === "object" && error !== null) {
     try {
       return JSON.stringify(error);
@@ -19,9 +19,8 @@ export function safeError(error: unknown): string {
   return String(error);
 }
 
-/**
- * Generic error response helper with optional extra fields (like details)
- */
+/** - Generic error response helper with optional extra fields (like details) */
+
 export function sendError(
   c: Context,
   message: string,
@@ -32,9 +31,8 @@ export function sendError(
   return c.json(payload, statusCode);
 }
 
-/**
- * Unauthorized access response
- */
+/** - Unauthorized access response */
+
 export function unauthorized(
   c: Context,
   message = StatusPhrase.UNAUTHORIZED,
@@ -43,9 +41,8 @@ export function unauthorized(
   return sendError(c, message, StatusCode.UNAUTHORIZED, extras);
 }
 
-/**
- * Forbidden action response
- */
+/** - Forbidden action response */
+
 export function forbidden(
   c: Context,
   message = StatusPhrase.FORBIDDEN,
@@ -54,45 +51,90 @@ export function forbidden(
   return sendError(c, message, StatusCode.FORBIDDEN, extras);
 }
 
-/**
- * Bad Request with optional details
- */
+/** - Bad Request with optional details */
+
 export function badRequest(
   c: Context,
-  message = StatusPhrase.BAD_REQUEST,
+  message?: string,
+  details?: unknown
+): Response;
+
+export function badRequest(
+  c: Context,
+  options: {
+    message?: string;
+    details?: unknown;
+    context?: Record<string, unknown>;
+  }
+): Response;
+
+export function badRequest(
+  c: Context,
+  messageOrOptions?:
+    | string
+    | {
+        message?: string;
+        details?: unknown;
+        context?: Record<string, unknown>;
+      },
   details?: unknown
 ): Response {
+  let message: string = StatusPhrase.BAD_REQUEST;
+  let payloadDetails: unknown;
+  let context: Record<string, unknown> | undefined;
+
+  if (typeof messageOrOptions === "string") {
+    message = messageOrOptions;
+    payloadDetails = details;
+  } else if (messageOrOptions && typeof messageOrOptions === "object") {
+    const opts = messageOrOptions;
+    if (opts.message) message = opts.message;
+    if (opts.details) payloadDetails = opts.details;
+    if (opts.context) context = opts.context;
+  }
+
+  // Optionally log context here if using pino or internal logger
+  if (context) {
+    console.warn("[BAD_REQUEST]", { message, context });
+  }
+
   return sendError(
     c,
     message,
     StatusCode.BAD_REQUEST,
-    details ? { details } : undefined
+    payloadDetails ? { details: payloadDetails } : undefined
   );
 }
 
-/**
- * Success response with optional data
- */
+/** - Success response with optional data */
+
 export function success(
   c: Context,
+
   data?: Record<string, unknown>,
+
   statusCode?: ContentfulStatusCode
 ): Response;
 
 export function success(
   c: Context,
+
   options: {
     message?: string;
+
     data?: Record<string, unknown>;
   },
+
   statusCode?: ContentfulStatusCode
 ): Response;
 
 export function success(
   c: Context,
+
   dataOrOptions?:
     | Record<string, unknown>
     | { message?: string; data?: Record<string, unknown> },
+
   statusCode: ContentfulStatusCode = StatusCode.OK
 ): Response {
   const payload: Record<string, unknown> = { success: true };
@@ -101,9 +143,12 @@ export function success(
     if ("message" in dataOrOptions || "data" in dataOrOptions) {
       const options = dataOrOptions as {
         message?: string;
+
         data?: Record<string, unknown>;
       };
+
       if (options.message) payload.message = options.message;
+
       if (options.data) Object.assign(payload, options.data);
     } else {
       Object.assign(payload, dataOrOptions);
@@ -113,16 +158,14 @@ export function success(
   return c.json(payload, statusCode);
 }
 
-/**
- * Created resource response
- */
+/** - Created resource response */
+
 export function created(c: Context, data?: Record<string, unknown>): Response {
   return success(c, data, StatusCode.CREATED);
 }
 
-/**
- * No Content response
- */
+/** - No Content response */
+
 export function noContent(c: Context): Response {
   return c.body(null, StatusCode.NO_CONTENT);
 }

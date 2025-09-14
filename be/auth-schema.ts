@@ -15,6 +15,7 @@ export const user = sqliteTable("user", {
     .defaultNow()
     .$onUpdate(() => /* @__PURE__ */ new Date())
     .notNull(),
+  role: text("role").default("tenant"),
 });
 
 export const session = sqliteTable("session", {

@@ -1,10 +1,11 @@
 import type { Context, Next } from "hono";
-import auth from "@/lib/auth-cli";
-import type { AppBindings, ExtendedUser } from "@/types/types";
+import { auth } from "@/lib/auth";
+import type { ExtendedUser } from "@/types/types";
 import { StatusCode, safeError, sendError, unauthorized } from "@/utils";
 
-const withAuth = () => async (c: Context<AppBindings>, next: Next) => {
+const withAuth = () => async (c: Context, next: Next) => {
   try {
+    // const auth = createAuth(db);
     const result = await auth.api.getSession({ headers: c.req.raw.headers });
 
     if (!result || !result.user || !result.session) {

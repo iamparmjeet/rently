@@ -25,7 +25,8 @@
       },
       "style": {
         "noNonNullAssertion": "warn",
-        "useConst": "error"
+        "useConst": "error",
+        "noProcessEnv": "error"
       },
       "performance": {
         "noDelete": "error"

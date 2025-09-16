@@ -4,6 +4,8 @@ export {
   badRequest,
   created,
   forbidden,
+  noContent,
+  notFound,
   safeError,
   sendError,
   success,

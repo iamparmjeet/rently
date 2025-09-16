@@ -73,6 +73,9 @@ wrangler.jsonc
 wrangler.json
 *wrangler.json
 *wrangler.jsonc
+secret
+secrets
+secrets*
 
 # Any other specific secret files
 secrets/

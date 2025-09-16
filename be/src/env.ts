@@ -3,7 +3,7 @@ import { z } from "zod";
 const EnvSchema = z
   .object({
     NODE_ENV: z.string().default("development"),
-    PORT: z.coerce.number().default(9999),
+    PORT: z.coerce.number().default(8787),
     LOG_LEVEL: z.enum([
       "fatal",
       "error",
@@ -15,10 +15,10 @@ const EnvSchema = z
     ]),
     LOCAL_APP: z.string(),
     PROD_APP: z.string(),
-    CF_DB_NAME: z.string(),
-    CF_D1_DB_ID: z.string(),
-    CF_ACCOUNT_ID: z.string(),
-    CF_TOKEN_ID: z.string(),
+    DB_NAME: z.string(),
+    DB_USER: z.string(),
+    DB_PASSWORD: z.string(),
+    DB_URL: z.string(),
     BETTER_AUTH_SECRET: z.string(),
     BETTER_AUTH_URL: z.string(),
     // Socials Providers
@@ -30,22 +30,13 @@ const EnvSchema = z
   })
   .superRefine((input, ctx) => {
     if (input.NODE_ENV === "production") {
-      if (!input.CF_ACCOUNT_ID) {
+      if (!input.DB_URL) {
         ctx.addIssue({
           code: z.ZodIssueCode.invalid_type,
           expected: "string",
           received: "undefined",
-          path: ["CF_ACCOUNT_ID"],
-          message: "CF_ACCOUNT_ID is required in production",
-        });
-      }
-      if (!input.CF_TOKEN_ID) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.invalid_type,
-          expected: "string",
-          received: "undefined",
-          path: ["CF_TOKEN_ID"],
-          message: "CF_TOKEN_ID is required in production",
+          path: ["DB_URL"],
+          message: "DB_URL is required in production",
         });
       }
     }

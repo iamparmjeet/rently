@@ -1,4 +1,17 @@
+import path from "node:path";
+import { config } from "dotenv";
+import { expand } from "dotenv-expand";
 import { z } from "zod";
+
+expand(
+  config({
+    path: path.resolve(
+      process.cwd(),
+      // biome-ignore lint/style/noProcessEnv: "Only Here"
+      process.env.NODE_ENV === "test" ? ".env.test" : ".env"
+    ),
+  })
+);
 
 const EnvSchema = z
   .object({
@@ -43,19 +56,33 @@ const EnvSchema = z
 
 export type Environment = z.infer<typeof EnvSchema>;
 
+// biome-ignore lint/style/noProcessEnv: "Only Here"
+const parsedEnv = EnvSchema.safeParse(process.env);
+
+if (!parsedEnv.success) {
+  const errorMessage = `❌ Invalid environment variables:\n${Object.entries(
+    parsedEnv.error.flatten().fieldErrors
+  )
+    .map(([key, errors]) => `${key}: ${errors.join(", ")}`)
+    .join("\n")}`;
+  throw new Error(errorMessage);
+}
+
+const env = parsedEnv.data;
+
 export function parseEnv(
   data: Record<string, string | undefined>
 ): Environment {
-  const { data: env, error } = EnvSchema.safeParse(data);
-
-  if (error) {
+  const result = EnvSchema.safeParse(data);
+  if (!result.success) {
     const errorMessage = `❌ Invalid env - ${Object.entries(
-      error.flatten().fieldErrors
+      result.error.flatten().fieldErrors
     )
-      .map(([key, errors]) => `${key}: ${errors.join(",")}`)
+      .map(([key, errors]) => `${key}: ${errors.join(", ")}`)
       .join(" | ")}`;
     throw new Error(errorMessage);
   }
-
-  return env;
+  return result.data;
 }
+
+export default env;

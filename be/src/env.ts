@@ -18,7 +18,6 @@ const EnvSchema = z
     DB_NAME: z.string(),
     DB_USER: z.string(),
     DB_PASSWORD: z.string(),
-    DB_URL: z.string(),
     BETTER_AUTH_SECRET: z.string(),
     BETTER_AUTH_URL: z.string(),
     // Socials Providers
@@ -30,13 +29,13 @@ const EnvSchema = z
   })
   .superRefine((input, ctx) => {
     if (input.NODE_ENV === "production") {
-      if (!input.DB_URL) {
+      if (!input.DB_PASSWORD) {
         ctx.addIssue({
           code: z.ZodIssueCode.invalid_type,
           expected: "string",
           received: "undefined",
-          path: ["DB_URL"],
-          message: "DB_URL is required in production",
+          path: ["DB_PASSWORD"],
+          message: "DB_PASSWORD is required in production",
         });
       }
     }

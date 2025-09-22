@@ -1,8 +1,5 @@
-include:
-  - path: docker-compose.yaml
-
 services:
   db:
     container_name: pg_db_local_rently
     ports:
-      - "5432:5432"
+      - "5433:5432"

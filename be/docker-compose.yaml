@@ -1,26 +1,23 @@
 services:
   db:
-    image: postgres:${POSTGRES_VERSION}
+    image: postgres:latest
+    container_name: pg_db_local_rently
     restart: on-failure
     environment:
+      POSTGRES_DB: ${DB_NAME}
       POSTGRES_USER: ${DB_USER}
       POSTGRES_PASSWORD: ${DB_PASSWORD}
-      POSTGRES_DB: ${DB_NAME}
     ports:
-      - "127.0.0.1:5432:5432"
+      - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
-      - ./postgres.conf:/etc/postgresql/postgresql.conf
-    command: postgres -c config_file=/etc/postgresql/postgresql.conf
     networks:
       - app-network
-    secrets:
-      - DB_PASSWORD
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${DB_USER} -d ${DB_NAME}"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 2
 
 volumes:
   postgres_data:

@@ -1,1 +1,0 @@
-### "rently Be typesafe App"

@@ -1,5 +1,4 @@
 import { type Context, Hono } from "hono";
-import {db} from "@/db";
 import { parseEnv } from "@/env";
 import { notFound, onError, pinoLogger } from "@/middleware";
 import type { AppBindings } from "@/types/types";

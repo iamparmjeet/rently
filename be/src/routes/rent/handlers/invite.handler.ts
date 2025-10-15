@@ -1,9 +1,9 @@
 import { eq } from "drizzle-orm";
-import type { Context } from "hono";
 import z from "zod";
 import { USER_ROLES } from "@/constants/user-roles";
 import { tenantInvites, user } from "@/db/schema";
 import type { NewTenantInvite } from "@/db/types";
+import type { Ctx } from "@/types/types";
 import {
   addDays,
   badRequest,
@@ -21,7 +21,7 @@ const InviteRequestSchema = z.object({
   email: z.email(),
 });
 
-export async function handleCreateInvite(c: Context) {
+export async function handleCreateInvite(c: Ctx) {
   const user = c.get("user"); // Here  user is coming from withAuthMiddleware
 
   if (
@@ -68,7 +68,7 @@ export async function handleCreateInvite(c: Context) {
   }
 }
 
-export const handleAcceptInvite = async (c: Context) => {
+export const handleAcceptInvite = async (c: Ctx) => {
   const body = await c.req.json();
   const { token, ...userData } = body; // User provides personal details + token
 

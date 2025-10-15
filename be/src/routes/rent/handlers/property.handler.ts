@@ -1,16 +1,17 @@
 import { eq } from "drizzle-orm";
-import type { Context } from "hono";
-import { db } from "@/db";
 import { properties } from "@/db/schema";
 import { CreatePropertySchema, UpdatePropertySchema } from "@/types/rent-types";
+import type { Ctx } from "@/types/types";
 import { badRequest, notFound, success } from "@/utils";
 
 // Helpers Function
 
 export const isOwner = async (
+  c: Ctx,
   userId: string,
   propertyId: string
 ): Promise<boolean> => {
+  const db = c.get("db");
   const found = await db.query.properties.findFirst({
     where: (prop, { eq, and }) =>
       and(eq(prop.id, propertyId), eq(prop.ownerId, userId)),
@@ -20,8 +21,10 @@ export const isOwner = async (
 
 // 1) Create Property
 
-export const create = async (c: Context) => {
+export const create = async (c: Ctx) => {
+  const db = c.get("db");
   const user = c.get("user");
+
   const result = CreatePropertySchema.safeParse(await c.req.json());
   if (!result.success) {
     console.error(result.error);
@@ -50,9 +53,9 @@ export const create = async (c: Context) => {
 
 // Get All
 
-export const getAll = async (c: Context) => {
+export const getAll = async (c: Ctx) => {
+  const db = c.get("db");
   const user = c.get("user");
-
   try {
     const list = await db.query.properties.findMany({
       where: (prop, { eq }) => eq(prop.ownerId, user.id),
@@ -68,8 +71,9 @@ export const getAll = async (c: Context) => {
 // 3) Get Single Property By Id
 //
 
-export const getById = async (c: Context) => {
+export const getById = async (c: Ctx) => {
   const propertyId = c.req.param("id");
+  const db = c.get("db");
 
   const property = await db.query.properties.findFirst({
     where: (prop, { eq }) => eq(prop.id, propertyId),
@@ -82,7 +86,7 @@ export const getById = async (c: Context) => {
 
 // 4) Update Property
 
-export const update = async (c: Context) => {
+export const update = async (c: Ctx) => {
   const propertyId = c.req.param("id");
   const result = UpdatePropertySchema.safeParse(await c.req.json());
 
@@ -91,6 +95,7 @@ export const update = async (c: Context) => {
   }
 
   const updates = result.data;
+  const db = c.get("db");
 
   try {
     const [updated] = await db
@@ -110,8 +115,9 @@ export const update = async (c: Context) => {
 
 // 5) Delete Property
 
-export const remove = async (c: Context) => {
+export const remove = async (c: Ctx) => {
   const propertyId = c.req.param("id");
+  const db = c.get("db");
 
   try {
     await db.delete(properties).where(eq(properties.id, propertyId));

@@ -1,6 +1,7 @@
 import { boolean, pgTable, real, text, timestamp } from "drizzle-orm/pg-core";
 import {
   INVITE_STATUS_VALUES,
+  INVITE_STATUSES,
   LEASE_STATUS_VALUES,
   PAYMENT_TYPE_VALUES,
   PROPERTY_TYPES_VALUES,
@@ -132,7 +133,7 @@ export const tenantInvites = pgTable("tenant_invites", {
     .references(() => user.id),
   status: text("status", {
     enum: INVITE_STATUS_VALUES,
-  }).default("pending"),
+  }).default(INVITE_STATUSES.PENDING),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
     .defaultNow()

@@ -63,19 +63,29 @@ export const UpdateUnitSchema = UnitSchema.partial().pick({
   status: true,
 });
 
-export const LeaseSchema = z.object({
-  id: z.uuidv7(),
-  tenantId: z.uuidv7(),
-  unitId: z.number().min(1, "Unit ID must be at least 1"),
-  startDate: z.date(),
-  endDate: z.date().min(new Date(), "End date must be after start date"),
-  rent: z.number().positive("Rent must be a positive number"),
-  deposit: z.number().optional(),
-  status: z.enum(LEASE_STATUS_VALUES),
-  referenceId: z.uuidv7(),
-  createdAt: z.date(),
-  updatedAt: z.date(),
-});
+export const LeaseSchema = z
+  .object({
+    id: z.uuidv7(),
+    tenantId: z.uuidv7(),
+    unitId: z.number().min(1, "Unit ID must be at least 1"),
+    startDate: z.date(),
+    endDate: z.date().optional(),
+    rent: z.number().positive("Rent must be a positive number"),
+    deposit: z.number().optional(),
+    status: z.enum(LEASE_STATUS_VALUES),
+    referenceId: z.uuidv7(),
+    createdAt: z.date(),
+    updatedAt: z.date(),
+  })
+  .superRefine((lease, ctx) => {
+    if (lease.endDate && lease.startDate && lease.endDate <= lease.startDate) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "End date must be after start date",
+        path: ["endDate"],
+      });
+    }
+  });
 
 export const CreateLeaseSchema = LeaseSchema.omit({
   id: true,
@@ -107,7 +117,7 @@ export const UtilitySchema = z.object({
     .default(0),
   currentReading: z.number().default(0),
   fixedCharge: z.number().optional().default(0),
-  totalAmount: z.number(),
+  totalAmount: z.number().optional(),
   isPaid: z.boolean().default(false),
   createdAt: z.date(),
   updatedAt: z.date(),

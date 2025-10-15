@@ -38,7 +38,7 @@ export const plans = pgTable("plans", {
 
 export const subscriptions = pgTable("subscriptions", {
   id: text("id").primaryKey().$defaultFn(generateUUID),
-  ownerId: text("owner_id")
+  userId: text("user_id")
     .references(() => user.id)
     .notNull(),
   planId: text("plan_id")
@@ -73,8 +73,13 @@ export const subscriptions = pgTable("subscriptions", {
 
 export const invoices = pgTable("invoices", {
   id: text("id").primaryKey().$defaultFn(generateUUID),
-  subscriptionId: text("subscription_id").references(() => subscriptions.id),
-  ownerId: text("owner_id").references(() => user.id),
+  subscriptionId: text("subscription_id").references(() => subscriptions.id, {
+    onDelete: "cascade",
+  }),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id, { onDelete: "cascade" })
+    .$type<string>(),
   amount: real("amount").notNull(),
   currency: text("currency").default(CURRENCY_TYPES.INR),
   periodStart: text("period_start").notNull(),

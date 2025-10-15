@@ -1,9 +1,9 @@
 import { type Context, Hono } from "hono";
 import { parseEnv } from "@/env";
-import { notFound, onError, pinoLogger } from "@/middleware";
+import { auth } from "@/lib/auth";
+import { dbMiddleware, notFound, onError, pinoLogger } from "@/middleware";
 import type { AppBindings } from "@/types/types";
 import { serveEmojiFavicon } from "@/utils";
-import { auth } from "./auth";
 
 export function createRouter() {
   return new Hono<AppBindings>({
@@ -20,6 +20,7 @@ export default function createApp() {
   });
 
   app.use(pinoLogger());
+  app.use(dbMiddleware);
   app.use(serveEmojiFavicon("⛳"));
 
   app.on(["POST", "GET"], "/api/auth/*", (c: Context) => {

@@ -1,13 +1,15 @@
+import { eq } from "drizzle-orm";
 import type { Context } from "hono";
 import z from "zod";
 import { USER_ROLES } from "@/constants/user-roles";
-import { tenantInvites } from "@/db/schema";
+import { tenantInvites, user } from "@/db/schema";
 import type { NewTenantInvite } from "@/db/types";
 import {
   addDays,
   badRequest,
   forbidden,
   generateUUID,
+  notFound,
   now,
   StatusCode,
   safeError,
@@ -65,3 +67,42 @@ export async function handleCreateInvite(c: Context) {
     );
   }
 }
+
+export const handleAcceptInvite = async (c: Context) => {
+  const body = await c.req.json();
+  const { token, ...userData } = body; // User provides personal details + token
+
+  const db = c.get("db");
+
+  // Verify token exists and is valid
+  const invite = await db.query.tenantInvites.findFirst({
+    where: (inv, { eq, and, gt }) =>
+      and(
+        eq(inv.token, token),
+        eq(inv.status, "pending"),
+        gt(inv.expiresAt, new Date())
+      ),
+  });
+
+  if (!invite) {
+    return notFound(c, "Invalid or expired invitation");
+  }
+
+  // Create user with tenant role
+  const [newUser] = await db
+    .insert(user)
+    .values({
+      ...userData,
+      role: USER_ROLES.TENANT,
+      emailVerified: true,
+    })
+    .returning();
+
+  // Update invite status
+  await db
+    .update(tenantInvites)
+    .set({ status: "accepted" })
+    .where(eq(tenantInvites.id, invite.id));
+
+  return success(c, { user: newUser });
+};

@@ -4,6 +4,7 @@ import { openAPI } from "better-auth/plugins";
 import { db } from "@/db";
 import { account, session, user, verification } from "@/db/schema";
 import env from "@/env";
+import { USER_ROLE_VALUES } from "@/constants/user-roles";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -16,7 +17,6 @@ export const auth = betterAuth({
     },
   }),
   providers: {
-    // 👇 Explicit credentials provider definition
     credentials: {
       enabled: true,
     },
@@ -34,7 +34,7 @@ export const auth = betterAuth({
       role: {
         type: "string",
         required: false,
-        defaultValue: "tenant",
+        defaultValue: USER_ROLE_VALUES[1],
       },
     },
   },

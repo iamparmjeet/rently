@@ -9,7 +9,7 @@ export const user = pgTable("user", {
   emailVerified: boolean("email_verified").default(false).notNull(),
   image: text("image"),
   role: text("role", { enum: USER_ROLE_VALUES })
-    .default(USER_ROLE_VALUES[0])
+    .default(USER_ROLE_VALUES[1])
     .notNull(),
   phone: text("phone"),
   createdAt: timestamp("created_at").defaultNow().notNull(),

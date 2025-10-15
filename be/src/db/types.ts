@@ -3,6 +3,7 @@ import type {
   account,
   leases,
   payments,
+  plans,
   properties,
   referrers,
   session,
@@ -35,3 +36,7 @@ export type NewUtility = InferInsertModel<typeof utilities>;
 export type NewPayment = InferInsertModel<typeof payments>;
 export type NewReferrer = InferInsertModel<typeof referrers>;
 export type NewTenantInvite = InferInsertModel<typeof tenantInvites>;
+
+// for Subscriptions
+export type Plan = InferSelectModel<typeof plans>;
+export type NewPlan = InferInsertModel<typeof plans>;

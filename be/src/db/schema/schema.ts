@@ -11,6 +11,9 @@ import {
 } from "@/constants/rent-constants";
 import { generateUUID } from "@/utils";
 import { user } from "./auth";
+import { subscriptions } from "./subscription";
+
+// ******* Owner Related Table like Properties, Units, Leases ***
 
 export const properties = pgTable("properties", {
   id: text("id").primaryKey().notNull().$defaultFn(generateUUID),
@@ -68,6 +71,8 @@ export const leases = pgTable("leases", {
     .$onUpdate(() => new Date()),
 });
 
+// ****** Accounting **************
+
 export const utilities = pgTable("utilities", {
   id: text("id").primaryKey().$defaultFn(generateUUID),
   leaseId: text("lease_id")
@@ -110,6 +115,8 @@ export const payments = pgTable("payments", {
     .$onUpdate(() => new Date()),
 });
 
+// ******* Tenancy *********
+
 export const referrers = pgTable("referrers", {
   id: text("id").primaryKey().$defaultFn(generateUUID),
   referredUserId: text("referred_user_id")
@@ -139,4 +146,26 @@ export const tenantInvites = pgTable("tenant_invites", {
     .defaultNow()
     .notNull()
     .$onUpdate(() => new Date()),
+});
+
+export const tenantProfiles = pgTable("tenant_profiles", {
+  id: text("id").primaryKey().$defaultFn(generateUUID),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id),
+  uidNumber: text("uid_number").unique(),
+  emergencyContact: text("emergency_contact"),
+  address: text("address"),
+  image: text("url"),
+});
+
+export const ownerProfiles = pgTable("owner_profiles", {
+  id: text("id").primaryKey().$defaultFn(generateUUID),
+  userId: text("user_id")
+    .notNull()
+    .references(() => user.id),
+  companyName: text("company_name").notNull(),
+  address: text("address"),
+  gstNumber: text("gst_number"),
+  subscriptionId: text("subscription_id").references(() => subscriptions.id),
 });

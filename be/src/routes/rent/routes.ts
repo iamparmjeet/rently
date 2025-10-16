@@ -8,6 +8,7 @@ import {
   propertyHandlers,
   unitHandlers,
   utilityHandlers,
+  paymentsHandlers,
 } from "./handlers";
 
 const router = createRouter();
@@ -49,5 +50,10 @@ router.put("/utility/:id", utilityHandlers.update);
 router.delete("/utility", utilityHandlers.remove);
 
 // Payments
+router.post("/payments", paymentsHandlers.create);
+router.get("/payments", paymentsHandlers.getAll);
+router.get("/payments/:id", paymentsHandlers.getById);
+router.put("/payments/:id", paymentsHandlers.update);
+router.delete("/payments/:id", paymentsHandlers.remove);
 
 export default router;

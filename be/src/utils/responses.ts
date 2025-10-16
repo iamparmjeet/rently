@@ -1,5 +1,5 @@
-import type { Context } from "hono";
 import type { ContentfulStatusCode } from "hono/utils/http-status";
+import type { Ctx } from "@/types/types";
 import { StatusCode, StatusPhrase } from "@/utils";
 
 // safe sendError
@@ -22,7 +22,7 @@ export function safeError(error: unknown): string {
 /** - Generic error response helper with optional extra fields (like details) */
 
 export function sendError(
-  c: Context,
+  c: Ctx,
   message: string,
   statusCode: ContentfulStatusCode,
   extras?: Record<string, unknown>
@@ -34,7 +34,7 @@ export function sendError(
 /** - Unauthorized access response */
 
 export function unauthorized(
-  c: Context,
+  c: Ctx,
   message = StatusPhrase.UNAUTHORIZED,
   extras?: Record<string, unknown>
 ): Response {
@@ -44,23 +44,68 @@ export function unauthorized(
 /** - Forbidden action response */
 
 export function forbidden(
-  c: Context,
-  message = StatusPhrase.FORBIDDEN,
-  extras?: Record<string, unknown>
+  c: Ctx,
+  message?: string,
+  details?: unknown
+): Response;
+
+export function forbidden(
+  c: Ctx,
+  options: {
+    message?: string;
+    details?: unknown;
+    context?: Record<string, unknown>;
+  }
+): Response;
+
+export function forbidden(
+  c: Ctx,
+  messageOrOptions?:
+    | string
+    | {
+        message?: string;
+        details?: unknown;
+        context?: Record<string, unknown>;
+      },
+  details?: unknown
 ): Response {
-  return sendError(c, message, StatusCode.FORBIDDEN, extras);
+  let message: string = StatusPhrase.FORBIDDEN;
+  let payloadDetails: unknown;
+  let context: Record<string, unknown> | undefined;
+
+  if (typeof messageOrOptions === "string") {
+    message = messageOrOptions;
+    payloadDetails = details;
+  } else if (messageOrOptions && typeof messageOrOptions === "object") {
+    const opts = messageOrOptions;
+    if (opts.message) message = opts.message;
+    if (opts.details) payloadDetails = opts.details;
+    if (opts.context) context = opts.context;
+  }
+
+  // Optional contextual logging
+  if (context) {
+    console.warn("[FORBIDDEN]", { message, context });
+  }
+
+  return sendError(
+    c,
+    message,
+    StatusCode.FORBIDDEN,
+    payloadDetails ? { details: payloadDetails } : undefined
+  );
 }
 
 /** - Bad Request with optional details */
 
 export function badRequest(
-  c: Context,
+  c: Ctx,
   message?: string,
   details?: unknown
 ): Response;
 
 export function badRequest(
-  c: Context,
+  c: Ctx,
   options: {
     message?: string;
     details?: unknown;
@@ -69,7 +114,7 @@ export function badRequest(
 ): Response;
 
 export function badRequest(
-  c: Context,
+  c: Ctx,
   messageOrOptions?:
     | string
     | {
@@ -109,7 +154,7 @@ export function badRequest(
 /** - Success response with optional data */
 
 export function success(
-  c: Context,
+  c: Ctx,
 
   data?: Record<string, unknown>,
 
@@ -117,7 +162,7 @@ export function success(
 ): Response;
 
 export function success(
-  c: Context,
+  c: Ctx,
 
   options: {
     message?: string;
@@ -129,7 +174,7 @@ export function success(
 ): Response;
 
 export function success(
-  c: Context,
+  c: Ctx,
 
   dataOrOptions?:
     | Record<string, unknown>
@@ -160,27 +205,23 @@ export function success(
 
 /** - Created resource response */
 
-export function created(c: Context, data?: Record<string, unknown>): Response {
+export function created(c: Ctx, data?: Record<string, unknown>): Response {
   return success(c, data, StatusCode.CREATED);
 }
 
 /** - No Content response */
 
-export function noContent(c: Context): Response {
+export function noContent(c: Ctx): Response {
   return c.body(null, StatusCode.NO_CONTENT);
 }
 
 /**
  * Not Found response with optional structured input like success()
  */
-export function notFound(
-  c: Context,
-  message?: string,
-  details?: unknown
-): Response;
+export function notFound(c: Ctx, message?: string, details?: unknown): Response;
 
 export function notFound(
-  c: Context,
+  c: Ctx,
   options: {
     message?: string;
     details?: unknown;
@@ -189,7 +230,7 @@ export function notFound(
 ): Response;
 
 export function notFound(
-  c: Context,
+  c: Ctx,
   messageOrOptions?:
     | string
     | {

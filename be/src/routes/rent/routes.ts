@@ -7,6 +7,7 @@ import {
   leaseHandlers,
   propertyHandlers,
   unitHandlers,
+  utilityHandlers,
 } from "./handlers";
 
 const router = createRouter();
@@ -41,6 +42,12 @@ router.put("/units/:id", unitHandlers.update);
 router.delete("/units/:id", unitHandlers.remove);
 
 // Utilities
+router.post("/utility", utilityHandlers.create);
+router.get("/utility/:id", utilityHandlers.getAll);
+router.get("/utility/:id", utilityHandlers.getById);
+router.put("/utility/:id", utilityHandlers.update);
+router.delete("/utility", utilityHandlers.remove);
+
 // Payments
 
 export default router;

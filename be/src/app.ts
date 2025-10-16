@@ -11,5 +11,6 @@ routes.forEach((route) => {
 });
 
 export type AppType = (typeof routes)[number];
+export type RentlyAPI = typeof app;
 
 export default app;

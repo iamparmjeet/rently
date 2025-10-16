@@ -8,7 +8,7 @@ import {
   utilities,
 } from "@/db/schema";
 
-// 1️⃣ Property ↔ Owner (user)
+// 1) Property ↔ Owner (user)
 export const propertyRelations = relations(properties, ({ one, many }) => ({
   owner: one(user, {
     fields: [properties.ownerId],
@@ -17,7 +17,7 @@ export const propertyRelations = relations(properties, ({ one, many }) => ({
   units: many(units),
 }));
 
-// 2️⃣ Unit ↔ Property & Leases
+// 2️) Unit ↔ Property & Leases
 export const unitRelations = relations(units, ({ one, many }) => ({
   property: one(properties, {
     fields: [units.propertyId],
@@ -26,7 +26,7 @@ export const unitRelations = relations(units, ({ one, many }) => ({
   leases: many(leases),
 }));
 
-// 3️⃣ Lease ↔ Unit & Tenant/User
+// 3️) Lease ↔ Unit & Tenant/User
 export const leaseRelations = relations(leases, ({ one }) => ({
   unit: one(units, {
     fields: [leases.unitId],

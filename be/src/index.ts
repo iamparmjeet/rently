@@ -9,3 +9,5 @@ serve({
   fetch: app.fetch,
   port,
 });
+
+export type { RentlyAPI } from "./app";

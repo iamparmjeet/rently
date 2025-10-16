@@ -1,7 +1,14 @@
 {
   "compilerOptions": {
+    "composite": true,
+    "declaration": true,
+    "emitDeclarationOnly": true,
+    "declarationMap": true,
+    "outDir": "./dist",
+    "rootDir": "./src",
     "target": "ESNext",
     "module": "ESNext",
+    "esModuleInterop": true,
     "moduleResolution": "Bundler",
     "paths": {
       "@/*": ["./src/*"]
@@ -11,5 +18,6 @@
     "lib": ["ESNext"],
     "jsx": "react-jsx",
     "jsxImportSource": "hono/jsx"
-  }
+  },
+  "include": ["src"]
 }

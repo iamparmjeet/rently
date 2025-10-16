@@ -57,7 +57,7 @@ export async function update(c: Ctx) {
   const db = c.get("db");
   const owner = c.get("user");
   const payload = await c.req.json();
-  const leaseId = c.req.param("leaseId");
+  const leaseId = c.req.param("id");
 
   const parsed = UpdateLeaseSchema.safeParse(payload);
   if (!parsed.success) return badRequest(c, "Invalid Lease Data", parsed.error);
@@ -89,7 +89,7 @@ export async function update(c: Ctx) {
 export async function getbyId(c: Ctx) {
   const db = c.get("db");
   const owner = c.get("user");
-  const leaseId = c.req.param("leaseId");
+  const leaseId = c.req.param("id");
 
   try {
     const lease = await leaseQueries.getOwnerLeaseById(db, owner.id, leaseId);
@@ -124,7 +124,7 @@ export async function getAll(c: Ctx) {
 export async function remove(c: Ctx) {
   const db = c.get("db");
   const owner = c.get("user");
-  const leaseId = c.req.param("leaseId");
+  const leaseId = c.req.param("id");
 
   const ownsLease = await isLeaseOwner(c, owner.id, leaseId);
   if (!ownsLease) return forbidden(c, "You don't own this lease");

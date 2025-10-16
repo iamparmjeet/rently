@@ -1,6 +1,6 @@
-import { and, eq } from "drizzle-orm";
+import { eq } from "drizzle-orm";
 import { LEASE_STATUSES, UNIT_STATUSES } from "@/constants/rent-constants";
-import { leases, properties, units, user } from "@/db/schema";
+import { leases, units } from "@/db/schema";
 import {
   isLeaseOwner,
   isUnitOwner,

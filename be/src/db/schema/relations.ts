@@ -1,5 +1,5 @@
 import { relations } from "drizzle-orm";
-import { leases, properties, units, user } from "./schema";
+import { leases, properties, units, user, utilities } from "@/db/schema";
 
 // 1️⃣ Property ↔ Owner (user)
 export const propertyRelations = relations(properties, ({ one, many }) => ({
@@ -28,5 +28,12 @@ export const leaseRelations = relations(leases, ({ one }) => ({
   tenant: one(user, {
     fields: [leases.tenantId],
     references: [user.id],
+  }),
+}));
+
+export const utilityRelations = relations(utilities, ({ one }) => ({
+  lease: one(leases, {
+    fields: [utilities.leaseId],
+    references: [leases.id],
   }),
 }));

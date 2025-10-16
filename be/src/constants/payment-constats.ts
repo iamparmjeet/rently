@@ -83,3 +83,6 @@ export type PAYMENT_STATUS =
     priceTwoYear: 1199 * 24 * 0.8,
   },
 ];
+
+export const RATEPERUNIT = 9;
+export const FIXEDCHARGE = 100;

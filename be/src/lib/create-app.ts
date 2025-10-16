@@ -1,5 +1,6 @@
 import { type Context, Hono } from "hono";
-import { parseEnv } from "@/env";
+import { cors } from "hono/cors";
+import env, { parseEnv } from "@/env";
 import { auth } from "@/lib/auth";
 import { dbMiddleware, notFound, onError, pinoLogger } from "@/middleware";
 import type { AppBindings } from "@/types/types";
@@ -22,6 +23,13 @@ export default function createApp() {
   app.use(pinoLogger());
   app.use(dbMiddleware);
   app.use(serveEmojiFavicon("⛳"));
+  app.use(
+    "*",
+    cors({
+      origin: [env.LOCAL_APP, env.PROD_APP],
+      credentials: true,
+    })
+  );
 
   app.on(["POST", "GET"], "/api/auth/*", (c: Context) => {
     // const auth = createAuth();

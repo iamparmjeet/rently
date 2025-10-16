@@ -1,1 +1,1 @@
-export * as subscriptionHandler from "./subscriptions.routes";
+export * as subscriptionHandler from "./subscriptions.handler";

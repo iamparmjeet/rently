@@ -19,7 +19,7 @@ export const properties = pgTable("properties", {
   id: text("id").primaryKey().notNull().$defaultFn(generateUUID),
   ownerId: text("owner_id")
     .notNull()
-    .references(() => user.id),
+    .references(() => user.id, { onDelete: "cascade" }),
   name: text("name").notNull(),
   address: text("address").notNull(),
   type: text("type", { enum: PROPERTY_TYPES_VALUES }).notNull(),
@@ -34,7 +34,7 @@ export const units = pgTable("units", {
   id: text("id").primaryKey().$defaultFn(generateUUID),
   propertyId: text("property_id")
     .notNull()
-    .references(() => properties.id),
+    .references(() => properties.id, { onDelete: "cascade" }),
   unitNumber: text("unit_number").notNull(),
   type: text("type", { enum: UNIT_TYPES_VALUES }).notNull(),
   area: real("area"),
@@ -52,10 +52,10 @@ export const leases = pgTable("leases", {
   id: text("id").primaryKey().$defaultFn(generateUUID),
   unitId: text("unit_id")
     .notNull()
-    .references(() => units.id),
+    .references(() => units.id, { onDelete: "cascade" }),
   tenantId: text("tenant_id")
     .notNull()
-    .references(() => user.id),
+    .references(() => user.id, { onDelete: "cascade" }),
   startDate: timestamp("start_date").notNull(),
   endDate: timestamp("end_date"),
   rent: real("rent").notNull(),
@@ -77,7 +77,7 @@ export const utilities = pgTable("utilities", {
   id: text("id").primaryKey().$defaultFn(generateUUID),
   leaseId: text("lease_id")
     .notNull()
-    .references(() => leases.id),
+    .references(() => leases.id, { onDelete: "cascade" }),
   utilityType: text("utility_type", {
     enum: UTILITY_TYPE_VALUES,
   }).notNull(),
@@ -100,7 +100,7 @@ export const payments = pgTable("payments", {
   id: text("id").primaryKey().$defaultFn(generateUUID),
   leaseId: text("lease_id")
     .notNull()
-    .references(() => leases.id),
+    .references(() => leases.id, { onDelete: "cascade" }),
   amount: real("amount").notNull(),
   paymentDate: timestamp("payment_date").notNull(),
   type: text("type", {
@@ -121,7 +121,7 @@ export const referrers = pgTable("referrers", {
   id: text("id").primaryKey().$defaultFn(generateUUID),
   referredUserId: text("referred_user_id")
     .notNull()
-    .references(() => user.id),
+    .references(() => user.id, { onDelete: "cascade" }),
   note: text("note"),
   createdAt: timestamp("created_at").defaultNow().notNull(),
   updatedAt: timestamp("updated_at")
@@ -152,7 +152,7 @@ export const tenantProfiles = pgTable("tenant_profiles", {
   id: text("id").primaryKey().$defaultFn(generateUUID),
   userId: text("user_id")
     .notNull()
-    .references(() => user.id),
+    .references(() => user.id, { onDelete: "cascade" }),
   uidNumber: text("uid_number").unique(),
   emergencyContact: text("emergency_contact"),
   address: text("address"),
@@ -163,7 +163,7 @@ export const ownerProfiles = pgTable("owner_profiles", {
   id: text("id").primaryKey().$defaultFn(generateUUID),
   userId: text("user_id")
     .notNull()
-    .references(() => user.id),
+    .references(() => user.id, { onDelete: "cascade" }),
   companyName: text("company_name").notNull(),
   address: text("address"),
   gstNumber: text("gst_number"),

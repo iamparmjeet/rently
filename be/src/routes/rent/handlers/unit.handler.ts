@@ -4,13 +4,20 @@ import { properties, units } from "@/db/schema";
 import { isPropertyOwner, isUnitOwner } from "@/routes/helpers/routes.helper";
 import { CreateUnitSchmea, UpdateUnitSchema } from "@/types/rent-types";
 import type { Ctx } from "@/types/types";
-import { badRequest, forbidden, notFound, success } from "@/utils";
+import {
+  badRequest,
+  forbidden,
+  notFound,
+  safeHandler,
+  safeJson,
+  success,
+} from "@/utils";
 
 //create
-export async function create(c: Ctx) {
+export const create = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
-  const payload = await c.req.json();
+  const payload = await safeJson(c);
 
   const parsed = CreateUnitSchmea.safeParse(payload);
   if (!parsed.success) return badRequest(c, "Invalid Data", parsed.error);
@@ -34,15 +41,14 @@ export async function create(c: Ctx) {
     console.error(error);
     return badRequest(c, "Failed to create unit");
   }
-}
+});
 
 // update
-
-export async function update(c: Ctx) {
+export const update = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
   const unitId = c.req.param("id");
-  const payload = await c.req.json();
+  const payload = await safeJson(c);
 
   const parsed = UpdateUnitSchema.safeParse(payload);
   if (!parsed.success) return badRequest(c, "Invalid Data", parsed.error);
@@ -68,11 +74,10 @@ export async function update(c: Ctx) {
     console.error("Unit Update Error", error);
     return badRequest(c, "failed to Update unit", error);
   }
-}
+});
 
 // getbyId
-
-export async function getById(c: Ctx) {
+export const getById = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
   const unitId = c.req.param("id");
@@ -99,10 +104,10 @@ export async function getById(c: Ctx) {
     console.error("Unit Get Error", error);
     return badRequest(c, "failed to get unit", error);
   }
-}
-// getAll
+});
 
-export async function getAll(c: Ctx) {
+// getAll
+export const getAll = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
 
@@ -129,11 +134,10 @@ export async function getAll(c: Ctx) {
     console.error("Error Fetching units", error);
     return badRequest(c, "failed to fetch units", error);
   }
-}
+});
 
 // remove
-
-export async function remove(c: Ctx) {
+export const remove = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
   const unitId = c.req.param("id");
@@ -148,4 +152,4 @@ export async function remove(c: Ctx) {
     console.error("Unit Delete Error", error);
     return badRequest(c, "failed to delete unit", error);
   }
-}
+});

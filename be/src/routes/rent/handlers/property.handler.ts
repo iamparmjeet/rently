@@ -3,15 +3,23 @@ import { properties } from "@/db/schema";
 import { isPropertyOwner } from "@/routes/helpers/routes.helper";
 import { CreatePropertySchema, UpdatePropertySchema } from "@/types/rent-types";
 import type { Ctx } from "@/types/types";
-import { badRequest, forbidden, notFound, success } from "@/utils";
+import {
+  badRequest,
+  forbidden,
+  notFound,
+  safeHandler,
+  safeJson,
+  success,
+} from "@/utils";
 
 // 1) Create Property
 
-export const create = async (c: Ctx) => {
+export const create = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const user = c.get("user");
+  const paylaod = await safeJson(c);
 
-  const result = CreatePropertySchema.safeParse(await c.req.json());
+  const result = CreatePropertySchema.safeParse(paylaod);
   if (!result.success) {
     console.error(result.error);
     return badRequest(c);
@@ -35,9 +43,10 @@ export const create = async (c: Ctx) => {
     console.error("Property Create Error", err);
     return badRequest(c, "Failed to Create Property", err);
   }
-}; // 2) Get All
+});
 
-export const getAll = async (c: Ctx) => {
+// 2) Get All
+export const getAll = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const user = c.get("user");
 
@@ -51,12 +60,10 @@ export const getAll = async (c: Ctx) => {
     console.error("Property List error", err);
     return badRequest(c, "Failed to Fetch Properties", err);
   }
-};
+});
 
 // 3) Get Single Property By Id
-//
-
-export const getById = async (c: Ctx) => {
+export const getById = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const user = c.get("user");
   const propertyId = c.req.param("id");
@@ -71,15 +78,16 @@ export const getById = async (c: Ctx) => {
   if (!property) return notFound(c, "Property Not Found");
 
   return success(c, { property });
-};
+});
 
 // 4) Update Property
-
-export const update = async (c: Ctx) => {
+export const update = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const user = c.get("user");
   const propertyId = c.req.param("id");
-  const result = UpdatePropertySchema.safeParse(await c.req.json());
+  const payload = await safeJson(c);
+
+  const result = UpdatePropertySchema.safeParse(payload);
 
   if (!result.success) {
     return badRequest(c, "Validation Failed", result.error);
@@ -104,11 +112,10 @@ export const update = async (c: Ctx) => {
     console.error("Error while Updating", err);
     return badRequest(c, "Updation Failed", err);
   }
-};
+});
 
 // 5) Delete Property
-
-export const remove = async (c: Ctx) => {
+export const remove = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const user = c.get("user");
   const propertyId = c.req.param("id");
@@ -123,4 +130,4 @@ export const remove = async (c: Ctx) => {
     console.error("Delete Error", err);
     return badRequest(c, "Deletion Failed", err);
   }
-};
+});

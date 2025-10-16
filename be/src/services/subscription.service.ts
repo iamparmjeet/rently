@@ -1,9 +1,9 @@
-import { eq } from "drizzle-orm";
+import { eq, lt } from "drizzle-orm";
 import {
   BILLING_INTERVAL,
   PAYMENT_STATUS,
   PLAN_STATUS,
-} from "@/constants/payment-constats";
+} from "@/constants/payment-constants";
 import type { Database } from "@/db";
 import { invoices, subscriptions } from "@/db/schema";
 import type { Plan } from "@/db/types";
@@ -19,6 +19,11 @@ export class SubscriptionService {
     if (!basic) throw new Error("Missing Basic Plan");
 
     const trialEndsAt = addMonths(new Date(), 2);
+
+    await this.db
+      .update(subscriptions)
+      .set({ expired: true })
+      .where(lt(subscriptions.trialEndsAt, new Date()));
 
     return this.db.insert(subscriptions).values({
       userId,

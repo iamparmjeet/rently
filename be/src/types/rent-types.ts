@@ -146,7 +146,7 @@ export const PaymentSchema = z.object({
   id: z.uuid(),
   leaseId: z.uuid(),
   amount: z.number().positive(),
-  paymentDate: z.number(),
+  paymentDate: z.date(),
   type: z.enum(PAYMENT_TYPE_VALUES),
   description: z.string().optional().nullable(),
   utilityId: z.uuid().optional().nullable(),
@@ -211,4 +211,12 @@ export const UpdateInviteSchema = TenantInviteSchema.partial().pick({
   invitedById: true,
   expiresAt: true,
   status: true,
+});
+
+export const AcceptInviteSchema = z.object({
+  token: z.string().uuid(),
+  name: z.string().min(1),
+  email: z.string().email(),
+  phone: z.string().optional(),
+  password: z.string().min(6),
 });

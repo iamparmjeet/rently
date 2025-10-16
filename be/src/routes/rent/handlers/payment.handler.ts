@@ -1,16 +1,23 @@
-import { payments, utilities } from "@/db/schema";
-import { CreatePaymentSchema, UpdatePaymentSchema } from "@/types/rent-types";
-import { PAYMENT_TYPES } from "@/constants/rent-constants";
-import type { Ctx } from "@/types/types";
-import { badRequest, forbidden, notFound, success } from "@/utils";
-import { isLeaseOwner } from "@/routes/helpers/routes.helper";
 import { eq } from "drizzle-orm";
+import { PAYMENT_TYPES } from "@/constants/rent-constants";
+import { payments, utilities } from "@/db/schema";
+import { isLeaseOwner } from "@/routes/helpers/routes.helper";
+import { CreatePaymentSchema, UpdatePaymentSchema } from "@/types/rent-types";
+import type { Ctx } from "@/types/types";
+import {
+  badRequest,
+  forbidden,
+  notFound,
+  safeHandler,
+  safeJson,
+  success,
+} from "@/utils";
 
 // Create
-export async function create(c: Ctx) {
+export const create = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
-  const payload = await c.req.json();
+  const payload = await safeJson(c);
 
   const parsed = CreatePaymentSchema.safeParse(payload);
   if (!parsed.success)
@@ -48,14 +55,14 @@ export async function create(c: Ctx) {
     console.error("Error creating payment:", error);
     return badRequest(c, "Failed to record payment", error);
   }
-}
+});
 
 // Update
-export async function update(c: Ctx) {
+export const update = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
   const paymentId = c.req.param("id");
-  const payload = await c.req.json();
+  const payload = await safeJson(c);
 
   const parsed = UpdatePaymentSchema.safeParse(payload);
   if (!parsed.success)
@@ -89,10 +96,10 @@ export async function update(c: Ctx) {
     console.error("Error updating payment:", error);
     return badRequest(c, "Failed to update payment", error);
   }
-}
+});
 
 // GetById
-export async function getById(c: Ctx) {
+export const getById = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
   const paymentId = c.req.param("id");
@@ -117,10 +124,10 @@ export async function getById(c: Ctx) {
     console.error("Error fetching payment:", error);
     return badRequest(c, "Failed to get payment", error);
   }
-}
+});
 
 // GetAll
-export async function getAll(c: Ctx) {
+export const getAll = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
 
@@ -144,10 +151,10 @@ export async function getAll(c: Ctx) {
     console.error("Error listing payments:", error);
     return badRequest(c, "Failed to list payments", error);
   }
-}
+});
 
 // Remove
-export async function remove(c: Ctx) {
+export const remove = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
   const paymentId = c.req.param("id");
@@ -176,4 +183,4 @@ export async function remove(c: Ctx) {
     console.error("Error deleting payment:", error);
     return badRequest(c, "Failed to delete payment", error);
   }
-}
+});

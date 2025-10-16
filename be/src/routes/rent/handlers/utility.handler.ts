@@ -1,17 +1,23 @@
-// create
-
 import { eq } from "drizzle-orm";
-import { FIXEDCHARGE, RATEPERUNIT } from "@/constants/payment-constats";
+import { FIXEDCHARGE, RATEPERUNIT } from "@/constants/payment-constants";
 import { utilities } from "@/db/schema";
 import { isLeaseOwner } from "@/routes/helpers/routes.helper";
 import { CreateUtilitySchema, UpdateUtilitySchema } from "@/types/rent-types";
 import type { Ctx } from "@/types/types";
-import { badRequest, forbidden, notFound, success } from "@/utils";
+import {
+  badRequest,
+  forbidden,
+  notFound,
+  safeHandler,
+  safeJson,
+  success,
+} from "@/utils";
 
-export async function create(c: Ctx) {
+//create
+export const create = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
-  const payload = c.req.json();
+  const payload = await safeJson(c);
 
   const parsed = CreateUtilitySchema.safeParse(payload);
   if (!parsed.success) return badRequest(c, "Data is invalid", parsed.error);
@@ -48,14 +54,14 @@ export async function create(c: Ctx) {
     console.error("Error creating utility", error);
     return badRequest(c, "Failed to create Utility", error);
   }
-}
+});
 
 // update
-export async function update(c: Ctx) {
+export const update = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
   const utilityId = c.req.param("id");
-  const payload = await c.req.json();
+  const payload = await safeJson(c);
 
   const parsed = UpdateUtilitySchema.safeParse(payload);
   if (!parsed.success)
@@ -93,11 +99,10 @@ export async function update(c: Ctx) {
     console.error("Error updating utility:", error);
     return badRequest(c, "Failed to update utility", error);
   }
-}
+});
 
 // getById
-
-export async function getById(c: Ctx) {
+export const getById = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
   const utilityId = c.req.param("id");
@@ -125,11 +130,10 @@ export async function getById(c: Ctx) {
     console.error("Error retrieving utility", error);
     return badRequest(c, "Failed to get Utility", error);
   }
-}
+});
 
 // getAll
-
-export async function getAll(c: Ctx) {
+export const getAll = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
 
@@ -148,7 +152,7 @@ export async function getAll(c: Ctx) {
       },
     });
     const ownerUtilities = list.filter(
-      (u) => u.lease.unit.property.id === owner.id
+      (u) => u.lease.unit.property.ownerId === owner.id
     );
 
     if (!ownerUtilities.length) return notFound(c, "No utilities found");
@@ -157,11 +161,10 @@ export async function getAll(c: Ctx) {
     console.error("Error Fetching utilities", error);
     return badRequest(c, "Failed to fetch utilities", error);
   }
-}
+});
 
 // remove
-
-export async function remove(c: Ctx) {
+export const remove = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
   const utilityId = c.req.param("id");
@@ -181,4 +184,4 @@ export async function remove(c: Ctx) {
     console.error("Error deleting utility:", error);
     return badRequest(c, "Failed to delete utility", error);
   }
-}
+});

@@ -1,8 +1,8 @@
 import { SubscriptionService } from "@/services/subscription.service";
 import type { Ctx } from "@/types/types";
-import { badRequest, success } from "@/utils";
+import { badRequest, safeHandler, success } from "@/utils";
 
-export const startTrial = async (c: Ctx) => {
+export const startTrial = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const user = c.get("user");
   const service = new SubscriptionService(db);
@@ -14,9 +14,9 @@ export const startTrial = async (c: Ctx) => {
     console.error(error);
     return badRequest(c, "Failed to start trial");
   }
-};
+});
 
-export const upgrade = async (c: Ctx) => {
+export const upgrade = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const user = c.get("user");
 
@@ -34,4 +34,4 @@ export const upgrade = async (c: Ctx) => {
     console.error("Upgrade Subscription Route", error);
     return badRequest(c, "Subscription Upgrade failed");
   }
-};
+});

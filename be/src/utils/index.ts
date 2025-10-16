@@ -11,6 +11,8 @@ export {
   success,
   unauthorized,
 } from "./responses";
+export { default as safeHandler } from "./safe-handler";
+export { default as safeJson } from "./safe-json";
 export { default as serveEmojiFavicon } from "./serve-emoji-favicon";
 export { generateUUID } from "./uuid";
 export {

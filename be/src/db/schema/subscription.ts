@@ -1,4 +1,11 @@
-import { integer, pgTable, real, text, timestamp } from "drizzle-orm/pg-core";
+import {
+  boolean,
+  integer,
+  pgTable,
+  real,
+  text,
+  timestamp,
+} from "drizzle-orm/pg-core";
 import {
   BILLING_INTERVAL,
   BILLING_INTERVAL_VALUES,
@@ -8,7 +15,7 @@ import {
   PLAN_STATUS,
   PLAN_STATUS_VALUES,
   TENANT_LIMIT,
-} from "@/constants/payment-constats";
+} from "@/constants/payment-constants";
 import { generateUUID } from "@/utils";
 import { user } from "./auth";
 
@@ -51,16 +58,15 @@ export const subscriptions = pgTable("subscriptions", {
 
   currentPeriodStart: timestamp("current_period_start").defaultNow(),
   currentPeriodEnd: timestamp("current_period_end"),
-  trialEndsAt: timestamp("trial_ends_at"),
 
+  nextBillingDate: timestamp("next_billing_date"),
+  trialEndsAt: timestamp("trial_ends_at"),
+  expired: boolean("expired").default(false),
   billingInterval: text("billing_interval", {
     enum: BILLING_INTERVAL_VALUES,
   })
     .default(BILLING_INTERVAL.MONTHLY)
     .notNull(),
-
-  nextBillingDate: timestamp("next_billing_date"),
-
   totalPaid: real("total_paid").default(0),
   currency: text("currency").default(CURRENCY_TYPES.INR),
 

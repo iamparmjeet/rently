@@ -5,10 +5,10 @@ import requireRole from "@/middleware/require-role";
 import {
   inviteHandlers,
   leaseHandlers,
+  paymentsHandlers,
   propertyHandlers,
   unitHandlers,
   utilityHandlers,
-  paymentsHandlers,
 } from "./handlers";
 
 const router = createRouter();

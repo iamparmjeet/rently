@@ -1,4 +1,4 @@
-import { eq } from "drizzle-orm";
+import { eq, isNotNull } from "drizzle-orm";
 import z from "zod";
 import { USER_ROLES } from "@/constants/user-roles";
 import { tenantInvites, user } from "@/db/schema";
@@ -13,15 +13,18 @@ import {
   now,
   StatusCode,
   safeError,
+  safeHandler,
+  safeJson,
   sendError,
   success,
 } from "@/utils";
+import { AcceptInviteSchema } from "../../../types/rent-types";
 
 const InviteRequestSchema = z.object({
   email: z.email(),
 });
 
-export async function handleCreateInvite(c: Ctx) {
+export const handleCreateInvite = safeHandler(async (c: Ctx) => {
   const user = c.get("user"); // Here  user is coming from withAuthMiddleware
 
   if (
@@ -31,8 +34,8 @@ export async function handleCreateInvite(c: Ctx) {
     return forbidden(c);
   }
 
-  const body = await c.req.json();
-  const parsed = InviteRequestSchema.safeParse(body);
+  const payload = await safeJson(c);
+  const parsed = InviteRequestSchema.safeParse(payload);
 
   if (!parsed.success) {
     return badRequest(c);
@@ -66,11 +69,19 @@ export async function handleCreateInvite(c: Ctx) {
       StatusCode.INTERNAL_SERVER_ERROR
     );
   }
-}
+});
 
-export const handleAcceptInvite = async (c: Ctx) => {
-  const body = await c.req.json();
-  const { token, ...userData } = body; // User provides personal details + token
+export const handleAcceptInvite = safeHandler(async (c: Ctx) => {
+  const payload = await safeJson(c);
+
+  if (!payload) return badRequest(c, "Invalid JSON Body");
+
+  const parsed = await AcceptInviteSchema.safeParse(payload);
+  if (!parsed.success) {
+    return badRequest(c, "Invalid data", parsed.error.format());
+  }
+
+  const { token, ...userData } = parsed.data; // User provides personal details + token
 
   const db = c.get("db");
 
@@ -80,7 +91,7 @@ export const handleAcceptInvite = async (c: Ctx) => {
       and(
         eq(inv.token, token),
         eq(inv.status, "pending"),
-        gt(inv.expiresAt, new Date())
+        and(isNotNull(inv.expiresAt), gt(inv.expiresAt, new Date()))
       ),
   });
 
@@ -105,4 +116,4 @@ export const handleAcceptInvite = async (c: Ctx) => {
     .where(eq(tenantInvites.id, invite.id));
 
   return success(c, { user: newUser });
-};
+});

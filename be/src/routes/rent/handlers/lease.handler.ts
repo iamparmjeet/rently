@@ -8,12 +8,19 @@ import {
 } from "@/routes/helpers/routes.helper";
 import { CreateLeaseSchema, UpdateLeaseSchema } from "@/types/rent-types";
 import type { Ctx } from "@/types/types";
-import { badRequest, forbidden, notFound, success } from "@/utils";
+import {
+  badRequest,
+  forbidden,
+  notFound,
+  safeHandler,
+  safeJson,
+  success,
+} from "@/utils";
 
-export async function create(c: Ctx) {
+export const create = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
-  const payload = await c.req.json(); // Tenant Data by Owner
+  const payload = await safeJson(c); // Tenant Data by Owner
 
   const parsed = CreateLeaseSchema.safeParse(payload);
 
@@ -51,12 +58,12 @@ export async function create(c: Ctx) {
     console.error("Error creating lease:", error);
     return badRequest(c, "Error creating lease");
   }
-}
+});
 
-export async function update(c: Ctx) {
+export const update = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
-  const payload = await c.req.json();
+  const payload = await safeJson(c);
   const leaseId = c.req.param("id");
 
   const parsed = UpdateLeaseSchema.safeParse(payload);
@@ -82,11 +89,10 @@ export async function update(c: Ctx) {
     console.error("Error updating lease:", error);
     return badRequest(c, "Error updating lease");
   }
-}
+});
 
 // 3) lease getbyId
-
-export async function getbyId(c: Ctx) {
+export const getbyId = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
   const leaseId = c.req.param("id");
@@ -100,11 +106,10 @@ export async function getbyId(c: Ctx) {
     console.error("Error Getting leease", error);
     return badRequest(c, "Failed to get lease", error);
   }
-}
+});
 
 // 4) Get All leases
-
-export async function getAll(c: Ctx) {
+export const getAll = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
 
@@ -117,11 +122,11 @@ export async function getAll(c: Ctx) {
     console.error("Error Getting leases", error);
     return badRequest(c, "Failed to get leases", error);
   }
-}
+});
 
 // 5) Delete Lease by Id
 
-export async function remove(c: Ctx) {
+export const remove = safeHandler(async (c: Ctx) => {
   const db = c.get("db");
   const owner = c.get("user");
   const leaseId = c.req.param("id");
@@ -136,4 +141,4 @@ export async function remove(c: Ctx) {
     console.error("Delete Error", error);
     return badRequest(c, "Deletion Failed", error);
   }
-}
+});

@@ -103,3 +103,4 @@ temp/
 
 # Editor config files that are machine-specific
 .editorconfig # If it's a personal override, otherwise it's fine to commit
+be/Code-Strategy.md

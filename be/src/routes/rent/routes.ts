@@ -2,7 +2,12 @@ import { USER_ROLES } from "@/constants/user-roles";
 import { createRouter } from "@/lib/create-app";
 import withAuth from "@/middleware/auth-middleware";
 import requireRole from "@/middleware/require-role";
-import { inviteHandlers, leaseHandlers, propertyHandlers } from "./handlers";
+import {
+  inviteHandlers,
+  leaseHandlers,
+  propertyHandlers,
+  unitHandlers,
+} from "./handlers";
 
 const router = createRouter();
 
@@ -24,11 +29,17 @@ router.delete("/properties/:id", propertyHandlers.remove);
 // Leases
 router.post("/leases", leaseHandlers.create);
 router.get("/leases", leaseHandlers.getAll);
-router.get("/leases/:leaseId", leaseHandlers.getbyId);
-router.put("/leases:/leaseId", leaseHandlers.update);
-router.delete("/leases:/leaseId", leaseHandlers.remove);
+router.get("/leases/:id", leaseHandlers.getbyId);
+router.put("/leases:/id", leaseHandlers.update);
+router.delete("/leases:/id", leaseHandlers.remove);
 
 // Units
+router.post("/units", unitHandlers.create);
+router.get("/units", unitHandlers.getAll);
+router.get("/units/:id", unitHandlers.getById);
+router.put("/units/:id", unitHandlers.update);
+router.delete("/units/:id", unitHandlers.remove);
+
 // Utilities
 // Payments
 

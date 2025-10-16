@@ -1,12 +1,12 @@
 // create
 
+import { eq } from "drizzle-orm";
 import { FIXEDCHARGE, RATEPERUNIT } from "@/constants/payment-constats";
 import { utilities } from "@/db/schema";
 import { isLeaseOwner } from "@/routes/helpers/routes.helper";
 import { CreateUtilitySchema, UpdateUtilitySchema } from "@/types/rent-types";
 import type { Ctx } from "@/types/types";
 import { badRequest, forbidden, notFound, success } from "@/utils";
-import { eq } from "drizzle-orm";
 
 export async function create(c: Ctx) {
   const db = c.get("db");

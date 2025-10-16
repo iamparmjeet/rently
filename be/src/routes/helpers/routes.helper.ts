@@ -1,6 +1,6 @@
 // Helpers Function
 
-import { eq } from "drizzle-orm";
+import { and, eq } from "drizzle-orm";
 import type { Database } from "@/db";
 import { leases, properties, units, user } from "@/db/schema";
 import type { Ctx } from "@/types/types";

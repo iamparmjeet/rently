@@ -63,7 +63,7 @@ export const UpdateUnitSchema = UnitSchema.partial().pick({
   status: true,
 });
 
-export const LeaseSchema = z
+const LeaseBaseSchema = z
   .object({
     id: z.uuid(),
     tenantId: z.uuid(),
@@ -77,23 +77,26 @@ export const LeaseSchema = z
     createdAt: z.date(),
     updatedAt: z.date(),
   })
-  .superRefine((lease, ctx) => {
-    if (lease.endDate && lease.startDate && lease.endDate <= lease.startDate) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: "End date must be after start date",
-        path: ["endDate"],
-      });
-    }
-  });
 
-export const CreateLeaseSchema = LeaseSchema.omit({
+const endDateAfterStartDate = (lease: z.infer<typeof LeaseBaseSchema>, ctx: any) => {
+  if (lease.endDate && lease.startDate && lease.endDate <= lease.startDate) {
+    ctx.addIssue({
+      code: "custom",
+      message: "End date must be after start date",
+      path: ["endDate"],
+    });
+  }
+};
+
+export const LeaseSchema = LeaseBaseSchema.superRefine(endDateAfterStartDate)
+
+export const CreateLeaseSchema = LeaseBaseSchema.omit({
   id: true,
   createdAt: true,
   updatedAt: true,
 });
 
-export const UpdateLeaseSchema = LeaseSchema.partial().pick({
+export const UpdateLeaseSchema = LeaseBaseSchema.partial().pick({
   unitId: true,
   tenantId: true,
   startDate: true,

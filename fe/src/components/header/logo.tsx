@@ -1,5 +1,9 @@
-export const Logo = () => {
+const Logo = () => {
   return (
-    <h1>Logo</h1>
-  )
-}
+    <h2 className="text-2xl font-semibold">
+      Rent<span className="italic">Wise</span>
+    </h2>
+  );
+};
+
+export default Logo;

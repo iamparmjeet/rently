@@ -1,0 +1,1409 @@
+================================================================================
+PROJECT CONTEXT
+================================================================================
+src
+├── components/
+│   ├── Footer.tsx
+│   ├── Header.tsx
+│   └── ThemeToggle.tsx
+├── integrations/
+│   ├── better-auth/
+│   │   └── header-user.tsx
+│   └── tanstack-query/
+│       ├── devtools.tsx
+│       └── root-provider.tsx
+├── lib/
+│   ├── auth-client.ts
+│   ├── auth.ts
+│   └── utils.ts
+├── orpc/
+│   ├── router/
+│   │   ├── index.ts
+│   │   └── todos.ts
+│   ├── client.ts
+│   └── schema.ts
+├── routes/
+│   ├── api/
+│   │   └── auth/
+│   │       └── $.ts
+│   ├── __root.tsx
+│   ├── about.tsx
+│   ├── api.$.ts
+│   ├── api.rpc.$.ts
+│   └── index.tsx
+├── env.ts
+├── polyfill.ts
+├── routeTree.gen.ts
+├── router.tsx
+└── styles.css
+
+10 directories, 24 files
+
+================================================================================
+SOURCE FILES
+================================================================================
+
+============================================================
+// File: components/Footer.tsx
+============================================================
+
+export default function Footer() {
+  const year = new Date().getFullYear()
+
+  return (
+    <footer className="mt-20 border-t border-[var(--line)] px-4 pb-14 pt-10 text-[var(--sea-ink-soft)]">
+      <div className="page-wrap flex flex-col items-center justify-between gap-4 text-center sm:flex-row sm:text-left">
+        <p className="m-0 text-sm">
+          &copy; {year} Your name here. All rights reserved.
+        </p>
+        <p className="island-kicker m-0">Built with TanStack Start</p>
+      </div>
+      <div className="mt-4 flex justify-center gap-4">
+        <a
+          href="https://x.com/tan_stack"
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-xl p-2 text-[var(--sea-ink-soft)] transition hover:bg-[var(--link-bg-hover)] hover:text-[var(--sea-ink)]"
+        >
+          <span className="sr-only">Follow TanStack on X</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true" width="32" height="32">
+            <path
+              fill="currentColor"
+              d="M12.6 1h2.2L10 6.48 15.64 15h-4.41L7.78 9.82 3.23 15H1l5.14-5.84L.72 1h4.52l3.12 4.73L12.6 1zm-.77 12.67h1.22L4.57 2.26H3.26l8.57 11.41z"
+            />
+          </svg>
+        </a>
+        <a
+          href="https://github.com/TanStack"
+          target="_blank"
+          rel="noreferrer"
+          className="rounded-xl p-2 text-[var(--sea-ink-soft)] transition hover:bg-[var(--link-bg-hover)] hover:text-[var(--sea-ink)]"
+        >
+          <span className="sr-only">Go to TanStack GitHub</span>
+          <svg viewBox="0 0 16 16" aria-hidden="true" width="32" height="32">
+            <path
+              fill="currentColor"
+              d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+            />
+          </svg>
+        </a>
+      </div>
+    </footer>
+  )
+}
+
+============================================================
+// File: components/Header.tsx
+============================================================
+
+import { Link } from '@tanstack/react-router'
+import BetterAuthHeader from '../integrations/better-auth/header-user.tsx'
+import ThemeToggle from './ThemeToggle'
+
+export default function Header() {
+  return (
+    <header className="sticky top-0 z-50 border-b border-[var(--line)] bg-[var(--header-bg)] px-4 backdrop-blur-lg">
+      <nav className="page-wrap flex flex-wrap items-center gap-x-3 gap-y-2 py-3 sm:py-4">
+        <h2 className="m-0 flex-shrink-0 text-base font-semibold tracking-tight">
+          <Link
+            to="/"
+            className="inline-flex items-center gap-2 rounded-full border border-[var(--chip-line)] bg-[var(--chip-bg)] px-3 py-1.5 text-sm text-[var(--sea-ink)] no-underline shadow-[0_8px_24px_rgba(30,90,72,0.08)] sm:px-4 sm:py-2"
+          >
+            <span className="h-2 w-2 rounded-full bg-[linear-gradient(90deg,#56c6be,#7ed3bf)]" />
+            TanStack Start
+          </Link>
+        </h2>
+
+        <div className="ml-auto flex items-center gap-1.5 sm:ml-0 sm:gap-2">
+          <a
+            href="https://x.com/tan_stack"
+            target="_blank"
+            rel="noreferrer"
+            className="hidden rounded-xl p-2 text-[var(--sea-ink-soft)] transition hover:bg-[var(--link-bg-hover)] hover:text-[var(--sea-ink)] sm:block"
+          >
+            <span className="sr-only">Follow TanStack on X</span>
+            <svg viewBox="0 0 16 16" aria-hidden="true" width="24" height="24">
+              <path
+                fill="currentColor"
+                d="M12.6 1h2.2L10 6.48 15.64 15h-4.41L7.78 9.82 3.23 15H1l5.14-5.84L.72 1h4.52l3.12 4.73L12.6 1zm-.77 12.67h1.22L4.57 2.26H3.26l8.57 11.41z"
+              />
+            </svg>
+          </a>
+          <a
+            href="https://github.com/TanStack"
+            target="_blank"
+            rel="noreferrer"
+            className="hidden rounded-xl p-2 text-[var(--sea-ink-soft)] transition hover:bg-[var(--link-bg-hover)] hover:text-[var(--sea-ink)] sm:block"
+          >
+            <span className="sr-only">Go to TanStack GitHub</span>
+            <svg viewBox="0 0 16 16" aria-hidden="true" width="24" height="24">
+              <path
+                fill="currentColor"
+                d="M8 0C3.58 0 0 3.58 0 8c0 3.54 2.29 6.53 5.47 7.59.4.07.55-.17.55-.38 0-.19-.01-.82-.01-1.49-2.01.37-2.53-.49-2.69-.94-.09-.23-.48-.94-.82-1.13-.28-.15-.68-.52-.01-.53.63-.01 1.08.58 1.23.82.72 1.21 1.87.87 2.33.66.07-.52.28-.87.51-1.07-1.78-.2-3.64-.89-3.64-3.95 0-.87.31-1.59.82-2.15-.08-.2-.36-1.02.08-2.12 0 0 .67-.21 2.2.82.64-.18 1.32-.27 2-.27.68 0 1.36.09 2 .27 1.53-1.04 2.2-.82 2.2-.82.44 1.1.16 1.92.08 2.12.51.56.82 1.27.82 2.15 0 3.07-1.87 3.75-3.65 3.95.29.25.54.73.54 1.48 0 1.07-.01 1.93-.01 2.2 0 .21.15.46.55.38A8.012 8.012 0 0 0 16 8c0-4.42-3.58-8-8-8z"
+              />
+            </svg>
+          </a>
+          <BetterAuthHeader />
+
+          <ThemeToggle />
+        </div>
+
+        <div className="order-3 flex w-full flex-wrap items-center gap-x-4 gap-y-1 pb-1 text-sm font-semibold sm:order-2 sm:w-auto sm:flex-nowrap sm:pb-0">
+          <Link
+            to="/"
+            className="nav-link"
+            activeProps={{ className: 'nav-link is-active' }}
+          >
+            Home
+          </Link>
+          <Link
+            to="/about"
+            className="nav-link"
+            activeProps={{ className: 'nav-link is-active' }}
+          >
+            About
+          </Link>
+          <a
+            href="https://tanstack.com/start/latest/docs/framework/react/overview"
+            className="nav-link"
+            target="_blank"
+            rel="noreferrer"
+          >
+            Docs
+          </a>
+        </div>
+      </nav>
+    </header>
+  )
+}
+
+============================================================
+// File: components/ThemeToggle.tsx
+============================================================
+
+import { useEffect, useState } from 'react'
+
+type ThemeMode = 'light' | 'dark' | 'auto'
+
+function getInitialMode(): ThemeMode {
+  if (typeof window === 'undefined') {
+    return 'auto'
+  }
+
+  const stored = window.localStorage.getItem('theme')
+  if (stored === 'light' || stored === 'dark' || stored === 'auto') {
+    return stored
+  }
+
+  return 'auto'
+}
+
+function applyThemeMode(mode: ThemeMode) {
+  const prefersDark = window.matchMedia('(prefers-color-scheme: dark)').matches
+  const resolved = mode === 'auto' ? (prefersDark ? 'dark' : 'light') : mode
+
+  document.documentElement.classList.remove('light', 'dark')
+  document.documentElement.classList.add(resolved)
+
+  if (mode === 'auto') {
+    document.documentElement.removeAttribute('data-theme')
+  } else {
+    document.documentElement.setAttribute('data-theme', mode)
+  }
+
+  document.documentElement.style.colorScheme = resolved
+}
+
+export default function ThemeToggle() {
+  const [mode, setMode] = useState<ThemeMode>('auto')
+
+  useEffect(() => {
+    const initialMode = getInitialMode()
+    setMode(initialMode)
+    applyThemeMode(initialMode)
+  }, [])
+
+  useEffect(() => {
+    if (mode !== 'auto') {
+      return
+    }
+
+    const media = window.matchMedia('(prefers-color-scheme: dark)')
+    const onChange = () => applyThemeMode('auto')
+
+    media.addEventListener('change', onChange)
+    return () => {
+      media.removeEventListener('change', onChange)
+    }
+  }, [mode])
+
+  function toggleMode() {
+    const nextMode: ThemeMode =
+      mode === 'light' ? 'dark' : mode === 'dark' ? 'auto' : 'light'
+    setMode(nextMode)
+    applyThemeMode(nextMode)
+    window.localStorage.setItem('theme', nextMode)
+  }
+
+  const label =
+    mode === 'auto'
+      ? 'Theme mode: auto (system). Click to switch to light mode.'
+      : `Theme mode: ${mode}. Click to switch mode.`
+
+  return (
+    <button
+      type="button"
+      onClick={toggleMode}
+      aria-label={label}
+      title={label}
+      className="rounded-full border border-[var(--chip-line)] bg-[var(--chip-bg)] px-3 py-1.5 text-sm font-semibold text-[var(--sea-ink)] shadow-[0_8px_22px_rgba(30,90,72,0.08)] transition hover:-translate-y-0.5"
+    >
+      {mode === 'auto' ? 'Auto' : mode === 'dark' ? 'Dark' : 'Light'}
+    </button>
+  )
+}
+
+============================================================
+// File: env.ts
+============================================================
+
+import { createEnv } from '@t3-oss/env-core'
+import { z } from 'zod'
+
+export const env = createEnv({
+  server: {
+    SERVER_URL: z.string().url().optional(),
+  },
+
+  /**
+   * The prefix that client-side variables must have. This is enforced both at
+   * a type-level and at runtime.
+   */
+  clientPrefix: 'VITE_',
+
+  client: {
+    VITE_APP_TITLE: z.string().min(1).optional(),
+  },
+
+  /**
+   * What object holds the environment variables at runtime. This is usually
+   * `process.env` or `import.meta.env`.
+   */
+  runtimeEnv: import.meta.env,
+
+  /**
+   * By default, this library will feed the environment variables directly to
+   * the Zod validator.
+   *
+   * This means that if you have an empty string for a value that is supposed
+   * to be a number (e.g. `PORT=` in a ".env" file), Zod will incorrectly flag
+   * it as a type mismatch violation. Additionally, if you have an empty string
+   * for a value that is supposed to be a string with a default value (e.g.
+   * `DOMAIN=` in an ".env" file), the default value will never be applied.
+   *
+   * In order to solve these issues, we recommend that all new projects
+   * explicitly specify this option as true.
+   */
+  emptyStringAsUndefined: true,
+})
+
+============================================================
+// File: integrations/better-auth/header-user.tsx
+============================================================
+
+import { authClient } from '#/lib/auth-client'
+import { Link } from '@tanstack/react-router'
+
+export default function BetterAuthHeader() {
+  const { data: session, isPending } = authClient.useSession()
+
+  if (isPending) {
+    return (
+      <div className="h-8 w-8 bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
+    )
+  }
+
+  if (session?.user) {
+    return (
+      <div className="flex items-center gap-2">
+        {session.user.image ? (
+          <img src={session.user.image} alt="" className="h-8 w-8" />
+        ) : (
+          <div className="h-8 w-8 bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
+            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
+              {session.user.name?.charAt(0).toUpperCase() || 'U'}
+            </span>
+          </div>
+        )}
+        <button
+          onClick={() => {
+            void authClient.signOut()
+          }}
+          className="flex-1 h-9 px-4 text-sm font-medium bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+        >
+          Sign out
+        </button>
+      </div>
+    )
+  }
+
+  return (
+    <Link
+      to="/demo/better-auth"
+      className="h-9 px-4 text-sm font-medium bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors inline-flex items-center"
+    >
+      Sign in
+    </Link>
+  )
+}
+
+============================================================
+// File: integrations/tanstack-query/devtools.tsx
+============================================================
+
+import { ReactQueryDevtoolsPanel } from '@tanstack/react-query-devtools'
+
+export default {
+  name: 'Tanstack Query',
+  render: <ReactQueryDevtoolsPanel />,
+}
+
+============================================================
+// File: integrations/tanstack-query/root-provider.tsx
+============================================================
+
+import type { ReactNode } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+
+let context:
+  | {
+      queryClient: QueryClient
+    }
+  | undefined
+
+export function getContext() {
+  if (context) {
+    return context
+  }
+
+  const queryClient = new QueryClient()
+
+  context = {
+    queryClient,
+  }
+
+  return context
+}
+
+export default function TanStackQueryProvider({
+  children,
+}: {
+  children: ReactNode
+}) {
+  const { queryClient } = getContext()
+
+  return (
+    <QueryClientProvider client={queryClient}>{children}</QueryClientProvider>
+  )
+}
+
+============================================================
+// File: lib/auth-client.ts
+============================================================
+
+import { createAuthClient } from 'better-auth/react'
+
+export const authClient = createAuthClient()
+
+============================================================
+// File: lib/auth.ts
+============================================================
+
+import { betterAuth } from 'better-auth'
+import { tanstackStartCookies } from 'better-auth/tanstack-start'
+
+export const auth = betterAuth({
+  emailAndPassword: {
+    enabled: true,
+  },
+  plugins: [tanstackStartCookies()],
+})
+
+============================================================
+// File: lib/utils.ts
+============================================================
+
+import type { ClassValue } from 'clsx'
+import { clsx } from 'clsx'
+import { twMerge } from 'tailwind-merge'
+
+export function cn(...inputs: ClassValue[]) {
+  return twMerge(clsx(inputs))
+}
+
+============================================================
+// File: orpc/client.ts
+============================================================
+
+import { createORPCClient } from "@orpc/client";
+import { RPCLink } from "@orpc/client/fetch";
+import type { RouterClient } from "@orpc/server";
+import { createRouterClient } from "@orpc/server";
+import { createTanstackQueryUtils } from "@orpc/tanstack-query";
+import { createIsomorphicFn } from "@tanstack/react-start";
+import { getRequestHeaders } from "@tanstack/react-start/server";
+
+import router from "#/orpc/router";
+
+const getORPCClient = createIsomorphicFn()
+	.server(() =>
+		createRouterClient(router, {
+			context: () => ({
+				headers: getRequestHeaders(),
+			}),
+		}),
+	)
+	.client((): RouterClient<typeof router> => {
+		const link = new RPCLink({
+			url: `${window.location.origin}/api/rpc`,
+		});
+		return createORPCClient(link);
+	});
+
+export const client: RouterClient<typeof router> = getORPCClient();
+
+export const orpc = createTanstackQueryUtils(client);
+
+============================================================
+// File: orpc/router/index.ts
+============================================================
+
+import { addTodo, listTodos } from './todos'
+
+export default {
+  listTodos,
+  addTodo,
+}
+
+============================================================
+// File: orpc/router/todos.ts
+============================================================
+
+import { os } from '@orpc/server'
+import * as z from 'zod'
+
+const todos = [
+  { id: 1, name: 'Get groceries' },
+  { id: 2, name: 'Buy a new phone' },
+  { id: 3, name: 'Finish the project' },
+]
+
+export const listTodos = os.input(z.object({})).handler(() => {
+  return todos
+})
+
+export const addTodo = os
+  .input(z.object({ name: z.string() }))
+  .handler(({ input }) => {
+    const newTodo = { id: todos.length + 1, name: input.name }
+    todos.push(newTodo)
+    return newTodo
+  })
+
+============================================================
+// File: orpc/schema.ts
+============================================================
+
+import { z } from 'zod'
+
+export const TodoSchema = z.object({
+  id: z.number().int().min(1),
+  name: z.string(),
+})
+
+============================================================
+// File: polyfill.ts
+============================================================
+
+import { File } from 'node:buffer'
+
+/**
+ * This file aims to polyfill missing APIs in Node.js 18 that oRPC depends on.
+ *
+ * Since Stackblitz runs on Node.js 18, these polyfills ensure oRPC works in that environment.
+ * If you're running oRPC locally, please use Node.js 20 or later for full compatibility.
+ */
+
+/**
+ * Note: Stackblitz provides an emulated Node.js environment with inherent limitations.
+ * If you encounter issues, please test on a local setup with Node.js 20 or later before reporting them.
+ */
+
+/**
+ * The `oz.file()` schema depends on the `File` API.
+ * If you're not using `oz.file()`, you can safely remove this polyfill.
+ */
+if (typeof globalThis.File === 'undefined') {
+  globalThis.File = File as any
+}
+
+============================================================
+// File: routeTree.gen.ts
+============================================================
+
+/* eslint-disable */
+
+// @ts-nocheck
+
+// noinspection JSUnusedGlobalSymbols
+
+// This file was automatically generated by TanStack Router.
+// You should NOT make any changes in this file as it will be overwritten.
+// Additionally, you should also exclude this file from your linter and/or formatter to prevent it from being checked or modified.
+
+import { Route as rootRouteImport } from './routes/__root'
+import { Route as AboutRouteImport } from './routes/about'
+import { Route as IndexRouteImport } from './routes/index'
+import { Route as ApiSplatRouteImport } from './routes/api.$'
+import { Route as ApiRpcSplatRouteImport } from './routes/api.rpc.$'
+import { Route as ApiAuthSplatRouteImport } from './routes/api/auth/$'
+
+const AboutRoute = AboutRouteImport.update({
+  id: '/about',
+  path: '/about',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const IndexRoute = IndexRouteImport.update({
+  id: '/',
+  path: '/',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiSplatRoute = ApiSplatRouteImport.update({
+  id: '/api/$',
+  path: '/api/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiRpcSplatRoute = ApiRpcSplatRouteImport.update({
+  id: '/api/rpc/$',
+  path: '/api/rpc/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+const ApiAuthSplatRoute = ApiAuthSplatRouteImport.update({
+  id: '/api/auth/$',
+  path: '/api/auth/$',
+  getParentRoute: () => rootRouteImport,
+} as any)
+
+export interface FileRoutesByFullPath {
+  '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/api/$': typeof ApiSplatRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/rpc/$': typeof ApiRpcSplatRoute
+}
+export interface FileRoutesByTo {
+  '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/api/$': typeof ApiSplatRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/rpc/$': typeof ApiRpcSplatRoute
+}
+export interface FileRoutesById {
+  __root__: typeof rootRouteImport
+  '/': typeof IndexRoute
+  '/about': typeof AboutRoute
+  '/api/$': typeof ApiSplatRoute
+  '/api/auth/$': typeof ApiAuthSplatRoute
+  '/api/rpc/$': typeof ApiRpcSplatRoute
+}
+export interface FileRouteTypes {
+  fileRoutesByFullPath: FileRoutesByFullPath
+  fullPaths: '/' | '/about' | '/api/$' | '/api/auth/$' | '/api/rpc/$'
+  fileRoutesByTo: FileRoutesByTo
+  to: '/' | '/about' | '/api/$' | '/api/auth/$' | '/api/rpc/$'
+  id: '__root__' | '/' | '/about' | '/api/$' | '/api/auth/$' | '/api/rpc/$'
+  fileRoutesById: FileRoutesById
+}
+export interface RootRouteChildren {
+  IndexRoute: typeof IndexRoute
+  AboutRoute: typeof AboutRoute
+  ApiSplatRoute: typeof ApiSplatRoute
+  ApiAuthSplatRoute: typeof ApiAuthSplatRoute
+  ApiRpcSplatRoute: typeof ApiRpcSplatRoute
+}
+
+declare module '@tanstack/react-router' {
+  interface FileRoutesByPath {
+    '/about': {
+      id: '/about'
+      path: '/about'
+      fullPath: '/about'
+      preLoaderRoute: typeof AboutRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/': {
+      id: '/'
+      path: '/'
+      fullPath: '/'
+      preLoaderRoute: typeof IndexRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/$': {
+      id: '/api/$'
+      path: '/api/$'
+      fullPath: '/api/$'
+      preLoaderRoute: typeof ApiSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/rpc/$': {
+      id: '/api/rpc/$'
+      path: '/api/rpc/$'
+      fullPath: '/api/rpc/$'
+      preLoaderRoute: typeof ApiRpcSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+    '/api/auth/$': {
+      id: '/api/auth/$'
+      path: '/api/auth/$'
+      fullPath: '/api/auth/$'
+      preLoaderRoute: typeof ApiAuthSplatRouteImport
+      parentRoute: typeof rootRouteImport
+    }
+  }
+}
+
+const rootRouteChildren: RootRouteChildren = {
+  IndexRoute: IndexRoute,
+  AboutRoute: AboutRoute,
+  ApiSplatRoute: ApiSplatRoute,
+  ApiAuthSplatRoute: ApiAuthSplatRoute,
+  ApiRpcSplatRoute: ApiRpcSplatRoute,
+}
+export const routeTree = rootRouteImport
+  ._addFileChildren(rootRouteChildren)
+  ._addFileTypes<FileRouteTypes>()
+
+import type { getRouter } from './router.tsx'
+import type { createStart } from '@tanstack/react-start'
+declare module '@tanstack/react-start' {
+  interface Register {
+    ssr: true
+    router: Awaited<ReturnType<typeof getRouter>>
+  }
+}
+
+============================================================
+// File: router.tsx
+============================================================
+
+import { createRouter as createTanStackRouter } from '@tanstack/react-router'
+import { routeTree } from './routeTree.gen'
+
+import { getContext } from './integrations/tanstack-query/root-provider'
+
+export function getRouter() {
+  const router = createTanStackRouter({
+    routeTree,
+
+    context: getContext(),
+
+    scrollRestoration: true,
+    defaultPreload: 'intent',
+    defaultPreloadStaleTime: 0,
+  })
+
+  return router
+}
+
+declare module '@tanstack/react-router' {
+  interface Register {
+    router: ReturnType<typeof getRouter>
+  }
+}
+
+============================================================
+// File: routes/__root.tsx
+============================================================
+
+import {
+  HeadContent,
+  Scripts,
+  createRootRouteWithContext,
+} from '@tanstack/react-router'
+import { TanStackRouterDevtoolsPanel } from '@tanstack/react-router-devtools'
+import { TanStackDevtools } from '@tanstack/react-devtools'
+import Footer from '../components/Footer'
+import Header from '../components/Header'
+
+import TanStackQueryProvider from '../integrations/tanstack-query/root-provider'
+
+import TanStackQueryDevtools from '../integrations/tanstack-query/devtools'
+
+import appCss from '../styles.css?url'
+
+import type { QueryClient } from '@tanstack/react-query'
+
+interface MyRouterContext {
+  queryClient: QueryClient
+}
+
+const THEME_INIT_SCRIPT = `(function(){try{var stored=window.localStorage.getItem('theme');var mode=(stored==='light'||stored==='dark'||stored==='auto')?stored:'auto';var prefersDark=window.matchMedia('(prefers-color-scheme: dark)').matches;var resolved=mode==='auto'?(prefersDark?'dark':'light'):mode;var root=document.documentElement;root.classList.remove('light','dark');root.classList.add(resolved);if(mode==='auto'){root.removeAttribute('data-theme')}else{root.setAttribute('data-theme',mode)}root.style.colorScheme=resolved;}catch(e){}})();`
+
+export const Route = createRootRouteWithContext<MyRouterContext>()({
+  head: () => ({
+    meta: [
+      {
+        charSet: 'utf-8',
+      },
+      {
+        name: 'viewport',
+        content: 'width=device-width, initial-scale=1',
+      },
+      {
+        title: 'TanStack Start Starter',
+      },
+    ],
+    links: [
+      {
+        rel: 'stylesheet',
+        href: appCss,
+      },
+    ],
+  }),
+  shellComponent: RootDocument,
+})
+
+function RootDocument({ children }: { children: React.ReactNode }) {
+  return (
+    <html lang="en" suppressHydrationWarning>
+      <head>
+        <script dangerouslySetInnerHTML={{ __html: THEME_INIT_SCRIPT }} />
+        <HeadContent />
+      </head>
+      <body className="font-sans antialiased [overflow-wrap:anywhere] selection:bg-[rgba(79,184,178,0.24)]">
+        <TanStackQueryProvider>
+          <Header />
+          {children}
+          <Footer />
+          <TanStackDevtools
+            config={{
+              position: 'bottom-right',
+            }}
+            plugins={[
+              {
+                name: 'Tanstack Router',
+                render: <TanStackRouterDevtoolsPanel />,
+              },
+              TanStackQueryDevtools,
+            ]}
+          />
+        </TanStackQueryProvider>
+        <Scripts />
+      </body>
+    </html>
+  )
+}
+
+============================================================
+// File: routes/about.tsx
+============================================================
+
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/about')({
+  component: About,
+})
+
+function About() {
+  return (
+    <main className="page-wrap px-4 py-12">
+      <section className="island-shell rounded-2xl p-6 sm:p-8">
+        <p className="island-kicker mb-2">About</p>
+        <h1 className="display-title mb-3 text-4xl font-bold text-[var(--sea-ink)] sm:text-5xl">
+          A small starter with room to grow.
+        </h1>
+        <p className="m-0 max-w-3xl text-base leading-8 text-[var(--sea-ink-soft)]">
+          TanStack Start gives you type-safe routing, server functions, and
+          modern SSR defaults. Use this as a clean foundation, then layer in
+          your own routes, styling, and add-ons.
+        </p>
+      </section>
+    </main>
+  )
+}
+
+============================================================
+// File: routes/api/auth/$.ts
+============================================================
+
+import { createFileRoute } from '@tanstack/react-router'
+import { auth } from '#/lib/auth'
+
+export const Route = createFileRoute('/api/auth/$')({
+  server: {
+    handlers: {
+      GET: ({ request }) => auth.handler(request),
+      POST: ({ request }) => auth.handler(request),
+    },
+  },
+})
+
+============================================================
+// File: routes/api.$.ts
+============================================================
+
+import '#/polyfill'
+
+import { OpenAPIHandler } from '@orpc/openapi/fetch'
+import { ZodToJsonSchemaConverter } from '@orpc/zod/zod4'
+import { SmartCoercionPlugin } from '@orpc/json-schema'
+import { createFileRoute } from '@tanstack/react-router'
+import { onError } from '@orpc/server'
+import { OpenAPIReferencePlugin } from '@orpc/openapi/plugins'
+
+import { TodoSchema } from '#/orpc/schema'
+import router from '#/orpc/router'
+
+const handler = new OpenAPIHandler(router, {
+  interceptors: [
+    onError((error) => {
+      console.error(error)
+    }),
+  ],
+  plugins: [
+    new SmartCoercionPlugin({
+      schemaConverters: [new ZodToJsonSchemaConverter()],
+    }),
+    new OpenAPIReferencePlugin({
+      schemaConverters: [new ZodToJsonSchemaConverter()],
+      specGenerateOptions: {
+        info: {
+          title: 'TanStack ORPC Playground',
+          version: '1.0.0',
+        },
+        commonSchemas: {
+          Todo: { schema: TodoSchema },
+          UndefinedError: { error: 'UndefinedError' },
+        },
+        security: [{ bearerAuth: [] }],
+        components: {
+          securitySchemes: {
+            bearerAuth: {
+              type: 'http',
+              scheme: 'bearer',
+            },
+          },
+        },
+      },
+      docsConfig: {
+        authentication: {
+          securitySchemes: {
+            bearerAuth: {
+              token: 'default-token',
+            },
+          },
+        },
+      },
+    }),
+  ],
+})
+
+async function handle({ request }: { request: Request }) {
+  const { response } = await handler.handle(request, {
+    prefix: '/api',
+    context: {},
+  })
+
+  return response ?? new Response('Not Found', { status: 404 })
+}
+
+export const Route = createFileRoute('/api/$')({
+  server: {
+    handlers: {
+      HEAD: handle,
+      GET: handle,
+      POST: handle,
+      PUT: handle,
+      PATCH: handle,
+      DELETE: handle,
+    },
+  },
+})
+
+============================================================
+// File: routes/api.rpc.$.ts
+============================================================
+
+import '#/polyfill'
+
+import { RPCHandler } from '@orpc/server/fetch'
+import { createFileRoute } from '@tanstack/react-router'
+import router from '#/orpc/router'
+
+const handler = new RPCHandler(router)
+
+async function handle({ request }: { request: Request }) {
+  const { response } = await handler.handle(request, {
+    prefix: '/api/rpc',
+    context: {},
+  })
+
+  return response ?? new Response('Not Found', { status: 404 })
+}
+
+export const Route = createFileRoute('/api/rpc/$')({
+  server: {
+    handlers: {
+      HEAD: handle,
+      GET: handle,
+      POST: handle,
+      PUT: handle,
+      PATCH: handle,
+      DELETE: handle,
+    },
+  },
+})
+
+============================================================
+// File: routes/index.tsx
+============================================================
+
+import { createFileRoute } from '@tanstack/react-router'
+
+export const Route = createFileRoute('/')({ component: App })
+
+function App() {
+  return (
+    <main className="page-wrap px-4 pb-8 pt-14">
+      <section className="island-shell rise-in relative overflow-hidden rounded-[2rem] px-6 py-10 sm:px-10 sm:py-14">
+        <div className="pointer-events-none absolute -left-20 -top-24 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(79,184,178,0.32),transparent_66%)]" />
+        <div className="pointer-events-none absolute -bottom-20 -right-20 h-56 w-56 rounded-full bg-[radial-gradient(circle,rgba(47,106,74,0.18),transparent_66%)]" />
+        <p className="island-kicker mb-3">TanStack Start Base Template</p>
+        <h1 className="display-title mb-5 max-w-3xl text-4xl leading-[1.02] font-bold tracking-tight text-[var(--sea-ink)] sm:text-6xl">
+          Start simple, ship quickly.
+        </h1>
+        <p className="mb-8 max-w-2xl text-base text-[var(--sea-ink-soft)] sm:text-lg">
+          This base starter intentionally keeps things light: two routes, clean
+          structure, and the essentials you need to build from scratch.
+        </p>
+        <div className="flex flex-wrap gap-3">
+          <a
+            href="/about"
+            className="rounded-full border border-[rgba(50,143,151,0.3)] bg-[rgba(79,184,178,0.14)] px-5 py-2.5 text-sm font-semibold text-[var(--lagoon-deep)] no-underline transition hover:-translate-y-0.5 hover:bg-[rgba(79,184,178,0.24)]"
+          >
+            About This Starter
+          </a>
+          <a
+            href="https://tanstack.com/router"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="rounded-full border border-[rgba(23,58,64,0.2)] bg-white/50 px-5 py-2.5 text-sm font-semibold text-[var(--sea-ink)] no-underline transition hover:-translate-y-0.5 hover:border-[rgba(23,58,64,0.35)]"
+          >
+            Router Guide
+          </a>
+        </div>
+      </section>
+
+      <section className="mt-8 grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+        {[
+          [
+            'Type-Safe Routing',
+            'Routes and links stay in sync across every page.',
+          ],
+          [
+            'Server Functions',
+            'Call server code from your UI without creating API boilerplate.',
+          ],
+          [
+            'Streaming by Default',
+            'Ship progressively rendered responses for faster experiences.',
+          ],
+          [
+            'Tailwind Native',
+            'Design quickly with utility-first styling and reusable tokens.',
+          ],
+        ].map(([title, desc], index) => (
+          <article
+            key={title}
+            className="island-shell feature-card rise-in rounded-2xl p-5"
+            style={{ animationDelay: `${index * 90 + 80}ms` }}
+          >
+            <h2 className="mb-2 text-base font-semibold text-[var(--sea-ink)]">
+              {title}
+            </h2>
+            <p className="m-0 text-sm text-[var(--sea-ink-soft)]">{desc}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="island-shell mt-8 rounded-2xl p-6">
+        <p className="island-kicker mb-2">Quick Start</p>
+        <ul className="m-0 list-disc space-y-2 pl-5 text-sm text-[var(--sea-ink-soft)]">
+          <li>
+            Edit <code>src/routes/index.tsx</code> to customize the home page.
+          </li>
+          <li>
+            Update <code>src/components/Header.tsx</code> and{' '}
+            <code>src/components/Footer.tsx</code> for brand links.
+          </li>
+          <li>
+            Add routes in <code>src/routes</code> and tweak visual tokens in{' '}
+            <code>src/styles.css</code>.
+          </li>
+        </ul>
+      </section>
+    </main>
+  )
+}
+
+============================================================
+// File: styles.css
+============================================================
+
+@import url('https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Manrope:wght@400;500;600;700;800&display=swap');
+@import 'tailwindcss';
+@plugin '@tailwindcss/typography';
+
+@import 'tw-animate-css';
+
+@custom-variant dark (&:is(.dark *));
+
+:root {
+  --sea-ink: #173a40;
+  --sea-ink-soft: #416166;
+  --lagoon: #4fb8b2;
+  --lagoon-deep: #328f97;
+  --palm: #2f6a4a;
+  --sand: #e7f0e8;
+  --foam: #f3faf5;
+  --surface: rgba(255, 255, 255, 0.74);
+  --surface-strong: rgba(255, 255, 255, 0.9);
+  --line: rgba(23, 58, 64, 0.14);
+  --inset-glint: rgba(255, 255, 255, 0.82);
+  --kicker: rgba(47, 106, 74, 0.9);
+  --bg-base: #e7f3ec;
+  --header-bg: rgba(251, 255, 248, 0.84);
+  --chip-bg: rgba(255, 255, 255, 0.8);
+  --chip-line: rgba(47, 106, 74, 0.18);
+  --link-bg-hover: rgba(255, 255, 255, 0.9);
+  --hero-a: rgba(79, 184, 178, 0.36);
+  --hero-b: rgba(47, 106, 74, 0.2);
+
+  --background: oklch(1 0 0);
+  --foreground: oklch(0.141 0.005 285.823);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.141 0.005 285.823);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.141 0.005 285.823);
+  --primary: oklch(0.21 0.006 285.885);
+  --primary-foreground: oklch(0.985 0 0);
+  --secondary: oklch(0.967 0.001 286.375);
+  --secondary-foreground: oklch(0.21 0.006 285.885);
+  --muted: oklch(0.967 0.001 286.375);
+  --muted-foreground: oklch(0.552 0.016 285.938);
+  --accent: oklch(0.967 0.001 286.375);
+  --accent-foreground: oklch(0.21 0.006 285.885);
+  --destructive: oklch(0.577 0.245 27.325);
+  --destructive-foreground: oklch(0.577 0.245 27.325);
+  --border: oklch(0.92 0.004 286.32);
+  --input: oklch(0.92 0.004 286.32);
+  --ring: oklch(0.871 0.006 286.286);
+  --chart-1: oklch(0.646 0.222 41.116);
+  --chart-2: oklch(0.6 0.118 184.704);
+  --chart-3: oklch(0.398 0.07 227.392);
+  --chart-4: oklch(0.828 0.189 84.429);
+  --chart-5: oklch(0.769 0.188 70.08);
+  --radius: 0.625rem;
+  --sidebar: oklch(0.985 0 0);
+  --sidebar-foreground: oklch(0.141 0.005 285.823);
+  --sidebar-primary: oklch(0.21 0.006 285.885);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.967 0.001 286.375);
+  --sidebar-accent-foreground: oklch(0.21 0.006 285.885);
+  --sidebar-border: oklch(0.92 0.004 286.32);
+  --sidebar-ring: oklch(0.871 0.006 286.286);
+}
+
+.dark {
+  --sea-ink: #d7ece8;
+  --sea-ink-soft: #afcdc8;
+  --lagoon: #60d7cf;
+  --lagoon-deep: #8de5db;
+  --palm: #6ec89a;
+  --sand: #0f1a1e;
+  --foam: #101d22;
+  --surface: rgba(16, 30, 34, 0.8);
+  --surface-strong: rgba(15, 27, 31, 0.92);
+  --line: rgba(141, 229, 219, 0.18);
+  --inset-glint: rgba(194, 247, 238, 0.14);
+  --kicker: #b8efe5;
+  --bg-base: #0a1418;
+  --header-bg: rgba(10, 20, 24, 0.8);
+  --chip-bg: rgba(13, 28, 32, 0.9);
+  --chip-line: rgba(141, 229, 219, 0.24);
+  --link-bg-hover: rgba(24, 44, 49, 0.8);
+  --hero-a: rgba(96, 215, 207, 0.18);
+  --hero-b: rgba(110, 200, 154, 0.12);
+
+  --background: oklch(0.141 0.005 285.823);
+  --foreground: oklch(0.985 0 0);
+  --card: oklch(0.141 0.005 285.823);
+  --card-foreground: oklch(0.985 0 0);
+  --popover: oklch(0.141 0.005 285.823);
+  --popover-foreground: oklch(0.985 0 0);
+  --primary: oklch(0.985 0 0);
+  --primary-foreground: oklch(0.21 0.006 285.885);
+  --secondary: oklch(0.274 0.006 286.033);
+  --secondary-foreground: oklch(0.985 0 0);
+  --muted: oklch(0.274 0.006 286.033);
+  --muted-foreground: oklch(0.705 0.015 286.067);
+  --accent: oklch(0.274 0.006 286.033);
+  --accent-foreground: oklch(0.985 0 0);
+  --destructive: oklch(0.396 0.141 25.723);
+  --destructive-foreground: oklch(0.637 0.237 25.331);
+  --border: oklch(0.274 0.006 286.033);
+  --input: oklch(0.274 0.006 286.033);
+  --ring: oklch(0.442 0.017 285.786);
+  --chart-1: oklch(0.488 0.243 264.376);
+  --chart-2: oklch(0.696 0.17 162.48);
+  --chart-3: oklch(0.769 0.188 70.08);
+  --chart-4: oklch(0.627 0.265 303.9);
+  --chart-5: oklch(0.645 0.246 16.439);
+  --sidebar: oklch(0.21 0.006 285.885);
+  --sidebar-foreground: oklch(0.985 0 0);
+  --sidebar-primary: oklch(0.488 0.243 264.376);
+  --sidebar-primary-foreground: oklch(0.985 0 0);
+  --sidebar-accent: oklch(0.274 0.006 286.033);
+  --sidebar-accent-foreground: oklch(0.985 0 0);
+  --sidebar-border: oklch(0.274 0.006 286.033);
+  --sidebar-ring: oklch(0.442 0.017 285.786);
+}
+
+@theme inline {
+  --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-destructive-foreground: var(--destructive-foreground);
+  --color-border: var(--border);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+  --color-chart-1: var(--chart-1);
+  --color-chart-2: var(--chart-2);
+  --color-chart-3: var(--chart-3);
+  --color-chart-4: var(--chart-4);
+  --color-chart-5: var(--chart-5);
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+  --color-sidebar: var(--sidebar);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-ring: var(--sidebar-ring);
+}
+
+html,
+body,
+#app {
+  min-height: 100%;
+}
+
+body {
+  margin: 0;
+  color: var(--sea-ink);
+  font-family: var(--font-sans);
+  background-color: var(--bg-base);
+  background:
+    radial-gradient(1100px 620px at -8% -10%, var(--hero-a), transparent 58%),
+    radial-gradient(1050px 620px at 112% -12%, var(--hero-b), transparent 62%),
+    radial-gradient(720px 380px at 50% 115%, rgba(79, 184, 178, 0.1), transparent 68%),
+    linear-gradient(180deg, color-mix(in oklab, var(--sand) 68%, white) 0%, var(--foam) 44%, var(--bg-base) 100%);
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+body::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.28;
+  background:
+    radial-gradient(circle at 20% 15%, rgba(255, 255, 255, 0.8), transparent 34%),
+    radial-gradient(circle at 78% 26%, rgba(79, 184, 178, 0.2), transparent 42%),
+    radial-gradient(circle at 42% 82%, rgba(47, 106, 74, 0.14), transparent 36%);
+}
+
+body::after {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: -1;
+  opacity: 0.14;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.07) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.06) 1px, transparent 1px);
+  background-size: 28px 28px;
+  mask-image: radial-gradient(circle at 50% 30%, black, transparent 78%);
+}
+
+a {
+  color: var(--lagoon-deep);
+  text-decoration-color: rgba(50, 143, 151, 0.4);
+  text-decoration-thickness: 1px;
+  text-underline-offset: 2px;
+}
+
+a:hover {
+  color: #246f76;
+}
+
+code {
+  font-size: 0.9em;
+  border: 1px solid var(--line);
+  background: color-mix(in oklab, var(--surface-strong) 82%, white 18%);
+  border-radius: 7px;
+  padding: 2px 7px;
+}
+
+pre code {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  border-radius: 0;
+  font-size: inherit;
+  color: inherit;
+}
+
+.prose pre {
+  border: 1px solid var(--line);
+  border-radius: 12px;
+  background: #1d2e45;
+  color: #e8efff;
+}
+
+.page-wrap {
+  width: min(1080px, calc(100% - 2rem));
+  margin-inline: auto;
+}
+
+.display-title {
+  font-family: 'Fraunces', Georgia, serif;
+}
+
+.island-shell {
+  border: 1px solid var(--line);
+  background: linear-gradient(165deg, var(--surface-strong), var(--surface));
+  box-shadow:
+    0 1px 0 var(--inset-glint) inset,
+    0 22px 44px rgba(30, 90, 72, 0.1),
+    0 6px 18px rgba(23, 58, 64, 0.08);
+  backdrop-filter: blur(4px);
+}
+
+.feature-card {
+  background: linear-gradient(165deg, color-mix(in oklab, var(--surface-strong) 93%, white 7%), var(--surface));
+  box-shadow:
+    0 1px 0 var(--inset-glint) inset,
+    0 18px 34px rgba(30, 90, 72, 0.1),
+    0 4px 14px rgba(23, 58, 64, 0.06);
+}
+
+.feature-card:hover {
+  transform: translateY(-2px);
+  border-color: color-mix(in oklab, var(--lagoon-deep) 35%, var(--line));
+}
+
+button,
+.island-shell,
+a {
+  transition: background-color 180ms ease, color 180ms ease, border-color 180ms ease,
+    transform 180ms ease;
+}
+
+.island-kicker {
+  letter-spacing: 0.16em;
+  text-transform: uppercase;
+  font-weight: 700;
+  font-size: 0.69rem;
+  color: var(--kicker);
+}
+
+.nav-link {
+  position: relative;
+  text-decoration: none;
+  color: var(--sea-ink-soft);
+}
+
+.nav-link::after {
+  content: '';
+  position: absolute;
+  left: 0;
+  bottom: -8px;
+  width: 100%;
+  height: 2px;
+  transform: scaleX(0);
+  transform-origin: left;
+  background: linear-gradient(90deg, var(--lagoon), #7ed3bf);
+  transition: transform 170ms ease;
+}
+
+.nav-link:hover,
+.nav-link.is-active {
+  color: var(--sea-ink);
+}
+
+.nav-link:hover::after,
+.nav-link.is-active::after {
+  transform: scaleX(1);
+}
+
+.rise-in {
+  animation: rise-in 700ms cubic-bezier(0.16, 1, 0.3, 1) both;
+}
+
+@keyframes rise-in {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.site-footer {
+  border-top: 1px solid var(--line);
+  background: color-mix(in oklab, var(--header-bg) 84%, transparent 16%);
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+  }
+  body {
+    background-color: var(--background);
+    color: var(--foreground);
+  }
+}

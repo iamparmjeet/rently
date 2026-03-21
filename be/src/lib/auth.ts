@@ -1,10 +1,10 @@
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { openAPI } from "better-auth/plugins";
+import { USER_ROLE_VALUES } from "@/constants/user-roles";
 import { db } from "@/db";
 import { account, session, user, verification } from "@/db/schema";
 import env from "@/env";
-import { USER_ROLE_VALUES } from "@/constants/user-roles";
 
 export const auth = betterAuth({
   database: drizzleAdapter(db, {
@@ -16,10 +16,10 @@ export const auth = betterAuth({
       verification,
     },
   }),
-  providers: {
-    credentials: {
-      enabled: true,
-    },
+  emailAndPassword: {
+    enabled: true,
+  },
+  socialProviders: {
     google: {
       clientId: env.GOOGLE_CLIENT_ID,
       clientSecret: env.GOOGLE_CLIENT_SECRET,
@@ -34,7 +34,7 @@ export const auth = betterAuth({
       role: {
         type: "string",
         required: false,
-        defaultValue: USER_ROLE_VALUES[1],
+        defaultValue: USER_ROLE_VALUES[1], // Default Owner
       },
     },
   },
@@ -43,13 +43,10 @@ export const auth = betterAuth({
       enabled: true,
     },
   },
-  emailAndPassword: {
-    enabled: true,
-  },
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
   session: {
-    expiresIn: 7 * 24 * 60 * 60,
+    expiresIn: 7 * 24 * 60 * 60, // 7 days
     cookieName: "rently_session",
     cookieOptions: {
       httpOnly: true,
@@ -61,10 +58,7 @@ export const auth = betterAuth({
       fromEmail: env.EMAIL_FROM || "noreply@rently.com",
       fromName: "Rently App",
     },
-    trustedOrigins: [
-      "http://localhost:8787",
-      "https://rently.parmjeetmishra.com",
-    ],
+    trustedOrigins: [env.LOCAL_APP, env.PROD_APP],
   },
   plugins: [openAPI()],
 });

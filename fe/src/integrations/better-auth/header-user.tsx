@@ -1,45 +1,43 @@
-import { authClient } from '#/lib/auth-client'
-import { Link } from '@tanstack/react-router'
+import { Link, useRouter } from "@tanstack/react-router";
+import { authClient } from "#/lib/auth-client";
 
 export default function BetterAuthHeader() {
-  const { data: session, isPending } = authClient.useSession()
+  const { data: session, isPending } = authClient.useSession();
+  const router = useRouter();
 
   if (isPending) {
     return (
-      <div className="h-8 w-8 bg-neutral-100 dark:bg-neutral-800 animate-pulse" />
-    )
+      <div className="h-8 w-16 animate-pulse rounded-md bg-muted" />
+    );
   }
 
   if (session?.user) {
     return (
       <div className="flex items-center gap-2">
-        {session.user.image ? (
-          <img src={session.user.image} alt="" className="h-8 w-8" />
-        ) : (
-          <div className="h-8 w-8 bg-neutral-100 dark:bg-neutral-800 flex items-center justify-center">
-            <span className="text-xs font-medium text-neutral-600 dark:text-neutral-400">
-              {session.user.name?.charAt(0).toUpperCase() || 'U'}
-            </span>
-          </div>
-        )}
+        <div className="flex h-8 w-8 items-center justify-center rounded-full bg-muted text-xs font-medium">
+          {session.user.name?.charAt(0).toUpperCase() ??
+            session.user.email.charAt(0).toUpperCase()}
+        </div>
         <button
-          onClick={() => {
-            void authClient.signOut()
+          type="button"
+          onClick={async () => {
+            await authClient.signOut();
+            router.navigate({ to: "/" });
           }}
-          className="flex-1 h-9 px-4 text-sm font-medium bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors"
+          className="text-sm font-medium text-muted-foreground hover:text-foreground transition-colors"
         >
           Sign out
         </button>
       </div>
-    )
+    );
   }
 
   return (
     <Link
-      to="/demo/better-auth"
-      className="h-9 px-4 text-sm font-medium bg-white dark:bg-neutral-900 text-neutral-900 dark:text-neutral-50 border border-neutral-300 dark:border-neutral-700 hover:bg-neutral-50 dark:hover:bg-neutral-800 transition-colors inline-flex items-center"
+      to="/login"
+      className="inline-flex h-9 items-center rounded-md border border-border bg-background px-4 text-sm font-medium text-foreground transition-colors hover:bg-accent"
     >
       Sign in
     </Link>
-  )
+  );
 }

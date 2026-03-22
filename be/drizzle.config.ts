@@ -1,5 +1,6 @@
 import { defineConfig } from "drizzle-kit";
 import { DB_URL } from "./src/constants/db-const";
+
 // Here relative path because drizzle run before typescript
 
 export default defineConfig({

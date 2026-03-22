@@ -43,22 +43,21 @@ export const auth = betterAuth({
       enabled: true,
     },
   },
+  session: {
+    expiresIn: 7 * 24 * 60 * 60, // 7 days in seconds
+    cookieName: "rently_session",
+  },
+
+  // In v1.5+ cookie options moved to the advanced block
+  advanced: {
+    cookiePrefix: "rently",
+    // biome-ignore lint/style/noProcessEnv: "Only Here"
+    useSecureCookies: process.env.NODE_ENV === "production",
+  },
+
+  // Top-level config (not nested under session)
   baseURL: env.BETTER_AUTH_URL,
   secret: env.BETTER_AUTH_SECRET,
-  session: {
-    expiresIn: 7 * 24 * 60 * 60, // 7 days
-    cookieName: "rently_session",
-    cookieOptions: {
-      httpOnly: true,
-      // biome-ignore lint/style/noProcessEnv: "Only Here"
-      secure: process.env.NODE_ENV === "production",
-      sameSite: "lax",
-    },
-    emails: {
-      fromEmail: env.EMAIL_FROM || "noreply@rently.com",
-      fromName: "Rently App",
-    },
-    trustedOrigins: [env.LOCAL_APP, env.PROD_APP],
-  },
+  trustedOrigins: [env.LOCAL_APP, env.PROD_APP],
   plugins: [openAPI()],
 });

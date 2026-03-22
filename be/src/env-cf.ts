@@ -17,6 +17,7 @@ const EnvSchema = z
     LOCAL_APP: z.string(),
     PROD_APP: z.string(),
     DB_NAME: z.string(),
+    DB_URL: z.url().optional(),
     DB_USER: z.string(),
     DB_PASSWORD: z.string(),
     BETTER_AUTH_SECRET: z.string(),

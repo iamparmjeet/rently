@@ -1,6 +1,12 @@
-import { addTodo, listTodos } from './todos'
+import { leaseRouter, propertyRouter, unitRouter } from "./rently";
 
-export default {
-  listTodos,
-  addTodo,
-}
+const appRouter = {
+  rent: {
+    properties: propertyRouter,
+    leases: leaseRouter,
+    units: unitRouter,
+  },
+};
+
+export default appRouter;
+export type AppRouter = typeof appRouter;

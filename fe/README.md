@@ -1,36 +1,81 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
 
-## Getting Started
+- [ ] Auth Integration (FE)
+  - [ ] Install better-auth React package in fe
+  - [ ] Create src/lib/auth.ts with better-auth exports
+  - [ ] Create src/components/providers/auth-provider.tsx
+  - [ ] Wrap app with <AuthProvider> in src/app/layout.tsx
+  - [ ] Fix login page to use auth.signIn() instead of raw fetch
+  - [ ] Fix register page to use auth.signUp() instead of raw fetch
+  - [ ] Add session state checking on login/register success
+  - [ ] Add useSession() hook to dashboard layout
 
-First, run the development server:
+- [ ] Route Protection
+  - [ ] Create src/components/guards/protected-route.tsx
+  - [ ] Protect all /dashboard/* routes with auth guard
+  - [ ] Redirect unauthenticated users to /login
+  - [ ] Redirect authenticated users from /login to /dashboard
 
-```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
-```
+- [ ] API Client
+  - [ ]  Install @tanstack/react-query and @tanstack/react-query-devtools
+  - [ ] Create src/lib/api-client.ts (fetch wrapper with auth headers)
+  - [ ] Create src/components/providers/query-provider.tsx
+  - [ ] Wrap app with <QueryProvider> in src/app/layout.tsx
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+- [ ] Dashboard Layout
+  - [ ] Build src/components/layouts/dashboard-header.tsx (full implementation)
+  - [ ] Build src/components/layouts/deashboard-sidebar.tsx
+  - [ ] Add sidebar navigation links
+  - [ ] Add mobile responsive hamburger menu
+  - [ ] Connect sidebar to dashboard layout
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+- [ ] Forms (All empty files)
+  - [ ] Implement src/components/forms/property-form.tsx
+  - [ ] Implement src/components/forms/unit-form.tsx
+  - [ ] Implement src/components/forms/lease-form.tsx
+  - [ ] Implement src/components/forms/payment-form.tsx
+  - [ ] Implement src/components/forms/invite-form.tsx
 
-## Learn More
+- [ ] Feature Components (Empty files)
+  - [ ] Implement src/components/features/properties/property-card.tsx
+  - [ ] Implement src/components/features/properties/property-list.tsx
+  - [ ] Implement src/components/features/properties/property-table.tsx
+  - [ ] Implement src/components/features/leases/lease-card.tsx
+  - [ ] Implement src/components/features/leases/lease-details.tsx
+  - [ ] Implement src/components/features/leases/lease-status-badge.tsx
+  - [ ] Implement src/components/features/payments/payment-history.tsx
+  - [ ] Implement src/components/features/payments/payment-methods.tsx
+  - [ ] Implement src/components/features/subscriptions/plan-card.tsx
+  - [ ] Implement src/components/features/subscriptions/subscription-status.tsx
 
-To learn more about Next.js, take a look at the following resources:
+- [ ] Shared Components (Empty files)
+  - [ ] Implement src/components/shared/confirm-dialog.ts
+  - [ ] Implement src/components/shared/data-table.tsx
+  - [ ] Implement src/components/shared/empty-state.tsx
+  - [ ] Implement src/components/shared/error-boundary.tsx
+  - [ ] Implement src/components/shared/loading-spinner.tsx
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+- [ ] Dashboard Pages (Empty return statements)
+  - [ ] Implement src/app/(dashboard)/properties/page.tsx
+  - [ ] Implement src/app/(dashboard)/properties/new/page.tsx
+  - [ ] Implement src/app/(dashboard)/properties/[id]/page.tsx
+  - [ ] Implement src/app/(dashboard)/properties/[id]/edit/page.tsx
+  - [ ] Implement src/app/(dashboard)/units/page.tsx
+  - [ ] Implement src/app/(dashboard)/units/new/page.tsx
+  - [ ] Implement src/app/(dashboard)/units/[id]/page.tsx
+  - [ ] Implement src/app/(dashboard)/units/[id]/edit/page.tsx
+  - [ ] Implement src/app/(dashboard)/leases/page.tsx
+  - [ ] Implement src/app/(dashboard)/leases/new/page.tsx
+  - [ ] Implement src/app/(dashboard)/leases/[id]/page.tsx
+  - [ ] Implement src/app/(dashboard)/payments/page.tsx
+  - [ ] Implement src/app/(dashboard)/payments/[id]/page.tsx
+  - [ ] Implement src/app/(dashboard)/tenants/page.tsx
+  - [ ] Implement src/app/(dashboard)/tenants/[id]/page.tsx
+  - [ ] Implement src/app/(dashboard)/tenants/invites/page.tsx
+  - [ ] Implement src/app/(dashboard)/utilities/page.tsx
+  - [ ] Implement src/app/(dashboard)/utilities/[id]/page.tsx
+  - [ ] Implement src/app/(dashboard)/settings/page.tsx
+  - [ ] Implement src/app/(dashboard)/settings/profile/page.tsx
+  - [ ] Implement src/app/(dashboard)/subscriptions/page.tsx
+  - [ ] Implement src/app/(dashboard)/subscriptions/plans/page.tsx
+  - [ ] Implement src/app/(dashboard)/subscriptions/billing/page.tsx

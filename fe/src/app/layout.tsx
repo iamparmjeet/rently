@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "./globals.css";
-import { Footer } from "@/components/layouts/footer";
-import { Header } from "@/components/layouts/header";
+import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -40,9 +39,8 @@ export default function RootLayout({
 			)}
 		>
 			<body className="min-h-full flex flex-col">
-				<Header />
 				{children}
-				<Footer />
+				<Toaster position="bottom-right" />
 			</body>
 		</html>
 	);

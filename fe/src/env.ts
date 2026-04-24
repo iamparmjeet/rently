@@ -6,11 +6,11 @@ export const env = createEnv({
     BETTER_AUTH_URL: z.url(),
   },
   client: {
-    NEXT_PUBLIC_PUBLISHABLE_KEY: z.string().min(1),
+    NEXT_PUBLIC_BETTER_AUTH_URL: z.url(),
   },
   runtimeEnv: {
 		BETTER_AUTH_URL: process.env.BETTER_AUTH_URL,
-		NEXT_PUBLIC_PUBLISHABLE_KEY: ""
+		NEXT_PUBLIC_BETTER_AUTH_URL: process.env.NEXT_PUBLIC_BETTER_AUTH_URL,
   },
 
 });

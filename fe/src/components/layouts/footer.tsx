@@ -7,6 +7,7 @@ import {
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
+import { Year } from "@/lib/date";
 
 const footerLinks = {
 	product: [
@@ -107,7 +108,10 @@ export function Footer() {
 
 				<div className="mt-12 pt-8 border-t text-center text-sm text-muted-foreground">
 					<p>
-						&copy; {new Date().getFullYear()} RentWise. All rights reserved. | Made with ♡ by <Link target="_blank" href={"https://parmjeetmishra.com"}>Parm</Link>
+						&copy; {Year()} RentWise. All rights reserved. | Made with ♡ by{" "}
+						<Link target="_blank" href={"https://parmjeetmishra.com"}>
+							Parm
+						</Link>
 					</p>
 				</div>
 			</div>

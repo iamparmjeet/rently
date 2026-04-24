@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
+import Logo from "../shared/logo";
 
 const navLinks = [
 	{ href: "#features", label: "Features" },
@@ -18,10 +19,7 @@ export function Header() {
 		<header className="sticky top-0 z-50 w-full border-b bg-background/95 backdrop-blur supports-backdrop-filter:bg-background/60">
 			<nav className="container mx-auto flex h-16 items-center justify-between px-4">
 				{/* Logo */}
-				<Link href="/" className="flex items-center gap-2">
-					<IconBuilding className="h-6 w-6 text-primary" />
-					<span className="text-xl font-semibold">RentWise</span>
-				</Link>
+				<Logo />
 
 				{/* Desktop Navigation */}
 				<div className="hidden md:flex md:items-center md:gap-6">

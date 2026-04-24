@@ -1,7 +1,7 @@
 
 - [ ] Auth Integration (FE)
-  - [ ] Install better-auth React package in fe
-  - [ ] Create src/lib/auth.ts with better-auth exports
+  - [x] Install better-auth React package in fe
+  - [x] Create src/lib/auth.ts with better-auth exports
   - [ ] Create src/components/providers/auth-provider.tsx
   - [ ] Wrap app with <AuthProvider> in src/app/layout.tsx
   - [ ] Fix login page to use auth.signIn() instead of raw fetch

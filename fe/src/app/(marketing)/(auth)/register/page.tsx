@@ -25,8 +25,9 @@ import { Field, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Toaster } from "@/components/ui/sonner";
+import { NavigationLinkMap, NavigationLinks } from "@/constants/navigation";
 import { env } from "@/env";
-import { signUp } from "@/lib/auth-client";
+import { signIn, signUp } from "@/lib/auth-client";
 import { type RegisterFormType, registerSchema } from "@/types/auth-types";
 
 export default function RegisterPage() {
@@ -55,6 +56,7 @@ export default function RegisterPage() {
 			{
 				onRequest: (ctx) => {
 					console.log("Requesting", ctx);
+					toast(`Signing Up...`);
 				},
 				onSuccess: (ctx) => {
 					setIsLoading(false);
@@ -71,7 +73,10 @@ export default function RegisterPage() {
 	};
 
 	const handleSocialLogin = (provider: "google" | "github") => {
-		window.location.href = `${env.NEXT_PUBLIC_BETTER_AUTH_URL}/sign-in/${provider}`;
+		signIn.social({
+			provider,
+			callbackURL: `${env.NEXT_PUBLIC_APP_URL}/${NavigationLinkMap.Dashboard.href}`,
+		});
 	};
 
 	return (

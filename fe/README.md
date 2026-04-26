@@ -5,6 +5,13 @@
   - [ ] Create src/components/providers/auth-provider.tsx
   - [ ] Wrap app with <AuthProvider> in src/app/layout.tsx
   - [ ] Fix login page to use auth.signIn() instead of raw fetch
+    - [ ] Login with email
+    - [ ] Login with social
+    - [ ] On Existing User signup
+    - [ ] Email Verficiation
+    - [ ] Reset Password
+      - [ ] Revoking Sessions on Password Reset
+    - [ ] Update Password
   - [ ] Fix register page to use auth.signUp() instead of raw fetch
   - [ ] Add session state checking on login/register success
   - [ ] Add useSession() hook to dashboard layout

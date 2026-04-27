@@ -4,7 +4,9 @@ import "./globals.css";
 import { Toaster } from "@/components/ui/sonner";
 import { cn } from "@/lib/utils";
 
-const inter = Inter({subsets:['latin'],variable:'--font-sans'});
+const geistHeading = Geist({ subsets: ["latin"], variable: "--font-heading" });
+
+const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
 const geistSans = Geist({
 	variable: "--font-geist-sans",
@@ -36,6 +38,7 @@ export default function RootLayout({
 				geistMono.variable,
 				"font-sans",
 				inter.variable,
+				geistHeading.variable,
 			)}
 		>
 			<body className="min-h-full flex flex-col">

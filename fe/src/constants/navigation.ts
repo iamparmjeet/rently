@@ -21,22 +21,22 @@ export const NavigationLinkMap = {
 	},
 	Properties: {
 		name: "Properties",
-		href: "/dashboard/properties",
+		href: "/properties",
 		icon: IconBuilding,
 	},
 	Tenants: {
 		name: "Tenants",
-		href: "/dashboard/tenants",
+		href: "/tenants",
 		icon: IconUsers,
 	},
 	Payments: {
 		name: "Payments",
-		href: "/dashboard/payments",
+		href: "/payments",
 		icon: IconReceipt,
 	},
 	Settings: {
 		name: "Settings",
-		href: "/dashboard/settings",
+		href: "/settings",
 		icon: IconSettings,
 	},
 } as const satisfies Record<string, NavigationLink>;

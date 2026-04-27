@@ -1,81 +1,109 @@
-// src/components/layouts/dashboard-sidebar.tsx
+"use client";
+
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import {
+	Sidebar,
+	SidebarContent,
+	SidebarFooter,
+	SidebarGroup,
+	SidebarGroupContent,
+	SidebarGroupLabel,
+	SidebarHeader,
+	SidebarMenu,
+	SidebarMenuButton,
+	SidebarMenuItem,
+	SidebarRail,
+} from "@/components/ui/sidebar";
 import { NavigationLinks } from "@/constants/navigation";
 import Logo from "../shared/logo";
 
-interface DashboardSidebarProps {
-	mobile?: boolean;
-}
-
-export default function DashboardSidebar({ mobile }: DashboardSidebarProps) {
+export function AppSidebar() {
 	const pathname = usePathname();
-	const r = "calc(var(--radius)*1.8)"; // Large radius for bento feel
 
-	const navItem = (active: boolean) =>
-		`flex items-center gap-3 rounded-[${r}] px-4 py-3 text-sm font-medium transition-all ${
-			active
-				? "bg-primary text-primary-foreground shadow-lg shadow-primary/25"
-				: "text-muted-foreground hover:bg-muted hover:text-foreground"
-		}`;
+	const overviewLinks = NavigationLinks.filter((link) =>
+		["dashboard", "properties", "tenants", "payments"].includes(
+			link.name.toLowerCase(),
+		),
+	);
 
-	const sidebarContent = (
-		<div className="flex h-full flex-col p-4 bg-sidebar border-r border-sidebar-border">
-			<Logo className="px-3 pb-4" />
-
-			{/* Main Navigation */}
-			<nav className="space-y-2">
-				<span className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-					Overview
-				</span>
-				{NavigationLinks.filter((link) =>
-					["dashboard", "properties", "tenants", "payments"].includes(
-						link.name.toLowerCase(),
-					),
-				).map((item) => (
-					<Link
-						key={item.name}
-						href={item.href}
-						className={navItem(pathname === item.href)}
-					>
-						<item.icon className="h-5 w-5" />
-						{item.name}
-					</Link>
-				))}
-			</nav>
-
-			{/* Settings Navigation */}
-			<nav className="mt-6 space-y-2">
-				<span className="px-3 text-xs font-semibold uppercase tracking-wider text-muted-foreground">
-					System
-				</span>
-				{NavigationLinks.filter((link) =>
-					["settings", "help"].includes(link.name.toLowerCase()),
-				).map((item) => (
-					<Link
-						key={item.name}
-						href={item.href}
-						className={navItem(pathname === item.href)}
-					>
-						<item.icon className="h-5 w-5" />
-						{item.name}
-					</Link>
-				))}
-			</nav>
-
-			{/* Footer */}
-			<div className="mt-auto rounded-[${r}] border border-border bg-muted/50 p-4">
-				<p className="text-xs text-muted-foreground">Need help?</p>
-				<p className="mt-1 text-sm font-medium text-foreground">
-					Check documentation
-				</p>
-			</div>
-		</div>
+	const systemLinks = NavigationLinks.filter((link) =>
+		["settings", "help"].includes(link.name.toLowerCase()),
 	);
 
 	return (
-		<aside className={`hidden lg:block ${mobile ? "lg:block" : ""}`}>
-			{mobile ? <div className="h-full">{sidebarContent}</div> : sidebarContent}
-		</aside>
+		<Sidebar collapsible="icon">
+			<SidebarHeader>
+				<SidebarMenu>
+					<SidebarMenuItem>
+						<SidebarMenuButton size="lg">
+							<Logo className="h-6 w-auto" />
+						</SidebarMenuButton>
+					</SidebarMenuItem>
+				</SidebarMenu>
+			</SidebarHeader>
+
+			<SidebarContent>
+				{/* Overview Section */}
+				<SidebarGroup>
+					<SidebarGroupLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+						MENU
+					</SidebarGroupLabel>
+					<SidebarGroupContent>
+						<SidebarMenu className="space-y-4">
+							{overviewLinks.map((item) => (
+								<SidebarMenuItem key={item.name} className="">
+									<SidebarMenuButton
+										isActive={pathname === item.href}
+										tooltip={item.name}
+										className=""
+									>
+										<Link href={item.href} className="flex items-center gap-2">
+											<item.icon className="shrink-0 !size-5" />
+											<span className="text-base">{item.name}</span>
+										</Link>
+									</SidebarMenuButton>
+								</SidebarMenuItem>
+							))}
+						</SidebarMenu>
+					</SidebarGroupContent>
+				</SidebarGroup>
+
+				{/* System Section */}
+				<SidebarGroup>
+					<SidebarGroupLabel className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+						System
+					</SidebarGroupLabel>
+					<SidebarGroupContent>
+						<SidebarMenu>
+							{systemLinks.map((item) => (
+								<SidebarMenuItem key={item.name}>
+									<SidebarMenuButton
+										isActive={pathname === item.href}
+										tooltip={item.name}
+									>
+										<Link href={item.href} className="flex items-center gap-2">
+											<item.icon className="!size-5" />
+											<span className="text-base">{item.name}</span>
+										</Link>
+									</SidebarMenuButton>
+								</SidebarMenuItem>
+							))}
+						</SidebarMenu>
+					</SidebarGroupContent>
+				</SidebarGroup>
+			</SidebarContent>
+
+			<SidebarFooter className="p-3">
+				<div className="rounded-md border bg-muted/50 p-3">
+					<p className="text-xs text-muted-foreground">Need help?</p>
+					<p className="mt-1 text-sm font-medium text-foreground">
+						Check documentation
+					</p>
+				</div>
+			</SidebarFooter>
+
+			<SidebarRail />
+		</Sidebar>
 	);
 }

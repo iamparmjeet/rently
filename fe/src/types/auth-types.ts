@@ -28,3 +28,7 @@ export const loginSchema = z.object({
 });
 
 export type LoginFormType = z.infer<typeof loginSchema>;
+
+/**********Social Types***********/
+
+export type SocialProvider = "google" | "github";

@@ -8,11 +8,11 @@ import {
 	IconBuilding,
 	IconEye,
 	IconEyeOff,
+	IconLoader2,
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
-import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
 	Card,
@@ -24,16 +24,13 @@ import {
 import { Field, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { Toaster } from "@/components/ui/sonner";
-import { NavigationLinkMap, NavigationLinks } from "@/constants/navigation";
-import { env } from "@/env";
-import { signIn, signUp } from "@/lib/auth-client";
+import { useRegister, useSocialLogin } from "@/hooks/auth";
 import { type RegisterFormType, registerSchema } from "@/types/auth-types";
 
 export default function RegisterPage() {
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirmPassword, setShowConfirmPassword] = useState(false);
-	const [isLoading, setIsLoading] = useState(false);
+	const { onSubmit, isLoading } = useRegister();
 
 	const {
 		register,
@@ -42,42 +39,7 @@ export default function RegisterPage() {
 	} = useForm<RegisterFormType>({
 		resolver: zodResolver(registerSchema),
 	});
-
-	const onSubmit = async (data: RegisterFormType) => {
-		setIsLoading(true);
-		const result = await signUp.email(
-			{
-				email: data.email,
-				password: data.password,
-				name: data.name,
-				phone: data.phone,
-				callbackURL: "/dashboard",
-			},
-			{
-				onRequest: (ctx) => {
-					console.log("Requesting", ctx);
-					toast(`Signing Up...`);
-				},
-				onSuccess: (ctx) => {
-					setIsLoading(false);
-					toast.success(`Registered Successfully: ${data.name}`);
-					window.location.href = "/dashboard";
-				},
-				onError: (err) => {
-					setIsLoading(false);
-					toast.error(`Registration Error: ${err.error.message}`);
-					console.error("Registration error OnErr:", err.error.message);
-				},
-			},
-		);
-	};
-
-	const handleSocialLogin = (provider: "google" | "github") => {
-		signIn.social({
-			provider,
-			callbackURL: `${env.NEXT_PUBLIC_APP_URL}/${NavigationLinkMap.Dashboard.href}`,
-		});
-	};
+	const { handleSocialLogin, loadingProvider } = useSocialLogin();
 
 	return (
 		<Card className="md:max-w-5xl mx-auto my-12">
@@ -97,18 +59,34 @@ export default function RegisterPage() {
 					<Button
 						variant="outline"
 						onClick={() => handleSocialLogin("google")}
-						disabled={isLoading}
+						disabled={!!loadingProvider}
 					>
-						<IconBrandGoogle className="mr-2 h-4 w-4" />
-						Google
+						{loadingProvider === "google" ? (
+							<>
+								<IconLoader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
+								Connecting...
+							</>
+						) : (
+							<>
+								<IconBrandGoogle className="mr-2 h-4 w-4" /> Google
+							</>
+						)}
 					</Button>
 					<Button
 						variant="outline"
 						onClick={() => handleSocialLogin("github")}
-						disabled={isLoading}
+						disabled={!!loadingProvider}
 					>
-						<IconBrandGithub className="mr-2 h-4 w-4" />
-						GitHub
+						{loadingProvider === "github" ? (
+							<>
+								<IconLoader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
+								Connecting...
+							</>
+						) : (
+							<>
+								<IconBrandGithub className="mr-2 h-4 w-4" /> GitHub
+							</>
+						)}
 					</Button>
 				</div>
 
@@ -134,7 +112,7 @@ export default function RegisterPage() {
 							{...register("name")}
 							disabled={isLoading}
 						/>
-						{errors.name && <FieldError>{[errors.name.message]}</FieldError>}
+						{errors.name && <FieldError>{errors.name.message}</FieldError>}
 					</Field>
 
 					<Field>

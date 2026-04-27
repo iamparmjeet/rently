@@ -4,23 +4,26 @@
   - [x] Create src/lib/auth.ts with better-auth exports
   - [ ] Create src/components/providers/auth-provider.tsx
   - [ ] Wrap app with <AuthProvider> in src/app/layout.tsx
-  - [ ] Fix login page to use auth.signIn() instead of raw fetch
-    - [ ] Login with email
-    - [ ] Login with social
+  - [ ] Fix login page
+    - [x] Using better auth use.login()
+    - [x] Login with email
+    - [x] Login with social
     - [ ] On Existing User signup
     - [ ] Email Verficiation
     - [ ] Reset Password
       - [ ] Revoking Sessions on Password Reset
     - [ ] Update Password
-  - [ ] Fix register page to use auth.signUp() instead of raw fetch
+  - [x] Fix register page to use auth.signUp() instead of raw fetch
+    - [x] Social signin
   - [ ] Add session state checking on login/register success
-  - [ ] Add useSession() hook to dashboard layout
+  - [x] Add useSession() hook to dashboard layout
 
 - [ ] Route Protection
   - [ ] Create src/components/guards/protected-route.tsx
-  - [ ] Protect all /dashboard/* routes with auth guard
-  - [ ] Redirect unauthenticated users to /login
+  - [x] Protect all /dashboard/* routes with auth guard
+  - [x] Redirect unauthenticated users to /login
   - [ ] Redirect authenticated users from /login to /dashboard
+  - [x] Middlewares
 
 - [ ] API Client
   - [ ]  Install @tanstack/react-query and @tanstack/react-query-devtools
@@ -29,11 +32,11 @@
   - [ ] Wrap app with <QueryProvider> in src/app/layout.tsx
 
 - [ ] Dashboard Layout
-  - [ ] Build src/components/layouts/dashboard-header.tsx (full implementation)
-  - [ ] Build src/components/layouts/deashboard-sidebar.tsx
-  - [ ] Add sidebar navigation links
+  - [x] Build src/components/layouts/dashboard-header.tsx (full implementation)
+  - [x] Build src/components/layouts/deashboard-sidebar.tsx
+  - [x] Add sidebar navigation links
   - [ ] Add mobile responsive hamburger menu
-  - [ ] Connect sidebar to dashboard layout
+  - [x] Connect sidebar to dashboard layout
 
 
 - [ ] Forms (All empty files)

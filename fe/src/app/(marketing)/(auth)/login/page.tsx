@@ -8,6 +8,7 @@ import {
 	IconBuilding,
 	IconEye,
 	IconEyeOff,
+	IconLoader2,
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { useState } from "react";
@@ -23,11 +24,13 @@ import {
 import { Field, FieldError } from "@/components/ui/field";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { useLogin, useSocialLogin } from "@/hooks/auth";
 import { type LoginFormType, loginSchema } from "@/types/auth-types";
 
 export default function LoginPage() {
 	const [showPassword, setShowPassword] = useState(false);
-	const [isLoading, setIsLoading] = useState(false);
+	const { onSubmit, isLoading } = useLogin();
+	const { handleSocialLogin, loadingProvider } = useSocialLogin();
 
 	const {
 		register,
@@ -36,35 +39,6 @@ export default function LoginPage() {
 	} = useForm<LoginFormType>({
 		resolver: zodResolver(loginSchema),
 	});
-
-	const onSubmit = async (data: LoginFormType) => {
-		setIsLoading(true);
-		try {
-			// Call your better-auth sign-in endpoint
-			const response = await fetch("/api/auth/sign-in/email", {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(data),
-			});
-
-			if (!response.ok) {
-				const error = await response.json();
-				throw new Error(error.message || "Failed to sign in");
-			}
-
-			// Redirect to dashboard on success
-			window.location.href = "/dashboard";
-		} catch (error) {
-			console.error("Login error:", error);
-			alert(error instanceof Error ? error.message : "Login failed");
-		} finally {
-			setIsLoading(false);
-		}
-	};
-
-	const handleSocialLogin = (provider: "google" | "github") => {
-		window.location.href = `/api/auth/sign-in/${provider}`;
-	};
 
 	return (
 		<Card className="md:max-w-5xl md:min-w-md mx-auto my-12">
@@ -86,16 +60,32 @@ export default function LoginPage() {
 						onClick={() => handleSocialLogin("google")}
 						disabled={isLoading}
 					>
-						<IconBrandGoogle className="mr-2 h-4 w-4" />
-						Google
+						{loadingProvider === "google" ? (
+							<>
+								<IconLoader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
+								Connecting...
+							</>
+						) : (
+							<>
+								<IconBrandGoogle className="mr-2 h-4 w-4" /> Google
+							</>
+						)}
 					</Button>
 					<Button
 						variant="outline"
 						onClick={() => handleSocialLogin("github")}
 						disabled={isLoading}
 					>
-						<IconBrandGithub className="mr-2 h-4 w-4" />
-						GitHub
+						{loadingProvider === "github" ? (
+							<>
+								<IconLoader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
+								Connecting...
+							</>
+						) : (
+							<>
+								<IconBrandGithub className="mr-2 h-4 w-4" /> GitHub
+							</>
+						)}
 					</Button>
 				</div>
 
@@ -121,9 +111,7 @@ export default function LoginPage() {
 							{...register("email")}
 							disabled={isLoading}
 						/>
-						{errors.email && (
-							<FieldError>{errors.email.message}</FieldError>
-						)}
+						{errors.email && <FieldError>{errors.email.message}</FieldError>}
 					</Field>
 
 					<Field>

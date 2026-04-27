@@ -11,7 +11,7 @@ export default function DashboardPage() {
 			</div>
 
 			{/* Primary Stat Card - spans 4 columns */}
-			<div className="col-span-4 rounded-[calc(var(--radius)*2.2)] bg-gradient-to-br from-primary to-primary/80 p-6 text-primary-foreground shadow-xl shadow-primary/25">
+			<div className="col-span-4 rounded-[calc(var(--radius)*2.2)] bg-linear-to-br from-primary to-primary/80 p-6 text-primary-foreground shadow-xl shadow-primary/25">
 				<p className="text-sm opacity-80">Total Properties</p>
 				<p className="mt-2 text-4xl font-bold">24</p>
 			</div>

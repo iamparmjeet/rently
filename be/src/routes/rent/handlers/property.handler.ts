@@ -68,6 +68,10 @@ export const getById = safeHandler(async (c: Ctx) => {
   const user = c.get("user");
   const propertyId = c.req.param("id");
 
+  if (!propertyId) {
+    return badRequest(c, "Property ID is required")
+  }
+
   const owns = await isPropertyOwner(c, user.id, propertyId);
   if (!owns) return forbidden(c, "You do not own this property");
 
@@ -86,6 +90,10 @@ export const update = safeHandler(async (c: Ctx) => {
   const user = c.get("user");
   const propertyId = c.req.param("id");
   const payload = await safeJson(c);
+
+  if (!propertyId) {
+    return badRequest(c, "Property ID is required")
+  }
 
   const result = UpdatePropertySchema.safeParse(payload);
 
@@ -120,6 +128,10 @@ export const remove = safeHandler(async (c: Ctx) => {
   const user = c.get("user");
   const propertyId = c.req.param("id");
 
+  if (!propertyId) {
+    return badRequest(c, "Property ID is required")
+  }
+
   const owns = await isPropertyOwner(c, user.id, propertyId);
   if (!owns) return forbidden(c, "You do not own this property");
 
@@ -131,3 +143,31 @@ export const remove = safeHandler(async (c: Ctx) => {
     return badRequest(c, "Deletion Failed", err);
   }
 });
+
+// 6_ Get Units for a specific property
+export const gerPropertyUnits = safeHandler(async (c: Ctx) => {
+  const db = c.get("db")
+  const user = c.get("user")
+  const propertyId = c.req.param("id")
+
+  if (!propertyId) {
+    return badRequest(c, "Property ID is required")
+  }
+
+  //ownership
+  const owns = await isPropertyOwner(c, user.id, propertyId)
+  if (!owns) return forbidden(c, "You do not own this property")
+
+  try {
+    const unitsList = await db.query.units.findMany({
+      where: (unit, { eq }) => eq(unit.propertyId, propertyId),
+      orderBy: (unit, {asc}) => [asc(unit.unitNumber)]
+    })
+
+    return success(c, {units: unitsList})
+  } catch (err) {
+    console.error("Property Units Fetch Error", err)
+    return badRequest(c, "Failed to fetch units for Property", err)
+  }
+
+})

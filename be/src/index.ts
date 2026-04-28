@@ -10,4 +10,4 @@ serve({
   port,
 });
 
-export type { RentlyAPI } from "./app";
+export type { AppType } from "./app";

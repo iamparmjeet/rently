@@ -23,6 +23,7 @@ router.post("/tenant-invites/accept", inviteHandlers.handleAcceptInvite);
 
 // Properties
 router.post("/properties", propertyHandlers.create);
+router.get("/propertties/:id/units", propertyHandlers.gerPropertyUnits)
 router.get("/properties", propertyHandlers.getAll);
 router.get("/properties/:id", propertyHandlers.getById);
 router.put("/properties/:id", propertyHandlers.update);
@@ -32,8 +33,8 @@ router.delete("/properties/:id", propertyHandlers.remove);
 router.post("/leases", leaseHandlers.create);
 router.get("/leases", leaseHandlers.getAll);
 router.get("/leases/:id", leaseHandlers.getbyId);
-router.put("/leases:/id", leaseHandlers.update);
-router.delete("/leases:/id", leaseHandlers.remove);
+router.put("/leases/:/id", leaseHandlers.update);
+router.delete("/leases/:id", leaseHandlers.remove);
 
 // Units
 router.post("/units", unitHandlers.create);
@@ -43,11 +44,11 @@ router.put("/units/:id", unitHandlers.update);
 router.delete("/units/:id", unitHandlers.remove);
 
 // Utilities
-router.post("/utility", utilityHandlers.create);
-router.get("/utility/:id", utilityHandlers.getAll);
-router.get("/utility/:id", utilityHandlers.getById);
-router.put("/utility/:id", utilityHandlers.update);
-router.delete("/utility", utilityHandlers.remove);
+router.post("/utilities", utilityHandlers.create);
+router.get("/utilities", utilityHandlers.getAll);
+router.get("/utilities/:id", utilityHandlers.getById);
+router.put("/utilities/:id", utilityHandlers.update);
+router.delete("/utilities/:id", utilityHandlers.remove);
 
 // Payments
 router.post("/payments", paymentsHandlers.create);

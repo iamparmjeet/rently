@@ -3,14 +3,11 @@ import index from "@/routes/index.routes";
 import rentRoutes from "@/routes/rent/routes";
 import subscriptionRoutes from "@/routes/subscriptions/routes";
 
-const app = createApp();
+const app = createApp()
+  .route("/api/v1", index)
+  .route("/api/v1", rentRoutes)
+  .route("/api/v1", subscriptionRoutes)
 
-const routes = [index, rentRoutes, subscriptionRoutes];
-routes.forEach((route) => {
-  app.route("/api/v1", route);
-});
-
-export type AppType = (typeof routes)[number];
-export type RentlyAPI = typeof app;
-
+// export type AppType = (typeof routes)[number];
+export type AppType = typeof app
 export default app;

@@ -10,51 +10,45 @@ import {
   unitHandlers,
   utilityHandlers,
 } from "./handlers";
+import {zValidator} from "@hono/zod-validator"
+import { CreateLeaseSchema, CreatePaymentSchema, CreatePropertySchema, CreateUnitSchmea, CreateUtilitySchema, UpdateLeaseSchema, UpdatePaymentSchema, UpdatePropertySchema, UpdateUnitSchema, UpdateUtilitySchema } from "@/types/rent-types";
 
-const router = createRouter();
-
-// Middleware for Owner and auth
-router.use(withAuth());
-router.use(requireRole(USER_ROLES.OWNER));
-
+const rentRoutes = createRouter()
+  .use(withAuth())
+  .use(requireRole(USER_ROLES.OWNER))
 // Invites
-router.post("/tenant-invites", inviteHandlers.handleCreateInvite);
-router.post("/tenant-invites/accept", inviteHandlers.handleAcceptInvite);
-
+.post("/tenant-invites", inviteHandlers.handleCreateInvite)
+.post("/tenant-invites/accept", inviteHandlers.handleAcceptInvite)
 // Properties
-router.post("/properties", propertyHandlers.create);
-router.get("/propertties/:id/units", propertyHandlers.gerPropertyUnits)
-router.get("/properties", propertyHandlers.getAll);
-router.get("/properties/:id", propertyHandlers.getById);
-router.put("/properties/:id", propertyHandlers.update);
-router.delete("/properties/:id", propertyHandlers.remove);
-
+.post("/properties", zValidator("json", CreatePropertySchema), propertyHandlers.create)
+  .get("/propertties/:id/units", propertyHandlers.gerPropertyUnits)
+.get("/properties", propertyHandlers.getAll)
+.get("/properties/:id", propertyHandlers.getById)
+.put("/properties/:id", zValidator("json", UpdatePropertySchema), propertyHandlers.update)
+.delete("/properties/:id", propertyHandlers.remove)
 // Leases
-router.post("/leases", leaseHandlers.create);
-router.get("/leases", leaseHandlers.getAll);
-router.get("/leases/:id", leaseHandlers.getbyId);
-router.put("/leases/:/id", leaseHandlers.update);
-router.delete("/leases/:id", leaseHandlers.remove);
-
+.post("/leases", zValidator("json", CreateLeaseSchema), leaseHandlers.create)
+.get("/leases", leaseHandlers.getAll)
+.get("/leases/:id", leaseHandlers.getbyId)
+.put("/leases/:id", zValidator("json", UpdateLeaseSchema), leaseHandlers.update)
+.delete("/leases/:id", leaseHandlers.remove)
 // Units
-router.post("/units", unitHandlers.create);
-router.get("/units", unitHandlers.getAll);
-router.get("/units/:id", unitHandlers.getById);
-router.put("/units/:id", unitHandlers.update);
-router.delete("/units/:id", unitHandlers.remove);
-
+.post("/units", zValidator("json", CreateUnitSchmea), unitHandlers.create)
+.get("/units", unitHandlers.getAll)
+.get("/units/:id", unitHandlers.getById)
+.put("/units/:id", zValidator("json", UpdateUnitSchema), unitHandlers.update)
+.delete("/units/:id", unitHandlers.remove)
 // Utilities
-router.post("/utilities", utilityHandlers.create);
-router.get("/utilities", utilityHandlers.getAll);
-router.get("/utilities/:id", utilityHandlers.getById);
-router.put("/utilities/:id", utilityHandlers.update);
-router.delete("/utilities/:id", utilityHandlers.remove);
-
+.post("/utilities", zValidator("json", CreateUtilitySchema), utilityHandlers.create)
+.get("/utilities", utilityHandlers.getAll)
+.get("/utilities/:id", utilityHandlers.getById)
+.put("/utilities/:id", zValidator("json", UpdateUtilitySchema), utilityHandlers.update)
+.delete("/utilities/:id", utilityHandlers.remove)
 // Payments
-router.post("/payments", paymentsHandlers.create);
-router.get("/payments", paymentsHandlers.getAll);
-router.get("/payments/:id", paymentsHandlers.getById);
-router.put("/payments/:id", paymentsHandlers.update);
-router.delete("/payments/:id", paymentsHandlers.remove);
+.post("/payments", zValidator("json", CreatePaymentSchema), paymentsHandlers.create)
+.get("/payments", paymentsHandlers.getAll)
+.get("/payments/:id", paymentsHandlers.getById)
+.put("/payments/:id", zValidator("json", UpdatePaymentSchema), paymentsHandlers.update)
+.delete("/payments/:id", paymentsHandlers.remove)
 
-export default router;
+export default rentRoutes;

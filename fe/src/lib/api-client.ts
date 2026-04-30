@@ -1,9 +1,11 @@
+// import type { AppType } from "be";
+
 import type { AppType } from "be";
 import { hc } from "hono/client";
 import { env } from "@/env";
 import { ApiError } from "@/types/api-types";
 
-export const api = hc<AppType>(env.NEXT_PUBLIC_APP_URL, {
+export const client = hc<AppType>(env.NEXT_PUBLIC_API_URL, {
 	init: {
 		credentials: "include",
 	},
@@ -25,13 +27,9 @@ export async function parseApiError(response: Response): Promise<ApiError> {
 }
 
 // Helper - unwrap a successful hono client response
-
-export async function unwrap<T>(
-	responsePromise: Promise<Response>,
-): Promise<T> {
-	const response = await responsePromise;
+export async function unwrap<T>(response: Response): Promise<T> {
 	if (!response.ok) {
 		throw await parseApiError(response);
 	}
-	return response.json() as Promise<T>;
+	return response.json() as T;
 }

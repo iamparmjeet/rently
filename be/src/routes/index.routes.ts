@@ -1,10 +1,11 @@
 import { createRouter } from "@/lib/create-app";
 import { success } from "@/utils";
 
-const router = createRouter();
+const index = createRouter()
+  .get("/health", (c) => c.json({status: "ok" as const}))
 
-router.get("/health", (c) => {
-  return success(c, { message: "Health Ok" });
-});
+// router.get("/health", (c) => {
+//   return success(c, { message: "Health Ok" });
+// });
 
-export default router;
+export default index;

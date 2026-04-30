@@ -4,9 +4,10 @@ import rentRoutes from "@/routes/rent/routes";
 import subscriptionRoutes from "@/routes/subscriptions/routes";
 
 const app = createApp()
-  .route("/api/v1", index)
-  .route("/api/v1", rentRoutes)
-  .route("/api/v1", subscriptionRoutes)
+  .route("/api/v1/", index)
+  .route("/api/v1/", subscriptionRoutes)
+  .route("/api/v1/", rentRoutes)
+
 
 // export type AppType = (typeof routes)[number];
 export type AppType = typeof app

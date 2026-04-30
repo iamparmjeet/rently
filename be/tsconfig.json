@@ -1,23 +1,24 @@
 {
   "compilerOptions": {
-    "composite": true,
-    "declaration": true,
-    "emitDeclarationOnly": true,
-    "declarationMap": true,
-    "outDir": "./dist",
-    "rootDir": "./src",
     "target": "ESNext",
     "module": "ESNext",
+    "strict": true,
+    "verbatimModuleSyntax": true,
+    "skipLibCheck": true,
+    "declaration": true,
+    "declarationMap": true,
+    "composite": true,
+    "jsxImportSource": "hono/jsx",
+    "types": ["node"],
+    "outDir": "./dist",
+    "rootDir": "./src",
     "esModuleInterop": true,
     "moduleResolution": "Bundler",
     "paths": {
       "@/*": ["./src/*"]
     },
-    "strict": true,
-    "skipLibCheck": true,
     "lib": ["ESNext"],
     "jsx": "react-jsx",
-    "jsxImportSource": "hono/jsx"
   },
-  "include": ["src"]
+  "include": ["src/**/*"]
 }

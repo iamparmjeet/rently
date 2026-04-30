@@ -11,7 +11,7 @@ export const env = createEnv({
 	client: {
 		NEXT_PUBLIC_BETTER_AUTH_URL: z.url(),
 		NEXT_PUBLIC_APP_URL: z.url(),
-		NEXT_PUBLIC_API_URL: z.url(),
+		NEXT_PUBLIC_API_URL: z.url().default("http://localhost:8787"),
 	},
 	runtimeEnv: {
 		NODE_ENV: process.env.NODE_ENV,

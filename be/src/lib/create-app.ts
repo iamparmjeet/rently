@@ -8,7 +8,7 @@ import { serveEmojiFavicon } from "@/utils";
 
 export function createRouter() {
   return new Hono<AppBindings>({
-    strict: false,
+    strict: true,
   });
 }
 
@@ -20,18 +20,22 @@ export default function createApp() {
     return next();
   });
 
+
   app.use(pinoLogger());
   app.use(dbMiddleware);
   app.use(serveEmojiFavicon("⛳"));
   app.use(
     "*",
     cors({
+      // origin: "*",
       origin: [env.LOCAL_APP, env.PROD_APP],
       credentials: true,
+      allowHeaders: ["Content-Type", "Authorization"],
+      allowMethods: ["GET", "POST", "PUT", "DELETE", "PATCH", "OPTIONS"]
     })
   );
 
-  app.on(["POST", "GET"], "/api/auth/*", (c: Context) => {
+  app.on(["POST", "GET"], "/api/auth/**", (c: Context) => {
     // const auth = createAuth();
     return auth.handler(c.req.raw);
   });

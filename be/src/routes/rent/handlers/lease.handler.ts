@@ -7,7 +7,7 @@ import {
   leaseQueries,
 } from "@/routes/helpers/routes.helper";
 import { CreateLeaseSchema, UpdateLeaseSchema } from "@/types/rent-types";
-import type { Ctx } from "@/types/types";
+import type { AppBindings } from "@/types/types";
 import {
   badRequest,
   forbidden,
@@ -16,8 +16,9 @@ import {
   safeJson,
   success,
 } from "@/utils";
+import type { Context } from "hono";
 
-export const create = safeHandler(async (c: Ctx) => {
+export const create = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
   const payload = await safeJson(c); // Tenant Data by Owner
@@ -60,7 +61,7 @@ export const create = safeHandler(async (c: Ctx) => {
   }
 });
 
-export const update = safeHandler(async (c: Ctx) => {
+export const update = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
   const payload = await safeJson(c);
@@ -70,6 +71,8 @@ export const update = safeHandler(async (c: Ctx) => {
   if (!parsed.success) return badRequest(c, "Invalid Lease Data", parsed.error);
 
   const updates = parsed.data;
+
+  if (!leaseId) return badRequest(c, "Invalid Lease Id", parsed.error)
 
   const ownsLease = await isLeaseOwner(c, owner.id, leaseId);
   if (!ownsLease) return forbidden(c, "You don't own this lease");
@@ -92,10 +95,13 @@ export const update = safeHandler(async (c: Ctx) => {
 });
 
 // 3) lease getbyId
-export const getbyId = safeHandler(async (c: Ctx) => {
+export const getbyId = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
   const leaseId = c.req.param("id");
+
+  if (!leaseId) return badRequest(c, "Invalid Lease Id")
+
 
   try {
     const lease = await leaseQueries.getOwnerLeaseById(db, owner.id, leaseId);
@@ -109,7 +115,7 @@ export const getbyId = safeHandler(async (c: Ctx) => {
 });
 
 // 4) Get All leases
-export const getAll = safeHandler(async (c: Ctx) => {
+export const getAll = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
 
@@ -126,10 +132,11 @@ export const getAll = safeHandler(async (c: Ctx) => {
 
 // 5) Delete Lease by Id
 
-export const remove = safeHandler(async (c: Ctx) => {
+export const remove = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
   const leaseId = c.req.param("id");
+  if (!leaseId) return badRequest(c, "Invalid Lease Id")
 
   const ownsLease = await isLeaseOwner(c, owner.id, leaseId);
   if (!ownsLease) return forbidden(c, "You don't own this lease");

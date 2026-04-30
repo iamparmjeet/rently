@@ -3,7 +3,7 @@ import { FIXEDCHARGE, RATEPERUNIT } from "@/constants/payment-constants";
 import { utilities } from "@/db/schema";
 import { isLeaseOwner } from "@/routes/helpers/routes.helper";
 import { CreateUtilitySchema, UpdateUtilitySchema } from "@/types/rent-types";
-import type { Ctx } from "@/types/types";
+import type { AppBindings } from "@/types/types";
 import {
   badRequest,
   forbidden,
@@ -12,9 +12,10 @@ import {
   safeJson,
   success,
 } from "@/utils";
+import type { Context } from "hono";
 
 //create
-export const create = safeHandler(async (c: Ctx) => {
+export const create = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
   const payload = await safeJson(c);
@@ -57,7 +58,7 @@ export const create = safeHandler(async (c: Ctx) => {
 });
 
 // update
-export const update = safeHandler(async (c: Ctx) => {
+export const update = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
   const utilityId = c.req.param("id");
@@ -66,7 +67,11 @@ export const update = safeHandler(async (c: Ctx) => {
   const parsed = UpdateUtilitySchema.safeParse(payload);
   if (!parsed.success)
     return badRequest(c, "Invalid Utility Data", parsed.error);
+
   const data = parsed.data;
+
+  if (!utilityId) return badRequest(c, "Invalid Utility Id", parsed.error)
+
 
   const existing = await db.query.utilities.findFirst({
     where: (u, { eq }) => eq(u.id, utilityId),
@@ -102,10 +107,13 @@ export const update = safeHandler(async (c: Ctx) => {
 });
 
 // getById
-export const getById = safeHandler(async (c: Ctx) => {
+export const getById = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
   const utilityId = c.req.param("id");
+
+  if (!utilityId) return badRequest(c, "Invalid Utility Id")
+
 
   try {
     const utility = await db.query.utilities.findFirst({
@@ -133,7 +141,7 @@ export const getById = safeHandler(async (c: Ctx) => {
 });
 
 // getAll
-export const getAll = safeHandler(async (c: Ctx) => {
+export const getAll = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
 
@@ -164,10 +172,13 @@ export const getAll = safeHandler(async (c: Ctx) => {
 });
 
 // remove
-export const remove = safeHandler(async (c: Ctx) => {
+export const remove = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
   const utilityId = c.req.param("id");
+
+  if (!utilityId) return badRequest(c, "Invalid Utility Id")
+
 
   const record = await db.query.utilities.findFirst({
     where: (u, { eq }) => eq(u.id, utilityId),

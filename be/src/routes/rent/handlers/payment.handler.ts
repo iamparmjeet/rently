@@ -3,7 +3,7 @@ import { PAYMENT_TYPES } from "@/constants/rent-constants";
 import { payments, utilities } from "@/db/schema";
 import { isLeaseOwner } from "@/routes/helpers/routes.helper";
 import { CreatePaymentSchema, UpdatePaymentSchema } from "@/types/rent-types";
-import type { Ctx } from "@/types/types";
+import type { AppBindings } from "@/types/types";
 import {
   badRequest,
   forbidden,
@@ -12,9 +12,10 @@ import {
   safeJson,
   success,
 } from "@/utils";
+import type { Context } from "hono";
 
 // Create
-export const create = safeHandler(async (c: Ctx) => {
+export const create = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
   const payload = await safeJson(c);
@@ -58,7 +59,7 @@ export const create = safeHandler(async (c: Ctx) => {
 });
 
 // Update
-export const update = safeHandler(async (c: Ctx) => {
+export const update = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
   const paymentId = c.req.param("id");
@@ -70,6 +71,7 @@ export const update = safeHandler(async (c: Ctx) => {
 
   const data = parsed.data;
 
+  if (!paymentId) return badRequest(c, "Invalid Payment Id", parsed.error)
   const existing = await db.query.payments.findFirst({
     where: (p, { eq }) => eq(p.id, paymentId),
   });
@@ -77,7 +79,6 @@ export const update = safeHandler(async (c: Ctx) => {
 
   const owns = await isLeaseOwner(c, owner.id, existing.leaseId);
   if (!owns) return forbidden(c, "You do not own this payment/lease");
-
   try {
     const [updated] = await db
       .update(payments)
@@ -99,10 +100,11 @@ export const update = safeHandler(async (c: Ctx) => {
 });
 
 // GetById
-export const getById = safeHandler(async (c: Ctx) => {
+export const getById = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
   const paymentId = c.req.param("id");
+  if (!paymentId) return badRequest(c, "Invalid Payment Id")
 
   try {
     const payment = await db.query.payments.findFirst({
@@ -127,7 +129,7 @@ export const getById = safeHandler(async (c: Ctx) => {
 });
 
 // GetAll
-export const getAll = safeHandler(async (c: Ctx) => {
+export const getAll = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
 
@@ -154,10 +156,12 @@ export const getAll = safeHandler(async (c: Ctx) => {
 });
 
 // Remove
-export const remove = safeHandler(async (c: Ctx) => {
+export const remove = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
   const paymentId = c.req.param("id");
+
+  if (!paymentId) return badRequest(c, "Invalid Payment Id")
 
   const existing = await db.query.payments.findFirst({
     where: (p, { eq }) => eq(p.id, paymentId),

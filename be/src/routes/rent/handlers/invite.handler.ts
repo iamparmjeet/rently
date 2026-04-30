@@ -3,7 +3,7 @@ import z from "zod";
 import { USER_ROLES } from "@/constants/user-roles";
 import { tenantInvites, user } from "@/db/schema";
 import type { NewTenantInvite } from "@/db/types";
-import type { Ctx } from "@/types/types";
+import type { AppBindings } from "@/types/types";
 import {
   addDays,
   badRequest,
@@ -19,12 +19,13 @@ import {
   success,
 } from "@/utils";
 import { AcceptInviteSchema } from "../../../types/rent-types";
+import type { Context } from "hono";
 
 const InviteRequestSchema = z.object({
   email: z.email(),
 });
 
-export const handleCreateInvite = safeHandler(async (c: Ctx) => {
+export const handleCreateInvite = safeHandler(async (c: Context<AppBindings>) => {
   const user = c.get("user"); // Here  user is coming from withAuthMiddleware
 
   if (
@@ -71,7 +72,7 @@ export const handleCreateInvite = safeHandler(async (c: Ctx) => {
   }
 });
 
-export const handleAcceptInvite = safeHandler(async (c: Ctx) => {
+export const handleAcceptInvite = safeHandler(async (c: Context<AppBindings>) => {
   const payload = await safeJson(c);
 
   if (!payload) return badRequest(c, "Invalid JSON Body");

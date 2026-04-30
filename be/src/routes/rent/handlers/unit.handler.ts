@@ -3,7 +3,7 @@ import { UNIT_STATUSES } from "@/constants/rent-constants";
 import { properties, units } from "@/db/schema";
 import { isPropertyOwner, isUnitOwner } from "@/routes/helpers/routes.helper";
 import { CreateUnitSchmea, UpdateUnitSchema } from "@/types/rent-types";
-import type { Ctx } from "@/types/types";
+import type { AppBindings } from "@/types/types";
 import {
   badRequest,
   forbidden,
@@ -12,9 +12,10 @@ import {
   safeJson,
   success,
 } from "@/utils";
+import type { Context } from "hono";
 
 //create
-export const create = safeHandler(async (c: Ctx) => {
+export const create = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
   const payload = await safeJson(c);
@@ -44,7 +45,7 @@ export const create = safeHandler(async (c: Ctx) => {
 });
 
 // update
-export const update = safeHandler(async (c: Ctx) => {
+export const update = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
   const unitId = c.req.param("id");
@@ -52,6 +53,8 @@ export const update = safeHandler(async (c: Ctx) => {
 
   const parsed = UpdateUnitSchema.safeParse(payload);
   if (!parsed.success) return badRequest(c, "Invalid Data", parsed.error);
+
+  if (!unitId) return badRequest(c, "Invalid Unit It", parsed.error)
 
   const data = parsed.data;
 
@@ -77,14 +80,15 @@ export const update = safeHandler(async (c: Ctx) => {
 });
 
 // getbyId
-export const getById = safeHandler(async (c: Ctx) => {
+export const getById = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
   const unitId = c.req.param("id");
 
+  if (!unitId) return badRequest(c, "Invalid Unit ID")
+
   const owns = await isUnitOwner(c, owner.id, unitId);
   if (!owns) return forbidden(c, "You don't own this unit");
-
   try {
     const unit = await db.query.units.findFirst({
       where: (u, { eq }) => eq(u.id, unitId),
@@ -107,7 +111,7 @@ export const getById = safeHandler(async (c: Ctx) => {
 });
 
 // getAll
-export const getAll = safeHandler(async (c: Ctx) => {
+export const getAll = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
 
@@ -137,10 +141,13 @@ export const getAll = safeHandler(async (c: Ctx) => {
 });
 
 // remove
-export const remove = safeHandler(async (c: Ctx) => {
+export const remove = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const owner = c.get("user");
   const unitId = c.req.param("id");
+
+  if (!unitId) return badRequest(c, "Invalid Unit ID")
+
 
   const ownsUnit = await isUnitOwner(c, owner.id, unitId);
   if (!ownsUnit) return forbidden(c, "You don't own this unit");

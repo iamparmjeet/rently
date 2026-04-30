@@ -1,3 +1,4 @@
+import type { Auth } from "better-auth";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { openAPI, phoneNumber } from "better-auth/plugins";
@@ -67,4 +68,4 @@ export const auth = betterAuth({
     openAPI(),
     phoneNumber(),
   ],
-});
+}) as unknown as Auth;

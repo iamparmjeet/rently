@@ -4,12 +4,10 @@ import withAuth from "@/middleware/auth-middleware";
 import requireRole from "@/middleware/require-role";
 import { subscriptionHandler } from "./handlers";
 
-const router = createRouter();
+const subscriptionsRoutes = createRouter()
+.use(withAuth())
+.use(requireRole(USER_ROLES.OWNER))
+.post("/subscriptions/start-trial", subscriptionHandler.startTrial)
+.post("/subscriptions/upgrade", subscriptionHandler.upgrade)
 
-router.use(withAuth());
-router.use(requireRole(USER_ROLES.OWNER));
-
-router.post("/subscriptions/start-trial", subscriptionHandler.startTrial);
-router.post("/subscriptions/upgrade", subscriptionHandler.upgrade);
-
-export default router;
+export default subscriptionsRoutes;

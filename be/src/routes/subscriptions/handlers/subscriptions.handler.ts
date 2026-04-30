@@ -1,8 +1,9 @@
 import { SubscriptionService } from "@/services/subscription.service";
-import type { Ctx } from "@/types/types";
+import type { AppBindings } from "@/types/types";
 import { badRequest, safeHandler, success } from "@/utils";
+import type { Context } from "hono";
 
-export const startTrial = safeHandler(async (c: Ctx) => {
+export const startTrial = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const user = c.get("user");
   const service = new SubscriptionService(db);
@@ -16,7 +17,7 @@ export const startTrial = safeHandler(async (c: Ctx) => {
   }
 });
 
-export const upgrade = safeHandler(async (c: Ctx) => {
+export const upgrade = safeHandler(async (c: Context<AppBindings>) => {
   const db = c.get("db");
   const user = c.get("user");
 

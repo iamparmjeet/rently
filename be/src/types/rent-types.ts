@@ -55,6 +55,8 @@ export const CreateUnitSchmea = UnitSchema.omit({
 });
 
 export const UpdateUnitSchema = UnitSchema.partial().pick({
+  id: true,
+  propertyId: true,
   unitNumber: true,
   type: true,
   area: true,
@@ -133,6 +135,7 @@ export const CreateUtilitySchema = UtilitySchema.omit({
 });
 
 export const UpdateUtilitySchema = UtilitySchema.partial().pick({
+  id: true,
   leaseId: true,
   utilityType: true,
   readingDate: true,

@@ -3,8 +3,9 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
+    "dev": "tsc -b ../../rently/be && next dev",
     "build": "next build",
+    "build:types:watch": "cd ../../be && tsc -b --watch",
     "start": "next start",
     "lint": "biome check",
     "format": "biome format --write"

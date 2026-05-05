@@ -1,3 +1,6 @@
 {
+  "indentStyle": "tab",
+  "indentWidth": 2,
+  "quoteStyle": "double",
   "ignorePatterns": []
 }

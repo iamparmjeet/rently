@@ -8,27 +8,27 @@ interface PropertyTableProps {
 
 export function PropertyTable({ properties }: PropertyTableProps) {
 	return (
-		<div className="bg-white dark:bg-zinc-900 rounded-xl border border-zinc-200 dark:border-zinc-800 overflow-hidden">
+		<div className="overflow-hidden rounded-xl border border-zinc-200 bg-white dark:border-zinc-800 dark:bg-zinc-900">
 			<div className="overflow-x-auto">
 				<table className="w-full">
 					<thead>
-						<tr className="border-b border-zinc-200 dark:border-zinc-800">
-							<th className="text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-4 py-3">
+						<tr className="border-zinc-200 border-b dark:border-zinc-800">
+							<th className="px-4 py-3 text-left font-medium text-xs text-zinc-500 uppercase tracking-wider dark:text-zinc-400">
 								Property
 							</th>
-							<th className="text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-4 py-3">
+							<th className="px-4 py-3 text-left font-medium text-xs text-zinc-500 uppercase tracking-wider dark:text-zinc-400">
 								Type
 							</th>
-							<th className="text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-4 py-3">
+							<th className="px-4 py-3 text-left font-medium text-xs text-zinc-500 uppercase tracking-wider dark:text-zinc-400">
 								Units
 							</th>
-							<th className="text-left text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-4 py-3">
+							<th className="px-4 py-3 text-left font-medium text-xs text-zinc-500 uppercase tracking-wider dark:text-zinc-400">
 								Occupancy
 							</th>
-							<th className="text-right text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-4 py-3">
+							<th className="px-4 py-3 text-right font-medium text-xs text-zinc-500 uppercase tracking-wider dark:text-zinc-400">
 								Revenue
 							</th>
-							<th className="text-right text-xs font-medium text-zinc-500 dark:text-zinc-400 uppercase tracking-wider px-4 py-3">
+							<th className="px-4 py-3 text-right font-medium text-xs text-zinc-500 uppercase tracking-wider dark:text-zinc-400">
 								Actions
 							</th>
 						</tr>
@@ -45,28 +45,28 @@ export function PropertyTable({ properties }: PropertyTableProps) {
 							return (
 								<tr
 									key={property.id}
-									className="hover:bg-zinc-50 dark:hover:bg-zinc-800/50 transition"
+									className="transition hover:bg-zinc-50 dark:hover:bg-zinc-800/50"
 								>
 									<td className="px-4 py-4">
 										<Link
 											href={`/properties/${property.id}`}
-											className="flex items-center gap-3 group"
+											className="group flex items-center gap-3"
 										>
-											<div className="w-10 h-10 rounded-lg bg-zinc-100 dark:bg-zinc-800 flex items-center justify-center flex-shrink-0">
+											<div className="flex h-10 w-10 flex-shrink-0 items-center justify-center rounded-lg bg-zinc-100 dark:bg-zinc-800">
 												<PropertyTypeIcon type={property.type} />
 											</div>
 											<div>
-												<p className="font-medium text-zinc-900 dark:text-zinc-100 group-hover:text-zinc-700 dark:group-hover:text-zinc-300">
+												<p className="font-medium text-zinc-900 group-hover:text-zinc-700 dark:text-zinc-100 dark:group-hover:text-zinc-300">
 													{property.name}
 												</p>
-												<p className="text-sm text-zinc-500 dark:text-zinc-400 line-clamp-1">
+												<p className="line-clamp-1 text-sm text-zinc-500 dark:text-zinc-400">
 													{property.address}
 												</p>
 											</div>
 										</Link>
 									</td>
 									<td className="px-4 py-4">
-										<span className="text-sm text-zinc-600 dark:text-zinc-400 capitalize">
+										<span className="text-sm text-zinc-600 capitalize dark:text-zinc-400">
 											{property.type}
 										</span>
 									</td>
@@ -79,7 +79,7 @@ export function PropertyTable({ properties }: PropertyTableProps) {
 										<OccupancyBadge percent={occupancy} />
 									</td>
 									<td className="px-4 py-4 text-right">
-										<span className="text-sm font-medium text-emerald-600 dark:text-emerald-400">
+										<span className="font-medium text-emerald-600 text-sm dark:text-emerald-400">
 											{formatINR(property.monthly_revenue)}
 										</span>
 									</td>
@@ -87,10 +87,10 @@ export function PropertyTable({ properties }: PropertyTableProps) {
 										<div className="flex items-center justify-end gap-2">
 											<Link
 												href={`/properties/${property.id}/edit`}
-												className="p-2 text-zinc-400 hover:text-zinc-600 dark:hover:text-zinc-300 hover:bg-zinc-100 dark:hover:bg-zinc-800 rounded-lg transition"
+												className="rounded-lg p-2 text-zinc-400 transition hover:bg-zinc-100 hover:text-zinc-600 dark:hover:bg-zinc-800 dark:hover:text-zinc-300"
 											>
 												<svg
-													className="w-4 h-4"
+													className="h-4 w-4"
 													fill="none"
 													stroke="currentColor"
 													viewBox="0 0 24 24"
@@ -103,9 +103,9 @@ export function PropertyTable({ properties }: PropertyTableProps) {
 													/>
 												</svg>
 											</Link>
-											<button className="p-2 text-zinc-400 hover:text-red-600 hover:bg-red-50 dark:hover:bg-red-900/20 rounded-lg transition">
+											<button className="rounded-lg p-2 text-zinc-400 transition hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-900/20">
 												<svg
-													className="w-4 h-4"
+													className="h-4 w-4"
 													fill="none"
 													stroke="currentColor"
 													viewBox="0 0 24 24"
@@ -136,7 +136,7 @@ function PropertyTypeIcon({ type }: { type: string }) {
 	if (type === "commercial") {
 		return (
 			<svg
-				className="w-5 h-5 text-zinc-400"
+				className="h-5 w-5 text-zinc-400"
 				fill="none"
 				stroke="currentColor"
 				viewBox="0 0 24 24"
@@ -152,7 +152,7 @@ function PropertyTypeIcon({ type }: { type: string }) {
 	}
 	return (
 		<svg
-			className="w-5 h-5 text-zinc-400"
+			className="h-5 w-5 text-zinc-400"
 			fill="none"
 			stroke="currentColor"
 			viewBox="0 0 24 24"
@@ -177,7 +177,7 @@ function OccupancyBadge({ percent }: { percent: number }) {
 
 	return (
 		<span
-			className={`inline-flex items-center px-2.5 py-1 rounded-full text-xs font-medium ${colorClass}`}
+			className={`inline-flex items-center rounded-full px-2.5 py-1 font-medium text-xs ${colorClass}`}
 		>
 			{percent}%
 		</span>
@@ -188,7 +188,7 @@ function EmptyState() {
 	return (
 		<div className="px-4 py-16 text-center">
 			<svg
-				className="w-12 h-12 mx-auto text-zinc-300 dark:text-zinc-600 mb-4"
+				className="mx-auto mb-4 h-12 w-12 text-zinc-300 dark:text-zinc-600"
 				fill="none"
 				stroke="currentColor"
 				viewBox="0 0 24 24"
@@ -200,18 +200,18 @@ function EmptyState() {
 					d="M19 21V5a2 2 0 00-2-2H7a2 2 0 00-2 2v16m14 0h2m-2 0h-5m-9 0H3m2 0h5M9 7h1m-1 4h1m4-4h1m-1 4h1m-5 10v-5a1 1 0 011-1h2a1 1 0 011 1v5m-4 0h4"
 				/>
 			</svg>
-			<h3 className="text-lg font-medium text-zinc-900 dark:text-zinc-100 mb-1">
+			<h3 className="mb-1 font-medium text-lg text-zinc-900 dark:text-zinc-100">
 				No properties yet
 			</h3>
-			<p className="text-sm text-zinc-500 dark:text-zinc-400 mb-4">
+			<p className="mb-4 text-sm text-zinc-500 dark:text-zinc-400">
 				Get started by adding your first property.
 			</p>
 			<Link
 				href="/properties/new"
-				className="inline-flex items-center gap-2 px-4 py-2 bg-zinc-900 dark:bg-zinc-100 text-white dark:text-zinc-900 rounded-lg text-sm font-medium hover:bg-zinc-800 dark:hover:bg-zinc-200 transition"
+				className="inline-flex items-center gap-2 rounded-lg bg-zinc-900 px-4 py-2 font-medium text-sm text-white transition hover:bg-zinc-800 dark:bg-zinc-100 dark:text-zinc-900 dark:hover:bg-zinc-200"
 			>
 				<svg
-					className="w-4 h-4"
+					className="h-4 w-4"
 					fill="none"
 					stroke="currentColor"
 					viewBox="0 0 24 24"

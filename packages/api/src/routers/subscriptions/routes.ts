@@ -5,9 +5,9 @@ import requireRole from "@/middleware/require-role";
 import { subscriptionHandler } from "./handlers";
 
 const subscriptionsRoutes = createRouter()
-.use(withAuth())
-.use(requireRole(USER_ROLES.OWNER))
-.post("/subscriptions/start-trial", subscriptionHandler.startTrial)
-.post("/subscriptions/upgrade", subscriptionHandler.upgrade)
+	.use(withAuth())
+	.use(requireRole(USER_ROLES.OWNER))
+	.post("/subscriptions/start-trial", subscriptionHandler.startTrial)
+	.post("/subscriptions/upgrade", subscriptionHandler.upgrade);
 
 export default subscriptionsRoutes;

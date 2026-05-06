@@ -34,7 +34,7 @@ export default function PropertyDetailPage({
 
 	if (!propertyData?.property) {
 		return (
-			<div className="col-span-12 text-center py-20 text-muted-foreground">
+			<div className="col-span-12 py-20 text-center text-muted-foreground">
 				Property not found.
 			</div>
 		);
@@ -55,8 +55,8 @@ export default function PropertyDetailPage({
 					</Link>
 				</Button>
 				<div>
-					<h1 className="text-xl font-semibold">{property.name}</h1>
-					<p className="text-sm text-muted-foreground">{property.address}</p>
+					<h1 className="font-semibold text-xl">{property.name}</h1>
+					<p className="text-muted-foreground text-sm">{property.address}</p>
 				</div>
 			</div>
 			<div className="flex gap-2">
@@ -84,7 +84,7 @@ export default function PropertyDetailPage({
 			<Card>
 				<CardHeader>
 					<div className="flex items-center gap-2">
-						<IconBuilding className="text-muted-foreground size-5" />
+						<IconBuilding className="size-5 text-muted-foreground" />
 						<CardTitle className="text-base">Details</CardTitle>
 						<Badge variant="outline" className="ml-auto capitalize">
 							{property.type}
@@ -93,24 +93,24 @@ export default function PropertyDetailPage({
 				</CardHeader>
 				<CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
 					<div>
-						<p className="text-xs text-muted-foreground">Total Units</p>
-						<p className="text-2xl font-semibold">{units.length}</p>
+						<p className="text-muted-foreground text-xs">Total Units</p>
+						<p className="font-semibold text-2xl">{units.length}</p>
 					</div>
 					<div>
-						<p className="text-xs text-muted-foreground">Occupied</p>
-						<p className="text-2xl font-semibold text-green-600">
+						<p className="text-muted-foreground text-xs">Occupied</p>
+						<p className="font-semibold text-2xl text-green-600">
 							{occupiedUnits.length}
 						</p>
 					</div>
 					<div>
-						<p className="text-xs text-muted-foreground">Vacant</p>
-						<p className="text-2xl font-semibold text-orange-500">
+						<p className="text-muted-foreground text-xs">Vacant</p>
+						<p className="font-semibold text-2xl text-orange-500">
 							{units.length - occupiedUnits.length}
 						</p>
 					</div>
 					<div>
-						<p className="text-xs text-muted-foreground">Monthly Revenue</p>
-						<p className="text-2xl font-semibold">
+						<p className="text-muted-foreground text-xs">Monthly Revenue</p>
+						<p className="font-semibold text-2xl">
 							₹{monthlyRevenue.toLocaleString("en-IN")}
 						</p>
 					</div>
@@ -119,7 +119,7 @@ export default function PropertyDetailPage({
 
 			{/* Units List */}
 			<div>
-				<h2 className="text-base font-semibold mb-3">Units</h2>
+				<h2 className="mb-3 font-semibold text-base">Units</h2>
 				{unitsLoading ? (
 					<div className="space-y-2">
 						{Array.from({ length: 3 }).map((_, i) => (
@@ -147,12 +147,12 @@ export default function PropertyDetailPage({
 							>
 								<div className="flex-1">
 									<p className="font-medium">Unit {unit.unitNumber}</p>
-									<p className="text-xs text-muted-foreground capitalize">
+									<p className="text-muted-foreground text-xs capitalize">
 										{unit.type} . {unit.area ? `${unit.area} sq ft` : "N/A"}
 									</p>
 								</div>
 								<div className="text-right">
-									<p className="text-sm font-medium">
+									<p className="font-medium text-sm">
 										₹{unit.baseRent.toLocaleString("en-IN")}
 									</p>
 									<Badge

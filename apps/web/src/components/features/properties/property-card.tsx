@@ -59,18 +59,18 @@ export function PropertyCard({
 		<Card
 			className={cn(
 				"transition-all hover:shadow-md",
-				isDeleting && "opacity-50 pointer-events-none",
+				isDeleting && "pointer-events-none opacity-50",
 			)}
 		>
 			<CardHeader className="pb-3">
 				<div className="flex items-start justify-between gap-2">
 					<div className="flex items-center gap-2">
 						{property.type === "residential" ? (
-							<IconHome className="h-4 w-4 text-muted-foreground shrink-0" />
+							<IconHome className="h-4 w-4 shrink-0 text-muted-foreground" />
 						) : (
-							<IconBuildingStore className="h-4 w-4 text-muted-foreground shrink-0" />
+							<IconBuildingStore className="h-4 w-4 shrink-0 text-muted-foreground" />
 						)}
-						<CardTitle className="text-base line-clamp-1">
+						<CardTitle className="line-clamp-1 text-base">
 							{property.name}
 						</CardTitle>
 					</div>
@@ -105,7 +105,7 @@ export function PropertyCard({
 					</DropdownMenu>
 				</div>
 
-				<p className="text-xs text-muted-foreground line-clamp-1">
+				<p className="line-clamp-1 text-muted-foreground text-xs">
 					{property.address}
 				</p>
 			</CardHeader>
@@ -115,27 +115,27 @@ export function PropertyCard({
 				<CardContent className="pb-3">
 					<div className="grid grid-cols-3 gap-2 text-center">
 						<div className="rounded-md bg-muted/50 p-2">
-							<p className="text-lg font-semibold">{unitStats.total}</p>
-							<p className="text-xs text-muted-foreground">Total</p>
+							<p className="font-semibold text-lg">{unitStats.total}</p>
+							<p className="text-muted-foreground text-xs">Total</p>
 						</div>
 						<div className="rounded-md bg-muted/50 p-2">
-							<p className="text-lg font-semibold text-green-600">
+							<p className="font-semibold text-green-600 text-lg">
 								{unitStats.occupied}
 							</p>
-							<p className="text-xs text-muted-foreground">Occupied</p>
+							<p className="text-muted-foreground text-xs">Occupied</p>
 						</div>
 						<div className="rounded-md bg-muted/50 p-2">
-							<p className="text-lg font-semibold text-orange-500">
+							<p className="font-semibold text-lg text-orange-500">
 								{unitStats.vacant}
 							</p>
-							<p className="text-xs text-muted-foreground">Vacant</p>
+							<p className="text-muted-foreground text-xs">Vacant</p>
 						</div>
 					</div>
 
 					{/* Occupancy bar */}
 					{occupancyRate !== null && (
 						<div className="mt-3">
-							<div className="flex justify-between text-xs text-muted-foreground mb-1">
+							<div className="mb-1 flex justify-between text-muted-foreground text-xs">
 								<span>Occupancy</span>
 								<span>{occupancyRate}%</span>
 							</div>
@@ -150,12 +150,12 @@ export function PropertyCard({
 				</CardContent>
 			)}
 
-			<CardFooter className="pt-0 gap-2">
+			<CardFooter className="gap-2 pt-0">
 				<Badge variant="outline" className="text-xs">
 					{property.type}
 				</Badge>
 				{unitStats && (
-					<span className="ml-auto text-xs font-medium text-muted-foreground">
+					<span className="ml-auto font-medium text-muted-foreground text-xs">
 						₹{unitStats.monthlyRevenue.toLocaleString("en-IN")}/mo
 					</span>
 				)}

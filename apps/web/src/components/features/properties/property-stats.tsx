@@ -31,11 +31,11 @@ const Stat = ({
 				<Icon className="h-4 w-4 text-primary" />
 			</div>
 			<div>
-				<p className="text-xs text-muted-foreground">{label}</p>
+				<p className="text-muted-foreground text-xs">{label}</p>
 				{isLoading ? (
 					<div className="h-5 w-16 animate-pulse rounded bg-muted" />
 				) : (
-					<p className="text-lg font-semibold">{value}</p>
+					<p className="font-semibold text-lg">{value}</p>
 				)}
 			</div>
 		</CardContent>

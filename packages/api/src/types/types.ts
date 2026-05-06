@@ -6,17 +6,17 @@ import type { db } from "@/db";
 import type { Environment } from "@/env";
 
 export interface ExtendedUser extends User {
-  role: UserRole;
+	role: UserRole;
 }
 
 export interface AppBindings {
-  Bindings: Environment;
-  Variables: {
-    db: typeof db;
-    logger: PinoLogger;
-    user: ExtendedUser;
-    session: Session;
-  };
+	Bindings: Environment;
+	Variables: {
+		db: typeof db;
+		logger: PinoLogger;
+		user: ExtendedUser;
+		session: Session;
+	};
 }
 
 export type Ctx = Context<AppBindings>;

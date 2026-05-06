@@ -1,0 +1,24 @@
+{
+  "name": "@rently/auth",
+  "type": "module",
+  "exports": {
+    ".": {
+      "default": "./src/index.ts"
+    },
+    "./*": {
+      "default": "./src/*.ts"
+    }
+  },
+  "scripts": {},
+  "dependencies": {
+    "@rently/db": "workspace:*",
+    "@rently/env": "workspace:*",
+    "better-auth": "catalog:",
+    "dotenv": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@rently/config": "workspace:*",
+    "typescript": "catalog:"
+  }
+}

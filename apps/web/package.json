@@ -1,0 +1,44 @@
+{
+  "name": "web",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev --port 3001",
+    "build": "next build",
+    "start": "next start"
+  },
+  "dependencies": {
+    "@hookform/resolvers": "^5.2.2",
+    "@orpc/client": "catalog:",
+    "@orpc/server": "catalog:",
+    "@orpc/tanstack-query": "^1.13.14",
+    "@rently/api": "workspace:*",
+    "@rently/env": "workspace:*",
+    "@rently/ui": "workspace:*",
+    "@tabler/icons-react": "^3.42.0",
+    "@tanstack/react-form": "^1.28.0",
+    "@tanstack/react-query": "^5.90.12",
+    "babel-plugin-react-compiler": "^1.0.0",
+    "better-auth": "catalog:",
+    "dotenv": "catalog:",
+    "evlog": "catalog:",
+    "lucide-react": "catalog:",
+    "next": "^16.2.0",
+    "next-themes": "catalog:",
+    "react": "catalog:",
+    "react-dom": "catalog:",
+    "react-hook-form": "^7.75.0",
+    "sonner": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@rently/config": "workspace:*",
+    "@tailwindcss/postcss": "^4.1.18",
+    "@tanstack/react-query-devtools": "^5.91.1",
+    "@types/node": "^20",
+    "@types/react": "catalog:",
+    "@types/react-dom": "catalog:",
+    "tailwindcss": "catalog:",
+    "typescript": "catalog:"
+  }
+}

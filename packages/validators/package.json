@@ -1,0 +1,22 @@
+{
+	"name": "@rently/validators",
+	"type": "module",
+	"exports": {
+		".": {
+			"types": "./src/index.ts",
+			"default": "./src/index.ts"
+		},
+		"./*": {
+			"types": "./src/*.ts",
+			"default": "./src/*.ts"
+		}
+	},
+	"dependencies": {
+		"@rently/db": "workspace:*",
+		"zod": "catalog:"
+	},
+	"devDependencies": {
+		"@rently/config": "workspace:*",
+		"typescript": "catalog:"
+	}
+}

@@ -1,16 +1,17 @@
 import type { InferInsertModel, InferSelectModel } from "drizzle-orm";
-import type {
-  account,
-  leases,
-  payments,
-  plans,
-  properties,
-  referrers,
-  session,
-  tenantInvites,
-  units,
-  user,
-  utilities,
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import {
+	type account,
+	type leases,
+	type payments,
+	type plans,
+	properties,
+	type referrers,
+	type session,
+	type tenantInvites,
+	type units,
+	type user,
+	type utilities,
 } from "./schema";
 
 // Select types (for retrieving data)
@@ -40,3 +41,7 @@ export type NewTenantInvite = InferInsertModel<typeof tenantInvites>;
 // for Subscriptions
 export type Plan = InferSelectModel<typeof plans>;
 export type NewPlan = InferInsertModel<typeof plans>;
+
+// Derive Zod Schemas
+export const PropertySelectSchema = createSelectSchema(properties);
+export const PropertyInsertSchema = createInsertSchema(properties);

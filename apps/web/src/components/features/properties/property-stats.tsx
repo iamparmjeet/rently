@@ -1,10 +1,10 @@
+import { Card, CardContent } from "@rently/ui/components/card";
 import {
 	IconBuilding,
 	IconChartBar,
 	IconHome2,
 	IconUsers,
 } from "@tabler/icons-react";
-import { Card, CardContent } from "@/components/ui/card";
 
 interface PropertyStatsProps {
 	totalProperties: number;

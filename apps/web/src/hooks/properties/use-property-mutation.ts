@@ -1,36 +1,28 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { client, unwrap } from "@/lib/api-client";
-import type { ApiError } from "@/types/api-types";
-import { propertyKeys } from "./property-keys";
-
-interface CreatePropertyInput {
-	name: string;
-	address: string;
-	type: "residential" | "commercial";
-}
-
-interface UpdatePropertyInput {
-	name?: string;
-	address?: string;
-	type?: "residential" | "commercial";
-}
+import { client, orpc } from "@/utils/orpc";
 
 // Create
 export function useCreateProperty() {
 	const queryClient = useQueryClient();
-	return useMutation<unknown, ApiError, CreatePropertyInput>({
-		mutationFn: async (input) =>
-			unwrap(client.api.v1.properties.$post({ json: input })),
+
+	return useMutation({
+		// client.property.create is fully typed — TypeScript knows the input shape
+		mutationFn: (
+			input: Parameters<typeof client.rent.property.createProperty>[0],
+		) => client.rent.property.createProperty(input),
 
 		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: propertyKeys.lists() });
-			toast.success("Property Created successfully");
+			// Invalidate the list so properties page re-fetches
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.property.listProperties.key(),
+			});
+			toast.success("Property created successfully");
 		},
 
 		onError: (error) => {
-			console.error("Failed to Create Property", error.message);
-			toast.error(`Failed to Create Property, ${error.message}`);
+			console.error("Failed to create property:", error.message);
+			toast.error(`Failed to create property: ${error.message}`);
 		},
 	});
 }
@@ -39,19 +31,23 @@ export function useCreateProperty() {
 export function useUpdateProperty(id: string) {
 	const queryClient = useQueryClient();
 
-	return useMutation<unknown, ApiError, UpdatePropertyInput>({
-		mutationFn: (input) =>
-			unwrap(
-				client.api.v1.properties[":id"].$put({
-					param: { id },
-					json: input,
+	return useMutation({
+		mutationFn: (
+			input: Parameters<typeof client.rent.property.updateProperty>[0],
+		) => client.rent.property.updateProperty(input),
+
+		onSuccess: (_, variables) => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.property.getPropertyById.key({
+					input: { id: variables.id },
 				}),
-			),
-		onSuccess: () => {
-			queryClient.invalidateQueries({ queryKey: propertyKeys.detail(id) });
-			queryClient.invalidateQueries({ queryKey: propertyKeys.lists() });
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.property.listProperties.key(),
+			});
 			toast.success("Property Updated Successfully");
 		},
+
 		onError: (error) => {
 			console.error("Failed to Update Property data", error.message);
 			toast.error(error.message);
@@ -62,14 +58,24 @@ export function useUpdateProperty(id: string) {
 export function useDeleteProperty() {
 	const queryClient = useQueryClient();
 
-	return useMutation<unknown, ApiError, string>({
+	return useMutation({
 		// The mutationFn receives the property id as its argument
-		mutationFn: async (id) =>
-			unwrap(client.api.v1.properties[":id"].$delete({ param: { id } })),
+		mutationFn: (
+			input: Parameters<typeof client.rent.property.deleteProperty>[0],
+		) => client.rent.property.deleteProperty(input),
+		onSuccess: (_, variables) => {
+			// Invalidate all property queries - it keep stale data visible until refetch
+			// removeQueries for delete - removes from cache entirely ( not just marks stale)
+			queryClient.removeQueries({
+				queryKey: orpc.rent.property.getPropertyById.key({
+					input: { id: variables.id },
+				}),
+			});
 
-		onSuccess: (_, deletedId) => {
-			// Invalidate all property queries
-			queryClient.invalidateQueries({ queryKey: propertyKeys.all });
+			// Invalidate list so count updates
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.property.listProperties.key(),
+			});
 			toast.success("Property deleted");
 		},
 

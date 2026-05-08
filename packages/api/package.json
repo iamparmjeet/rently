@@ -3,10 +3,24 @@
 	"type": "module",
 	"exports": {
 		".": {
+			"types": "./src/index.ts",
 			"default": "./src/index.ts"
 		},
-		"./*": {
-			"default": "./src/*.ts"
+		"./context": {
+			"types": "./src/context.ts",
+			"default": "./src/context.ts"
+		},
+		"./routers/index": {
+			"types": "./src/routers/index.ts",
+			"default": "./src/routers/index.ts"
+		},
+		"./procedures": {
+			"types": "./src/procedures/index.ts",
+			"default": "./src/procedures/index.ts"
+		},
+		"./utils": {
+			"types": "./src/utils/index.ts",
+			"default": "./src/utils/index.ts"
 		}
 	},
 	"scripts": {},
@@ -24,6 +38,7 @@
 	},
 	"devDependencies": {
 		"@rently/config": "workspace:*",
+		"@rently/validators": "workspace:*",
 		"hono": "catalog:",
 		"typescript": "catalog:"
 	}

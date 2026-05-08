@@ -21,18 +21,17 @@
 		"db:down": "docker compose -f docker-compose.yaml down"
 	},
 	"dependencies": {
-		"@neondatabase/serverless": "^1.0.2",
+		"@neondatabase/serverless": "^1.1.0",
 		"@rently/env": "workspace:*",
-		"dotenv": "catalog:",
-		"drizzle-orm": "^0.45.1",
-		"drizzle-zod": "^0.8.3",
+		"dotenv": "^17.4.2",
+		"drizzle-orm": "^0.45.2",
 		"pg": "^8.20.0",
-		"zod": "catalog:"
+		"zod": "^4.4.3"
 	},
 	"devDependencies": {
 		"@rently/config": "workspace:*",
 		"@types/pg": "^8.20.0",
-		"drizzle-kit": "^0.31.8",
-		"typescript": "catalog:"
+		"drizzle-kit": "^0.31.10",
+		"typescript": "^6.0.3"
 	}
 }

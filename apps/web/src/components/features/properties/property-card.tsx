@@ -1,3 +1,20 @@
+import { Badge } from "@rently/ui/components/badge";
+import { Button } from "@rently/ui/components/button";
+import {
+	Card,
+	CardContent,
+	CardFooter,
+	CardHeader,
+	CardTitle,
+} from "@rently/ui/components/card";
+import {
+	DropdownMenu,
+	DropdownMenuContent,
+	DropdownMenuItem,
+	DropdownMenuSeparator,
+	DropdownMenuTrigger,
+} from "@rently/ui/components/dropdown-menu";
+import { cn } from "@rently/ui/lib/utils";
 import {
 	IconBuildingStore,
 	IconDots,
@@ -6,23 +23,6 @@ import {
 	IconTrash,
 } from "@tabler/icons-react";
 import Link from "next/link";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import {
-	Card,
-	CardContent,
-	CardFooter,
-	CardHeader,
-	CardTitle,
-} from "@/components/ui/card";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
 
 interface PropertyCardProps {
 	property: {
@@ -78,10 +78,8 @@ export function PropertyCard({
 					{/* Actions Dropdown */}
 					<DropdownMenu>
 						<DropdownMenuTrigger>
-							<Button variant="ghost" size="icon" className="h-7 w-7 shrink-0">
-								<IconDots className="h-4 w-4" />
-								<span className="sr-only">Open menu</span>
-							</Button>
+							<IconDots className="h-4 w-4" />
+							<span className="sr-only">Open menu</span>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem>

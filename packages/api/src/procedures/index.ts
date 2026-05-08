@@ -1,7 +1,6 @@
 import { ORPCError, os } from "@orpc/server";
 import { auth } from "@rently/auth";
 import type { AppContext } from "../context";
-import { StatusPhrase } from "../utils";
 
 const base = os.$context<AppContext>();
 
@@ -13,12 +12,9 @@ const requireAuth = base.middleware(async ({ context, next }) => {
 	const result = await auth.api.getSession({ headers: context.headers });
 
 	if (!result?.user || !result?.session) {
-		throw (
-			(new ORPCError(StatusPhrase.UNAUTHORIZED),
-			{
-				message: "You must be logged in to access this resource.",
-			})
-		);
+		throw new ORPCError("UNAUTHORIZED", {
+			message: "You must be logged in to access this resource.",
+		});
 	}
 
 	return next({

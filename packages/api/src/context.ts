@@ -1,4 +1,3 @@
-import { auth } from "@rently/auth";
 import { db } from "@rently/db";
 import type { Context as HonoContext } from "hono";
 
@@ -6,14 +5,11 @@ export type CreateContextOptions = {
 	context: HonoContext;
 };
 
-export async function createContext({ context }: CreateContextOptions) {
-	const session = await auth.api.getSession({
-		headers: context.req.raw.headers,
-	});
+export async function createContext({ context }: { context: HonoContext }) {
 	return {
 		db,
-		session,
+		headers: context.req.raw.headers,
 	};
 }
 
-export type Context = Awaited<ReturnType<typeof createContext>>;
+export type AppContext = Awaited<ReturnType<typeof createContext>>;

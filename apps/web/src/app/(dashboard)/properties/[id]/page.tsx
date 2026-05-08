@@ -1,6 +1,14 @@
 "use client";
 
 import {
+	Card,
+	CardContent,
+	CardHeader,
+	CardTitle,
+} from "@rently/ui/components//card";
+import { Badge } from "@rently/ui/components/badge";
+import { Button } from "@rently/ui/components/button";
+import {
 	IconArrowLeft,
 	IconBuilding,
 	IconPencil,
@@ -8,9 +16,6 @@ import {
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { use } from "react";
-import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { useProperty, usePropertyUnits } from "@/hooks/properties";
 
 export default function PropertyDetailPage({

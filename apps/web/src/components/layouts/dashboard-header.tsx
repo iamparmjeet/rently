@@ -1,5 +1,6 @@
 "use client";
 
+import { Button } from "@rently/ui/components/button";
 import {
 	DropdownMenu,
 	DropdownMenuContent,
@@ -152,10 +153,13 @@ function NotificationButton() {
 		<DropdownMenu>
 			<DropdownMenuTrigger
 				render={
-					<button className="relative flex h-12 w-12 items-center justify-center rounded-[calc(var(--radius)*1.8)] border border-border bg-background transition-all hover:border-border/80 hover:bg-muted">
+					<Button
+						className="relative flex h-12 w-12 items-center justify-center rounded-[calc(var(--radius)*1.8)] border border-border bg-background transition-all hover:border-border/80 hover:bg-muted"
+						type="button"
+					>
 						<IconBell className="h-5 w-5 text-muted-foreground" />
 						<span className="absolute top-2.5 right-2.5 h-2.5 w-2.5 rounded-full bg-destructive" />
-					</button>
+					</Button>
 				}
 			/>
 			<DropdownMenuContent align="end" className="w-80 p-4">

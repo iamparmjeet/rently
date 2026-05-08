@@ -1,16 +1,16 @@
 // src/components/properties/property-filters.tsx
 "use client";
 
-import { IconLayoutGrid, IconTable } from "@tabler/icons-react";
-import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Button } from "@rently/ui/components/button";
+import { Input } from "@rently/ui/components/input";
 import {
 	Select,
 	SelectContent,
 	SelectItem,
 	SelectTrigger,
 	SelectValue,
-} from "@/components/ui/select";
+} from "@rently/ui/components/select";
+import { IconLayoutGrid, IconTable } from "@tabler/icons-react";
 import type { PropertyFilters } from "@/types/property";
 
 interface PropertyFiltersProps {

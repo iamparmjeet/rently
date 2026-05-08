@@ -1,20 +1,20 @@
-import { ORPCError } from "@orpc/client";
-import { protectedProcedure } from "@rently/api/procedures";
-import { StatusCode, StatusPhrase } from "@rently/api/utils";
+import { ORPCError } from "@orpc/server";
 import { properties } from "@rently/db/schema/schema";
-import type { Property } from "@rently/db/types";
+import type { Property } from "@rently/validators";
 import {
 	CreatePropertySchema,
-	PropertySchema,
+	PropertySelectSchema,
 	UpdatePropertySchema,
 } from "@rently/validators";
 import { eq } from "drizzle-orm";
 import z from "zod";
+import { protectedProcedure } from "../../procedures";
+import { StatusCode, StatusPhrase } from "../../utils";
 
 // 1) list all Properties
 export const listProperties = protectedProcedure
 	.route({ method: "GET", path: "/rent/property/lists" }) // for OPENAPI
-	.output(z.object({ properties: z.array(PropertySchema) }))
+	.output(z.object({ properties: z.array(PropertySelectSchema) }))
 	.handler(async ({ context }): Promise<{ properties: Property[] }> => {
 		const { db, user } = context;
 
@@ -69,7 +69,7 @@ export const createProperty = protectedProcedure
 		successStatus: StatusCode.CREATED,
 	})
 	.input(CreatePropertySchema)
-	// .output(z.object({ property: CreatePropertySchema }))
+	.output(z.object({ property: PropertySelectSchema }))
 	.handler(async ({ context, input }) => {
 		const { db, user } = context;
 

@@ -1,5 +1,5 @@
+import { USER_ROLE_VALUES } from "@rently/db/constants/user-roles";
 import { boolean, pgTable, text, timestamp } from "drizzle-orm/pg-core";
-import { USER_ROLE_VALUES } from "@/constants/user-roles";
 
 export const user = pgTable("user", {
 	id: text("id").primaryKey(),

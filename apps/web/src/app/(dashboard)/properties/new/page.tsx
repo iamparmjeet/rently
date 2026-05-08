@@ -1,17 +1,17 @@
 "use client";
 
-import { useRouter } from "next/navigation";
-import {
-	PropertyForm,
-	type PropertyFormValues,
-} from "@/components/forms/property-form";
 import {
 	Card,
 	CardContent,
 	CardDescription,
 	CardHeader,
 	CardTitle,
-} from "@/components/ui/card";
+} from "@rently/ui/components/card";
+import { useRouter } from "next/navigation";
+import {
+	PropertyForm,
+	type PropertyFormValues,
+} from "@/components/forms/property-form";
 import { useCreateProperty } from "@/hooks/properties";
 
 export default function NewPropertyPage() {

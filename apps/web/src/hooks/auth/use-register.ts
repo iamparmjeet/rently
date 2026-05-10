@@ -5,6 +5,7 @@ import { toast } from "sonner";
 import { NavigationLinkMap } from "@/constants/navigation";
 import { signUp } from "@/lib/auth-client";
 import type { RegisterFormType } from "@/types/auth-types";
+import { sleep } from "@/utils/utils";
 
 export const useRegister = () => {
 	const [isLoading, setIsLoading] = useState(false);
@@ -35,7 +36,11 @@ export const useRegister = () => {
 					toast.error(`Registration Error: ${err.error.message}`, {
 						id: toastId,
 					});
-					console.error("Registration error OnErr:", err.error.message);
+					if (err.error.status === 422) {
+						toast("Redirecting to the login");
+						router.push("/login");
+					}
+					// console.error("Registration error OnErr:", err.error.message);
 				},
 			},
 		);

@@ -8,6 +8,7 @@ import {
 	UNIT_TYPES_VALUES,
 	UTILITY_TYPE_VALUES,
 } from "@rently/db/constants/rent-constants";
+import { sql } from "drizzle-orm";
 import { boolean, pgTable, real, text, timestamp } from "drizzle-orm/pg-core";
 import { user } from "./auth";
 import { subscriptions } from "./subscription";
@@ -15,7 +16,7 @@ import { subscriptions } from "./subscription";
 // ******* Owner Related Table like Properties, Units, Leases ***
 
 export const properties = pgTable("properties", {
-	id: text("id").primaryKey().notNull(),
+	id: text("id").primaryKey().notNull().default(sql`gen_random_uuid()`),
 	ownerId: text("owner_id")
 		.notNull()
 		.references(() => user.id, { onDelete: "cascade" }),
@@ -30,7 +31,7 @@ export const properties = pgTable("properties", {
 });
 
 export const units = pgTable("units", {
-	id: text("id").primaryKey(),
+	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
 	propertyId: text("property_id")
 		.notNull()
 		.references(() => properties.id, { onDelete: "cascade" }),
@@ -48,7 +49,7 @@ export const units = pgTable("units", {
 });
 
 export const leases = pgTable("leases", {
-	id: text("id").primaryKey(),
+	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
 	unitId: text("unit_id")
 		.notNull()
 		.references(() => units.id, { onDelete: "cascade" }),
@@ -73,7 +74,7 @@ export const leases = pgTable("leases", {
 // ****** Accounting **************
 
 export const utilities = pgTable("utilities", {
-	id: text("id").primaryKey(),
+	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
 	leaseId: text("lease_id")
 		.notNull()
 		.references(() => leases.id, { onDelete: "cascade" }),
@@ -96,7 +97,7 @@ export const utilities = pgTable("utilities", {
 });
 
 export const payments = pgTable("payments", {
-	id: text("id").primaryKey(),
+	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
 	leaseId: text("lease_id")
 		.notNull()
 		.references(() => leases.id, { onDelete: "cascade" }),
@@ -117,7 +118,7 @@ export const payments = pgTable("payments", {
 // ******* Tenancy *********
 
 export const referrers = pgTable("referrers", {
-	id: text("id").primaryKey(),
+	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
 	referredUserId: text("referred_user_id")
 		.notNull()
 		.references(() => user.id, { onDelete: "cascade" }),
@@ -130,7 +131,7 @@ export const referrers = pgTable("referrers", {
 });
 
 export const tenantInvites = pgTable("tenant_invites", {
-	id: text("id").primaryKey(),
+	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
 	email: text("email").notNull(), // to invite
 	token: text("token").unique().notNull(), // secret to validate user
 	expiresAt: timestamp("expires_at"),
@@ -148,7 +149,7 @@ export const tenantInvites = pgTable("tenant_invites", {
 });
 
 export const tenantProfiles = pgTable("tenant_profiles", {
-	id: text("id").primaryKey(),
+	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
 	userId: text("user_id")
 		.notNull()
 		.references(() => user.id, { onDelete: "cascade" }),
@@ -159,7 +160,7 @@ export const tenantProfiles = pgTable("tenant_profiles", {
 });
 
 export const ownerProfiles = pgTable("owner_profiles", {
-	id: text("id").primaryKey(),
+	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
 	userId: text("user_id")
 		.notNull()
 		.references(() => user.id, { onDelete: "cascade" }),

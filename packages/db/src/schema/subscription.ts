@@ -8,6 +8,7 @@ import {
 	PLAN_STATUS_VALUES,
 	TENANT_LIMIT,
 } from "@rently/db/constants/payment-constants";
+import { sql } from "drizzle-orm";
 import {
 	boolean,
 	integer,
@@ -19,7 +20,7 @@ import {
 import { user } from "./auth";
 
 export const plans = pgTable("plans", {
-	id: text("id").primaryKey(),
+	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
 	name: text("name").notNull(),
 	description: text("description"),
 	tenantLimit: integer("tenant_limit").notNull().default(TENANT_LIMIT),
@@ -43,7 +44,7 @@ export const plans = pgTable("plans", {
 });
 
 export const subscriptions = pgTable("subscriptions", {
-	id: text("id").primaryKey(),
+	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
 	userId: text("user_id")
 		.references(() => user.id)
 		.notNull(),
@@ -77,7 +78,7 @@ export const subscriptions = pgTable("subscriptions", {
 });
 
 export const invoices = pgTable("invoices", {
-	id: text("id").primaryKey(),
+	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
 	subscriptionId: text("subscription_id").references(() => subscriptions.id, {
 		onDelete: "cascade",
 	}),

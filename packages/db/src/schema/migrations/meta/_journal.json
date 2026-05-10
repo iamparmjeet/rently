@@ -8,6 +8,13 @@
 			"when": 1778061515004,
 			"tag": "0000_lonely_dark_phoenix",
 			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1778242009131,
+			"tag": "0001_noisy_ares",
+			"breakpoints": true
 		}
 	]
 }

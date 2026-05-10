@@ -1,24 +1,21 @@
-import { INVITE_STATUS_VALUES } from "@rently/db/constants/rent-constants";
+import { tenantInvites as Invite } from "@rently/db/schema/schema";
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import z from "zod";
 
-export const TenantInviteSchema = z.object({
-	id: z.uuid(),
-	email: z.email(),
-	token: z.uuid(),
-	invitedById: z.uuid(),
-	expiresAt: z.date(),
-	status: z.enum(INVITE_STATUS_VALUES).default("pending"),
-	createdAt: z.date(),
-	updatedAt: z.date(),
-});
+// ******** Invite **********
 
-export const CreateInviteSchema = TenantInviteSchema.omit({
+// Derive Zod Schemas - For Runtime
+export const InviteSelectSchema = createSelectSchema(Invite);
+export const InviteInsertSchema = createInsertSchema(Invite);
+
+// Business Logic Schemas
+export const CreateInviteSchema = InviteInsertSchema.omit({
 	id: true,
 	createdAt: true,
 	updatedAt: true,
 });
 
-export const UpdateInviteSchema = TenantInviteSchema.partial().pick({
+export const UpdateInviteSchema = InviteSelectSchema.partial().pick({
 	email: true,
 	token: true,
 	invitedById: true,
@@ -52,3 +49,8 @@ export const UpdateReferrerSchema = ReferrerSchema.partial().pick({
 	referredUserId: true,
 	note: true,
 });
+
+// TS Types derieved from Zod (not from InferSelectModel)
+export type TenantInvite = z.infer<typeof InviteSelectSchema>;
+export type NewTenantInvite = z.infer<typeof InviteInsertSchema>;
+export type AcceptInvite = z.infer<typeof AcceptInviteSchema>;

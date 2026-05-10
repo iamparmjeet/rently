@@ -1,6 +1,5 @@
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { NavigationLinkMap } from "@/constants/navigation";
 import { signOut } from "@/lib/auth-client";
 
 export const useLogout = () => {
@@ -19,7 +18,7 @@ export const useLogout = () => {
 					// future: resetPropertyStore()
 					// future: resetTenantStore()
 					toast.success("Signed out successfully.", { id: toastId });
-					router.push(NavigationLinkMap.Dashboard.href);
+					router.push("/login");
 				},
 				onError: (err) => {
 					toast.error("Failed to sign out.", { id: toastId });

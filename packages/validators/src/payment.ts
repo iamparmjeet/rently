@@ -1,25 +1,22 @@
-import { PAYMENT_TYPE_VALUES } from "@rently/db/constants/rent-constants";
-import z from "zod";
+import { payments } from "@rently/db/schema/schema";
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import type z from "zod";
 
-export const PaymentSchema = z.object({
-	id: z.uuid(),
-	leaseId: z.uuid(),
-	amount: z.number().positive(),
-	paymentDate: z.date(),
-	type: z.enum(PAYMENT_TYPE_VALUES),
-	description: z.string().optional().nullable(),
-	utilityId: z.uuid().optional().nullable(),
-	createdAt: z.date(),
-	updatedAt: z.date(),
-});
+// ******** Payment **********
 
-export const CreatePaymentSchema = PaymentSchema.omit({
+// Derive Zod Schemas - For Runtime
+export const PaymentSelectSchema = createSelectSchema(payments);
+export const PaymentInsertSchema = createInsertSchema(payments);
+
+// Business Logic Schemas
+
+export const CreatePaymentSchema = PaymentInsertSchema.omit({
 	id: true,
 	createdAt: true,
 	updatedAt: true,
 });
 
-export const UpdatePaymentSchema = PaymentSchema.partial().pick({
+export const UpdatePaymentSchema = PaymentSelectSchema.partial().pick({
 	leaseId: true,
 	amount: true,
 	paymentDate: true,
@@ -27,3 +24,7 @@ export const UpdatePaymentSchema = PaymentSchema.partial().pick({
 	description: true,
 	utilityId: true,
 });
+
+// TS Types derieved from Zod (not from InferSelectModel)
+export type Payment = z.infer<typeof PaymentSelectSchema>;
+export type NewPayment = z.infer<typeof PaymentInsertSchema>;

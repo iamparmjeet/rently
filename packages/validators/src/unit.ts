@@ -1,31 +1,22 @@
-import {
-	UNIT_STATUS_VALUES,
-	UNIT_TYPES_VALUES,
-} from "@rently/db/constants/rent-constants";
-import z from "zod";
+import { units } from "@rently/db/schema/schema";
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import type z from "zod";
 
-export const UnitSchema = z.object({
-	id: z.uuid(),
-	propertyId: z.uuid(),
-	unitNumber: z.string().min(1, "Unit number must be at least 1"),
-	type: z.enum(UNIT_TYPES_VALUES),
-	area: z.number().min(1, "Area must be at least 1"),
-	baseRent: z.number().min(500, "Base Rent must be at least 500"),
-	description: z.string().nullable(),
-	status: z.enum(UNIT_STATUS_VALUES),
-	createdAt: z.date(),
-	updatedAt: z.date(),
-});
+// ******** Units **********
 
-export const CreateUnitSchmea = UnitSchema.omit({
+// Derive Zod Schemas - For Runtime
+export const UnitSelectSchema = createSelectSchema(units);
+export const UnitInsertSchema = createInsertSchema(units);
+
+// Business Logic Schemas
+export const CreateUnitSchema = UnitInsertSchema.omit({
 	id: true,
 	createdAt: true,
 	updatedAt: true,
 });
 
-export const UpdateUnitSchema = UnitSchema.partial().pick({
+export const UpdateUnitSchema = UnitSelectSchema.partial().pick({
 	id: true,
-	propertyId: true,
 	unitNumber: true,
 	type: true,
 	area: true,
@@ -33,3 +24,7 @@ export const UpdateUnitSchema = UnitSchema.partial().pick({
 	description: true,
 	status: true,
 });
+
+// TS Types derieved from Zod (not from InferSelectModel)
+export type Unit = z.infer<typeof UnitSelectSchema>;
+export type NewUnit = z.infer<typeof UnitInsertSchema>;

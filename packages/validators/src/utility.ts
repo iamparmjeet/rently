@@ -1,32 +1,21 @@
-import { UTILITY_TYPE_VALUES } from "@rently/db/constants/rent-constants";
-import z from "zod";
+import { utilities } from "@rently/db/schema/schema";
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import type z from "zod";
 
-export const UtilitySchema = z.object({
-	id: z.uuid(),
-	leaseId: z.uuid(),
-	utilityType: z.enum(UTILITY_TYPE_VALUES),
-	readingDate: z.date(),
-	ratePerUnit: z.number().min(1, "Rate per unit must be at least 1").default(9),
-	unitsUsed: z.number().min(0, "Units used must be at least 0").default(0),
-	previousReading: z
-		.number()
-		.min(0, "Previous reading must be at least 0")
-		.default(0),
-	currentReading: z.number().default(0),
-	fixedCharge: z.number().optional().default(0),
-	totalAmount: z.number().optional(),
-	isPaid: z.boolean().default(false),
-	createdAt: z.date(),
-	updatedAt: z.date(),
-});
+// ******** Utility **********
 
-export const CreateUtilitySchema = UtilitySchema.omit({
+// Derive Zod Schemas - For Runtime
+export const UtilitySelectSchema = createSelectSchema(utilities);
+export const UtilityInsertSchema = createInsertSchema(utilities);
+
+// Business Logic Schemas
+export const CreateUtilitySchema = UtilityInsertSchema.omit({
 	id: true,
 	createdAt: true,
 	updatedAt: true,
 });
 
-export const UpdateUtilitySchema = UtilitySchema.partial().pick({
+export const UpdateUtilitySchema = UtilitySelectSchema.partial().pick({
 	id: true,
 	leaseId: true,
 	utilityType: true,
@@ -39,3 +28,7 @@ export const UpdateUtilitySchema = UtilitySchema.partial().pick({
 	totalAmount: true,
 	isPaid: true,
 });
+
+// TS Types derieved from Zod (not from InferSelectModel)
+export type Utility = z.infer<typeof UtilitySelectSchema>;
+export type NewUtility = z.infer<typeof UtilityInsertSchema>;

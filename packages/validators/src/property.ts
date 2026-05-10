@@ -1,10 +1,9 @@
-// ******** Property **********
-
 import { properties } from "@rently/db/schema/schema";
 
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import type z from "zod";
 
+// ******** Property **********
 // Derive Zod Schemas - For Runtime
 export const PropertySelectSchema = createSelectSchema(properties);
 export const PropertyInsertSchema = createInsertSchema(properties);

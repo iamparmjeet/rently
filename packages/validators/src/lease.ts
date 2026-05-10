@@ -1,42 +1,36 @@
-import { LEASE_STATUS_VALUES } from "@rently/db/constants/rent-constants";
-import z from "zod";
+import { leases } from "@rently/db/schema/schema";
+import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import type z from "zod";
 
-const LeaseBaseSchema = z.object({
-	id: z.uuid(),
-	tenantId: z.uuid(),
-	unitId: z.string().min(1, "Unit ID must be at least 1"),
-	startDate: z.date(),
-	endDate: z.date().optional(),
-	rent: z.number().positive("Rent must be a positive number"),
-	deposit: z.number().optional(),
-	status: z.enum(LEASE_STATUS_VALUES),
-	referenceId: z.uuid(),
-	createdAt: z.date(),
-	updatedAt: z.date(),
-});
+// ******** Lease **********
 
-const endDateAfterStartDate = (
-	lease: z.infer<typeof LeaseBaseSchema>,
-	ctx: any,
-) => {
-	if (lease.endDate && lease.startDate && lease.endDate <= lease.startDate) {
-		ctx.addIssue({
-			code: "custom",
-			message: "End date must be after start date",
-			path: ["endDate"],
-		});
-	}
-};
+// Derive Zod Schemas - For Runtime
+export const LeaseSelectSchema = createSelectSchema(leases);
+export const LeaseInsertSchema = createInsertSchema(leases);
 
-export const LeaseSchema = LeaseBaseSchema.superRefine(endDateAfterStartDate);
+// const endDateAfterStartDate = (
+// 	lease: z.infer<typeof LeaseBaseSchema>,
+// 	ctx: any,
+// ) => {
+// 	if (lease.endDate && lease.startDate && lease.endDate <= lease.startDate) {
+// 		ctx.addIssue({
+// 			code: "custom",
+// 			message: "End date must be after start date",
+// 			path: ["endDate"],
+// 		});
+// 	}
+// };
 
-export const CreateLeaseSchema = LeaseBaseSchema.omit({
+// export const LeaseSchema = LeaseBaseSchema.superRefine(endDateAfterStartDate);
+
+// Business Logic Schemas
+export const CreateLeaseSchema = LeaseInsertSchema.omit({
 	id: true,
 	createdAt: true,
 	updatedAt: true,
 });
 
-export const UpdateLeaseSchema = LeaseBaseSchema.partial().pick({
+export const UpdateLeaseSchema = LeaseSelectSchema.partial().pick({
 	unitId: true,
 	tenantId: true,
 	startDate: true,
@@ -46,3 +40,7 @@ export const UpdateLeaseSchema = LeaseBaseSchema.partial().pick({
 	status: true,
 	referenceId: true,
 });
+
+// TS Types derieved from Zod (not from InferSelectModel)
+export type Lease = z.infer<typeof LeaseSelectSchema>;
+export type NewLease = z.infer<typeof LeaseInsertSchema>;

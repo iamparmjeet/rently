@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { properties } from "@rently/db/schema/schema";
+import { properties, units } from "@rently/db/schema/schema";
 import type { Property } from "@rently/validators";
 import {
 	CreatePropertySchema,
@@ -76,7 +76,6 @@ export const createProperty = protectedProcedure
 		const [property] = await db
 			.insert(properties)
 			.values({
-				id: crypto.randomUUID(),
 				name: input.name,
 				address: input.address,
 				type: input.type,
@@ -140,30 +139,36 @@ export const deleteProperty = protectedProcedure
 	});
 
 // 6_ Get Units for a specific property
+export const getUnits = protectedProcedure
+	.route({ method: "GET", path: "/rent/property/units" })
+	.input(z.object({ propertyId: z.uuid() }))
+	.handler(async ({ context, input }) => {
+		const { db, user } = context;
 
-// export const getPropertyUnits = protectedProcedure
-// 	.route({ method: "GET", path: "/rent/property/get" })
-// 	.input(z.object({ id: z.uuid() }))
-// 	.handler(async ({ context, input }) => {
-// 		const { db, user } = context;
+		// Verify Ownership
+		const [property] = await db
+			.select({ ownerId: properties.ownerId })
+			.from(properties)
+			.where(eq(properties.id, input.propertyId));
 
-// 		const [property] = await db
-// 			.select()
-// 			.from(properties)
-// 			.where(eq(properties.ownerId, user.id));
+		if (!property) {
+			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+				message: "Property Not Found",
+			});
+		}
+		if (property.ownerId !== user.id) {
+			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+				message: "You do not own this property",
+			});
+		}
 
-// 		if (!property) {
-// 			throw new ORPCError(StatusPhrase.NOT_FOUND, {
-// 				message: "Property Not Found",
-// 			});
-//     }
+		const unitsList = await db
+			.select()
+			.from(units)
+			.where(eq(units.propertyId, input.propertyId));
 
-//     const [unitList] = await db
-//       .select()
-//       .from(units)
-//       .where(eq(units.propertyId, ))
-
-// 	});
+		return { units: unitsList };
+	});
 
 // 7 GetSpecificpropertyUnits
 

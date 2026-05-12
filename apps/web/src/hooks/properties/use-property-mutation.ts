@@ -28,7 +28,7 @@ export function useCreateProperty() {
 }
 
 // Update
-export function useUpdateProperty(id: string) {
+export function useUpdateProperty() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
@@ -38,12 +38,12 @@ export function useUpdateProperty(id: string) {
 
 		onSuccess: (_, variables) => {
 			queryClient.invalidateQueries({
+				queryKey: orpc.rent.property.listProperties.key(),
+			});
+			queryClient.invalidateQueries({
 				queryKey: orpc.rent.property.getPropertyById.key({
 					input: { id: variables.id },
 				}),
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.rent.property.listProperties.key(),
 			});
 			toast.success("Property Updated Successfully");
 		},
@@ -63,13 +63,12 @@ export function useDeleteProperty() {
 		mutationFn: (
 			input: Parameters<typeof client.rent.property.deleteProperty>[0],
 		) => client.rent.property.deleteProperty(input),
-		onSuccess: (_, variables) => {
-			// Invalidate all property queries - it keep stale data visible until refetch
-			// removeQueries for delete - removes from cache entirely ( not just marks stale)
+		onSuccess: () => {
+			// removeQueries = clear cache without refetching
+			// invalidateQueries = clear + immediately trigger refetch
+			// For delete, we just want to clear — nothing to refetch
 			queryClient.removeQueries({
-				queryKey: orpc.rent.property.getPropertyById.key({
-					input: { id: variables.id },
-				}),
+				queryKey: orpc.rent.property.listProperties.key(),
 			});
 
 			// Invalidate list so count updates
@@ -80,7 +79,7 @@ export function useDeleteProperty() {
 		},
 
 		onError: (error) => {
-			toast.error(error.message);
+			toast.error(`Failed to delete property: ${error.message}`);
 		},
 	});
 }

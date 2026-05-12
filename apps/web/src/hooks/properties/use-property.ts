@@ -9,10 +9,9 @@ export function useProperty(id: string) {
 	});
 }
 
-export function usePropertyUnits(id: string) {
+export function usePropertyUnits(propertyId: string) {
 	return useQuery({
-		...orpc.rent.property.getPropertyById.queryOptions({ input: { id } }),
-		enabled: !!id,
-		select: (data) => data.property,
+		...orpc.rent.property.getUnits.queryOptions({ input: { propertyId } }),
+		enabled: !!propertyId,
 	});
 }

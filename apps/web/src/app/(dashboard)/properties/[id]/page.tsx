@@ -16,7 +16,8 @@ import {
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { use } from "react";
-import { useProperty, usePropertyUnits } from "@/hooks/properties";
+import { useProperty } from "@/hooks/properties";
+import { usePropertyUnits } from "@/hooks/units";
 
 export default function PropertyDetailPage({
 	params,

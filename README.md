@@ -17,92 +17,17 @@ This project was created with [Better-T-Stack](https://github.com/AmanVarshney01
 - **Turborepo** - Optimized monorepo build system
 - **Biome** - Linting and formatting
 
-## Getting Started
-
-First, install the dependencies:
-
-```bash
-bun install
-```
-
-## Database Setup
-
-This project uses PostgreSQL with Drizzle ORM.
-
-1. Make sure you have a PostgreSQL database set up.
-2. Update your `apps/server/.env` file with your PostgreSQL connection details.
-
-3. Apply the schema to your database:
-
-```bash
-bun run db:push
-```
-
-Then, run the development server:
-
-```bash
-bun run dev
-```
-
-Open [http://localhost:3001](http://localhost:3001) in your browser to see the web application.
-The API is running at [http://localhost:3000](http://localhost:3000).
-
-## UI Customization
-
-React web apps in this stack share shadcn/ui primitives through `packages/ui`.
-
-- Change design tokens and global styles in `packages/ui/src/styles/globals.css`
-- Update shared primitives in `packages/ui/src/components/*`
-- Adjust shadcn aliases or style config in `packages/ui/components.json` and `apps/web/components.json`
-
-### Add more shared components
-
-Run this from the project root to add more primitives to the shared UI package:
-
-```bash
-npx shadcn@latest add accordion dialog popover sheet table -c packages/ui
-```
-
-Import shared components like this:
-
-```tsx
-import { Button } from "@rently/ui/components/button";
-```
-
-### Add app-specific blocks
-
-If you want to add app-specific blocks instead of shared primitives, run the shadcn CLI from `apps/web`.
-
-## Git Hooks and Formatting
-
-- Format and lint fix: `bun run check`
-
-## Project Structure
-
-```
 rently/
 ├── apps/
-│   ├── web/         # Frontend application (Next.js)
-│   └── server/      # Backend API (Hono, ORPC)
+│ ├── web/ # Frontend application (Next.js)
+│ └── server/ # Backend API (Hono, ORPC)
 ├── packages/
-│   ├── ui/          # Shared shadcn/ui components and styles
-│   ├── api/         # API layer / business logic
-│   ├── auth/        # Authentication configuration & logic
-│   └── db/          # Database schema & queries
+│ ├── ui/ # Shared shadcn/ui components and styles
+│ ├── api/ # API layer / business logic
+│ ├── auth/ # Authentication configuration & logic
+│ └── db/ # Database schema & queries
+
 ```
-
-## Available Scripts
-
-- `bun run dev`: Start all applications in development mode
-- `bun run build`: Build all applications
-- `bun run dev:web`: Start only the web application
-- `bun run dev:server`: Start only the server
-- `bun run check-types`: Check TypeScript types across all apps
-- `bun run db:push`: Push schema changes to database
-- `bun run db:generate`: Generate database client/types
-- `bun run db:migrate`: Run database migrations
-- `bun run db:studio`: Open database studio UI
-- `bun run check`: Run Biome formatting and linting
 
 ## Frontend
 
@@ -129,14 +54,14 @@ rently/
   - [ ] Create src/components/guards/protected-route.tsx
   - [x] Protect all /dashboard/\* routes with auth guard
   - [x] Redirect unauthenticated users to /login
-  - [ ] Redirect authenticated users from /login to /dashboard
+  - [x] Redirect authenticated users from /login to /dashboard
   - [x] Middlewares
 
-- [ ] API Client
-  - [ ] Install @tanstack/react-query and @tanstack/react-query-devtools
-  - [ ] Create src/lib/api-client.ts (fetch wrapper with auth headers)
-  - [ ] Create src/components/providers/query-provider.tsx
-  - [ ] Wrap app with <QueryProvider> in src/app/layout.tsx
+- [x] API Client
+  - [x] Install @tanstack/react-query and @tanstack/react-query-devtools
+  - [x] Create src/lib/api-client.ts (fetch wrapper with auth headers)
+  - [x] Create src/components/providers/query-provider.tsx
+  - [x] Wrap app with <QueryProvider> in src/app/layout.tsx
 
 - [ ] Dashboard Layout
   - [x] Build src/components/layouts/dashboard-header.tsx (full implementation)
@@ -146,16 +71,16 @@ rently/
   - [x] Connect sidebar to dashboard layout
 
 - [ ] Forms (All empty files)
-  - [ ] Implement src/components/forms/property-form.tsx
-  - [ ] Implement src/components/forms/unit-form.tsx
+  - [x] Implement src/components/forms/property-form.tsx
+  - [x] Implement src/components/forms/unit-form.tsx
   - [ ] Implement src/components/forms/lease-form.tsx
   - [ ] Implement src/components/forms/payment-form.tsx
   - [ ] Implement src/components/forms/invite-form.tsx
 
 - [ ] Feature Components (Empty files)
-  - [ ] Implement src/components/features/properties/property-card.tsx
-  - [ ] Implement src/components/features/properties/property-list.tsx
-  - [ ] Implement src/components/features/properties/property-table.tsx
+  - [x] Implement src/components/features/properties/property-card.tsx
+  - [x] Implement src/components/features/properties/property-list.tsx
+  - [x] Implement src/components/features/properties/property-table.tsx
   - [ ] Implement src/components/features/leases/lease-card.tsx
   - [ ] Implement src/components/features/leases/lease-details.tsx
   - [ ] Implement src/components/features/leases/lease-status-badge.tsx
@@ -172,14 +97,14 @@ rently/
   - [ ] Implement src/components/shared/loading-spinner.tsx
 
 - [ ] Dashboard Pages (Empty return statements)
-  - [ ] Implement src/app/(dashboard)/properties/page.tsx
-  - [ ] Implement src/app/(dashboard)/properties/new/page.tsx
-  - [ ] Implement src/app/(dashboard)/properties/[id]/page.tsx
-  - [ ] Implement src/app/(dashboard)/properties/[id]/edit/page.tsx
-  - [ ] Implement src/app/(dashboard)/units/page.tsx
-  - [ ] Implement src/app/(dashboard)/units/new/page.tsx
-  - [ ] Implement src/app/(dashboard)/units/[id]/page.tsx
-  - [ ] Implement src/app/(dashboard)/units/[id]/edit/page.tsx
+  - [x] Implement src/app/(dashboard)/properties/page.tsx
+  - [x] Implement src/app/(dashboard)/properties/new/page.tsx
+  - [x] Implement src/app/(dashboard)/properties/[id]/page.tsx
+  - [x] Implement src/app/(dashboard)/properties/[id]/edit/page.tsx
+  - [x] Implement src/app/(dashboard)/units/page.tsx
+  - [x] Implement src/app/(dashboard)/units/new/page.tsx
+  - [x] Implement src/app/(dashboard)/units/[id]/page.tsx
+  - [x] Implement src/app/(dashboard)/units/[id]/edit/page.tsx
   - [ ] Implement src/app/(dashboard)/leases/page.tsx
   - [ ] Implement src/app/(dashboard)/leases/new/page.tsx
   - [ ] Implement src/app/(dashboard)/leases/[id]/page.tsx
@@ -222,3 +147,4 @@ Logic Description Solution
 - [ ] Subscriptions Add renewal handling job/cron
 - [ ] RPC Implement Hono RPC client as typed bridge to FE
 - [ ] Infra Add CORS + rate-limiting middleware
+```

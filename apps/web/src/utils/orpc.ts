@@ -2,33 +2,7 @@ import { createORPCClient } from "@orpc/client";
 import { RPCLink } from "@orpc/client/fetch";
 import { createTanstackQueryUtils } from "@orpc/tanstack-query";
 import type { AppRouterClient } from "@rently/api/routers/index";
-import { StatusPhrase } from "@rently/api/utils";
 import { env } from "@rently/env/web";
-import { QueryCache, QueryClient } from "@tanstack/react-query";
-import { toast } from "sonner";
-
-export const queryClient = new QueryClient({
-	defaultOptions: {
-		queries: {
-			staleTime: 5 * 60 * 1000,
-			gcTime: 5 * 60 * 1000,
-			retry: (failureCount, error) => {
-				if ((error as { code?: string }).code === StatusPhrase.UNAUTHORIZED)
-					return false;
-				if ((error as { code?: string }).code === StatusPhrase.FORBIDDEN)
-					return false;
-				return failureCount < 2;
-			},
-		},
-	},
-	queryCache: new QueryCache({
-		onError: (error, query) => {
-			if (query.state.data !== undefined) {
-				toast.error(`Background refresh failed: ${error.message}`);
-			}
-		},
-	}),
-});
 
 // RPC link
 const link = new RPCLink({

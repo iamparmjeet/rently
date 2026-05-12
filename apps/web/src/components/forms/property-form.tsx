@@ -18,17 +18,11 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@rently/ui/components/select";
+import { CreatePropertySchema } from "@rently/validators";
 import { useForm } from "react-hook-form";
-import { z } from "zod";
+import type { z } from "zod";
 
-// Schema
-const propertyFormSchema = z.object({
-	name: z.string().min(1, "Name is required"),
-	address: z.string().min(5, "Address must be at least 5 characters"),
-	type: z.enum(["residential", "commercial"]),
-});
-
-export type PropertyFormValues = z.infer<typeof propertyFormSchema>;
+export type PropertyFormValues = z.infer<typeof CreatePropertySchema>;
 
 interface PropertyFormProps {
 	defaultValues?: Partial<PropertyFormValues>;
@@ -50,7 +44,7 @@ export function PropertyForm({
 		watch,
 		formState: { errors },
 	} = useForm<PropertyFormValues>({
-		resolver: zodResolver(propertyFormSchema),
+		resolver: zodResolver(CreatePropertySchema),
 		defaultValues: {
 			name: "",
 			address: "",

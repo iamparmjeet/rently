@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/client";
-import { VerifyUnitOwnership } from "@rently/api/helpers";
 import { protectedProcedure } from "@rently/api/procedures";
+import { VerifyUnitOwnership } from "@rently/api/routers/helpers";
 import { StatusCode, StatusPhrase } from "@rently/api/utils";
 import { properties, units } from "@rently/db/schema/schema";
 import {
@@ -127,8 +127,20 @@ export const getUnitById = protectedProcedure
 			});
 		}
 
-		const { ownerId, ...unit } = result;
-		return { unit };
+		// Re-check ownership properly
+		const [ownership] = await db
+			.select({ ownerId: properties.ownerId })
+			.from(units)
+			.innerJoin(properties, eq(units.propertyId, properties.id))
+			.where(eq(units.id, input.id));
+
+		if (!ownership || ownership.ownerId !== user.id) {
+			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+				message: "You do not have access to this unit",
+			});
+		}
+
+		return { unit: result };
 	});
 
 // getAll

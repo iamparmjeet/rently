@@ -22,7 +22,7 @@ export function AppSidebar() {
 	const pathname = usePathname();
 
 	const overviewLinks = NavigationLinks.filter((link) =>
-		["dashboard", "properties", "tenants", "payments"].includes(
+		["dashboard", "properties", "tenants", "leases", "payments"].includes(
 			link.name.toLowerCase(),
 		),
 	);

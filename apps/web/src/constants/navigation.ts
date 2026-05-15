@@ -1,6 +1,7 @@
 import type { Icon } from "@tabler/icons-react";
 import {
 	IconBuilding,
+	IconFileText,
 	IconHome,
 	IconReceipt,
 	IconSettings,
@@ -28,6 +29,11 @@ export const NavigationLinkMap = {
 		name: "Tenants",
 		href: "/tenants",
 		icon: IconUsers,
+	},
+	Leases: {
+		name: "Leases",
+		href: "/leases",
+		icon: IconFileText,
 	},
 	Payments: {
 		name: "Payments",

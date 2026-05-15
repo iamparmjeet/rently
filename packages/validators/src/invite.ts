@@ -5,17 +5,17 @@ import z from "zod";
 // ******** Invite **********
 
 // Derive Zod Schemas - For Runtime
-export const InviteSelectSchema = createSelectSchema(Invite);
-export const InviteInsertSchema = createInsertSchema(Invite);
+export const TenantInviteSelectSchema = createSelectSchema(Invite);
+export const TenantInviteInsertSchema = createInsertSchema(Invite);
 
 // Business Logic Schemas
-export const CreateInviteSchema = InviteInsertSchema.omit({
+export const CreateInviteSchema = TenantInviteInsertSchema.omit({
 	id: true,
 	createdAt: true,
 	updatedAt: true,
 });
 
-export const UpdateInviteSchema = InviteSelectSchema.partial().pick({
+export const UpdateInviteSchema = TenantInviteSelectSchema.partial().pick({
 	email: true,
 	token: true,
 	invitedById: true,
@@ -51,6 +51,6 @@ export const UpdateReferrerSchema = ReferrerSchema.partial().pick({
 });
 
 // TS Types derieved from Zod (not from InferSelectModel)
-export type TenantInvite = z.infer<typeof InviteSelectSchema>;
-export type NewTenantInvite = z.infer<typeof InviteInsertSchema>;
+export type TenantInvite = z.infer<typeof TenantInviteSelectSchema>;
+export type NewTenantInvite = z.infer<typeof TenantInviteInsertSchema>;
 export type AcceptInvite = z.infer<typeof AcceptInviteSchema>;

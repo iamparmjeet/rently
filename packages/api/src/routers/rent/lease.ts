@@ -1,9 +1,8 @@
 import { ORPCError } from "@orpc/client";
 import { protectedProcedure } from "@rently/api/procedures";
-import { VerifyUnitOwnership } from "@rently/api/routers/helpers";
 import { StatusCode, StatusPhrase } from "@rently/api/utils";
 import type { Database } from "@rently/db";
-import { LEASE_STATUSES } from "@rently/db/constants/rent-constants";
+
 import { user } from "@rently/db/schema/auth";
 import { leases, properties, units } from "@rently/db/schema/schema";
 import {
@@ -162,7 +161,7 @@ export const getLeaseById = protectedProcedure
 
 		// Verify Ownership
 		const ownership = await getLeaseWithOwner(db, input.id);
-		if (ownership !== authUser.id) {
+		if (!ownership || ownership?.ownerId !== authUser.id) {
 			throw new ORPCError(StatusPhrase.FORBIDDEN, {
 				message: "you don't have access to this unit",
 			});

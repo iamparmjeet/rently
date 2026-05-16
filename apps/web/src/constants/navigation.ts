@@ -52,5 +52,33 @@ export const NavigationLinks = Object.values(NavigationLinkMap);
 
 // ─── Types derived from data — no manual maintenance ──────────
 export type NavigationKey = keyof typeof NavigationLinkMap;
-export type NavigationHref = (typeof NavigationLinkMap)[NavigationKey]["href"];
+export type NavigationHrefT = (typeof NavigationLinkMap)[NavigationKey]["href"];
 // NavigationHref = "/dashboard" | "/dashboard/properties" | ...
+
+const PROTECTED_KEYS = [
+	"Dashboard",
+	"Properties",
+	"Tenants",
+	"Leases",
+	"Payments",
+	"Settings",
+] as const satisfies readonly NavigationKey[];
+
+const PROTECTED_NAV_ROUTES = PROTECTED_KEYS.map(
+	(key) => NavigationLinkMap[key].href,
+);
+
+// Non-navigation routes that still need protection (sub-pages, APIs, etc.)
+const EXTRA_PROTECTED_ROUTES = [
+	"/units",
+	"/utilities",
+	"/subscriptions",
+] as const;
+
+export const PROTECTED_ROUTES = [
+	...PROTECTED_NAV_ROUTES,
+	...EXTRA_PROTECTED_ROUTES,
+] as const;
+
+// Auth routes (login/register) — kept here for colocation
+export const AUTH_ROUTES = ["/login", "/register"] as const;

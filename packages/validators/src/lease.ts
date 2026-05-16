@@ -51,8 +51,10 @@ export const UpdateLeaseSchema = LeaseSelectSchema.partial()
 
 export const LeaseWithDetailsSchema = z.object({
 	leaseId: z.string(),
-	rent: z.string(),
-	deposit: z.string().nullable(),
+	unitId: z.string(),
+	tenantId: z.string(),
+	rent: z.number(),
+	deposit: z.number().nullable(),
 	startDate: z.date(),
 	endDate: z.date().nullable(),
 	status: z.enum(LEASE_STATUS_VALUES),

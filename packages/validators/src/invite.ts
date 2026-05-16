@@ -4,31 +4,58 @@ import z from "zod";
 
 // ******** Invite **********
 
-// Derive Zod Schemas - For Runtime
-export const TenantInviteSelectSchema = createSelectSchema(Invite);
-export const TenantInviteInsertSchema = createInsertSchema(Invite);
+// Derive Zod Schemas - For Runtime from Drizzle
+export const InviteSelectSchema = createSelectSchema(Invite);
+export const InviteInsertSchema = createInsertSchema(Invite);
 
-// Business Logic Schemas
-export const CreateInviteSchema = TenantInviteInsertSchema.omit({
+// Business Logic Schemas (API Consumers)
+export const CreateInviteSchema = InviteInsertSchema.omit({
 	id: true,
 	createdAt: true,
 	updatedAt: true,
-});
-
-export const UpdateInviteSchema = TenantInviteSelectSchema.partial().pick({
-	email: true,
+	status: true,
 	token: true,
 	invitedById: true,
-	expiresAt: true,
+});
+
+export const UpdateInviteSchema = InviteSelectSchema.partial().pick({
 	status: true,
 });
 
 export const AcceptInviteSchema = z.object({
-	token: z.string().uuid(),
-	name: z.string().min(1),
-	email: z.string().email(),
+	token: z.uuid("Invalid invite link"),
+	password: z
+		.string()
+		.min(8, "Password must be at least 8 characters")
+		.regex(/[A-Z]/, "Must contain uppercase")
+		.regex(/[a-z]/, "Must contain lowercase")
+		.regex(/[0-9]/, "Must contain a number"),
+	// email: z.email(),
 	phone: z.string().optional(),
-	password: z.string().min(6),
+});
+
+// OutPUT Schemas (API Returns)
+export const InvitePublicSchema = InviteSelectSchema.omit({
+	token: true,
+	notes: true,
+	invitedById: true,
+});
+
+export const InviteListItemSchema = InviteSelectSchema.pick({
+	id: true,
+	email: true,
+	name: true,
+	status: true,
+	createdAt: true,
+});
+
+// detail view
+export const InviteDetailSchema = InvitePublicSchema.extend({
+	invitedBy: z.object({
+		id: z.string(),
+		name: z.string().nullable(),
+		email: z.string(),
+	}),
 });
 
 export const ReferrerSchema = z.object({
@@ -51,6 +78,6 @@ export const UpdateReferrerSchema = ReferrerSchema.partial().pick({
 });
 
 // TS Types derieved from Zod (not from InferSelectModel)
-export type TenantInvite = z.infer<typeof TenantInviteSelectSchema>;
-export type NewTenantInvite = z.infer<typeof TenantInviteInsertSchema>;
+export type TenantInvite = z.infer<typeof InviteSelectSchema>;
+export type NewTenantInvite = z.infer<typeof InviteInsertSchema>;
 export type AcceptInvite = z.infer<typeof AcceptInviteSchema>;

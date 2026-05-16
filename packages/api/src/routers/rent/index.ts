@@ -1,3 +1,4 @@
+import * as inviteProcedures from "./invite";
 import * as leaseProcedures from "./lease";
 import * as propertyProcedures from "./property";
 import * as tenantProcedures from "./tenant";
@@ -8,4 +9,5 @@ export const rentRouter = {
 	unit: unitProcedures,
 	lease: leaseProcedures,
 	tenant: tenantProcedures,
+	invite: inviteProcedures,
 };

@@ -2,7 +2,6 @@ import { ORPCError } from "@orpc/client";
 import { protectedProcedure } from "@rently/api/procedures";
 import { StatusCode, StatusPhrase } from "@rently/api/utils";
 import type { Database } from "@rently/db";
-
 import { user } from "@rently/db/schema/auth";
 import { leases, properties, units } from "@rently/db/schema/schema";
 import {

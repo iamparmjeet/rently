@@ -1,3 +1,4 @@
+import { relations } from "drizzle-orm";
 import {
 	invoices,
 	leases,
@@ -11,8 +12,7 @@ import {
 	units,
 	user,
 	utilities,
-} from "@rently/db/schema";
-import { relations } from "drizzle-orm";
+} from "./index";
 
 // 1) Property ↔ Owner (user)
 export const userRelations = relations(user, ({ many }) => ({

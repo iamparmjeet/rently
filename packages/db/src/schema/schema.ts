@@ -103,6 +103,10 @@ export const payments = pgTable("payments", {
 		.references(() => leases.id, { onDelete: "cascade" }),
 	amount: real("amount").notNull(),
 	paymentDate: timestamp("payment_date").notNull(),
+	paymentMethods: text("payment_method", {
+		enum: PAYMENT_TYPE_VALUES,
+	}),
+	referenceNumber: text("reference_number"),
 	type: text("type", {
 		enum: PAYMENT_TYPE_VALUES,
 	}).notNull(),
@@ -132,7 +136,11 @@ export const referrers = pgTable("referrers", {
 
 export const tenantInvites = pgTable("tenant_invites", {
 	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
+	name: text("name"),
+	phone: text("phone"),
 	email: text("email").notNull(), // to invite
+	emergencyContact: text("emergency_contact"),
+	notes: text("notes"), // Owner-private, never shown to tenant
 	token: text("token").unique().notNull(), // secret to validate user
 	expiresAt: timestamp("expires_at"),
 	invitedById: text("invited_by")
@@ -154,6 +162,9 @@ export const tenantProfiles = pgTable("tenant_profiles", {
 		.notNull()
 		.references(() => user.id, { onDelete: "cascade" }),
 	uidNumber: text("uid_number").unique(),
+	panNumber: text("pan_number").unique(),
+	phone: text("phone"),
+	email: text("email"),
 	emergencyContact: text("emergency_contact"),
 	address: text("address"),
 	image: text("url"),
@@ -167,5 +178,6 @@ export const ownerProfiles = pgTable("owner_profiles", {
 	companyName: text("company_name").notNull(),
 	address: text("address"),
 	gstNumber: text("gst_number"),
+	upiId: text("upi_id"),
 	subscriptionId: text("subscription_id").references(() => subscriptions.id),
 });

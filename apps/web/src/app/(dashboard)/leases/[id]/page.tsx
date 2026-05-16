@@ -12,6 +12,7 @@ import { IconArrowLeft, IconPencil, IconTrash } from "@tabler/icons-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use } from "react";
+import { LeaseDetails } from "@/components/features/leases/lease-details";
 import LeaseStatusBadge from "@/components/features/leases/lease-status-badge";
 import { useDeleteLease, useLease } from "@/hooks/leases";
 
@@ -79,7 +80,7 @@ export default function LeaseDetailPage({
 				</div>
 			</div>
 			{/*Main Details*/}
-			<LeaseDetailPage lease={lease} />
+			<LeaseDetails lease={lease} />
 			<Card>
 				<CardHeader>
 					<div className="flex items-center justify-between">

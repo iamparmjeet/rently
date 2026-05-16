@@ -17,10 +17,11 @@ export const CreatePaymentSchema = PaymentInsertSchema.omit({
 });
 
 export const UpdatePaymentSchema = PaymentSelectSchema.partial().pick({
-	leaseId: true,
 	amount: true,
 	paymentDate: true,
 	type: true,
+	paymentMethods: true,
+	referenceNumber: true,
 	description: true,
 	utilityId: true,
 });

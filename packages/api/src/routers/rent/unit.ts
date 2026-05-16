@@ -1,6 +1,5 @@
 import { ORPCError } from "@orpc/client";
 import { protectedProcedure } from "@rently/api/procedures";
-import { VerifyUnitOwnership } from "@rently/api/routers/helpers";
 import { StatusCode, StatusPhrase } from "@rently/api/utils";
 import { properties, units } from "@rently/db/schema/schema";
 import {
@@ -11,6 +10,7 @@ import {
 } from "@rently/validators";
 import { and, eq } from "drizzle-orm";
 import z from "zod";
+import { VerifyUnitOwnership } from "../helpers";
 
 //create
 export const createUnit = protectedProcedure

@@ -1,10 +1,10 @@
 import { evlogMiddleware } from "evlog/next";
 import { type NextRequest, NextResponse } from "next/server";
-import { NavigationLinkMap } from "./constants/navigation";
-
-const PROTECTED_ROUTES = [NavigationLinkMap.Dashboard.href];
-
-const AUTH_ROUTES = ["/login", "/register"];
+import {
+	AUTH_ROUTES,
+	NavigationLinkMap,
+	PROTECTED_ROUTES,
+} from "./constants/navigation";
 
 export default async function proxy(request: NextRequest) {
 	evlogMiddleware();

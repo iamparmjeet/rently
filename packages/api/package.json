@@ -34,6 +34,7 @@
 		"@rently/env": "workspace:*",
 		"dotenv": "catalog:",
 		"drizzle-orm": "^0.45.2",
+		"resend": "^6.12.3",
 		"zod": "catalog:"
 	},
 	"devDependencies": {

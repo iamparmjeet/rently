@@ -32,9 +32,6 @@ export const BILLING_INTERVAL_VALUES = [
 	BILLING_INTERVAL.TWOYEAR,
 ] as const;
 
-export type BILLING_INTERVAL =
-	(typeof BILLING_INTERVAL)[keyof typeof BILLING_INTERVAL];
-
 export const CURRENCY_TYPES = {
 	INR: "inr",
 	USD: "usd",
@@ -44,6 +41,26 @@ export const CURRENCY_TYPES_VALUES = [
 	CURRENCY_TYPES.INR,
 	CURRENCY_TYPES.USD,
 ] as const;
+
+export const PAYMENT_METHODS = {
+	UPI: "upi",
+	CASH: "cash",
+	BANK_TRANSFER: "bank_transfer",
+	CHEQUE: "cheque",
+	ONLINE: "online",
+} as const;
+
+export const PAYMENT_METHOD_VALUES = [
+	PAYMENT_METHODS.UPI,
+	PAYMENT_METHODS.CASH,
+	PAYMENT_METHODS.BANK_TRANSFER,
+	PAYMENT_METHODS.CHEQUE,
+	PAYMENT_METHODS.ONLINE,
+] as const;
+
+// ********** Types *******
+export type BILLING_INTERVAL =
+	(typeof BILLING_INTERVAL)[keyof typeof BILLING_INTERVAL];
 
 export type CURRENCY_TYPES =
 	(typeof CURRENCY_TYPES)[keyof typeof CURRENCY_TYPES];
@@ -63,6 +80,8 @@ export const PAYMENT_STATUS_VALUES = [
 export type PAYMENT_STATUS =
 	(typeof PAYMENT_STATUS)[keyof typeof PAYMENT_STATUS];
 
+export type PAYMENT_METHOD =
+	(typeof PAYMENT_METHODS)[keyof typeof PAYMENT_METHODS];
 // [
 //   {
 //     name: "Basic",

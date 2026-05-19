@@ -5,7 +5,6 @@ import { toast } from "sonner";
 import { NavigationLinkMap } from "@/constants/navigation";
 import { signUp } from "@/lib/auth-client";
 import type { RegisterFormType } from "@/types/auth-types";
-import { sleep } from "@/utils/utils";
 
 export const useRegister = () => {
 	const [isLoading, setIsLoading] = useState(false);
@@ -24,7 +23,7 @@ export const useRegister = () => {
 				callbackURL: `${env.NEXT_PUBLIC_SERVER_URL}/${NavigationLinkMap.Dashboard.href}`,
 			},
 			{
-				onSuccess: (ctx) => {
+				onSuccess: () => {
 					setIsLoading(false);
 					toast.success(`Welcome ${data.name}`, {
 						id: toastId,

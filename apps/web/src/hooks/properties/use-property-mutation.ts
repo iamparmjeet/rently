@@ -67,9 +67,9 @@ export function useDeleteProperty() {
 			// removeQueries = clear cache without refetching
 			// invalidateQueries = clear + immediately trigger refetch
 			// For delete, we just want to clear — nothing to refetch
-			queryClient.removeQueries({
-				queryKey: orpc.rent.property.listProperties.key(),
-			});
+			// queryClient.removeQueries({
+			// 	queryKey: orpc.rent.property.listProperties.key(),
+			// });
 
 			// Invalidate list so count updates
 			queryClient.invalidateQueries({

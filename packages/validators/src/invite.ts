@@ -55,6 +55,7 @@ export const InviteDetailSchema = InvitePublicSchema.extend({
 		id: z.string(),
 		name: z.string().nullable(),
 		email: z.string(),
+		ownerName: z.string(),
 	}),
 });
 

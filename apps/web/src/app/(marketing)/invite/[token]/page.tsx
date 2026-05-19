@@ -1,7 +1,6 @@
 // server Page
 
 // error States
-
 import { Button } from "@rently/ui/components/button";
 import {
 	Card,
@@ -88,7 +87,12 @@ export default async function InvitePage({ params }: PageProps) {
 	type InviteState =
 		| {
 				type: "valid";
-				data: { name: string | null; email: string; phone: string | null };
+				data: {
+					name: string | null;
+					email: string;
+					phone: string | null;
+					ownerName: string;
+				};
 		  }
 		| { type: "not_found" }
 		| { type: "expired" }

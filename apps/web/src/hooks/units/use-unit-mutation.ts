@@ -60,9 +60,9 @@ export function useDeleteUnit() {
 			// removeQueries = clear cache without refetching
 			// invalidateQueries = clear + immediately trigger refetch
 			// For delete, we just want to clear — nothing to refetch
-			queryClient.removeQueries({
-				queryKey: orpc.rent.unit.listUnits.key(),
-			});
+			// queryClient.removeQueries({
+			// 	queryKey: orpc.rent.unit.listUnits.key(),
+			// });
 
 			// Invalidate list so count updates
 			queryClient.invalidateQueries({

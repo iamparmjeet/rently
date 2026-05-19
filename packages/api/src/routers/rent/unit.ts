@@ -1,8 +1,9 @@
 import { ORPCError } from "@orpc/client";
 import { protectedProcedure } from "@rently/api/procedures";
 import { StatusCode, StatusPhrase } from "@rently/api/utils";
-import { properties, units } from "@rently/db/schema/schema";
+import { leases, properties, units } from "@rently/db/schema/schema";
 import {
+	ActiveLeaseSchema,
 	CreateUnitSchema,
 	UnitSelectSchema,
 	UnitWithPropertyNameSchema,
@@ -12,7 +13,7 @@ import { and, eq } from "drizzle-orm";
 import z from "zod";
 import { VerifyUnitOwnership } from "../helpers";
 
-//create
+//1) create
 export const createUnit = protectedProcedure
 	.route({
 		method: "POST",
@@ -61,7 +62,7 @@ export const createUnit = protectedProcedure
 		return { unit };
 	});
 
-// update
+// 2) update
 export const updateUnit = protectedProcedure
 	.route({ method: "PATCH", path: "/rent/unit/update" })
 	.input(z.object({ id: z.string(), data: UpdateUnitSchema }))
@@ -87,11 +88,16 @@ export const updateUnit = protectedProcedure
 		return { unit };
 	});
 
-// getbyId
+// 3) getUnitbyId
 export const getUnitById = protectedProcedure
 	.route({ method: "GET", path: "/rent/unit/get" })
 	.input(z.object({ id: z.string() }))
-	.output(z.object({ unit: UnitWithPropertyNameSchema }))
+	.output(
+		z.object({
+			unit: UnitWithPropertyNameSchema,
+			activeLease: ActiveLeaseSchema.nullable(),
+		}),
+	)
 	.handler(async ({ context, input }) => {
 		const { db, user } = context;
 
@@ -127,20 +133,23 @@ export const getUnitById = protectedProcedure
 			});
 		}
 
-		// Re-check ownership properly
-		const [ownership] = await db
-			.select({ ownerId: properties.ownerId })
-			.from(units)
-			.innerJoin(properties, eq(units.propertyId, properties.id))
-			.where(eq(units.id, input.id));
+		// Add active lease query
+		const [activeLease] = await db
+			.select({
+				id: leases.id,
+				tenantId: leases.tenantId,
+				tenantName: user.name,
+				tenantEmail: user.email,
+				rent: leases.rent,
+				startDate: leases.startDate,
+				status: leases.status,
+			})
+			.from(leases)
+			.innerJoin(user, eq(leases.tenantId, user.id))
+			.where(and(eq(leases.unitId, input.id), eq(leases.status, "active")))
+			.limit(1);
 
-		if (!ownership || ownership.ownerId !== user.id) {
-			throw new ORPCError(StatusPhrase.FORBIDDEN, {
-				message: "You do not have access to this unit",
-			});
-		}
-
-		return { unit: result };
+		return { unit: result, activeLease: activeLease ?? null };
 	});
 
 // getAll

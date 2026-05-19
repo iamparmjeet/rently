@@ -1,3 +1,4 @@
+import { LEASE_STATUS_VALUES } from "@rently/db/constants/rent-constants";
 import { units } from "@rently/db/schema/schema";
 import { createInsertSchema, createSelectSchema } from "drizzle-zod";
 import z from "zod";
@@ -27,6 +28,16 @@ export const UpdateUnitSchema = UnitSelectSchema.partial().pick({
 
 export const UnitWithPropertyNameSchema = UnitSelectSchema.extend({
 	propertyName: z.string(),
+});
+
+export const ActiveLeaseSchema = z.object({
+	id: z.string(),
+	tenantId: z.string(),
+	tenantName: z.string().nullable(),
+	tenantEmail: z.string().nullable(),
+	rent: z.number(),
+	startDate: z.date(),
+	status: z.enum(LEASE_STATUS_VALUES),
 });
 
 // TS Types derieved from Zod (not from InferSelectModel)

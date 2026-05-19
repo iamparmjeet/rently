@@ -19,18 +19,35 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@rently/ui/components/select";
-import { CreateLeaseSchema } from "@rently/validators/lease";
+import { LeaseInsertSchema } from "@rently/validators/lease";
 import { useEffect } from "react";
 import { useForm } from "react-hook-form";
 import z from "zod";
 
 // Form-specific schema — dates as strings (HTML date input returns strings)
-const LeaseFormSchema = CreateLeaseSchema.safeExtend({
-	startDate: z.string().min(1, "Start date is required"),
-	endDate: z.string().optional(),
-	rent: z.coerce.number().min(1, "Rent must be greater than 0"),
-	deposit: z.coerce.number().optional(),
-});
+const LeaseFormSchema = LeaseInsertSchema.omit({
+	id: true,
+	createdAt: true,
+	updatedAt: true,
+})
+	.extend({
+		startDate: z.string().min(1, "Start date is required"),
+		endDate: z.string().optional(),
+		rent: z.coerce.number().min(1, "Rent must be greater than 0"),
+		deposit: z.coerce.number().optional(),
+	})
+	.refine(
+		(data) => {
+			if (data.endDate && data.startDate) {
+				return new Date(data.endDate) > new Date(data.startDate);
+			}
+			return true;
+		},
+		{
+			error: "End date must be after start date",
+			path: ["endDate"],
+		},
+	);
 
 export type LeaseFormValues = z.infer<typeof LeaseFormSchema>;
 

@@ -17,9 +17,7 @@ export function useCreateLease() {
 				queryKey: orpc.rent.lease.listLease.key(),
 			});
 			queryClient.invalidateQueries({
-				queryKey: orpc.rent.unit
-					? orpc.rent.unit.listUnits?.key()
-					: ["rent", "unit"],
+				queryKey: orpc.rent.unit.listUnits.key(),
 			});
 			toast.success("Lease created successfully");
 		},
@@ -69,9 +67,9 @@ export function useDeleteLease() {
 			// removeQueries = clear cache without refetching
 			// invalidateQueries = clear + immediately trigger refetch
 			// For delete, we just want to clear — nothing to refetch
-			queryClient.removeQueries({
-				queryKey: orpc.rent.lease.listLease.key(),
-			});
+			// queryClient.removeQueries({
+			// 	queryKey: orpc.rent.lease.listLease.key(),
+			// });
 
 			// Invalidate list so count updates
 			queryClient.invalidateQueries({

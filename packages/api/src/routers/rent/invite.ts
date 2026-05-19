@@ -2,7 +2,7 @@ import { ORPCError } from "@orpc/client";
 import { protectedProcedure, publicProcedure } from "@rently/api/procedures";
 import { StatusCode, StatusPhrase, sendInviteEmail } from "@rently/api/utils";
 import { auth } from "@rently/auth";
-import { type Database, db } from "@rently/db";
+import type { Database } from "@rently/db";
 import { USER_ROLES } from "@rently/db/constants/user-roles";
 import { user } from "@rently/db/schema/auth";
 import { tenantInvites, tenantProfiles } from "@rently/db/schema/schema";

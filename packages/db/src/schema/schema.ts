@@ -8,48 +8,52 @@ import {
 	UNIT_TYPES_VALUES,
 	UTILITY_TYPE_VALUES,
 } from "@rently/db/constants/rent-constants";
-import { sql } from "drizzle-orm";
-import { boolean, pgTable, real, text, timestamp } from "drizzle-orm/pg-core";
+import {
+	boolean,
+	integer,
+	pgTable,
+	real,
+	text,
+	timestamp,
+} from "drizzle-orm/pg-core";
+import { PAYMENT_METHOD_VALUES } from "../constants/payment-constants";
+import {
+	DOCUMENT_FIELDS_VALUES,
+	DOCUMENT_REQUEST_STATUS_VALUES,
+	TENANT_VERIFICATION_STATUS_VALUES,
+} from "../constants/user-roles";
+import { auditColumns, idColumn } from "../utils/columns";
 import { user } from "./auth";
-import { subscriptions } from "./subscription";
 
 // ******* Owner Related Table like Properties, Units, Leases ***
 
 export const properties = pgTable("properties", {
-	id: text("id").primaryKey().notNull().default(sql`gen_random_uuid()`),
+	...idColumn(),
 	ownerId: text("owner_id")
 		.notNull()
 		.references(() => user.id, { onDelete: "cascade" }),
 	name: text("name").notNull(),
 	address: text("address").notNull(),
 	type: text("type", { enum: PROPERTY_TYPES_VALUES }).notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at")
-		.defaultNow()
-		.notNull()
-		.$onUpdate(() => new Date()),
+	...auditColumns(),
 });
 
 export const units = pgTable("units", {
-	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
+	...idColumn(),
 	propertyId: text("property_id")
 		.notNull()
 		.references(() => properties.id, { onDelete: "cascade" }),
 	unitNumber: text("unit_number").notNull(),
 	type: text("type", { enum: UNIT_TYPES_VALUES }).notNull(),
 	area: real("area"),
-	baseRent: real("base_rent").notNull(),
+	baseRent: integer("base_rent").notNull(), // Paisa or cents
 	description: text("description"),
 	status: text("status", { enum: UNIT_STATUS_VALUES }).notNull(),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at")
-		.defaultNow()
-		.notNull()
-		.$onUpdate(() => new Date()),
+	...auditColumns(),
 });
 
 export const leases = pgTable("leases", {
-	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
+	...idColumn(),
 	unitId: text("unit_id")
 		.notNull()
 		.references(() => units.id, { onDelete: "cascade" }),
@@ -58,23 +62,21 @@ export const leases = pgTable("leases", {
 		.references(() => user.id, { onDelete: "cascade" }),
 	startDate: timestamp("start_date").notNull(),
 	endDate: timestamp("end_date"),
-	rent: real("rent").notNull(),
-	deposit: real("deposit"),
+	rent: integer("rent").notNull(),
+	deposit: integer("deposit"),
 	status: text("status", {
 		enum: LEASE_STATUS_VALUES,
 	}).notNull(),
 	referenceId: text("reference_id").references(() => user.id),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at")
-		.defaultNow()
-		.notNull()
-		.$onUpdate(() => new Date()),
+	...auditColumns(),
 });
 
+// ═══════════════════════════════════════════════════════════
 // ****** Accounting **************
+// ═══════════════════════════════════════════════════════════
 
 export const utilities = pgTable("utilities", {
-	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
+	...idColumn(),
 	leaseId: text("lease_id")
 		.notNull()
 		.references(() => leases.id, { onDelete: "cascade" }),
@@ -86,25 +88,21 @@ export const utilities = pgTable("utilities", {
 	unitsUsed: real("units_used"),
 	previousReading: real("previous_reading"),
 	currentReading: real("current_reading"),
-	fixedCharge: real("fixed_charge"),
-	totalAmount: real("total_amount").notNull(),
+	fixedCharge: integer("fixed_charge"),
+	totalAmount: integer("total_amount").notNull(),
 	isPaid: boolean("is_paid").notNull().default(false),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at")
-		.defaultNow()
-		.notNull()
-		.$onUpdate(() => new Date()),
+	...auditColumns(),
 });
 
 export const payments = pgTable("payments", {
-	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
+	...idColumn(),
 	leaseId: text("lease_id")
 		.notNull()
 		.references(() => leases.id, { onDelete: "cascade" }),
-	amount: real("amount").notNull(),
+	amount: integer("amount").notNull(),
 	paymentDate: timestamp("payment_date").notNull(),
 	paymentMethods: text("payment_method", {
-		enum: PAYMENT_TYPE_VALUES,
+		enum: PAYMENT_METHOD_VALUES,
 	}),
 	referenceNumber: text("reference_number"),
 	type: text("type", {
@@ -112,30 +110,16 @@ export const payments = pgTable("payments", {
 	}).notNull(),
 	description: text("description"),
 	utilityId: text("utility_id").references(() => utilities.id),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at")
-		.defaultNow()
-		.notNull()
-		.$onUpdate(() => new Date()),
+	...auditColumns(),
 });
 
-// ******* Tenancy *********
-
-export const referrers = pgTable("referrers", {
-	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
-	referredUserId: text("referred_user_id")
-		.notNull()
-		.references(() => user.id, { onDelete: "cascade" }),
-	note: text("note"),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at")
-		.defaultNow()
-		.notNull()
-		.$onUpdate(() => new Date()),
-});
+// ═══════════════════════════════════════════════════════════
+// TENANCY: Invites, Profiles
+// Order matters — tenantProfiles before documentUpdateRequests
+// ═══════════════════════════════════════════════════════════
 
 export const tenantInvites = pgTable("tenant_invites", {
-	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
+	...idColumn(),
 	name: text("name"),
 	phone: text("phone"),
 	email: text("email").notNull(), // to invite
@@ -149,29 +133,74 @@ export const tenantInvites = pgTable("tenant_invites", {
 	status: text("status", {
 		enum: INVITE_STATUS_VALUES,
 	}).default(INVITE_STATUSES.PENDING),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at")
-		.defaultNow()
-		.notNull()
-		.$onUpdate(() => new Date()),
+	...auditColumns(),
 });
 
 export const tenantProfiles = pgTable("tenant_profiles", {
-	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
+	...idColumn(),
 	userId: text("user_id")
 		.notNull()
 		.references(() => user.id, { onDelete: "cascade" }),
+	// Business rule enforcedin API layer, not db layer
+	// Immutable after first set - can change only after approval
 	uidNumber: text("uid_number").unique(),
 	panNumber: text("pan_number").unique(),
+	profileImage: text("profile_iamge"),
+	// Contact
 	phone: text("phone"),
 	email: text("email"),
-	emergencyContact: text("emergency_contact"),
 	address: text("address"),
-	image: text("url"),
+	emergencyContact: text("emergency_contact"),
+	emergencyContactName: text("emergency_contact_name"),
+	emergencyContactLocation: text("emergency_contact_location"),
+
+	// Identity Verfication tracking (owner reviews)
+	verificationStatus: text("verification_status", {
+		enum: TENANT_VERIFICATION_STATUS_VALUES,
+	})
+		.default("unverified")
+		.notNull(),
+	verificationNotes: text("verfication_notes"), // Owner private
+	verifiedById: text("verified_by").references(() => user.id),
+	verifiedAt: timestamp("verified_at"),
+
+	// Audit
+	invitedId: text("invite_id").references(() => tenantInvites.id),
+	createdById: text("created_by").references(() => user.id),
+	...auditColumns(),
+});
+
+//  owner-controlled document modification workflow
+export const documentUpdateRequests = pgTable("document_update_requests", {
+	...idColumn(),
+	tenantProfileId: text("tenant_profile_id")
+		.notNull()
+		.references(() => tenantProfiles.id, { onDelete: "cascade" }), // ← forward ref OK in .references()
+	requestedById: text("requested_by_id")
+		.notNull()
+		.references(() => user.id), // who requested the change (owner or tenant)
+	reason: text("reason").notNull(),
+	fieldToUpdate: text("field_to_update", {
+		enum: DOCUMENT_FIELDS_VALUES,
+	}).notNull(),
+	status: text("status", {
+		enum: DOCUMENT_REQUEST_STATUS_VALUES,
+	})
+		.default("pending")
+		.notNull(),
+	// Who reviewed + when
+	reviewedById: text("reviewed_by_id").references(() => user.id),
+	reviewedAt: timestamp("reviewed_at"),
+	ownerNotes: text("owner_notes"),
+	// The Aproval window - when does the unlock expire
+	approvedExpiresAt: timestamp("approved_expires_at"),
+	completedAt: timestamp("completed_at"),
+	newValueSubmitted: text("new_value"),
+	...auditColumns(),
 });
 
 export const ownerProfiles = pgTable("owner_profiles", {
-	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
+	...idColumn(),
 	userId: text("user_id")
 		.notNull()
 		.references(() => user.id, { onDelete: "cascade" }),
@@ -179,5 +208,13 @@ export const ownerProfiles = pgTable("owner_profiles", {
 	address: text("address"),
 	gstNumber: text("gst_number"),
 	upiId: text("upi_id"),
-	subscriptionId: text("subscription_id").references(() => subscriptions.id),
+});
+
+export const referrers = pgTable("referrers", {
+	...idColumn(),
+	referredUserId: text("referred_user_id")
+		.notNull()
+		.references(() => user.id, { onDelete: "cascade" }),
+	note: text("note"),
+	...auditColumns(),
 });

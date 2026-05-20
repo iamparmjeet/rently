@@ -7,14 +7,12 @@ export const PLAN_STATUS = {
 	CANCELLED: "cancelled",
 } as const;
 
-export const PLAN_STATUS_VALUES = [
-	PLAN_STATUS.TRIAL,
-	PLAN_STATUS.ACTIVE,
-	PLAN_STATUS.PAUSED,
-	PLAN_STATUS.CANCELLED,
-] as const;
+export type PlanStatus = (typeof PLAN_STATUS)[keyof typeof PLAN_STATUS];
 
-export type PLAN_STATUS = (typeof PLAN_STATUS)[keyof typeof PLAN_STATUS];
+export const PLAN_STATUS_VALUES = Object.values(PLAN_STATUS) as [
+	PlanStatus,
+	...PlanStatus[],
+];
 
 export const BILLING_INTERVAL = {
 	MONTHLY: "monthly",
@@ -24,23 +22,26 @@ export const BILLING_INTERVAL = {
 	TWOYEAR: "twoyear",
 } as const;
 
-export const BILLING_INTERVAL_VALUES = [
-	BILLING_INTERVAL.MONTHLY,
-	BILLING_INTERVAL.QUARTERLY,
-	BILLING_INTERVAL.HALFYEAR,
-	BILLING_INTERVAL.YEAR,
-	BILLING_INTERVAL.TWOYEAR,
-] as const;
+export type BillingInterval =
+	(typeof BILLING_INTERVAL)[keyof typeof BILLING_INTERVAL];
+
+export const BILLING_INTERVAL_VALUES = Object.values(BILLING_INTERVAL) as [
+	BillingInterval,
+	...BillingInterval[],
+];
 
 export const CURRENCY_TYPES = {
 	INR: "inr",
 	USD: "usd",
 } as const;
 
-export const CURRENCY_TYPES_VALUES = [
-	CURRENCY_TYPES.INR,
-	CURRENCY_TYPES.USD,
-] as const;
+export type CurrencyTypes =
+	(typeof CURRENCY_TYPES)[keyof typeof CURRENCY_TYPES];
+
+export const CURRENCY_TYPES_VALUES = Object.values(CURRENCY_TYPES) as [
+	CurrencyTypes,
+	...CurrencyTypes[],
+];
 
 export const PAYMENT_METHODS = {
 	UPI: "upi",
@@ -50,20 +51,13 @@ export const PAYMENT_METHODS = {
 	ONLINE: "online",
 } as const;
 
-export const PAYMENT_METHOD_VALUES = [
-	PAYMENT_METHODS.UPI,
-	PAYMENT_METHODS.CASH,
-	PAYMENT_METHODS.BANK_TRANSFER,
-	PAYMENT_METHODS.CHEQUE,
-	PAYMENT_METHODS.ONLINE,
-] as const;
+export type PaymentMethod =
+	(typeof PAYMENT_METHODS)[keyof typeof PAYMENT_METHODS];
 
-// ********** Types *******
-export type BILLING_INTERVAL =
-	(typeof BILLING_INTERVAL)[keyof typeof BILLING_INTERVAL];
-
-export type CURRENCY_TYPES =
-	(typeof CURRENCY_TYPES)[keyof typeof CURRENCY_TYPES];
+export const PAYMENT_METHOD_VALUES = Object.values(PAYMENT_METHODS) as [
+	PaymentMethod,
+	...PaymentMethod[],
+];
 
 export const PAYMENT_STATUS = {
 	PENDING: "pending",
@@ -71,17 +65,14 @@ export const PAYMENT_STATUS = {
 	FAILED: "failed",
 } as const;
 
-export const PAYMENT_STATUS_VALUES = [
-	PAYMENT_STATUS.PENDING,
-	PAYMENT_STATUS.PAID,
-	PAYMENT_STATUS.FAILED,
-] as const;
-
-export type PAYMENT_STATUS =
+export type PaymentStatus =
 	(typeof PAYMENT_STATUS)[keyof typeof PAYMENT_STATUS];
 
-export type PAYMENT_METHOD =
-	(typeof PAYMENT_METHODS)[keyof typeof PAYMENT_METHODS];
+export const PAYMENT_STATUS_VALUES = Object.values(PAYMENT_STATUS) as [
+	PaymentStatus,
+	...PaymentStatus[],
+];
+
 // [
 //   {
 //     name: "Basic",

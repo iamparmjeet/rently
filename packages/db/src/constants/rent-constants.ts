@@ -3,12 +3,12 @@ export const PROPERTY_TYPES = {
 	COMMERCIAL: "commercial",
 } as const;
 
-export const PROPERTY_TYPES_VALUES = [
-	PROPERTY_TYPES.COMMERCIAL,
-	PROPERTY_TYPES.RESIDENTIAL,
-] as const;
-
 export type PropertyType = (typeof PROPERTY_TYPES)[keyof typeof PROPERTY_TYPES];
+
+export const PROPERTY_TYPES_VALUES = Object.values(PROPERTY_TYPES) as [
+	PropertyType,
+	...PropertyType[],
+];
 
 //  Units
 
@@ -17,21 +17,24 @@ export const UNIT_TYPES = {
 	SHOP: "shop",
 } as const;
 
-export const UNIT_TYPES_VALUES = [UNIT_TYPES.ROOM, UNIT_TYPES.SHOP] as const;
-
 export type UnitType = (typeof UNIT_TYPES)[keyof typeof UNIT_TYPES];
+
+export const UNIT_TYPES_VALUES = Object.values(UNIT_TYPES) as [
+	UnitType,
+	...UnitType[],
+];
 
 export const UNIT_STATUSES = {
 	AVAILABLE: "available",
 	OCCUPIED: "occupied",
 } as const;
 
-export const UNIT_STATUS_VALUES = [
-	UNIT_STATUSES.AVAILABLE,
-	UNIT_STATUSES.OCCUPIED,
-] as const;
-
 export type UnitStatus = (typeof UNIT_STATUSES)[keyof typeof UNIT_STATUSES];
+
+export const UNIT_STATUS_VALUES = Object.values(UNIT_STATUSES) as [
+	UnitStatus,
+	...UnitStatus[],
+];
 
 // ---
 
@@ -41,13 +44,12 @@ export const LEASE_STATUSES = {
 	TERMINATED: "terminated",
 } as const;
 
-export const LEASE_STATUS_VALUES = [
-	LEASE_STATUSES.ACTIVE,
-	LEASE_STATUSES.EXPIRED,
-	LEASE_STATUSES.TERMINATED,
-] as const;
-
 export type LeaseStatus = (typeof LEASE_STATUSES)[keyof typeof LEASE_STATUSES];
+
+export const LEASE_STATUS_VALUES = Object.values(LEASE_STATUSES) as [
+	LeaseStatus,
+	...LeaseStatus[],
+];
 
 // ---
 
@@ -58,14 +60,12 @@ export const PAYMENT_TYPES = {
 	OTHER: "other",
 } as const;
 
-export const PAYMENT_TYPE_VALUES = [
-	PAYMENT_TYPES.RENT,
-	PAYMENT_TYPES.UTILITY,
-	PAYMENT_TYPES.DEPOSIT,
-	PAYMENT_TYPES.OTHER,
-] as const;
-
 export type PaymentType = (typeof PAYMENT_TYPES)[keyof typeof PAYMENT_TYPES];
+
+export const PAYMENT_TYPE_VALUES = Object.values(PAYMENT_TYPES) as [
+	PaymentType,
+	...PaymentType[],
+];
 
 // ---
 
@@ -75,13 +75,12 @@ export const UTILITY_TYPES = {
 	MAINTENANCE: "maintenance",
 } as const;
 
-export const UTILITY_TYPE_VALUES = [
-	UTILITY_TYPES.ELECTRICITY,
-	UTILITY_TYPES.WATER,
-	UTILITY_TYPES.MAINTENANCE,
-] as const;
-
 export type UtilityType = (typeof UTILITY_TYPES)[keyof typeof UTILITY_TYPES];
+
+export const UTILITY_TYPE_VALUES = Object.values(UTILITY_TYPES) as [
+	UtilityType,
+	...UtilityType[],
+];
 
 // ---
 
@@ -91,11 +90,10 @@ export const INVITE_STATUSES = {
 	EXPIRED: "expired",
 } as const;
 
-export const INVITE_STATUS_VALUES = [
-	INVITE_STATUSES.PENDING,
-	INVITE_STATUSES.ACCEPTED,
-	INVITE_STATUSES.EXPIRED,
-] as const;
-
 export type InviteStatus =
 	(typeof INVITE_STATUSES)[keyof typeof INVITE_STATUSES];
+
+export const INVITE_STATUS_VALUES = Object.values(INVITE_STATUSES) as [
+	InviteStatus,
+	...InviteStatus[],
+];

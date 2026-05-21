@@ -1,12 +1,13 @@
-import { ORPCError } from "@orpc/client";
+import { ORPCError } from "@orpc/server";
 import { protectedProcedure } from "@rently/api/procedures";
 import { StatusCode, StatusPhrase } from "@rently/api/utils";
+import { user } from "@rently/db/schema/auth";
 import { leases, properties, units } from "@rently/db/schema/schema";
 import {
-	ActiveLeaseSchema,
 	CreateUnitSchema,
+	UnitDetailSchema,
 	UnitSelectSchema,
-	UnitWithPropertyNameSchema,
+	UnitWithLeaseSchema,
 	UpdateUnitSchema,
 } from "@rently/validators";
 import { and, eq } from "drizzle-orm";
@@ -68,10 +69,10 @@ export const updateUnit = protectedProcedure
 	.input(z.object({ id: z.string(), data: UpdateUnitSchema }))
 	.output(z.object({ unit: UnitSelectSchema }))
 	.handler(async ({ context, input }) => {
-		const { db, user } = context;
+		const { db, user: authUser } = context;
 
 		// Verfiy ownership
-		await VerifyUnitOwnership(db, user.id, input.id);
+		await VerifyUnitOwnership(db, authUser.id, input.id);
 
 		const [unit] = await db
 			.update(units)
@@ -94,12 +95,11 @@ export const getUnitById = protectedProcedure
 	.input(z.object({ id: z.string() }))
 	.output(
 		z.object({
-			unit: UnitWithPropertyNameSchema,
-			activeLease: ActiveLeaseSchema.nullable(),
+			unit: UnitWithLeaseSchema,
 		}),
 	)
 	.handler(async ({ context, input }) => {
-		const { db, user } = context;
+		const { db, user: authUser } = context;
 
 		const [result] = await db
 			.select({
@@ -127,7 +127,7 @@ export const getUnitById = protectedProcedure
 			});
 		}
 
-		if (result.ownerId !== user.id) {
+		if (result.ownerId !== authUser.id) {
 			throw new ORPCError(StatusPhrase.FORBIDDEN, {
 				message: "you don't have access to this unit",
 			});
@@ -149,20 +149,25 @@ export const getUnitById = protectedProcedure
 			.where(and(eq(leases.unitId, input.id), eq(leases.status, "active")))
 			.limit(1);
 
-		return { unit: result, activeLease: activeLease ?? null };
+		return {
+			unit: {
+				...result,
+			},
+			activeLease: activeLease ?? null,
+		};
 	});
 
-// getAll
+// 4) list
 export const listUnits = protectedProcedure
 	.route({ method: "GET", path: "/rent/unit/list" })
 	.input(z.object({ propertyId: z.string().optional() }))
-	.output(z.object({ units: z.array(UnitWithPropertyNameSchema) }))
+	.output(z.object({ units: z.array(UnitDetailSchema) }))
 	.handler(async ({ context, input }) => {
-		const { db, user } = context;
+		const { db, user: authUser } = context;
 
 		const whereClause = input.propertyId
 			? and(
-					eq(properties.ownerId, user.id),
+					eq(properties.ownerId, authUser.id),
 					eq(units.propertyId, input.propertyId),
 				)
 			: eq(properties.ownerId, user.id);
@@ -189,14 +194,16 @@ export const listUnits = protectedProcedure
 		return { units: result };
 	});
 
-// remove
+// 5) deleteUnit
 export const deleteUnit = protectedProcedure
 	.route({ method: "DELETE", path: "/rent/unit/delete" })
 	.input(z.object({ id: z.string() }))
+	.output(z.object({ success: z.literal(true) }))
 	.handler(async ({ context, input }) => {
-		const { db, user } = context;
+		const { db, user: authUser } = context;
 
-		//verfiy Ownership
-		await VerifyUnitOwnership(db, user.id, input.id);
+		await VerifyUnitOwnership(db, authUser.id, input.id);
 		await db.delete(units).where(eq(units.id, input.id));
+
+		return { success: true as const };
 	});

@@ -1,5 +1,6 @@
 import { relations } from "drizzle-orm";
 import {
+	documentUpdateRequests,
 	invoices,
 	leases,
 	ownerProfiles,
@@ -108,3 +109,41 @@ export const tenantProfileRelations = relations(tenantProfiles, ({ one }) => ({
 		references: [user.id],
 	}),
 }));
+
+export const tenantProfilesRelations = relations(
+	tenantProfiles,
+	({ one, many }) => ({
+		user: one(user, {
+			fields: [tenantProfiles.userId],
+			references: [user.id],
+		}),
+		verifiedBy: one(user, {
+			fields: [tenantProfiles.verifiedById],
+			references: [user.id],
+		}),
+		pendingDocumentRequest: one(documentUpdateRequests, {
+			fields: [tenantProfiles.id],
+			references: [documentUpdateRequests.tenantProfileId],
+			relationName: "pendingRequest",
+		}),
+		documentRequests: many(documentUpdateRequests),
+	}),
+);
+
+export const documentUpdateRequestsRelations = relations(
+	documentUpdateRequests,
+	({ one }) => ({
+		tenant: one(tenantProfiles, {
+			fields: [documentUpdateRequests.tenantProfileId],
+			references: [tenantProfiles.id],
+		}),
+		requestedBy: one(user, {
+			fields: [documentUpdateRequests.requestedById],
+			references: [user.id],
+		}),
+		reviewedBy: one(user, {
+			fields: [documentUpdateRequests.reviewedById],
+			references: [user.id],
+		}),
+	}),
+);

@@ -1,4 +1,4 @@
-import { ORPCError } from "@orpc/client";
+import { ORPCError } from "@orpc/server";
 import { StatusPhrase } from "@rently/api/utils";
 import type { Database } from "@rently/db";
 import { leases, properties, units } from "@rently/db/schema/schema";

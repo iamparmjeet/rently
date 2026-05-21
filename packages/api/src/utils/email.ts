@@ -67,3 +67,49 @@ export async function sendInviteEmail({
 		console.log("[Resend] Invite email failed", error);
 	}
 }
+
+interface TenantSetupEmailParams {
+	to: string;
+	tenantName: string;
+	ownerName: string;
+	setupUrl: string;
+}
+
+export async function sendTenantSetupEmail({
+	to,
+	tenantName,
+	ownerName,
+	setupUrl,
+}: TenantSetupEmailParams): Promise<void> {
+	const { error } = await resend.emails.send({
+		from: env.EMAIL_FROM,
+		to,
+		subject: `${ownerName} added you to RentWise — set up your account`,
+		html: `
+      <!DOCTYPE html>
+      <html>
+        <body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+          <h2 style="color:#111;margin-bottom:8px;">Hello ${tenantName},</h2>
+          <p style="color:#555;line-height:1.6;margin-bottom:24px;">
+            <strong>${ownerName}</strong> has added you as a tenant on
+            <strong>RentWise</strong>. Click below to set your password
+            and complete your profile.
+          </p>
+
+            href="${setupUrl}"
+            style="display:inline-block;background:#0f172a;color:#fff;padding:12px 28px;border-radius:8px;text-decoration:none;font-weight:600;font-size:15px;"
+          >
+            Set Up Your Account →
+          </a>
+          <p style="color:#999;font-size:13px;margin-top:24px;">
+            This link expires in 24 hours.
+          </p>
+        </body>
+      </html>
+    `,
+	});
+
+	if (error) {
+		console.error("[Resend] Tenant setup email failed", error);
+	}
+}

@@ -85,9 +85,9 @@ export const utilities = pgTable("utilities", {
 	}).notNull(),
 	readingDate: timestamp("reading_date").notNull(),
 	ratePerUnit: real("rate_per_unit"),
-	unitsUsed: real("units_used"),
-	previousReading: real("previous_reading"),
-	currentReading: real("current_reading"),
+	unitsUsed: real("units_used").notNull(),
+	previousReading: real("previous_reading").notNull(),
+	currentReading: real("current_reading").notNull(),
 	fixedCharge: integer("fixed_charge"),
 	totalAmount: integer("total_amount").notNull(),
 	isPaid: boolean("is_paid").notNull().default(false),
@@ -120,7 +120,7 @@ export const payments = pgTable("payments", {
 
 export const tenantInvites = pgTable("tenant_invites", {
 	...idColumn(),
-	name: text("name"),
+	name: text("name").notNull(),
 	phone: text("phone"),
 	email: text("email").notNull(), // to invite
 	emergencyContact: text("emergency_contact"),

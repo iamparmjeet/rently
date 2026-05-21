@@ -1,4 +1,4 @@
-import { USER_ROLE_VALUES } from "@rently/db/constants/user-roles";
+import { USER_ROLE_VALUES, USER_ROLES } from "@rently/db/constants/user-roles";
 import { sql } from "drizzle-orm";
 import { boolean, pgTable, text, timestamp } from "drizzle-orm/pg-core";
 
@@ -9,7 +9,7 @@ export const user = pgTable("user", {
 	emailVerified: boolean("email_verified").default(false).notNull(),
 	image: text("image"),
 	role: text("role", { enum: USER_ROLE_VALUES })
-		.default(USER_ROLE_VALUES[1])
+		.default(USER_ROLES.OWNER)
 		.notNull(),
 	phone: text("phone"),
 	createdAt: timestamp("created_at").defaultNow().notNull(),

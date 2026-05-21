@@ -1,12 +1,12 @@
 import type { RouterClient } from "@orpc/server";
-import { protectedProcedure } from "../procedures";
 import { rentRouter } from "./rent";
 
 export const appRouter = {
-	privateDate: protectedProcedure.handler(({ context }) => ({
-		message: "This is private",
-		user: context.user,
-	})),
+	// Debug or remove or moved
+	// privateDate: protectedProcedure.handler(({ context }) => ({
+	// 	message: "This is private",
+	// 	user: context.user,
+	// })),
 	rent: rentRouter,
 };
 

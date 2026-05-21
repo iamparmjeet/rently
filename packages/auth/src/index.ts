@@ -64,7 +64,6 @@ export function createAuth() {
 		baseURL: env.BETTER_AUTH_URL,
 		advanced: {
 			cookiePrefix: "rently",
-			// biome-ignore lint/style/noProcessEnv: "Only Here"
 			useSecureCookies: process.env.NODE_ENV === "production",
 			defaultCookieAttributes: {
 				sameSite: "none",

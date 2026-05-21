@@ -1,13 +1,21 @@
-import { tenantInvites as Invite } from "@rently/db/schema/schema";
-import { createInsertSchema, createSelectSchema } from "drizzle-zod";
+import { referrers, tenantInvites } from "@rently/db/schema/schema";
+import {
+	createInsertSchema,
+	createSelectSchema,
+	createUpdateSchema,
+} from "drizzle-zod";
 import z from "zod";
 
 // ******** Invite **********
-
+// ── Layer 1: DB-derived
 // Derive Zod Schemas - For Runtime from Drizzle
-export const InviteSelectSchema = createSelectSchema(Invite);
-export const InviteInsertSchema = createInsertSchema(Invite);
+export const InviteSelectSchema = createSelectSchema(tenantInvites);
+export const InviteInsertSchema = createInsertSchema(tenantInvites);
 
+export const ReferrerSelectSchema = createSelectSchema(referrers);
+export const ReferrerInsertSchema = createInsertSchema(referrers);
+
+// ── Layer 2: API input schemas
 // Business Logic Schemas (API Consumers)
 export const CreateInviteSchema = InviteInsertSchema.omit({
 	id: true,
@@ -18,7 +26,7 @@ export const CreateInviteSchema = InviteInsertSchema.omit({
 	invitedById: true,
 });
 
-export const UpdateInviteSchema = InviteSelectSchema.partial().pick({
+export const UpdateInviteSchema = createUpdateSchema(tenantInvites).pick({
 	status: true,
 });
 
@@ -34,11 +42,25 @@ export const AcceptInviteSchema = z.object({
 	phone: z.string().optional(),
 });
 
+export const CreateReferrerSchema = ReferrerInsertSchema.omit({
+	id: true,
+	createdAt: true,
+	updatedAt: true,
+});
+
+export const UpdateReferrerSchema = createUpdateSchema(referrers).pick({
+	referredUserId: true,
+	note: true,
+});
+
+// ── Layer 3: API output schemas
 // OutPUT Schemas (API Returns)
 export const InvitePublicSchema = InviteSelectSchema.omit({
 	token: true,
 	notes: true,
 	invitedById: true,
+	createdAt: true,
+	updatedAt: true,
 });
 
 export const InviteListItemSchema = InviteSelectSchema.pick({
@@ -57,25 +79,6 @@ export const InviteDetailSchema = InvitePublicSchema.extend({
 		email: z.string(),
 		ownerName: z.string(),
 	}),
-});
-
-export const ReferrerSchema = z.object({
-	id: z.uuid(),
-	referredUserId: z.uuid(),
-	note: z.string().optional(),
-	createdAt: z.date(),
-	updatedAt: z.date(),
-});
-
-export const CreateReferrerSchema = ReferrerSchema.omit({
-	id: true,
-	createdAt: true,
-	updatedAt: true,
-});
-
-export const UpdateReferrerSchema = ReferrerSchema.partial().pick({
-	referredUserId: true,
-	note: true,
 });
 
 // TS Types derieved from Zod (not from InferSelectModel)

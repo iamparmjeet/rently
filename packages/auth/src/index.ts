@@ -1,10 +1,11 @@
+import { sendTenantSetupEmail } from "@rently/api/utils";
 import { createDb } from "@rently/db";
+import { USER_ROLES } from "@rently/db/constants/user-roles";
 import * as schema from "@rently/db/schema/auth";
 import { env } from "@rently/env/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { openAPI } from "better-auth/plugins";
-import { USER_ROLE_VALUES } from "./constants/user-roles";
 
 export function createAuth() {
 	const db = createDb();
@@ -18,6 +19,14 @@ export function createAuth() {
 		trustedOrigins: [env.CORS_ORIGIN],
 		emailAndPassword: {
 			enabled: true,
+			sendResetPassword: async ({ user, url }) => {
+				await sendTenantSetupEmail({
+					to: user.email,
+					tenantName: user.name ?? user.email,
+					ownerName: "Your Landlord", // No owner context available at auth layer
+					setupUrl: url,
+				});
+			},
 		},
 		socialProviders: {
 			google: {
@@ -34,7 +43,7 @@ export function createAuth() {
 				role: {
 					type: "string",
 					required: false,
-					defaultValue: USER_ROLE_VALUES[1], // Default Owner
+					defaultValue: USER_ROLES.OWNER, // Default Owner
 				},
 				phone: {
 					type: "string",

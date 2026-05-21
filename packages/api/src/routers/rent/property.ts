@@ -4,6 +4,7 @@ import type { Property } from "@rently/validators";
 import {
 	CreatePropertySchema,
 	PropertySelectSchema,
+	UnitSelectSchema,
 	UpdatePropertySchema,
 } from "@rently/validators";
 import { eq } from "drizzle-orm";
@@ -23,13 +24,7 @@ export const listProperties = protectedProcedure
 			.from(properties)
 			.where(eq(properties.ownerId, user.id))
 			.orderBy(properties.createdAt);
-		// console.log(
-		// 	"Raw Drizzle output:",
-		// 	JSON.stringify(res, null, 2),
-		// 	session.userId,
-		// 	user.id,
-		// );
-		return { properties: res as Property[] };
+		return { properties: res };
 	});
 
 // 2) get Single Property
@@ -136,12 +131,15 @@ export const deleteProperty = protectedProcedure
 			throw new ORPCError(StatusPhrase.FORBIDDEN);
 
 		await db.delete(properties).where(eq(properties.id, input.id));
+
+		return { success: true };
 	});
 
 // 6_ Get Units for a specific property
 export const getUnits = protectedProcedure
 	.route({ method: "GET", path: "/rent/property/units" })
 	.input(z.object({ propertyId: z.uuid() }))
+	.output(z.object({ units: z.array(UnitSelectSchema) }))
 	.handler(async ({ context, input }) => {
 		const { db, user } = context;
 

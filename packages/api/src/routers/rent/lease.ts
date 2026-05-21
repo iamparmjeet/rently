@@ -54,7 +54,8 @@ export const createLease = protectedProcedure
 			.innerJoin(properties, eq(units.propertyId, properties.id))
 			.where(
 				and(eq(units.id, input.unitId), eq(properties.ownerId, authUser.id)),
-			);
+			)
+			.limit(1);
 
 		if (!unit) {
 			throw new ORPCError(StatusPhrase.FORBIDDEN, {
@@ -74,6 +75,7 @@ export const createLease = protectedProcedure
 				.insert(leases)
 				.values({
 					...input,
+					status: "active",
 				})
 				.returning();
 
@@ -91,12 +93,6 @@ export const createLease = protectedProcedure
 
 			return newLease;
 		});
-
-		if (!lease) {
-			throw new ORPCError(StatusPhrase.INTERNAL_SERVER_ERROR, {
-				message: "Failed to create lease",
-			});
-		}
 
 		return { lease };
 	});
@@ -143,28 +139,45 @@ export const updateLease = protectedProcedure
 export const getLeaseById = protectedProcedure
 	.route({ method: "GET", path: "/rent/lease/get" })
 	.input(z.object({ id: z.string() }))
-	// .output(z.object({ lease: LeaseWithDetailsSchema }))
+	.output(z.object({ lease: LeaseSelectSchema }))
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
-		const [lease] = await db
-			.select()
+		const [result] = await db
+			.select({
+				id: leases.id,
+				unitId: leases.unitId,
+				tenantId: leases.tenantId,
+				startDate: leases.startDate,
+				endDate: leases.endDate,
+				rent: leases.rent,
+				deposit: leases.deposit,
+				status: leases.status,
+				referenceId: leases.referenceId,
+				createdAt: leases.createdAt,
+				updatedAt: leases.updatedAt,
+				// for auth check only — stripped by output schema
+				ownerId: properties.ownerId,
+			})
 			.from(leases)
-			.where(eq(leases.id, input.id));
+			.innerJoin(units, eq(leases.unitId, units.id))
+			.innerJoin(properties, eq(units.propertyId, properties.id))
+			.where(eq(leases.id, input.id))
+			.limit(1);
 
-		if (!lease) {
+		if (!result) {
 			throw new ORPCError(StatusPhrase.NOT_FOUND, {
 				message: `Lease ${input.id} not found`,
 			});
 		}
 
-		// Verify Ownership
-		const ownership = await getLeaseWithOwner(db, input.id);
-		if (!ownership || ownership?.ownerId !== authUser.id) {
+		if (result.ownerId !== authUser.id) {
 			throw new ORPCError(StatusPhrase.FORBIDDEN, {
-				message: "you don't have access to this unit",
+				message: "You do not have access to this lease",
 			});
 		}
+
+		const { ownerId: _ownerId, ...lease } = result;
 
 		return { lease };
 	});
@@ -172,7 +185,6 @@ export const getLeaseById = protectedProcedure
 // getAll
 export const listLease = protectedProcedure
 	.route({ method: "GET", path: "/rent/lease/list" })
-	// .input(z.object({ status: z.enum(LEASE_STATUSES).optional() }))
 	.output(z.object({ leases: z.array(LeaseWithDetailsSchema) }))
 	.handler(async ({ context }) => {
 		const { db, user: authUser } = context;
@@ -185,13 +197,12 @@ export const listLease = protectedProcedure
 				startDate: leases.startDate,
 				endDate: leases.endDate,
 				status: leases.status,
+				tenantId: leases.tenantId,
 				tenantName: user.name,
 				tenantEmail: user.email,
 				tenantPhone: user.phone,
 				unitNumber: units.unitNumber,
 				unitId: leases.unitId,
-				createdAt: leases.createdAt,
-				updatedAt: leases.updatedAt,
 				propertyName: properties.name,
 				propertyId: properties.id,
 			})
@@ -207,7 +218,7 @@ export const listLease = protectedProcedure
 
 // remove
 export const deleteLease = protectedProcedure
-	.route({ method: "DELETE", path: "/rent/unit/delete" })
+	.route({ method: "DELETE", path: "/rent/lease/delete" })
 	.input(z.object({ id: z.string() }))
 	.output(z.object({ success: z.boolean() }))
 	.handler(async ({ context, input }) => {
@@ -226,30 +237,6 @@ export const deleteLease = protectedProcedure
 				message: "You do not own this lease",
 			});
 		}
-		// get lease with unit info for ownership check and unit update
-		const [leaseData] = await db
-			.select({
-				leaseId: leases.id,
-				unitId: leases.unitId,
-				ownerId: properties.ownerId,
-			})
-			.from(leases)
-			.innerJoin(units, eq(leases.unitId, units.id))
-			.innerJoin(properties, eq(units.propertyId, properties.id))
-			.where(eq(leases.id, input.id))
-			.limit(1);
-
-		if (!leaseData) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
-				message: "Lease not found",
-			});
-		}
-
-		if (leaseData.ownerId !== authUser.id) {
-			throw new ORPCError(StatusPhrase.FORBIDDEN, {
-				message: "You don't have permission to delete this lease",
-			});
-		}
 
 		// transaction
 		await db.transaction(async (tx) => {
@@ -259,7 +246,7 @@ export const deleteLease = protectedProcedure
 			await tx
 				.update(units)
 				.set({ status: "available", updatedAt: new Date() })
-				.where(eq(units.id, leaseData.unitId));
+				.where(eq(units.id, ownership.unitId));
 		});
 		return { success: true };
 	});

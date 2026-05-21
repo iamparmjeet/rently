@@ -1,4 +1,4 @@
-import { ORPCError } from "@orpc/client";
+import { ORPCError } from "@orpc/server";
 import { protectedProcedure, publicProcedure } from "@rently/api/procedures";
 import { StatusCode, StatusPhrase, sendInviteEmail } from "@rently/api/utils";
 import { auth } from "@rently/auth";
@@ -172,6 +172,9 @@ export const getInviteByToken = publicProcedure
 		// separate query for owner name - avoid adding a relation just for this -- Required function
 		const [owner] = await db
 			.select({
+				id: user.id,
+				name: user.name,
+				email: user.email,
 				ownerName: user.name,
 			})
 			.from(user)
@@ -181,7 +184,12 @@ export const getInviteByToken = publicProcedure
 		return {
 			invite: {
 				...invite,
-				ownerName: owner?.ownerName ?? "Your Landlord",
+				invitedBy: {
+					id: owner?.id ?? "",
+					name: owner?.name ?? null,
+					email: owner?.email ?? "",
+					ownerName: owner?.ownerName ?? "Your Landlord",
+				},
 			},
 		};
 	});

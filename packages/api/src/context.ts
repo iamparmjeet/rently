@@ -1,4 +1,4 @@
-import { db } from "@rently/db";
+import { type Database, db } from "@rently/db";
 import type { Context as HonoContext } from "hono";
 
 export type CreateContextOptions = {
@@ -7,7 +7,7 @@ export type CreateContextOptions = {
 
 export async function createContext({ context }: { context: HonoContext }) {
 	return {
-		db,
+		db: db as Database,
 		headers: context.req.raw.headers,
 	};
 }

@@ -34,6 +34,7 @@ export const CreateLeaseSchema = LeaseInsertSchema.omit({
 	id: true,
 	createdAt: true,
 	updatedAt: true,
+	status: true,
 }).refine(dateOrderRefine, dateOrderError);
 
 export const UpdateLeaseSchema = createUpdateSchema(leases)

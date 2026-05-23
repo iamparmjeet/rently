@@ -1,20 +1,24 @@
 // apps/web/src/app/(dashboard)/tenants/page.tsx
 "use client";
 
+import type { InviteStatus } from "@rently/db/constants/rent-constants";
 import { Button } from "@rently/ui/components/button";
 import { IconMail, IconPlus } from "@tabler/icons-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { TenantCard } from "@/components/features/tenants/tenant-card";
+import { PageHeader } from "@/components/shared/page-header";
 import { useTenants } from "@/hooks/tenants";
 
-type StatusFilter = "all" | "active" | "pending" | "inactive";
+// type StatusFilter = ["All", ...InviteStatus] as const;
+type StatusFilter = "all" | InviteStatus;
 
 export default function TenantsPage() {
 	const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
 
 	const { data, isLoading, isError, error } = useTenants();
 
+	console.log("Tenant", data?.tenants.length);
 	const filtered = useMemo(() => {
 		if (!data?.tenants) return [];
 		if (statusFilter === "all") return data.tenants;
@@ -32,32 +36,35 @@ export default function TenantsPage() {
 	return (
 		<div className="col-span-12 flex flex-col gap-6">
 			{/* Header */}
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="font-semibold text-2xl">Tenants</h1>
-					<p className="mt-0.5 text-muted-foreground text-sm">
-						Manage your tenants and their rental agreements
-					</p>
-				</div>
-				<div className="flex gap-2">
-					<Button variant="outline" size="lg">
-						<Link href="/tenants/invite" className="flex items-center">
-							<IconMail className="mr-2 size-4" />
-							Invite Tenant
-						</Link>
-					</Button>
-					<Button size="lg">
-						<Link href="/tenants/new" className="flex items-center">
-							<IconPlus className="mr-2 size-4" />
-							Add Manually
-						</Link>
-					</Button>
-				</div>
-			</div>
+			<PageHeader
+				title="Tenants"
+				description="Manage your tenants and their rental agreements"
+			>
+				{/* WHY only invite, not "Add Manually"?
+                  The /tenants/new page doesn't exist yet.
+                  Rather than a dead link, we only show what works.
+                  TODO: add /tenants/new page and re-add the button */}
+				<Button
+					nativeButton={false}
+					variant="outline"
+					render={<Link href="/tenants/invites" />}
+				>
+					<IconMail className="mr-2 size-4" />
+					Invite Tenant
+				</Button>
+				<Button
+					size="lg"
+					render={<Link href="/tenants/new" className="flex items-center" />}
+					nativeButton={false}
+				>
+					<IconPlus className="mr-2 size-4" />
+					Add Manually
+				</Button>
+			</PageHeader>
 
 			{/* Status filter tabs */}
 			<div className="flex gap-2">
-				{(["all", "active", "pending", "inactive"] as const).map((s) => (
+				{(["all", "active", "pending", "expired"] as const).map((s) => (
 					<Button
 						key={s}
 						variant={statusFilter === s ? "default" : "outline"}

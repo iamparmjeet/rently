@@ -9,6 +9,7 @@ import {
 	IconPhone,
 	IconUser,
 } from "@tabler/icons-react";
+import Image from "next/image";
 import Link from "next/link";
 
 // Exported so TenantCardActions can reuse without re-declaring
@@ -48,9 +49,10 @@ export function TenantCard({ tenant, actionsSlot }: TenantCardProps) {
 			<CardHeader className="flex-row items-start gap-4 space-y-0 pb-2">
 				<div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted">
 					{tenant.avatarUrl ? (
-						<img
+						<Image
 							src={tenant.avatarUrl}
 							alt={tenant.name}
+							fill
 							className="size-full rounded-full object-cover"
 						/>
 					) : (

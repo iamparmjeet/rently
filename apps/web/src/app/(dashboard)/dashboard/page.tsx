@@ -1,4 +1,9 @@
 // src/app/(dashboard)/page.tsx
+
+{
+	/* TODO: wire to useDashboardStats() */
+}
+
 export default function DashboardPage() {
 	return (
 		<>

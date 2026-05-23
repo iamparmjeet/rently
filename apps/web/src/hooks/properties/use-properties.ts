@@ -1,5 +1,6 @@
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/utils/orpc";
+import { useProperty } from "./use-property";
 
 export function useProperties() {
 	return useQuery(orpc.rent.property.listProperties.queryOptions());
@@ -12,4 +13,14 @@ export function usePropertyFromList(id: string) {
 		select: (data) => data.properties.find((p) => p.id === id),
 		enabled: !!id,
 	});
+}
+
+export function usePropertySmart(id: string) {
+	const fromList = usePropertyFromList(id);
+
+	// if list cache gave us data, use it,m otherwise fetch directly
+	const fromServer = useProperty(id);
+
+	// Return list cache version if populate, otherwise this direct fetch
+	return fromList.data ? fromList : fromServer;
 }

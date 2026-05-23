@@ -7,22 +7,28 @@ export function useCreateProperty() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
+		onMutate: () => {
+			const toastId = toast.loading("Creating Property...");
+			return { toastId };
+		},
 		// client.property.create is fully typed — TypeScript knows the input shape
 		mutationFn: (
 			input: Parameters<typeof client.rent.property.createProperty>[0],
 		) => client.rent.property.createProperty(input),
 
-		onSuccess: () => {
+		onSuccess: (_, __, context) => {
 			// Invalidate the list so properties page re-fetches
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.property.listProperties.key(),
 			});
-			toast.success("Property created successfully");
+			toast.success("Property created successfully", { id: context.toastId });
 		},
 
-		onError: (error) => {
+		onError: (error, _, context) => {
 			console.error("Failed to create property:", error.message);
-			toast.error(`Failed to create property: ${error.message}`);
+			toast.error(`Failed to create property: ${error.message}`, {
+				id: context?.toastId,
+			});
 		},
 	});
 }
@@ -32,11 +38,15 @@ export function useUpdateProperty() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
+		onMutate: () => {
+			const toastId = toast.loading("Updating Property...");
+			return { toastId };
+		},
 		mutationFn: (
 			input: Parameters<typeof client.rent.property.updateProperty>[0],
 		) => client.rent.property.updateProperty(input),
 
-		onSuccess: (_, variables) => {
+		onSuccess: (_, variables, context) => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.property.listProperties.key(),
 			});
@@ -45,12 +55,14 @@ export function useUpdateProperty() {
 					input: { id: variables.id },
 				}),
 			});
-			toast.success("Property Updated Successfully");
+			toast.success("Property Updated Successfully", { id: context.toastId });
 		},
 
-		onError: (error) => {
+		onError: (error, _, context) => {
 			console.error("Failed to Update Property data", error.message);
-			toast.error(error.message);
+			toast.error(`Failed to update Property data, ${error.message}`, {
+				id: context?.toastId,
+			});
 		},
 	});
 }
@@ -59,27 +71,30 @@ export function useDeleteProperty() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
+		onMutate: () => {
+			const toastId = toast.loading("Deleting Property...");
+			return { toastId };
+		},
 		// The mutationFn receives the property id as its argument
 		mutationFn: (
 			input: Parameters<typeof client.rent.property.deleteProperty>[0],
 		) => client.rent.property.deleteProperty(input),
-		onSuccess: () => {
-			// removeQueries = clear cache without refetching
-			// invalidateQueries = clear + immediately trigger refetch
-			// For delete, we just want to clear — nothing to refetch
-			// queryClient.removeQueries({
-			// 	queryKey: orpc.rent.property.listProperties.key(),
-			// });
+		onSuccess: (_, __, context) => {
+			// invalidateQueries (not removeQueries) because the list page
+			// is still mounted after delete — we want an immediate UI update,
+			// not lazy re-population on next navigation
 
 			// Invalidate list so count updates
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.property.listProperties.key(),
 			});
-			toast.success("Property deleted");
+			toast.success("Property deleted", { id: context.toastId });
 		},
 
-		onError: (error) => {
-			toast.error(`Failed to delete property: ${error.message}`);
+		onError: (error, _, context) => {
+			toast.error(`Failed to delete property: ${error.message}`, {
+				id: context?.toastId,
+			});
 		},
 	});
 }

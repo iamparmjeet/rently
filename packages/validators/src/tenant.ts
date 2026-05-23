@@ -52,8 +52,8 @@ export const UpdateTenantProfileSchema = createUpdateSchema(
 	emergencyContact: true,
 	emergencyContactLocation: true,
 	emergencyContactName: true,
-	uidNumber: true,
-	panNumber: true,
+	// uidNumber: true,
+	// panNumber: true,
 });
 
 export const RemoveTenantSchema = z.object({
@@ -61,6 +61,16 @@ export const RemoveTenantSchema = z.object({
 });
 
 // ── Layer 3: API output schemas
+export const TenantProfileDataSchema = z.object({
+	address: z.string().nullable(),
+	emergencyContact: z.string().nullable(),
+	emergencyContactName: z.string().nullable(),
+	emergencyContactLocation: z.string().nullable(),
+	uidNumber: z.string().nullable(),
+	panNumber: z.string().nullable(),
+	verificationStatus: z.enum(TENANT_VERIFICATION_STATUS_VALUES),
+});
+
 export const TenantListItemSchema = z.object({
 	id: z.string(),
 	name: z.string(),
@@ -79,9 +89,16 @@ export const TenantListItemSchema = z.object({
 		.nullable(),
 });
 
+// Detail view — richer, used by detail + edit pages
+export const TenantDetailSchema = TenantListItemSchema.extend({
+	profile: TenantProfileDataSchema.nullable(),
+});
+
 // Types — always derive from Zod, never write manually
 export type TenantProfile = z.infer<typeof TenantProfileSelectSchema>;
 export type TenantListItem = z.infer<typeof TenantListItemSchema>;
+export type TenantDetail = z.infer<typeof TenantDetailSchema>;
+export type TenantProfileData = z.infer<typeof TenantProfileDataSchema>;
 export type UpdateTenantVerification = z.infer<
 	typeof UpdateTenantVerificationSchema
 >;

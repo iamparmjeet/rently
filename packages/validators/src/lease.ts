@@ -64,6 +64,8 @@ export const LeaseWithDetailsSchema = z.object({
 	unitNumber: z.string(),
 	propertyName: z.string(),
 	propertyId: z.string(),
+	createdAt: z.date(),
+	updatedAt: z.date(),
 });
 
 // TS Types derieved from Zod (not from InferSelectModel)

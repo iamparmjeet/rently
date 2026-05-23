@@ -15,6 +15,8 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use } from "react";
 import { UnitForm, type UnitFormValues } from "@/components/forms/unit-form";
+import { NotFoundState } from "@/components/shared/not-found-state";
+import { PageLoader } from "@/components/shared/page-loader";
 import { useUnit, useUpdateUnit } from "@/hooks/units";
 
 export default function EditUnitPage({
@@ -28,22 +30,9 @@ export default function EditUnitPage({
 	const { data, isLoading } = useUnit(id);
 	const updateUnit = useUpdateUnit();
 
-	if (isLoading) {
-		return (
-			<div className="col-span-12 mx-auto w-full max-w-lg space-y-4">
-				<div className="h-8 w-48 animate-pulse rounded bg-muted" />
-				<div className="h-96 animate-pulse rounded-xl bg-muted" />
-			</div>
-		);
-	}
+	if (isLoading) return <PageLoader />;
 
-	if (!data?.unit) {
-		return (
-			<div className="col-span-12 py-20 text-center text-muted-foreground">
-				Unit not found.
-			</div>
-		);
-	}
+	if (!data?.unit) return <NotFoundState message="Unit not found" />;
 
 	const { unit } = data;
 

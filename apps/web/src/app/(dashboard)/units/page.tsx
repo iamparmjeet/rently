@@ -15,6 +15,8 @@ import { IconPlus } from "@tabler/icons-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { UnitCard } from "@/components/features/units/unit-card";
+import { NotFoundState } from "@/components/shared/not-found-state";
+import { PageHeader } from "@/components/shared/page-header";
 import { useDeleteUnit, useUnits } from "@/hooks/units";
 
 type UnitFilters = {
@@ -57,38 +59,22 @@ export default function UnitsPage() {
 		data?.units.filter((u) => u.status === "occupied").length ?? 0;
 	const availableCount = totalUnits - occupiedCount;
 
-	if (isError) {
-		return (
-			<div className="col-span-12 flex flex-col items-center justify-center py-20 text-center">
-				<p className="text-muted-foreground">{error.message}</p>
-				<Button
-					variant="outline"
-					className="mt-4"
-					onClick={() => location.reload()}
-				>
-					Try again
-				</Button>
-			</div>
-		);
-	}
+	if (isError) return <NotFoundState />;
 
 	return (
 		<div className="col-span-12 flex flex-col gap-6">
 			{/* Header */}
-			<div className="flex items-center justify-between">
-				<div>
-					<h1 className="font-semibold text-2xl">Units</h1>
-					<p className="mt-0.5 text-muted-foreground text-sm">
-						All units across your properties
-					</p>
-				</div>
+			<PageHeader
+				title="Units"
+				description="Manage units across all properties"
+			>
 				<Button size="lg">
-					<Link href="/units/new">
-						<IconPlus className="mr-2 size-4" />
+					<Link href="/units/new" className="flex items-center gap-2">
+						<IconPlus className="size-4" />
 						Add Unit
 					</Link>
 				</Button>
-			</div>
+			</PageHeader>
 
 			{/* Quick Stats */}
 			<div className="grid grid-cols-3 gap-3">
@@ -157,11 +143,7 @@ export default function UnitsPage() {
 			{isLoading ? (
 				<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 					{Array.from({ length: 6 }).map((_, i) => (
-						<div
-							// biome-ignore lint/suspicious/noArrayIndexKey: skeleton
-							key={i}
-							className="h-44 animate-pulse rounded-xl bg-muted"
-						/>
+						<div key={i} className="h-44 animate-pulse rounded-xl bg-muted" />
 					))}
 				</div>
 			) : filteredUnits.length === 0 ? (
@@ -172,8 +154,9 @@ export default function UnitsPage() {
 							: "No units match your filters."}
 					</p>
 					{totalUnits === 0 && (
-						<Button className="mt-4" asChild>
-							<Link href="/units/new">Add Unit</Link>
+						<Button className="mt-4" render={<Link href="/units/new" />}>
+							<IconPlus className="mr-2 size-4" />
+							Add Unit
 						</Button>
 					)}
 				</div>

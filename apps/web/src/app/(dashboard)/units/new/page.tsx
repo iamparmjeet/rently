@@ -13,6 +13,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { UnitForm, type UnitFormValues } from "@/components/forms/unit-form";
+import { DetailHeader } from "@/components/shared/detail-header";
 import { useCreateUnit } from "@/hooks/units";
 
 function NewUnitContent() {
@@ -21,15 +22,29 @@ function NewUnitContent() {
 
 	// propertyId comes from /properties/[id]
 	const propertyId = searchParams.get("propertyId") ?? "";
-
 	const createNewUnit = useCreateUnit();
+
+	// Guard: units must belong to a property
+	if (!propertyId) {
+		return (
+			<div className="col-span-12 mx-auto w-full max-w-lg">
+				<div className="rounded-xl border border-dashed py-16 text-center">
+					<p className="text-muted-foreground">
+						A property must be selected before adding a unit.
+					</p>
+					<Button className="mt-4">
+						<Link href="/properties">Go to Properties</Link>
+					</Button>
+				</div>
+			</div>
+		);
+	}
 
 	function handleSubmit(values: UnitFormValues) {
 		createNewUnit.mutate(values, {
 			onSuccess: () => {
 				// Go back to property detail if we came from there, else units list
-				const returnTo = propertyId ? `/properties/${propertyId}` : "/units";
-				router.push(returnTo);
+				router.push(propertyId ? `/properties/${propertyId}` : "/units");
 			},
 		});
 	}
@@ -51,15 +66,11 @@ function NewUnitContent() {
 
 	return (
 		<div className="col-span-12 mx-auto w-full max-w-lg">
-			<div className="mb-4 flex items-center gap-2">
-				<Button variant="ghost" size="icon">
-					<Link href={propertyId ? `/properties/${propertyId}` : "/units"}>
-						<IconArrowLeft className="size-4" />
-					</Link>
-				</Button>
-				<h1 className="font-semibold text-xl">Add New Unit</h1>
-			</div>
-			<Card>
+			<DetailHeader
+				backHref={`propertyId ? /properties/${propertyId} : "/units"`}
+				title="Add New Unit"
+			/>
+			<Card className="mt-4">
 				<CardHeader>
 					<CardTitle>New Unit</CardTitle>
 					<CardDescription>

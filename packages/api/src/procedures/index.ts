@@ -1,5 +1,6 @@
 import { ORPCError, os } from "@orpc/server";
 import { auth } from "@rently/auth";
+import { USER_ROLES } from "@rently/db/constants/user-roles";
 import type { AppContext } from "../context";
 
 const base = os.$context<AppContext>();
@@ -26,3 +27,18 @@ const requireAuth = base.middleware(async ({ context, next }) => {
 });
 
 export const protectedProcedure = base.use(requireAuth);
+
+const requireOwner = base.middleware(async ({ context, next }) => {
+	// biome-ignore lint/suspicious/noExplicitAny: Better Auth additionalFields aren't typed on base User
+	const role = (context as any).user.role as string | undefined;
+
+	if (role !== USER_ROLES.OWNER) {
+		throw new ORPCError("FORBIDDEN", {
+			message: "Only property owners can perform this action.",
+		});
+	}
+
+	return next({ context });
+});
+
+export const ownerProcedure = protectedProcedure.use(requireOwner);

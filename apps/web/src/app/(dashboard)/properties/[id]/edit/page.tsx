@@ -8,7 +8,6 @@ import {
 	CardTitle,
 } from "@rently/ui/components/card";
 import { IconArrowLeft } from "@tabler/icons-react";
-import { format, formatDistanceToNow } from "date-fns";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use } from "react";

@@ -8,12 +8,7 @@ import {
 } from "@rently/ui/components//card";
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
-import {
-	IconArrowLeft,
-	IconBuilding,
-	IconPencil,
-	IconPlus,
-} from "@tabler/icons-react";
+import { IconBuilding, IconPencil, IconPlus } from "@tabler/icons-react";
 import Link from "next/link";
 import { use } from "react";
 import { DetailHeader } from "@/components/shared/detail-header";

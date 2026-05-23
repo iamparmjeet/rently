@@ -18,7 +18,6 @@ import {
 } from "@rently/ui/components/dropdown-menu";
 import { cn } from "@rently/ui/lib/utils";
 import type { UnitWithPropertyName } from "@rently/validators";
-
 import {
 	IconBuildingStore,
 	IconDots,
@@ -28,6 +27,7 @@ import {
 	IconTrash,
 } from "@tabler/icons-react";
 import Link from "next/link";
+import { DateRecordMeta } from "@/components/shared/date-record-meta";
 
 interface UnitCardProps {
 	unit: UnitWithPropertyName;
@@ -99,17 +99,17 @@ export function UnitCard({
 
 			<CardContent className="pb-3">
 				<div className="grid grid-cols-2 gap-3">
-					<div className="rounded-md bg-muted/50 p-3">
+					<div className="rounded-md bg-muted/70 p-3">
 						<p className="text-muted-foreground text-xs">Monthly Rent</p>
 						<p className="font-semibold">
 							₹{unit.baseRent.toLocaleString("en-IN")}
 						</p>
 					</div>
-					<div className="rounded-md bg-muted/50 p-3">
+					<div className="rounded-md bg-muted/70 p-3">
 						<p className="text-muted-foreground text-xs">Status</p>
 						<Badge
 							variant={isOccupied ? "default" : "secondary"}
-							className="mt-0.5 text-xs capitalize"
+							className="mt-0.5 px-0 text-xs capitalize"
 						>
 							{unit.status}
 						</Badge>
@@ -132,6 +132,12 @@ export function UnitCard({
 					<Link href={`/units/${unit.id}`}>View</Link>
 				</Button>
 			</CardFooter>
+
+			<DateRecordMeta
+				className="px-2"
+				createdAt={unit.createdAt}
+				updatedAt={unit.updatedAt}
+			/>
 		</Card>
 	);
 }

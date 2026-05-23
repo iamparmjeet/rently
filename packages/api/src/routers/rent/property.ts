@@ -9,11 +9,11 @@ import {
 } from "@rently/validators";
 import { eq } from "drizzle-orm";
 import z from "zod";
-import { protectedProcedure } from "../../procedures";
+import { ownerProcedure } from "../../procedures";
 import { StatusCode, StatusPhrase } from "../../utils";
 
 // 1) list all Properties
-export const listProperties = protectedProcedure
+export const listProperties = ownerProcedure
 	.route({ method: "GET", path: "/rent/property/lists" }) // for OPENAPI
 	.output(z.object({ properties: z.array(PropertySelectSchema) }))
 	.handler(async ({ context }): Promise<{ properties: Property[] }> => {
@@ -29,9 +29,10 @@ export const listProperties = protectedProcedure
 
 // 2) get Single Property
 
-export const getPropertyById = protectedProcedure
+export const getPropertyById = ownerProcedure
 	.route({ method: "GET", path: "/rent/property/get" })
 	.input(z.object({ id: z.uuid() }))
+	.output(z.object({ property: PropertySelectSchema }))
 	.handler(async ({ context, input }) => {
 		const { db, user } = context;
 
@@ -57,7 +58,7 @@ export const getPropertyById = protectedProcedure
 	});
 
 // 3) Create Property
-export const createProperty = protectedProcedure
+export const createProperty = ownerProcedure
 	.route({
 		method: "POST",
 		path: "/rent/property/create",
@@ -88,7 +89,7 @@ export const createProperty = protectedProcedure
 	});
 
 // 4) Update Property
-export const updateProperty = protectedProcedure
+export const updateProperty = ownerProcedure
 	.route({ method: "PATCH", path: "/rent/property/update" })
 	.input(z.object({ id: z.uuid(), data: UpdatePropertySchema }))
 	.handler(async ({ context, input }) => {
@@ -115,7 +116,7 @@ export const updateProperty = protectedProcedure
 	});
 
 // 5) Delete
-export const deleteProperty = protectedProcedure
+export const deleteProperty = ownerProcedure
 	.route({ method: "DELETE", path: "/rent/property/delete" })
 	.input(z.object({ id: z.uuid() }))
 	.handler(async ({ context, input }) => {
@@ -136,7 +137,7 @@ export const deleteProperty = protectedProcedure
 	});
 
 // 6_ Get Units for a specific property
-export const getUnits = protectedProcedure
+export const getUnits = ownerProcedure
 	.route({ method: "GET", path: "/rent/property/units" })
 	.input(z.object({ propertyId: z.uuid() }))
 	.output(z.object({ units: z.array(UnitSelectSchema) }))

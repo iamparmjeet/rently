@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { protectedProcedure } from "@rently/api/procedures";
+import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode, StatusPhrase } from "@rently/api/utils";
 import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import {
@@ -63,7 +63,7 @@ async function getOwnedPayment(
 }
 
 // Create
-export const createPayment = protectedProcedure
+export const createPayment = ownerProcedure
 	.route({
 		method: "POST",
 		path: "/rent/payment/create",
@@ -119,7 +119,7 @@ export const createPayment = protectedProcedure
 	});
 
 // Update
-export const updatePayment = protectedProcedure
+export const updatePayment = ownerProcedure
 	.route({ method: "PATCH", path: "/rent/payment/update" })
 	.input(z.object({ id: z.string(), data: UpdatePaymentSchema }))
 	.output(z.object({ payment: PaymentSelectSchema }))
@@ -150,7 +150,7 @@ export const updatePayment = protectedProcedure
 	});
 
 // GetById
-export const getPaymentById = protectedProcedure
+export const getPaymentById = ownerProcedure
 	.route({ method: "GET", path: "/rent/payment/get" })
 	.input(z.object({ id: z.string() }))
 	.output(z.object({ payment: PaymentSelectSchema }))
@@ -164,7 +164,7 @@ export const getPaymentById = protectedProcedure
 	});
 
 // GetAll
-export const listPayments = protectedProcedure
+export const listPayments = ownerProcedure
 	.route({ method: "GET", path: "/rent/payment/list" })
 	.output(z.object({ payments: z.array(PaymentSelectSchema) }))
 	.handler(async ({ context }) => {
@@ -194,7 +194,7 @@ export const listPayments = protectedProcedure
 	});
 
 // Remove
-export const deletePayment = protectedProcedure
+export const deletePayment = ownerProcedure
 	.route({ method: "DELETE", path: "/rent/payment/delete" })
 	.input(z.object({ id: z.string() }))
 	.output(z.object({ success: z.boolean() }))

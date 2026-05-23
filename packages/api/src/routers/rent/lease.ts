@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { protectedProcedure } from "@rently/api/procedures";
+import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode, StatusPhrase } from "@rently/api/utils";
 import type { Database } from "@rently/db";
 import { user } from "@rently/db/schema/auth";
@@ -32,7 +32,7 @@ async function getLeaseWithOwner(db: Database, leaseId: string) {
 }
 
 //create
-export const createLease = protectedProcedure
+export const createLease = ownerProcedure
 	.route({
 		method: "POST",
 		path: "/rent/lease/create",
@@ -98,7 +98,7 @@ export const createLease = protectedProcedure
 	});
 
 // update
-export const updateLease = protectedProcedure
+export const updateLease = ownerProcedure
 	.route({ method: "PATCH", path: "/rent/lease/update" })
 	.input(z.object({ id: z.string(), data: UpdateLeaseSchema }))
 	.output(z.object({ lease: LeaseSelectSchema })) // Not required
@@ -136,7 +136,7 @@ export const updateLease = protectedProcedure
 	});
 
 // getbyId
-export const getLeaseById = protectedProcedure
+export const getLeaseById = ownerProcedure
 	.route({ method: "GET", path: "/rent/lease/get" })
 	.input(z.object({ id: z.string() }))
 	.output(z.object({ lease: LeaseSelectSchema }))
@@ -183,7 +183,7 @@ export const getLeaseById = protectedProcedure
 	});
 
 // getAll
-export const listLease = protectedProcedure
+export const listLeases = ownerProcedure
 	.route({ method: "GET", path: "/rent/lease/list" })
 	.output(z.object({ leases: z.array(LeaseWithDetailsSchema) }))
 	.handler(async ({ context }) => {
@@ -197,6 +197,8 @@ export const listLease = protectedProcedure
 				startDate: leases.startDate,
 				endDate: leases.endDate,
 				status: leases.status,
+				createdAt: leases.createdAt,
+				updatedAt: leases.updatedAt,
 				tenantId: leases.tenantId,
 				tenantName: user.name,
 				tenantEmail: user.email,
@@ -217,7 +219,7 @@ export const listLease = protectedProcedure
 	});
 
 // remove
-export const deleteLease = protectedProcedure
+export const deleteLease = ownerProcedure
 	.route({ method: "DELETE", path: "/rent/lease/delete" })
 	.input(z.object({ id: z.string() }))
 	.output(z.object({ success: z.boolean() }))

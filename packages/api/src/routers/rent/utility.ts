@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { protectedProcedure } from "@rently/api/procedures";
+import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode, StatusPhrase } from "@rently/api/utils";
 import type { Database } from "@rently/db";
 import {
@@ -14,7 +14,7 @@ import {
 } from "@rently/validators";
 import { eq } from "drizzle-orm";
 import z from "zod";
-import { isLeaseOwner, VerifyLeaseOwnership } from "../helpers";
+import { isLeaseOwner } from "../helpers";
 
 // ******************** Share Helper ************
 async function getOwnedUtility(
@@ -64,7 +64,7 @@ async function getOwnedUtility(
 // **********************************************
 
 //create
-export const createUtility = protectedProcedure
+export const createUtility = ownerProcedure
 	.route({
 		method: "POST",
 		path: "/rent/utility/create",
@@ -117,7 +117,7 @@ export const createUtility = protectedProcedure
 	});
 
 // update
-export const updateUtility = protectedProcedure
+export const updateUtility = ownerProcedure
 	.route({ method: "PATCH", path: "/rent/utility/update" })
 	.input(z.object({ id: z.string(), data: UpdateUtilitySchema }))
 	.output(z.object({ utility: UtilitySelectSchema }))
@@ -158,7 +158,7 @@ export const updateUtility = protectedProcedure
 	});
 
 // getById
-export const getUtilityById = protectedProcedure
+export const getUtilityById = ownerProcedure
 	.route({ method: "GET", path: "/rent/utility/get" })
 	.input(z.object({ id: z.string() }))
 	.output(z.object({ utility: UtilitySelectSchema }))
@@ -174,7 +174,7 @@ export const getUtilityById = protectedProcedure
 	});
 
 // getAll
-export const listUtility = protectedProcedure
+export const listUtilities = ownerProcedure
 	.route({
 		method: "GET",
 		path: "/rent/utility/get",
@@ -211,7 +211,7 @@ export const listUtility = protectedProcedure
 	});
 
 // remove
-export const remove = protectedProcedure
+export const remove = ownerProcedure
 	.route({ method: "DELETE", path: "/rent/utility/remove" })
 	.input(z.object({ id: z.string() }))
 	.output(z.object({ success: z.boolean() }))

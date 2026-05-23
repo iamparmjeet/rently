@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { protectedProcedure, publicProcedure } from "@rently/api/procedures";
+import { ownerProcedure, publicProcedure } from "@rently/api/procedures";
 import { StatusCode, StatusPhrase, sendInviteEmail } from "@rently/api/utils";
 import { auth } from "@rently/auth";
 import type { Database } from "@rently/db";
@@ -37,7 +37,7 @@ async function findPendingInvite(
 }
 
 // 1) Create Invite
-export const createInvite = protectedProcedure
+export const createInvite = ownerProcedure
 	.route({
 		method: "POST",
 		path: "/rent/invite/create",
@@ -95,7 +95,7 @@ export const createInvite = protectedProcedure
 	});
 
 // 2) List Invites
-export const listInvites = protectedProcedure
+export const listInvites = ownerProcedure
 	.route({ method: "GET", path: "/rent/invite/list" })
 	.output(z.object({ invites: z.array(InviteListItemSchema) }))
 	.handler(async ({ context }) => {

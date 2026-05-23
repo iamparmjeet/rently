@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import { protectedProcedure } from "@rently/api/procedures";
+import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode, StatusPhrase } from "@rently/api/utils";
 import { user } from "@rently/db/schema/auth";
 import { leases, properties, units } from "@rently/db/schema/schema";
@@ -15,7 +15,7 @@ import z from "zod";
 import { VerifyUnitOwnership } from "../helpers";
 
 //1) create
-export const createUnit = protectedProcedure
+export const createUnit = ownerProcedure
 	.route({
 		method: "POST",
 		path: "/rent/unit/create",
@@ -64,7 +64,7 @@ export const createUnit = protectedProcedure
 	});
 
 // 2) update
-export const updateUnit = protectedProcedure
+export const updateUnit = ownerProcedure
 	.route({ method: "PATCH", path: "/rent/unit/update" })
 	.input(z.object({ id: z.string(), data: UpdateUnitSchema }))
 	.output(z.object({ unit: UnitSelectSchema }))
@@ -90,12 +90,13 @@ export const updateUnit = protectedProcedure
 	});
 
 // 3) getUnitbyId
-export const getUnitById = protectedProcedure
+export const getUnitById = ownerProcedure
 	.route({ method: "GET", path: "/rent/unit/get" })
 	.input(z.object({ id: z.string() }))
 	.output(
 		z.object({
 			unit: UnitWithLeaseSchema,
+			// activeLease: ActiveLeaseSchema.nullable(),
 		}),
 	)
 	.handler(async ({ context, input }) => {
@@ -149,16 +150,17 @@ export const getUnitById = protectedProcedure
 			.where(and(eq(leases.unitId, input.id), eq(leases.status, "active")))
 			.limit(1);
 
+		const { ownerId: _, ...unitFields } = result;
 		return {
 			unit: {
-				...result,
+				...unitFields,
+				activeLease: activeLease ?? null,
 			},
-			activeLease: activeLease ?? null,
 		};
 	});
 
 // 4) list
-export const listUnits = protectedProcedure
+export const listUnits = ownerProcedure
 	.route({ method: "GET", path: "/rent/unit/list" })
 	.input(z.object({ propertyId: z.string().optional() }))
 	.output(z.object({ units: z.array(UnitDetailSchema) }))
@@ -170,7 +172,7 @@ export const listUnits = protectedProcedure
 					eq(properties.ownerId, authUser.id),
 					eq(units.propertyId, input.propertyId),
 				)
-			: eq(properties.ownerId, user.id);
+			: eq(properties.ownerId, authUser.id);
 
 		const result = await db
 			.select({
@@ -195,7 +197,7 @@ export const listUnits = protectedProcedure
 	});
 
 // 5) deleteUnit
-export const deleteUnit = protectedProcedure
+export const deleteUnit = ownerProcedure
 	.route({ method: "DELETE", path: "/rent/unit/delete" })
 	.input(z.object({ id: z.string() }))
 	.output(z.object({ success: z.literal(true) }))

@@ -15,6 +15,7 @@ import {
 	real,
 	text,
 	timestamp,
+	uuid,
 } from "drizzle-orm/pg-core";
 import { PAYMENT_METHOD_VALUES } from "../constants/payment-constants";
 import {
@@ -29,7 +30,7 @@ import { user } from "./auth";
 
 export const properties = pgTable("properties", {
 	...idColumn(),
-	ownerId: text("owner_id")
+	ownerId: uuid("owner_id")
 		.notNull()
 		.references(() => user.id, { onDelete: "cascade" }),
 	name: text("name").notNull(),
@@ -40,7 +41,7 @@ export const properties = pgTable("properties", {
 
 export const units = pgTable("units", {
 	...idColumn(),
-	propertyId: text("property_id")
+	propertyId: uuid("property_id")
 		.notNull()
 		.references(() => properties.id, { onDelete: "cascade" }),
 	unitNumber: text("unit_number").notNull(),
@@ -54,10 +55,10 @@ export const units = pgTable("units", {
 
 export const leases = pgTable("leases", {
 	...idColumn(),
-	unitId: text("unit_id")
+	unitId: uuid("unit_id")
 		.notNull()
 		.references(() => units.id, { onDelete: "cascade" }),
-	tenantId: text("tenant_id")
+	tenantId: uuid("tenant_id")
 		.notNull()
 		.references(() => user.id, { onDelete: "cascade" }),
 	startDate: timestamp("start_date").notNull(),
@@ -67,7 +68,7 @@ export const leases = pgTable("leases", {
 	status: text("status", {
 		enum: LEASE_STATUS_VALUES,
 	}).notNull(),
-	referenceId: text("reference_id").references(() => user.id),
+	referenceId: uuid("reference_id").references(() => user.id),
 	...auditColumns(),
 });
 
@@ -77,7 +78,7 @@ export const leases = pgTable("leases", {
 
 export const utilities = pgTable("utilities", {
 	...idColumn(),
-	leaseId: text("lease_id")
+	leaseId: uuid("lease_id")
 		.notNull()
 		.references(() => leases.id, { onDelete: "cascade" }),
 	utilityType: text("utility_type", {
@@ -96,7 +97,7 @@ export const utilities = pgTable("utilities", {
 
 export const payments = pgTable("payments", {
 	...idColumn(),
-	leaseId: text("lease_id")
+	leaseId: uuid("lease_id")
 		.notNull()
 		.references(() => leases.id, { onDelete: "cascade" }),
 	amount: integer("amount").notNull(),
@@ -109,7 +110,7 @@ export const payments = pgTable("payments", {
 		enum: PAYMENT_TYPE_VALUES,
 	}).notNull(),
 	description: text("description"),
-	utilityId: text("utility_id").references(() => utilities.id),
+	utilityId: uuid("utility_id").references(() => utilities.id),
 	...auditColumns(),
 });
 
@@ -127,7 +128,7 @@ export const tenantInvites = pgTable("tenant_invites", {
 	notes: text("notes"), // Owner-private, never shown to tenant
 	token: text("token").unique().notNull(), // secret to validate user
 	expiresAt: timestamp("expires_at"),
-	invitedById: text("invited_by")
+	invitedById: uuid("invited_by")
 		.notNull()
 		.references(() => user.id),
 	status: text("status", {
@@ -138,7 +139,7 @@ export const tenantInvites = pgTable("tenant_invites", {
 
 export const tenantProfiles = pgTable("tenant_profiles", {
 	...idColumn(),
-	userId: text("user_id")
+	userId: uuid("user_id")
 		.notNull()
 		.references(() => user.id, { onDelete: "cascade" }),
 	// Business rule enforcedin API layer, not db layer
@@ -161,22 +162,22 @@ export const tenantProfiles = pgTable("tenant_profiles", {
 		.default("unverified")
 		.notNull(),
 	verificationNotes: text("verfication_notes"), // Owner private
-	verifiedById: text("verified_by").references(() => user.id),
+	verifiedById: uuid("verified_by").references(() => user.id),
 	verifiedAt: timestamp("verified_at"),
 
 	// Audit
-	invitedId: text("invite_id").references(() => tenantInvites.id),
-	createdById: text("created_by").references(() => user.id),
+	invitedId: uuid("invite_id").references(() => tenantInvites.id),
+	createdById: uuid("created_by").references(() => user.id),
 	...auditColumns(),
 });
 
 //  owner-controlled document modification workflow
 export const documentUpdateRequests = pgTable("document_update_requests", {
 	...idColumn(),
-	tenantProfileId: text("tenant_profile_id")
+	tenantProfileId: uuid("tenant_profile_id")
 		.notNull()
 		.references(() => tenantProfiles.id, { onDelete: "cascade" }), // ← forward ref OK in .references()
-	requestedById: text("requested_by_id")
+	requestedById: uuid("requested_by_id")
 		.notNull()
 		.references(() => user.id), // who requested the change (owner or tenant)
 	reason: text("reason").notNull(),
@@ -189,7 +190,7 @@ export const documentUpdateRequests = pgTable("document_update_requests", {
 		.default("pending")
 		.notNull(),
 	// Who reviewed + when
-	reviewedById: text("reviewed_by_id").references(() => user.id),
+	reviewedById: uuid("reviewed_by_id").references(() => user.id),
 	reviewedAt: timestamp("reviewed_at"),
 	ownerNotes: text("owner_notes"),
 	// The Aproval window - when does the unlock expire
@@ -201,7 +202,7 @@ export const documentUpdateRequests = pgTable("document_update_requests", {
 
 export const ownerProfiles = pgTable("owner_profiles", {
 	...idColumn(),
-	userId: text("user_id")
+	userId: uuid("user_id")
 		.notNull()
 		.references(() => user.id, { onDelete: "cascade" }),
 	companyName: text("company_name").notNull(),
@@ -212,7 +213,7 @@ export const ownerProfiles = pgTable("owner_profiles", {
 
 export const referrers = pgTable("referrers", {
 	...idColumn(),
-	referredUserId: text("referred_user_id")
+	referredUserId: uuid("referred_user_id")
 		.notNull()
 		.references(() => user.id, { onDelete: "cascade" }),
 	note: text("note"),

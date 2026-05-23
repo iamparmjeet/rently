@@ -8,47 +8,43 @@ import {
 	PLAN_STATUS_VALUES,
 	TENANT_LIMIT,
 } from "@rently/db/constants/payment-constants";
-import { sql } from "drizzle-orm";
 import {
 	boolean,
 	integer,
 	pgTable,
-	real,
 	text,
 	timestamp,
+	uuid,
 } from "drizzle-orm/pg-core";
+import { auditColumns, idColumn } from "../utils/columns";
 import { user } from "./auth";
 
 export const plans = pgTable("plans", {
-	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
+	...idColumn(),
 	name: text("name").notNull(),
 	description: text("description"),
 	tenantLimit: integer("tenant_limit").notNull().default(TENANT_LIMIT),
 	// Billing
-	priceMonthly: real("price_monthly").default(0).notNull(),
-	priceQuarterly: real("price_quarterly").default(0).notNull(),
-	priceHalfYearly: real("price_half_yearly").default(0).notNull(),
-	priceYearly: real("price_yearly").default(0).notNull(),
-	priceTwoYear: real("price_two_year").default(0).notNull(),
+	priceMonthly: integer("price_monthly").default(0).notNull(),
+	priceQuarterly: integer("price_quarterly").default(0).notNull(),
+	priceHalfYearly: integer("price_half_yearly").default(0).notNull(),
+	priceYearly: integer("price_yearly").default(0).notNull(),
+	priceTwoYear: integer("price_two_year").default(0).notNull(),
 	// discount
-	discountQuarterly: real("discount_quarterly").default(0.05), // 5%
-	discountHalfYearly: real("discount_half_yearly").default(0.1), // 10%
-	discountYearly: real("discount_yearly").default(0.15),
-	discountTwoYear: real("discount_two_year").default(0.2),
+	discountQuarterly: integer("discount_quarterly").default(0.05), // 5%
+	discountHalfYearly: integer("discount_half_yearly").default(0.1), // 10%
+	discountYearly: integer("discount_yearly").default(0.15),
+	discountTwoYear: integer("discount_two_year").default(0.2),
 
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at")
-		.defaultNow()
-		.$onUpdate(() => new Date())
-		.notNull(),
+	...auditColumns(),
 });
 
 export const subscriptions = pgTable("subscriptions", {
-	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
-	userId: text("user_id")
+	...idColumn(),
+	userId: uuid("user_id")
 		.references(() => user.id)
 		.notNull(),
-	planId: text("plan_id")
+	planId: uuid("plan_id")
 		.references(() => plans.id)
 		.notNull(),
 
@@ -67,26 +63,22 @@ export const subscriptions = pgTable("subscriptions", {
 	})
 		.default(BILLING_INTERVAL.MONTHLY)
 		.notNull(),
-	totalPaid: real("total_paid").default(0),
+	totalPaid: integer("total_paid").default(0),
 	currency: text("currency").default(CURRENCY_TYPES.INR),
 
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at")
-		.defaultNow()
-		.$onUpdate(() => new Date())
-		.notNull(),
+	...auditColumns(),
 });
 
 export const invoices = pgTable("invoices", {
-	id: text("id").primaryKey().default(sql`gen_random_uuid()`),
-	subscriptionId: text("subscription_id").references(() => subscriptions.id, {
+	...idColumn(),
+	subscriptionId: uuid("subscription_id").references(() => subscriptions.id, {
 		onDelete: "cascade",
 	}),
-	userId: text("user_id")
+	userId: uuid("user_id")
 		.notNull()
 		.references(() => user.id, { onDelete: "cascade" })
 		.$type<string>(),
-	amount: real("amount").notNull(),
+	amount: integer("amount").notNull(),
 	currency: text("currency").default(CURRENCY_TYPES.INR),
 	periodStart: text("period_start").notNull(),
 	periodEnd: text("period_end").notNull(),

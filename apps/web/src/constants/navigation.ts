@@ -85,6 +85,7 @@ const EXTRA_PROTECTED_ROUTES = [
 	"/units",
 	"/utilities",
 	"/subscriptions",
+	"/tenant-portal",
 ] as const;
 
 export const PROTECTED_ROUTES = [

@@ -113,3 +113,48 @@ export async function sendTenantSetupEmail({
 		console.error("[Resend] Tenant setup email failed", error);
 	}
 }
+
+interface CustomEmailParams {
+	to: string;
+	subject: string;
+	message: string;
+	ownerName: string;
+	tenantName: string;
+}
+
+export async function sendCustomEmailToTenant({
+	to,
+	subject,
+	message,
+	ownerName,
+	tenantName,
+}: CustomEmailParams): Promise<void> {
+	const { error } = await resend.emails.send({
+		from: env.EMAIL_FROM,
+		to,
+		subject,
+		html: `
+      <!DOCTYPE html>
+      <html>
+        <body style="font-family:sans-serif;max-width:600px;margin:0 auto;padding:24px;">
+          <p style="color:#555;font-size:14px;margin-bottom:4px;">
+            Message from your landlord, <strong>${ownerName}</strong>
+          </p>
+          <p>Hi, ${tenantName}</p>
+          <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
+          <p style="color:#111;line-height:1.7;white-space:pre-wrap;">${message}</p>
+          <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
+          <p style="color:#bbb;font-size:12px;">
+            Sent via RentWise · Replied to by <strong>${ownerName}</strong>
+          </p>
+        </body>
+      </html>
+    `,
+	});
+
+	if (error) {
+		// Non-fatal — consistent with existing email pattern
+		// TODO: add to retry queue when email infra matures
+		console.error("[Resend] Custom tenant email failed", error);
+	}
+}

@@ -5,15 +5,78 @@
 		{
 			"idx": 0,
 			"version": "7",
-			"when": 1778061515004,
-			"tag": "0000_lonely_dark_phoenix",
+			"when": 1779445761817,
+			"tag": "0000_steep_white_queen",
 			"breakpoints": true
 		},
 		{
 			"idx": 1,
 			"version": "7",
-			"when": 1778242009131,
-			"tag": "0001_noisy_ares",
+			"when": 1779445888591,
+			"tag": "0001_panoramic_katie_power",
+			"breakpoints": true
+		},
+		{
+			"idx": 2,
+			"version": "7",
+			"when": 1779447092326,
+			"tag": "0002_late_boomer",
+			"breakpoints": true
+		},
+		{
+			"idx": 3,
+			"version": "7",
+			"when": 1779447297712,
+			"tag": "0003_supreme_bishop",
+			"breakpoints": true
+		},
+		{
+			"idx": 4,
+			"version": "7",
+			"when": 1779447360804,
+			"tag": "0004_special_diamondback",
+			"breakpoints": true
+		},
+		{
+			"idx": 5,
+			"version": "7",
+			"when": 1779447692828,
+			"tag": "0005_fancy_amphibian",
+			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "7",
+			"when": 1779450257251,
+			"tag": "0006_ancient_timeslip",
+			"breakpoints": true
+		},
+		{
+			"idx": 7,
+			"version": "7",
+			"when": 1779450308875,
+			"tag": "0007_skinny_smiling_tiger",
+			"breakpoints": true
+		},
+		{
+			"idx": 8,
+			"version": "7",
+			"when": 1779450465368,
+			"tag": "0008_cooing_virginia_dare",
+			"breakpoints": true
+		},
+		{
+			"idx": 9,
+			"version": "7",
+			"when": 1779450687347,
+			"tag": "0009_lively_blackheart",
+			"breakpoints": true
+		},
+		{
+			"idx": 10,
+			"version": "7",
+			"when": 1779451062214,
+			"tag": "0010_common_roland_deschain",
 			"breakpoints": true
 		}
 	]

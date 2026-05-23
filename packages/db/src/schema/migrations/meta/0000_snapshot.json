@@ -1,5 +1,5 @@
 {
-	"id": "4d5d9015-2400-4ebd-8fcf-b378a374528e",
+	"id": "e86658e8-7ba6-4027-87e3-b96d9b86d66b",
 	"prevId": "00000000-0000-0000-0000-000000000000",
 	"version": "7",
 	"dialect": "postgresql",
@@ -10,9 +10,10 @@
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": true,
-					"notNull": true
+					"notNull": true,
+					"default": "pg_catalog.gen_random_uuid()"
 				},
 				"account_id": {
 					"name": "account_id",
@@ -89,7 +90,23 @@
 					"default": "now()"
 				}
 			},
-			"indexes": {},
+			"indexes": {
+				"account_userId_idx": {
+					"name": "account_userId_idx",
+					"columns": [
+						{
+							"expression": "user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
 			"foreignKeys": {
 				"account_user_id_user_id_fk": {
 					"name": "account_user_id_user_id_fk",
@@ -113,9 +130,10 @@
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": true,
-					"notNull": true
+					"notNull": true,
+					"default": "pg_catalog.gen_random_uuid()"
 				},
 				"expires_at": {
 					"name": "expires_at",
@@ -162,7 +180,23 @@
 					"notNull": true
 				}
 			},
-			"indexes": {},
+			"indexes": {
+				"session_userId_idx": {
+					"name": "session_userId_idx",
+					"columns": [
+						{
+							"expression": "user_id",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
 			"foreignKeys": {
 				"session_user_id_user_id_fk": {
 					"name": "session_user_id_user_id_fk",
@@ -192,9 +226,10 @@
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": true,
-					"notNull": true
+					"notNull": true,
+					"default": "pg_catalog.gen_random_uuid()"
 				},
 				"name": {
 					"name": "name",
@@ -269,9 +304,10 @@
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": true,
-					"notNull": true
+					"notNull": true,
+					"default": "pg_catalog.gen_random_uuid()"
 				},
 				"identifier": {
 					"name": "identifier",
@@ -306,8 +342,152 @@
 					"default": "now()"
 				}
 			},
-			"indexes": {},
+			"indexes": {
+				"verification_identifier_idx": {
+					"name": "verification_identifier_idx",
+					"columns": [
+						{
+							"expression": "identifier",
+							"isExpression": false,
+							"asc": true,
+							"nulls": "last"
+						}
+					],
+					"isUnique": false,
+					"concurrently": false,
+					"method": "btree",
+					"with": {}
+				}
+			},
 			"foreignKeys": {},
+			"compositePrimaryKeys": {},
+			"uniqueConstraints": {},
+			"policies": {},
+			"checkConstraints": {},
+			"isRLSEnabled": false
+		},
+		"public.document_update_requests": {
+			"name": "document_update_requests",
+			"schema": "",
+			"columns": {
+				"id": {
+					"name": "id",
+					"type": "uuid",
+					"primaryKey": true,
+					"notNull": true
+				},
+				"tenant_profile_id": {
+					"name": "tenant_profile_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"requested_by_id": {
+					"name": "requested_by_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"reason": {
+					"name": "reason",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"field_to_update": {
+					"name": "field_to_update",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"status": {
+					"name": "status",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'pending'"
+				},
+				"reviewed_by_id": {
+					"name": "reviewed_by_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"reviewed_at": {
+					"name": "reviewed_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"owner_notes": {
+					"name": "owner_notes",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"approved_expires_at": {
+					"name": "approved_expires_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"completed_at": {
+					"name": "completed_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"new_value": {
+					"name": "new_value",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				}
+			},
+			"indexes": {},
+			"foreignKeys": {
+				"document_update_requests_tenant_profile_id_tenant_profiles_id_fk": {
+					"name": "document_update_requests_tenant_profile_id_tenant_profiles_id_fk",
+					"tableFrom": "document_update_requests",
+					"tableTo": "tenant_profiles",
+					"columnsFrom": ["tenant_profile_id"],
+					"columnsTo": ["id"],
+					"onDelete": "cascade",
+					"onUpdate": "no action"
+				},
+				"document_update_requests_requested_by_id_user_id_fk": {
+					"name": "document_update_requests_requested_by_id_user_id_fk",
+					"tableFrom": "document_update_requests",
+					"tableTo": "user",
+					"columnsFrom": ["requested_by_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"document_update_requests_reviewed_by_id_user_id_fk": {
+					"name": "document_update_requests_reviewed_by_id_user_id_fk",
+					"tableFrom": "document_update_requests",
+					"tableTo": "user",
+					"columnsFrom": ["reviewed_by_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				}
+			},
 			"compositePrimaryKeys": {},
 			"uniqueConstraints": {},
 			"policies": {},
@@ -320,19 +500,19 @@
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": true,
 					"notNull": true
 				},
 				"unit_id": {
 					"name": "unit_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				},
 				"tenant_id": {
 					"name": "tenant_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -350,13 +530,13 @@
 				},
 				"rent": {
 					"name": "rent",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": true
 				},
 				"deposit": {
 					"name": "deposit",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": false
 				},
@@ -368,7 +548,7 @@
 				},
 				"reference_id": {
 					"name": "reference_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": false
 				},
@@ -429,13 +609,13 @@
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": true,
 					"notNull": true
 				},
 				"user_id": {
 					"name": "user_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -457,8 +637,8 @@
 					"primaryKey": false,
 					"notNull": false
 				},
-				"subscription_id": {
-					"name": "subscription_id",
+				"upi_id": {
+					"name": "upi_id",
 					"type": "text",
 					"primaryKey": false,
 					"notNull": false
@@ -474,15 +654,6 @@
 					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
-				},
-				"owner_profiles_subscription_id_subscriptions_id_fk": {
-					"name": "owner_profiles_subscription_id_subscriptions_id_fk",
-					"tableFrom": "owner_profiles",
-					"tableTo": "subscriptions",
-					"columnsFrom": ["subscription_id"],
-					"columnsTo": ["id"],
-					"onDelete": "no action",
-					"onUpdate": "no action"
 				}
 			},
 			"compositePrimaryKeys": {},
@@ -497,19 +668,19 @@
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": true,
 					"notNull": true
 				},
 				"lease_id": {
 					"name": "lease_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				},
 				"amount": {
 					"name": "amount",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -518,6 +689,18 @@
 					"type": "timestamp",
 					"primaryKey": false,
 					"notNull": true
+				},
+				"payment_method": {
+					"name": "payment_method",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"reference_number": {
+					"name": "reference_number",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
 				},
 				"type": {
 					"name": "type",
@@ -533,7 +716,7 @@
 				},
 				"utility_id": {
 					"name": "utility_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": false
 				},
@@ -585,13 +768,13 @@
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": true,
 					"notNull": true
 				},
 				"owner_id": {
 					"name": "owner_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -652,13 +835,13 @@
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": true,
 					"notNull": true
 				},
 				"referred_user_id": {
 					"name": "referred_user_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -707,15 +890,39 @@
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": true,
 					"notNull": true
+				},
+				"name": {
+					"name": "name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true
+				},
+				"phone": {
+					"name": "phone",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
 				},
 				"email": {
 					"name": "email",
 					"type": "text",
 					"primaryKey": false,
 					"notNull": true
+				},
+				"emergency_contact": {
+					"name": "emergency_contact",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"notes": {
+					"name": "notes",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
 				},
 				"token": {
 					"name": "token",
@@ -787,13 +994,13 @@
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": true,
 					"notNull": true
 				},
 				"user_id": {
 					"name": "user_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -803,8 +1010,26 @@
 					"primaryKey": false,
 					"notNull": false
 				},
-				"emergency_contact": {
-					"name": "emergency_contact",
+				"pan_number": {
+					"name": "pan_number",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"profile_iamge": {
+					"name": "profile_iamge",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"phone": {
+					"name": "phone",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"email": {
+					"name": "email",
 					"type": "text",
 					"primaryKey": false,
 					"notNull": false
@@ -815,11 +1040,74 @@
 					"primaryKey": false,
 					"notNull": false
 				},
-				"url": {
-					"name": "url",
+				"emergency_contact": {
+					"name": "emergency_contact",
 					"type": "text",
 					"primaryKey": false,
 					"notNull": false
+				},
+				"emergency_contact_name": {
+					"name": "emergency_contact_name",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"emergency_contact_location": {
+					"name": "emergency_contact_location",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"verification_status": {
+					"name": "verification_status",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "'unverified'"
+				},
+				"verfication_notes": {
+					"name": "verfication_notes",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"verified_by": {
+					"name": "verified_by",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"verified_at": {
+					"name": "verified_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"invite_id": {
+					"name": "invite_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_by": {
+					"name": "created_by",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
 				}
 			},
 			"indexes": {},
@@ -832,6 +1120,33 @@
 					"columnsTo": ["id"],
 					"onDelete": "cascade",
 					"onUpdate": "no action"
+				},
+				"tenant_profiles_verified_by_user_id_fk": {
+					"name": "tenant_profiles_verified_by_user_id_fk",
+					"tableFrom": "tenant_profiles",
+					"tableTo": "user",
+					"columnsFrom": ["verified_by"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"tenant_profiles_invite_id_tenant_invites_id_fk": {
+					"name": "tenant_profiles_invite_id_tenant_invites_id_fk",
+					"tableFrom": "tenant_profiles",
+					"tableTo": "tenant_invites",
+					"columnsFrom": ["invite_id"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
+				},
+				"tenant_profiles_created_by_user_id_fk": {
+					"name": "tenant_profiles_created_by_user_id_fk",
+					"tableFrom": "tenant_profiles",
+					"tableTo": "user",
+					"columnsFrom": ["created_by"],
+					"columnsTo": ["id"],
+					"onDelete": "no action",
+					"onUpdate": "no action"
 				}
 			},
 			"compositePrimaryKeys": {},
@@ -840,6 +1155,11 @@
 					"name": "tenant_profiles_uid_number_unique",
 					"nullsNotDistinct": false,
 					"columns": ["uid_number"]
+				},
+				"tenant_profiles_pan_number_unique": {
+					"name": "tenant_profiles_pan_number_unique",
+					"nullsNotDistinct": false,
+					"columns": ["pan_number"]
 				}
 			},
 			"policies": {},
@@ -852,7 +1172,7 @@
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": true,
 					"notNull": true
 				},
@@ -882,7 +1202,7 @@
 				},
 				"base_rent": {
 					"name": "base_rent",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -937,13 +1257,13 @@
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": true,
 					"notNull": true
 				},
 				"lease_id": {
 					"name": "lease_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -969,29 +1289,29 @@
 					"name": "units_used",
 					"type": "real",
 					"primaryKey": false,
-					"notNull": false
+					"notNull": true
 				},
 				"previous_reading": {
 					"name": "previous_reading",
 					"type": "real",
 					"primaryKey": false,
-					"notNull": false
+					"notNull": true
 				},
 				"current_reading": {
 					"name": "current_reading",
 					"type": "real",
 					"primaryKey": false,
-					"notNull": false
+					"notNull": true
 				},
 				"fixed_charge": {
 					"name": "fixed_charge",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": false
 				},
 				"total_amount": {
 					"name": "total_amount",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -1041,25 +1361,25 @@
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": true,
 					"notNull": true
 				},
 				"subscription_id": {
 					"name": "subscription_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": false
 				},
 				"user_id": {
 					"name": "user_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				},
 				"amount": {
 					"name": "amount",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -1130,7 +1450,7 @@
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": true,
 					"notNull": true
 				},
@@ -1155,63 +1475,63 @@
 				},
 				"price_monthly": {
 					"name": "price_monthly",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": true,
 					"default": 0
 				},
 				"price_quarterly": {
 					"name": "price_quarterly",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": true,
 					"default": 0
 				},
 				"price_half_yearly": {
 					"name": "price_half_yearly",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": true,
 					"default": 0
 				},
 				"price_yearly": {
 					"name": "price_yearly",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": true,
 					"default": 0
 				},
 				"price_two_year": {
 					"name": "price_two_year",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": true,
 					"default": 0
 				},
 				"discount_quarterly": {
 					"name": "discount_quarterly",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": false,
 					"default": 0.05
 				},
 				"discount_half_yearly": {
 					"name": "discount_half_yearly",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": false,
 					"default": 0.1
 				},
 				"discount_yearly": {
 					"name": "discount_yearly",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": false,
 					"default": 0.15
 				},
 				"discount_two_year": {
 					"name": "discount_two_year",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": false,
 					"default": 0.2
@@ -1245,19 +1565,19 @@
 			"columns": {
 				"id": {
 					"name": "id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": true,
 					"notNull": true
 				},
 				"user_id": {
 					"name": "user_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				},
 				"plan_id": {
 					"name": "plan_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -1309,7 +1629,7 @@
 				},
 				"total_paid": {
 					"name": "total_paid",
-					"type": "real",
+					"type": "integer",
 					"primaryKey": false,
 					"notNull": false,
 					"default": 0

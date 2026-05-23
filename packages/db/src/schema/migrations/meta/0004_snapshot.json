@@ -1,6 +1,6 @@
 {
-	"id": "5516fb21-29f2-45cd-bed3-5e509fafb37e",
-	"prevId": "e86658e8-7ba6-4027-87e3-b96d9b86d66b",
+	"id": "7a1746ec-63b6-4e99-a5d9-4b4a9ca879e0",
+	"prevId": "fdb185b2-9ad4-4bac-9d38-8c46b30d68f6",
 	"version": "7",
 	"dialect": "postgresql",
 	"tables": {
@@ -17,19 +17,19 @@
 				},
 				"account_id": {
 					"name": "account_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
 					"notNull": true
 				},
 				"provider_id": {
 					"name": "provider_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
 					"notNull": true
 				},
 				"user_id": {
 					"name": "user_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -938,7 +938,7 @@
 				},
 				"invited_by": {
 					"name": "invited_by",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -1073,7 +1073,7 @@
 				},
 				"verified_by": {
 					"name": "verified_by",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": false
 				},

@@ -1,6 +1,6 @@
 {
-	"id": "5516fb21-29f2-45cd-bed3-5e509fafb37e",
-	"prevId": "e86658e8-7ba6-4027-87e3-b96d9b86d66b",
+	"id": "0e998c1f-c9a1-43ad-8d2a-8ddd5e1fde51",
+	"prevId": "b362289e-700d-4727-a181-a801fcb8dc2b",
 	"version": "7",
 	"dialect": "postgresql",
 	"tables": {
@@ -17,19 +17,19 @@
 				},
 				"account_id": {
 					"name": "account_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
 					"notNull": true
 				},
 				"provider_id": {
 					"name": "provider_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
 					"notNull": true
 				},
 				"user_id": {
 					"name": "user_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -175,7 +175,7 @@
 				},
 				"user_id": {
 					"name": "user_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
 					"notNull": true
 				}
@@ -384,7 +384,7 @@
 				},
 				"requested_by_id": {
 					"name": "requested_by_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -409,7 +409,7 @@
 				},
 				"reviewed_by_id": {
 					"name": "reviewed_by_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
 					"notNull": false
 				},
@@ -615,7 +615,7 @@
 				},
 				"user_id": {
 					"name": "user_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -841,7 +841,7 @@
 				},
 				"referred_user_id": {
 					"name": "referred_user_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -1091,7 +1091,7 @@
 				},
 				"created_by": {
 					"name": "created_by",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
 					"notNull": false
 				},

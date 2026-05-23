@@ -1,6 +1,6 @@
 {
-	"id": "5516fb21-29f2-45cd-bed3-5e509fafb37e",
-	"prevId": "e86658e8-7ba6-4027-87e3-b96d9b86d66b",
+	"id": "d82ea9ca-a23a-4709-aae5-7e492b2121db",
+	"prevId": "5516fb21-29f2-45cd-bed3-5e509fafb37e",
 	"version": "7",
 	"dialect": "postgresql",
 	"tables": {
@@ -23,7 +23,7 @@
 				},
 				"provider_id": {
 					"name": "provider_id",
-					"type": "uuid",
+					"type": "text",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -938,7 +938,7 @@
 				},
 				"invited_by": {
 					"name": "invited_by",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -1073,7 +1073,7 @@
 				},
 				"verified_by": {
 					"name": "verified_by",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": false
 				},

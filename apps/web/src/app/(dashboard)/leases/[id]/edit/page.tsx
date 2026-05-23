@@ -8,9 +8,13 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { use } from "react";
 import { LeaseForm, type LeaseFormValues } from "@/components/forms/lease-form";
+import { DetailHeader } from "@/components/shared/detail-header";
+import { NotFoundState } from "@/components/shared/not-found-state";
+import { PageLoader } from "@/components/shared/page-loader";
 import { useLease, useUpdateLease } from "@/hooks/leases";
 import { useTenants } from "@/hooks/tenants";
 import { useUnits } from "@/hooks/units";
@@ -53,22 +57,9 @@ export default function EditLeasePage({
 		);
 	}
 
-	if (leaseLoading) {
-		return (
-			<div className="col-span-12 mx-auto w-full max-w-lg space-y-4">
-				<div className="h-8 w-48 animate-pulse rounded bg-muted" />
-				<div className="h-64 animate-pulse rounded-xl bg-muted" />
-			</div>
-		);
-	}
+	if (leaseLoading) return <PageLoader />;
 
-	if (!leaseData?.lease) {
-		return (
-			<div className="col-span-12 py-20 text-center text-muted-foreground">
-				Lease not found.
-			</div>
-		);
-	}
+	if (!leaseData?.lease) return <NotFoundState message="Lease not found." />;
 
 	const { lease } = leaseData;
 
@@ -87,6 +78,7 @@ export default function EditLeasePage({
 
 	return (
 		<div className="col-span-12 mx-auto w-full max-w-lg">
+			<DetailHeader backHref={`/leases/${id}` as Route} title="Edit Lease" />
 			<Card>
 				<CardHeader>
 					<CardTitle>Edit Lease</CardTitle>

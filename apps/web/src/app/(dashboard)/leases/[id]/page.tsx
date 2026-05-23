@@ -14,6 +14,9 @@ import { useRouter } from "next/navigation";
 import { use } from "react";
 import { LeaseDetails } from "@/components/features/leases/lease-details";
 import LeaseStatusBadge from "@/components/features/leases/lease-status-badge";
+import { DetailHeader } from "@/components/shared/detail-header";
+import { NotFoundState } from "@/components/shared/not-found-state";
+import { PageLoader } from "@/components/shared/page-loader";
 import { useDeleteLease, useLease } from "@/hooks/leases";
 
 export default function LeaseDetailPage({
@@ -30,55 +33,37 @@ export default function LeaseDetailPage({
 		deleteLease.mutate({ id }, { onSuccess: () => router.push("/leases") });
 	}
 
-	if (isLoading) {
-		return (
-			<div className="col-span-12 space-y-4">
-				<div className="h-8 w-48 animate-pulse rounded bg-muted" />
-				<div className="h-40 animate-pulse rounded-xl bg-muted" />
-			</div>
-		);
-	}
+	if (isLoading) return <PageLoader rows={2} />;
 
-	if (!data?.lease) {
-		return (
-			<div className="col-span-12 py-20 text-center text-muted-foreground">
-				Lease not found.
-			</div>
-		);
-	}
+	if (!data?.lease) return <NotFoundState message="Lease not found." />;
 
 	const { lease } = data;
 
 	return (
 		<div className="col-span-12 space-y-6">
 			{/*Header*/}
-			<div className="flex items-center justify-between">
-				<div className="flex items-center gap-3">
-					<Button variant="ghost" size="icon">
-						<Link href="/leases">
-							<IconArrowLeft className="size-4" />
-						</Link>
-					</Button>
-					<h1 className="font-semibold text-xl">Lease Details</h1>
-					<p className="text-muted-foreground text-sm">ID: {id}</p>
-				</div>
-				<div>
-					<Button variant="outline">
-						<Link href={`/leases/${id}/edit`} className="flex items-center">
-							<IconPencil className="mr-2 size-4" />
-							Edit
-						</Link>
-					</Button>
-					<Button
-						variant="destructive"
-						onClick={handleDelete}
-						disabled={deleteLease.isPending}
-					>
-						<IconTrash className="size-4" />
-						{deleteLease.isPending ? "Deleting..." : "Delete"}
-					</Button>
-				</div>
-			</div>
+			<DetailHeader
+				backHref="/leases"
+				title="Lease Details"
+				subtitle={`ID: ${id}`}
+			>
+				<Button
+					nativeButton={false}
+					variant="outline"
+					render={<Link href={`/leases/${id}/edit`} />}
+				>
+					<IconPencil className="mr-2 size-4" />
+					Edit
+				</Button>
+				<Button
+					variant="destructive"
+					onClick={handleDelete}
+					disabled={deleteLease.isPending}
+				>
+					<IconTrash className="mr-2 size-4" />
+					{deleteLease.isPending ? "Deleting..." : "Delete"}
+				</Button>
+			</DetailHeader>
 			{/*Main Details*/}
 			<LeaseDetails lease={lease} />
 			<Card>
@@ -120,7 +105,7 @@ export default function LeaseDetailPage({
 				</CardContent>
 			</Card>
 
-			{/* Payments + Utilities stubs — implement in next session */}
+			{/* TODO: Payments + Utilities stubs — implement in next session */}
 			{/* Payments stub */}
 			<Card>
 				<CardHeader>
@@ -131,7 +116,7 @@ export default function LeaseDetailPage({
 				</CardContent>
 			</Card>
 
-			{/* Utilities stub */}
+			{/* TODO: Utilities stub */}
 			<Card>
 				<CardHeader>
 					<CardTitle className="text-base">Utility Readings</CardTitle>

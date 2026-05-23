@@ -1,31 +1,38 @@
+import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { signOut } from "@/lib/auth-client";
 
 export const useLogout = () => {
 	const router = useRouter();
-	// future: const queryClient = useQueryClient()
+	const queryClient = useQueryClient();
 	// future: const resetPropertyStore = usePropertyStore(s => s.reset)
 	// future: const resetTenantStore = useTenantStore(s => s.reset)
 
-	const handleLogout = async () => {
-		const toastId = toast.loading("Signing out...");
+	const mutation = useMutation({
+		onMutate: () => {
+			const toastId = toast.loading("Signing out...");
+			return { toastId };
+		},
+		mutationFn: async () => {
+			const result = await signOut();
+			if (result.error) {
+				throw new Error(result.error.message);
+			}
+			return result;
+		},
+		onSuccess: (_, __, context) => {
+			queryClient.clear();
+			// future: resetPropertyStore()
+			// future: resetTenantStore()
+			toast.success("Signed Out", { id: context.toastId });
+			router.push("/login");
+		},
+		onError: (err, _, context) => {
+			toast.error("Error while signing out", { id: context?.toastId });
+			console.error(`Error while signing out: ${err.message}`);
+		},
+	});
 
-		await signOut({
-			fetchOptions: {
-				onSuccess: () => {
-					// future: queryClient.clear()
-					// future: resetPropertyStore()
-					// future: resetTenantStore()
-					toast.success("Signed out successfully.", { id: toastId });
-					router.push("/login");
-				},
-				onError: (err) => {
-					toast.error("Failed to sign out.", { id: toastId });
-					console.error("Signout Err", err);
-				},
-			},
-		});
-	};
-	return { handleLogout };
+	return { handleLogout: mutation.mutate };
 };

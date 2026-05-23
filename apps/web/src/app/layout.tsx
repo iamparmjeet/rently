@@ -4,8 +4,7 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "../index.css";
 import { Toaster } from "@rently/ui/components/sonner";
 import { cn } from "@rently/ui/lib/utils";
-
-const geistHeading = Geist({ subsets: ["latin"], variable: "--font-heading" });
+import { QueryProvider } from "@/components/providers/query-provider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -21,7 +20,7 @@ const geistMono = Geist_Mono({
 
 export const metadata: Metadata = {
 	title: "RentWise",
-	description: "Managing Tenant at your thumb",
+	description: "Managing Tenant at your fingertips",
 };
 
 export default function RootLayout({
@@ -33,15 +32,17 @@ export default function RootLayout({
 		<html
 			lang="en"
 			suppressHydrationWarning
-			className={cn("font-sans", inter.variable, geistHeading.variable)}
+			className={cn("font-sans", inter.variable)}
 		>
 			<body
 				className={`${geistSans.variable} ${geistMono.variable} antialiased`}
 			>
-				<div className="flex min-h-screen flex-col">
-					{children}
-					<Toaster position="bottom-right" />
-				</div>
+				<QueryProvider>
+					<div className="flex min-h-screen flex-col">
+						{children}
+						<Toaster position="bottom-right" />
+					</div>
+				</QueryProvider>
 			</body>
 		</html>
 	);

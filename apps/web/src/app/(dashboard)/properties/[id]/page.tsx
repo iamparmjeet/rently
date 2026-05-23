@@ -16,6 +16,7 @@ import {
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { use } from "react";
+import { DetailHeader } from "@/components/shared/detail-header";
 import { useProperty } from "@/hooks/properties";
 import { usePropertyUnits } from "@/hooks/units";
 
@@ -54,37 +55,32 @@ export default function PropertyDetailPage({
 	return (
 		<div className="col-span-12 space-y-6">
 			{/*Breadcrumb  + actions*/}
-			<div className="flex items-center justify-between">
-				<Button variant="ghost" size={"icon"}>
-					<Link href="/properties">
-						<IconArrowLeft className="size-4" />
-					</Link>
-				</Button>
-				<div>
-					<h1 className="font-semibold text-xl">{property.name}</h1>
-					<p className="text-muted-foreground text-sm">{property.address}</p>
+			<DetailHeader
+				backHref={"/properties"}
+				title={property.name}
+				subtitle={property.address}
+			>
+				<div className="flex gap-2">
+					<Button variant={"outline"}>
+						<Link
+							href={`/properties/${id}/edit`}
+							className="flex items-center gap-2"
+						>
+							<IconPencil className="size-4" />
+							Edit
+						</Link>
+					</Button>
+					<Button>
+						<Link
+							href={`/units/new?propertyId=${id}`}
+							className="flex items-center gap-2"
+						>
+							<IconPlus className="size-4" />
+							Add Unit
+						</Link>
+					</Button>
 				</div>
-			</div>
-			<div className="flex gap-2">
-				<Button variant={"outline"}>
-					<Link
-						href={`/properties/${id}/edit`}
-						className="flex items-center gap-2"
-					>
-						<IconPencil className="size-4" />
-						Edit
-					</Link>
-				</Button>
-				<Button>
-					<Link
-						href={`/units/new?propertyId=${id}`}
-						className="flex items-center gap-2"
-					>
-						<IconPlus className="size-4" />
-						Add Unit
-					</Link>
-				</Button>
-			</div>
+			</DetailHeader>
 
 			{/* Property Info Card*/}
 			<Card>

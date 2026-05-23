@@ -1,11 +1,13 @@
 "use client";
 
 import { Button } from "@rently/ui/components/button";
+import { IconPlus } from "@tabler/icons-react";
+import Link from "next/link";
 import { useMemo, useState } from "react";
 import { PropertyFiltersBar } from "@/components/features/properties/property-filters";
 import { PropertyGrid } from "@/components/features/properties/property-grid";
-import { PropertyPageHeader } from "@/components/features/properties/property-page-header";
 import { PropertyStats } from "@/components/features/properties/property-stats";
+import { PageHeader } from "@/components/shared/page-header";
 import { useDeleteProperty, useProperties } from "@/hooks/properties";
 import type { PropertyFilters } from "@/types/property";
 
@@ -23,7 +25,7 @@ export default function PropertiesPage() {
 	// No useEffect, no useState for data
 	const { data, isLoading, isError, error } = useProperties();
 	const deleteProperty = useDeleteProperty();
-	console.log("properties", data);
+	// console.log("properties", data);
 
 	// Client-side filtering/sorting (happens on cached data, no network)
 	const filteredProperties = useMemo(() => {
@@ -57,27 +59,21 @@ export default function PropertiesPage() {
 	}, [data?.properties, filters]);
 
 	// Error state
-	if (isError) {
-		return (
-			<div className="col-span-12 flex flex-col items-center justify-center py-20 text-center">
-				<p className="text-muted-foreground">
-					{error.message || "Failed to load properties"}
-				</p>
-				<Button
-					variant="outline"
-					className="mt-4"
-					onClick={() => location.reload()}
-				>
-					Try again
-				</Button>
-			</div>
-		);
-	}
+	if (isError) return <IsError error={error} />;
 
 	return (
 		<div className="col-span-12 flex flex-col gap-6">
 			{/* Page Header */}
-			<PropertyPageHeader />
+			<PageHeader
+				title="Properties"
+				description="Manage your properties and units"
+			>
+				<Button>
+					<Link href="/properties/new" className="flex items-center gap-2">
+						<IconPlus className="size-4" /> New Property
+					</Link>
+				</Button>
+			</PageHeader>
 
 			{/* Stats bar — loading skeleton built into component */}
 			<PropertyStats
@@ -108,6 +104,23 @@ export default function PropertiesPage() {
 					deleteProperty.isPending ? deleteProperty.variables?.id : undefined
 				}
 			/>
+		</div>
+	);
+}
+
+function IsError({ error }: { error: Error }) {
+	return (
+		<div className="col-span-12 flex flex-col items-center justify-center py-20 text-center">
+			<p className="text-muted-foreground">
+				{error.message || "Failed to load properties"}
+			</p>
+			<Button
+				variant="outline"
+				className="mt-4"
+				onClick={() => location.reload()}
+			>
+				Try again
+			</Button>
 		</div>
 	);
 }

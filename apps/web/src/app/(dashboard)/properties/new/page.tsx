@@ -1,17 +1,12 @@
 "use client";
 
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@rently/ui/components/card";
+import { Card, CardContent } from "@rently/ui/components/card";
 import { useRouter } from "next/navigation";
 import {
 	PropertyForm,
 	type PropertyFormValues,
 } from "@/components/forms/property-form";
+import { DetailHeader } from "@/components/shared/detail-header";
 import { useCreateProperty } from "@/hooks/properties";
 
 export default function NewPropertyPage() {
@@ -31,12 +26,7 @@ export default function NewPropertyPage() {
 	return (
 		<div className="col-span-12 mx-auto w-full max-w-lg">
 			<Card>
-				<CardHeader>
-					<CardTitle>New Property</CardTitle>
-					<CardDescription>
-						Add a new property to start managing units and tenants.
-					</CardDescription>
-				</CardHeader>
+				<DetailHeader backHref="/properties" title="New Property" />
 				<CardContent>
 					<PropertyForm
 						onSubmit={handleSubmit}

@@ -11,9 +11,9 @@
 	},
 	"scripts": {},
 	"dependencies": {
+		"@rently/api": "workspace:*",
 		"@rently/db": "workspace:*",
 		"@rently/env": "workspace:*",
-		"@rently/api": "workspace:*",
 		"better-auth": "catalog:",
 		"dotenv": "catalog:",
 		"zod": "catalog:"

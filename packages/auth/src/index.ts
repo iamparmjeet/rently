@@ -2,6 +2,7 @@ import { sendTenantSetupEmail } from "@rently/api/utils";
 import { createDb } from "@rently/db";
 import { USER_ROLES } from "@rently/db/constants/user-roles";
 import * as schema from "@rently/db/schema/auth";
+import { generatedId } from "@rently/db/utils/id";
 import { env } from "@rently/env/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -13,17 +14,28 @@ export function createAuth() {
 	return betterAuth({
 		database: drizzleAdapter(db, {
 			provider: "pg",
-
 			schema: schema,
 		}),
 		trustedOrigins: [env.CORS_ORIGIN],
 		emailAndPassword: {
 			enabled: true,
 			sendResetPassword: async ({ user, url }) => {
+				// / Role guard — this callback fires for ALL password resets
+				// Owners requesting a reset would hit this too in future
+				// TODO: add owner reset email branch when owner auth page is built
+				const typeUser = user as typeof user & { role?: string };
+				if (typeUser.role !== USER_ROLES.TENANT) {
+					return;
+				}
+				const urlObj = new URL(url);
+				const ownerName = urlObj.searchParams.get("owner")
+					? decodeURIComponent(urlObj.searchParams.get("owner")!)
+					: "Your Landlord";
+
 				await sendTenantSetupEmail({
 					to: user.email,
 					tenantName: user.name ?? user.email,
-					ownerName: "Your Landlord", // No owner context available at auth layer
+					ownerName,
 					setupUrl: url,
 				});
 			},
@@ -70,7 +82,12 @@ export function createAuth() {
 				secure: true,
 				httpOnly: true,
 			},
+			database: {
+				// generateId: "uuid",
+				generateId: () => generatedId(), // for runtime
+			},
 		},
+
 		plugins: [openAPI()],
 	});
 }

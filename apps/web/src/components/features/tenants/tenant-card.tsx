@@ -1,25 +1,23 @@
 // apps/web/src/components/features/tenants/tenant-card.tsx
 "use client";
-
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
 import { Card, CardContent, CardHeader } from "@rently/ui/components/card";
 import {
-	IconArchive,
 	IconBuilding,
-	IconLoader2,
 	IconMail,
 	IconPhone,
 	IconUser,
 } from "@tabler/icons-react";
 import Link from "next/link";
 
-interface Tenant {
+// Exported so TenantCardActions can reuse without re-declaring
+export interface Tenant {
 	id: string;
 	name: string;
 	email: string;
 	phone: string | null;
-	status: "active" | "pending" | "inactive";
+	status: "active" | "pending" | "expired" | "accepted";
 	currentLease: {
 		id: string;
 		propertyName: string;
@@ -32,21 +30,19 @@ interface Tenant {
 
 interface TenantCardProps {
 	tenant: Tenant;
-	onArchive?: (id: string) => void;
-	isArchiving?: boolean;
+	// Render slot — TenantCardActions injects the DropdownMenu here
+	// Keeps the card dumb: it displays, actions component orchestrates
+	actionsSlot?: React.ReactNode;
 }
 
 const statusVariants = {
 	active: "default",
+	accepted: "default",
 	pending: "secondary",
-	inactive: "outline",
+	expired: "outline",
 } as const;
 
-export function TenantCard({
-	tenant,
-	onArchive,
-	isArchiving,
-}: TenantCardProps) {
+export function TenantCard({ tenant, actionsSlot }: TenantCardProps) {
 	return (
 		<Card className="flex flex-col">
 			<CardHeader className="flex-row items-start gap-4 space-y-0 pb-2">
@@ -67,8 +63,9 @@ export function TenantCard({
 						{tenant.status}
 					</Badge>
 				</div>
+				{/* Action menu injected by parent */}
+				{actionsSlot}
 			</CardHeader>
-
 			<CardContent className="flex flex-1 flex-col gap-3">
 				{/* Contact info */}
 				<div className="space-y-1 text-sm">
@@ -83,7 +80,6 @@ export function TenantCard({
 						</div>
 					)}
 				</div>
-
 				{/* Lease info */}
 				{tenant.currentLease ? (
 					<div className="rounded-lg bg-muted/50 p-3 text-sm">
@@ -93,8 +89,7 @@ export function TenantCard({
 						</div>
 						<div className="mt-1 text-muted-foreground">
 							Unit {tenant.currentLease.unitNumber} · ₹
-							{tenant.currentLease.rent.toLocaleString()}
-							/mo
+							{tenant.currentLease.rent.toLocaleString()}/mo
 						</div>
 						{tenant.currentLease.endDate && (
 							<div className="mt-1 text-muted-foreground text-xs">
@@ -108,27 +103,11 @@ export function TenantCard({
 						No active lease
 					</div>
 				)}
-
-				{/* Actions */}
-				<div className="mt-auto flex gap-2 pt-2">
-					<Button variant="outline" size="sm" className="flex-1" asChild>
-						<Link href={`/tenants/${tenant.id}`}>View</Link>
+				{/* View CTA */}
+				<div className="mt-auto pt-2">
+					<Button variant="outline" size="sm" className="w-full">
+						<Link href={`/tenants/${tenant.id}`}>View Details</Link>
 					</Button>
-					{onArchive && (
-						<Button
-							variant="outline"
-							size="sm"
-							className="shrink-0"
-							onClick={() => onArchive(tenant.id)}
-							disabled={isArchiving}
-						>
-							{isArchiving ? (
-								<IconLoader2 className="size-4 animate-spin" />
-							) : (
-								<IconArchive className="size-4" />
-							)}
-						</Button>
-					)}
 				</div>
 			</CardContent>
 		</Card>

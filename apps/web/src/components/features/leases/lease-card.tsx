@@ -22,6 +22,7 @@ import {
 	IconUser,
 } from "@tabler/icons-react";
 import Link from "next/link";
+import { DateRecordMeta } from "@/components/shared/date-record-meta";
 import LeaseStatusBadge from "./lease-status-badge";
 
 interface LeaseCardProps {
@@ -55,53 +56,53 @@ export function LeaseCard({ lease, onDelete, isDeleting }: LeaseCardProps) {
 			<CardHeader className="pb-3">
 				<div className="flex items-start justify-between gap-2">
 					{/* Tenant */}
-					<div className="flex items-center gap-1.5">
-						<IconUser className="size-3.5 shrink-0 text-muted-foreground" />
-						<span className="truncate font-medium text-sm">
+					<div className="flex flex-col gap-1.5">
+						<span className="flex items-center gap-1.5 truncate font-medium text-sm">
+							<IconUser className="size-3.5 shrink-0 text-muted-foreground" />
 							{lease.tenantName ?? "Unknown Tenant"}
 						</span>
-					</div>
-					<span className="truncate text-muted-foreground text-xs">
 						{lease.tenantEmail}
-					</span>
-				</div>
+					</div>
 
-				{/* Actions */}
-				<DropdownMenu>
-					<DropdownMenuTrigger>
-						<Button variant="ghost" size="icon" className="size-7 shrink-0">
-							<IconDots className="siez-4" />
-							<span className="sr-only">Open Menu</span>
-						</Button>
-					</DropdownMenuTrigger>
-					<DropdownMenuContent align="end">
-						<DropdownMenuItem>
-							<Link
-								href={`/leases/${lease.leaseId}`}
-								className="flex items-center"
+					{/* Actions */}
+					<DropdownMenu>
+						<DropdownMenuTrigger
+							render={
+								<Button variant="ghost" size="icon" className="size-7 shrink-0">
+									<IconDots className="siez-4" />
+									<span className="sr-only">Open Menu</span>
+								</Button>
+							}
+						/>
+						<DropdownMenuContent align="end">
+							<DropdownMenuItem>
+								<Link
+									href={`/leases/${lease.leaseId}`}
+									className="flex items-center"
+								>
+									View Details
+								</Link>
+							</DropdownMenuItem>
+							<DropdownMenuItem>
+								<Link
+									href={`/leases/${lease.leaseId}/edit`}
+									className="flex items-center"
+								>
+									<IconPencil className="mr-2 size-4" />
+									Edit
+								</Link>
+							</DropdownMenuItem>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem
+								className="text-destructive focus:text-destructive"
+								onClick={() => onDelete?.(lease.leaseId)}
 							>
-								View Details
-							</Link>
-						</DropdownMenuItem>
-						<DropdownMenuItem>
-							<Link
-								href={`/leases/${lease.leaseId}/edit`}
-								className="flex items-center"
-							>
-								<IconPencil className="mr-2 size-4" />
-								Edit
-							</Link>
-						</DropdownMenuItem>
-						<DropdownMenuSeparator />
-						<DropdownMenuItem
-							className="text-destructive focus:text-destructive"
-							onClick={() => onDelete?.(lease.leaseId)}
-						>
-							<IconTrash className="mr-2 size-4" />
-							Delete
-						</DropdownMenuItem>
-					</DropdownMenuContent>
-				</DropdownMenu>
+								<IconTrash className="mr-2 size-4" />
+								Delete
+							</DropdownMenuItem>
+						</DropdownMenuContent>
+					</DropdownMenu>
+				</div>
 			</CardHeader>
 
 			<CardContent className="space-y-3 pb-3">
@@ -136,6 +137,11 @@ export function LeaseCard({ lease, onDelete, isDeleting }: LeaseCardProps) {
 					</span>
 				)}
 			</CardFooter>
+			<DateRecordMeta
+				className="px-4"
+				createdAt={lease.createdAt}
+				updatedAt={lease.updatedAt}
+			/>
 		</Card>
 	);
 }

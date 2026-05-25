@@ -17,7 +17,7 @@ import {
 	DropdownMenuTrigger,
 } from "@rently/ui/components/dropdown-menu";
 import { cn } from "@rently/ui/lib/utils";
-import type { UnitWithPropertyName } from "@rently/validators";
+import type { UnitWithLease } from "@rently/validators";
 import {
 	IconBuildingStore,
 	IconDots,
@@ -30,7 +30,7 @@ import Link from "next/link";
 import { DateRecordMeta } from "@/components/shared/date-record-meta";
 
 interface UnitCardProps {
-	unit: UnitWithPropertyName;
+	unit: UnitWithLease;
 	showPropertyName?: boolean; // false on property detail page (redundant), true on /units page
 	onDelete?: (id: string) => void;
 	isDeleting?: boolean;
@@ -63,12 +63,18 @@ export function UnitCard({
 					</div>
 
 					<DropdownMenu>
-						<DropdownMenuTrigger>
-							<button type="button" className="rounded p-1 hover:bg-muted">
-								<IconDots className="size-4" />
-								<span className="sr-only">Open menu</span>
-							</button>
-						</DropdownMenuTrigger>
+						<DropdownMenuTrigger
+							render={
+								<Button
+									type="button"
+									variant="outline"
+									className="rounded p-1 hover:bg-muted"
+								>
+									<IconDots className="size-4" />
+									<span className="sr-only">Open menu</span>
+								</Button>
+							}
+						/>
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem>
 								<Link
@@ -101,7 +107,7 @@ export function UnitCard({
 				<div className="grid grid-cols-2 gap-3">
 					<div className="rounded-md bg-muted/70 p-3">
 						<p className="text-muted-foreground text-xs">Monthly Rent</p>
-						<p className="font-semibold">
+						<p className="mt-2 font-semibold">
 							₹{unit.baseRent.toLocaleString("en-IN")}
 						</p>
 					</div>
@@ -109,7 +115,7 @@ export function UnitCard({
 						<p className="text-muted-foreground text-xs">Status</p>
 						<Badge
 							variant={isOccupied ? "default" : "secondary"}
-							className="mt-0.5 px-0 text-xs capitalize"
+							className="mt-2 px-0 text-xs capitalize"
 						>
 							{unit.status}
 						</Badge>
@@ -117,9 +123,11 @@ export function UnitCard({
 				</div>
 
 				{unit.area && (
-					<div className="mt-3 flex items-center gap-1 text-muted-foreground text-xs">
+					<div className="mt-3 flex items-center gap-1 rounded-md bg-muted/70 p-3 text-muted-foreground text-xs">
 						<IconRuler className="size-3" />
-						<span>{unit.area} sq ft</span>
+						<p>
+							Area: <span className="text-foreground">{unit.area} sq ft</span>
+						</p>
 					</div>
 				)}
 			</CardContent>

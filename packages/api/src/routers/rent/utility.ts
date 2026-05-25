@@ -76,7 +76,7 @@ export const createUtility = ownerProcedure
 		const { db, user: authUser } = context;
 
 		// Verify Lease ownership
-		const ownLease = isLeaseOwner(db, authUser.id, input.leaseId);
+		const ownLease = await isLeaseOwner(db, authUser.id, input.leaseId);
 
 		if (!ownLease) {
 			throw new ORPCError(StatusPhrase.FORBIDDEN, {
@@ -177,7 +177,7 @@ export const getUtilityById = ownerProcedure
 export const listUtilities = ownerProcedure
 	.route({
 		method: "GET",
-		path: "/rent/utility/get",
+		path: "/rent/utility/list",
 	})
 	.output(z.object({ utilities: z.array(UtilitySelectSchema) }))
 	.handler(async ({ context }) => {

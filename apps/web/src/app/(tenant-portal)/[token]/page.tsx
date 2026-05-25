@@ -127,38 +127,38 @@ export default async function InvitePage({ params }: PageProps) {
 					</div>
 					<span className="font-semibold text-xl tracking-tight">RentWise</span>
 				</div>
-			</div>
 
-			<Card>
-				<CardHeader>
-					<CardTitle className="text-center text-xl">
-						{state.type === "valid"
-							? "Accept Your Invitation"
-							: "Invitation Unavailable"}
-					</CardTitle>
-				</CardHeader>
-				<CardContent>
-					{state.type === "not_found" && <InviteNotFound />}
-					{state.type === "expired" && <InviteExpired />}
-					{state.type === "accepted" && <InviteAlreadyAccepted />}
-					{state.type === "valid" && (
-						<AcceptInviteForm
-							token={token}
-							email={state.data.email ?? ""}
-							name={state.data.name ?? ""}
-							phone={state.data.phone ?? ""}
-							ownerName={state.data.invitedBy.ownerName}
-						/>
-					)}
-				</CardContent>
-			</Card>
-			{/* Footer note */}
-			<p className="mt-6 text-center text-muted-foreground text-xs">
-				Already have an account?{" "}
-				<Link href="/login" className="text-primary hover:underline">
-					Sign in
-				</Link>
-			</p>
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-center text-xl">
+							{state.type === "valid"
+								? "Accept Your Invitation"
+								: "Invitation Unavailable"}
+						</CardTitle>
+					</CardHeader>
+					<CardContent>
+						{state.type === "not_found" && <InviteNotFound />}
+						{state.type === "expired" && <InviteExpired />}
+						{state.type === "accepted" && <InviteAlreadyAccepted />}
+						{state.type === "valid" && (
+							<AcceptInviteForm
+								token={token}
+								email={state.data.email ?? ""}
+								name={state.data.name ?? ""}
+								phone={state.data.phone ?? ""}
+								ownerName={state.data.invitedBy.ownerName}
+							/>
+						)}
+					</CardContent>
+				</Card>
+				{/* Footer note */}
+				<p className="mt-6 text-center text-muted-foreground text-xs">
+					Already have an account?{" "}
+					<Link href="/login" className="text-primary hover:underline">
+						Sign in
+					</Link>
+				</p>
+			</div>
 		</div>
 	);
 }

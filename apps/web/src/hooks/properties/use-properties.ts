@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { orpc } from "@/utils/orpc";
 import { useProperty } from "./use-property";
 
@@ -23,4 +23,19 @@ export function usePropertySmart(id: string) {
 
 	// Return list cache version if populate, otherwise this direct fetch
 	return fromList.data ? fromList : fromServer;
+}
+
+// ------------- Suspense Variants
+// useSuspenseQuery Contract
+// - Data is always defined
+
+export function useSuspenseProperties() {
+	return useSuspenseQuery(orpc.rent.property.listProperties.queryOptions());
+}
+
+export function useSuspensePropertyFromList(id: string) {
+	return useSuspenseQuery({
+		...orpc.rent.property.listProperties.queryOptions(),
+		select: (data) => data.properties.find((p) => p.id === id),
+	});
 }

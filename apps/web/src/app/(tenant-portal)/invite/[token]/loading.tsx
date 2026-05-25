@@ -1,4 +1,4 @@
-// apps/web/src/app/(marketing)/invite/[token]/loading.tsx
+// apps/web/src/app/(tenant-portal)/invite/[token]/loading.tsx
 
 export default function InviteLoading() {
 	return (

@@ -15,11 +15,7 @@ export function PropertiesPageSkeleton() {
 			{/* Stats bar skeleton */}
 			<div className="grid grid-cols-4 gap-4">
 				{Array.from({ length: 4 }).map((_, i) => (
-					<div
-						// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton, order never changes
-						key={i}
-						className="h-24 animate-pulse rounded-xl bg-muted"
-					/>
+					<div key={i} className="h-24 animate-pulse rounded-xl bg-muted" />
 				))}
 			</div>
 
@@ -29,11 +25,7 @@ export function PropertiesPageSkeleton() {
 			{/* Grid skeleton — 3 cards */}
 			<div className="grid grid-cols-3 gap-4">
 				{Array.from({ length: 3 }).map((_, i) => (
-					<div
-						// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
-						key={i}
-						className="h-48 animate-pulse rounded-xl bg-muted"
-					/>
+					<div key={i} className="h-48 animate-pulse rounded-xl bg-muted" />
 				))}
 			</div>
 		</div>

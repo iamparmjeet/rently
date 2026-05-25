@@ -22,7 +22,9 @@ import {
 	IconPencil,
 	IconTrash,
 } from "@tabler/icons-react";
+import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
+import { orpc } from "@/utils/orpc";
 
 interface PropertyCardProps {
 	property: {
@@ -49,11 +51,30 @@ export function PropertyCard({
 	onDelete,
 	isDeleting,
 }: PropertyCardProps) {
+	const queryClient = useQueryClient();
+
 	const occupancyRate = unitStats
 		? unitStats.total > 0
 			? Math.round((unitStats.occupied / unitStats.total) * 100)
 			: 0
 		: null;
+
+	function handleMouseEnter() {
+		// Prefetch the property detail
+		queryClient.prefetchQuery(
+			orpc.rent.property.getPropertyById.queryOptions({
+				input: { id: property.id },
+			}),
+		);
+
+		// Prefetch the units for this property.
+		// The detail page will need these — prefetch them together.
+		// TODO: replace with the exact queryOptions your usePropertyUnits hook uses
+		queryClient.prefetchQuery(
+			orpc.rent.unit.listUnits.queryOptions({ input: {} }),
+		);
+	}
+	const isResidential = property.type === "residential";
 
 	return (
 		<Card
@@ -61,11 +82,12 @@ export function PropertyCard({
 				"transition-all hover:shadow-md",
 				isDeleting && "pointer-events-none opacity-50",
 			)}
+			onMouseEnter={handleMouseEnter}
 		>
 			<CardHeader className="pb-3">
 				<div className="flex items-start justify-between gap-2">
 					<div className="flex items-center gap-2">
-						{property.type === "residential" ? (
+						{isResidential ? (
 							<IconHome className="h-4 w-4 shrink-0 text-muted-foreground" />
 						) : (
 							<IconBuildingStore className="h-4 w-4 shrink-0 text-muted-foreground" />
@@ -149,7 +171,15 @@ export function PropertyCard({
 			)}
 
 			<CardFooter className="gap-2 pt-0">
-				<Badge variant="outline" className="text-xs">
+				<Badge
+					variant="outline"
+					className={cn(
+						"text-xs capitalize",
+						isResidential
+							? "border-blue-200 bg-blue-50 text-blue-700"
+							: "border-amber-200 bg-amber-50 text-amber-700",
+					)}
+				>
 					{property.type}
 				</Badge>
 				{unitStats && (

@@ -78,6 +78,8 @@ export const TenantListItemSchema = z.object({
 	phone: z.string().nullable(),
 	avatarUrl: z.string().nullable(),
 	status: z.enum(INVITE_STATUS_VALUES).default("pending"),
+	createdAt: z.date(),
+	updatedAt: z.date(),
 	currentLease: z
 		.object({
 			id: z.string(),

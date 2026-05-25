@@ -2,7 +2,6 @@
 import { ORPCError } from "@orpc/server";
 import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode, StatusPhrase } from "@rently/api/utils";
-import { sendCustomEmailToTenant } from "@rently/api/utils/email";
 import { auth } from "@rently/auth";
 import { USER_ROLES } from "@rently/db/constants/user-roles";
 import { user } from "@rently/db/schema/auth";
@@ -14,6 +13,7 @@ import {
 	units,
 } from "@rently/db/schema/schema";
 import { generatedId } from "@rently/db/utils/id";
+import { sendCustomEmailToTenant } from "@rently/email";
 import { env } from "@rently/env/server";
 import {
 	CreateTenantSchema,
@@ -196,6 +196,8 @@ export const getTenantById = ownerProcedure
 				unitNumber: units.unitNumber,
 				rent: leases.rent,
 				endDate: leases.endDate,
+				createdAt: tenantProfiles.createdAt,
+				updatedAt: tenantProfiles.updatedAt,
 			})
 			.from(tenantProfiles)
 			// INNER JOIN user — profile always has a userId, safe to INNER
@@ -250,6 +252,8 @@ export const getTenantById = ownerProcedure
 				avatarUrl: result.avatarUrl,
 				status: "accepted" as const,
 				profile,
+				createdAt: result.createdAt,
+				updatedAt: result.updatedAt,
 				// currentLease is null when no active lease row joined
 				currentLease: result.leaseId
 					? {

@@ -1,31 +1,12 @@
 "use client";
 
-import {
-	QueryCache,
-	QueryClient,
-	QueryClientProvider,
-} from "@tanstack/react-query";
+import { QueryClientProvider } from "@tanstack/react-query";
+import { getQueryClient } from "@/utils/query-client";
 
 export function QueryProvider({ children }: { children: React.ReactNode }) {
-	const [queryClient] = useState(
-		() =>
-			new QueryClient({
-				queryCache: new QueryCache({
-					onError: (error, query) => {
-						toast.error(`Error: ${error.message}`, {
-							action: { label: "Retry", onClick: query.invalidate },
-						});
-					},
-				}),
-				defaultOptions: {
-					queries: {
-						staleTime: 5 * 60 * 1000,
-						gcTime: 5 * 60 * 1000,
-						retry: 2,
-					},
-				},
-			}),
-	);
+	// getQueryClient() returns the browser singleton when called client-side.
+	// Calling it here (inside a Client Component) is always browser-side.
+	const [queryClient] = useState(getQueryClient);
 	return (
 		<QueryClientProvider client={queryClient}>
 			{children}
@@ -36,4 +17,3 @@ export function QueryProvider({ children }: { children: React.ReactNode }) {
 
 import { ReactQueryDevtools } from "@tanstack/react-query-devtools";
 import { useState } from "react";
-import { toast } from "sonner";

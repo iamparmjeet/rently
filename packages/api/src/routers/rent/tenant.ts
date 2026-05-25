@@ -48,6 +48,8 @@ export const listTenants = ownerProcedure
 				rent: leases.rent, // nullable — no lease = null
 				endDate: leases.endDate, // nullable
 				leaseStatus: leases.status, // nullable — used to derive tenant status
+				createdAt: tenantProfiles.createdAt,
+				updatedAt: tenantProfiles.updatedAt,
 			})
 			.from(tenantProfiles)
 			.innerJoin(user, eq(tenantProfiles.userId, user.id))
@@ -68,6 +70,8 @@ export const listTenants = ownerProcedure
 			email: row.email,
 			phone: row.phone,
 			avatarUrl: row.avatarUrl,
+			createdAt: row.createdAt,
+			updatedAt: row.updatedAt,
 			// Derive status from whether an active lease exists
 			status:
 				row.leaseStatus === "active"

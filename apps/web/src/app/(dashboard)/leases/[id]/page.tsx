@@ -8,7 +8,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
-import { IconArrowLeft, IconPencil, IconTrash } from "@tabler/icons-react";
+import { IconPencil, IconTrash } from "@tabler/icons-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use } from "react";

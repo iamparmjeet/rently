@@ -32,7 +32,7 @@ export default function DashboardPage() {
 			{/* Accent Card - spans 4 columns */}
 			<div className="col-span-4 rounded-[calc(var(--radius)*2.2)] border border-border/50 bg-accent p-6 text-accent-foreground shadow-accent/25 shadow-xl">
 				<h3 className="text-sm opacity-80">Monthly Revenue</h3>
-				<p className="mt-2 font-bold text-3xl">$12,450</p>
+				<p className="mt-2 font-bold text-3xl">₹12,450</p>
 			</div>
 
 			{/* Full Width Table Card */}

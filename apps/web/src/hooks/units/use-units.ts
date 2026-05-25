@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { orpc } from "@/utils/orpc";
 
 // List All Units
@@ -13,4 +13,8 @@ export function usePropertyUnits(propertyId: string) {
 		}),
 		enabled: !!propertyId,
 	});
+}
+
+export function useSuspenseUnits() {
+	return useSuspenseQuery(orpc.rent.unit.listUnits.queryOptions({ input: {} }));
 }

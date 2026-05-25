@@ -97,10 +97,10 @@
         "@orpc/zod": "catalog:",
         "@rently/auth": "workspace:*",
         "@rently/db": "workspace:*",
+        "@rently/email": "workspace:*",
         "@rently/env": "workspace:*",
         "dotenv": "catalog:",
         "drizzle-orm": "^0.45.2",
-        "resend": "^6.12.3",
         "zod": "catalog:",
       },
       "devDependencies": {
@@ -145,6 +145,18 @@
         "@types/pg": "^8.20.0",
         "drizzle-kit": "^0.31.10",
         "typescript": "^6.0.3",
+      },
+    },
+    "packages/email": {
+      "name": "@rently/email",
+      "dependencies": {
+        "resend": "^6.12.3",
+      },
+      "devDependencies": {
+        "@types/bun": "latest",
+      },
+      "peerDependencies": {
+        "typescript": "^5",
       },
     },
     "packages/env": {
@@ -561,6 +573,8 @@
     "@rently/config": ["@rently/config@workspace:packages/config"],
 
     "@rently/db": ["@rently/db@workspace:packages/db"],
+
+    "@rently/email": ["@rently/email@workspace:packages/email"],
 
     "@rently/env": ["@rently/env@workspace:packages/env"],
 

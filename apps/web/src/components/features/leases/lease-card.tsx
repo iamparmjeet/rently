@@ -69,7 +69,7 @@ export function LeaseCard({ lease, onDelete, isDeleting }: LeaseCardProps) {
 						<DropdownMenuTrigger
 							render={
 								<Button variant="ghost" size="icon" className="size-7 shrink-0">
-									<IconDots className="siez-4" />
+									<IconDots className="size-4" />
 									<span className="sr-only">Open Menu</span>
 								</Button>
 							}

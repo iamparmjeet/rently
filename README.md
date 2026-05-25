@@ -70,28 +70,27 @@ rently/
   - [ ] Add mobile responsive hamburger menu
   - [x] Connect sidebar to dashboard layout
 
-- [ ] Forms (All empty files)
+- [x] Forms (All empty files)
   - [x] Implement src/components/forms/property-form.tsx
   - [x] Implement src/components/forms/unit-form.tsx
-  - [ ] Implement src/components/forms/lease-form.tsx
-  - [ ] Implement src/components/forms/payment-form.tsx
-  - [ ] Implement src/components/forms/invite-form.tsx
+  - [x] Implement src/components/forms/lease-form.tsx
+  - [x] Implement src/components/forms/payment-form.tsx
+  - [x] Implement src/components/forms/invite-form.tsx
 
 - [ ] Feature Components (Empty files)
   - [x] Implement src/components/features/properties/property-card.tsx
   - [x] Implement src/components/features/properties/property-list.tsx
   - [x] Implement src/components/features/properties/property-table.tsx
-  - [ ] Implement src/components/features/leases/lease-card.tsx
-  - [ ] Implement src/components/features/leases/lease-details.tsx
-  - [ ] Implement src/components/features/leases/lease-status-badge.tsx
+  - [x] Implement src/components/features/leases/lease-card.tsx
+  - [x] Implement src/components/features/leases/lease-details.tsx
+  - [x] Implement src/components/features/leases/lease-status-badge.tsx
   - [ ] Implement src/components/features/payments/payment-history.tsx
   - [ ] Implement src/components/features/payments/payment-methods.tsx
   - [ ] Implement src/components/features/subscriptions/plan-card.tsx
   - [ ] Implement src/components/features/subscriptions/subscription-status.tsx
 
 - [ ] Shared Components (Empty files)
-  - [ ] Implement src/components/shared/confirm-dialog.ts
-  - [ ] Implement src/components/shared/data-table.tsx
+  - [x] Implement src/components/shared/confirm-dialog.ts
   - [ ] Implement src/components/shared/empty-state.tsx
   - [ ] Implement src/components/shared/error-boundary.tsx
   - [ ] Implement src/components/shared/loading-spinner.tsx
@@ -105,17 +104,17 @@ rently/
   - [x] Implement src/app/(dashboard)/units/new/page.tsx
   - [x] Implement src/app/(dashboard)/units/[id]/page.tsx
   - [x] Implement src/app/(dashboard)/units/[id]/edit/page.tsx
-  - [ ] Implement src/app/(dashboard)/leases/page.tsx
-  - [ ] Implement src/app/(dashboard)/leases/new/page.tsx
-  - [ ] Implement src/app/(dashboard)/leases/[id]/page.tsx
+  - [x] Implement src/app/(dashboard)/leases/page.tsx
+  - [x] Implement src/app/(dashboard)/leases/new/page.tsx
+  - [x] Implement src/app/(dashboard)/leases/[id]/page.tsx
   - [ ] Implement src/app/(dashboard)/payments/page.tsx
   - [ ] Implement src/app/(dashboard)/payments/[id]/page.tsx
-  - [ ] Implement src/app/(dashboard)/tenants/page.tsx
-  - [ ] Implement src/app/(dashboard)/tenants/[id]/page.tsx
-  - [ ] Implement src/app/(dashboard)/tenants/invites/page.tsx
-  - [ ] Implement src/app/(dashboard)/utilities/page.tsx
-  - [ ] Implement src/app/(dashboard)/utilities/[id]/page.tsx
-  - [ ] Implement src/app/(dashboard)/settings/page.tsx
+  - [x] Implement src/app/(dashboard)/tenants/page.tsx
+  - [x] Implement src/app/(dashboard)/tenants/[id]/page.tsx
+  - [x] Implement src/app/(dashboard)/tenants/invites/page.tsx
+  - [x] Implement src/app/(dashboard)/utilities/page.tsx
+  - [x] Implement src/app/(dashboard)/utilities/[id]/page.tsx
+  - [x] Implement src/app/(dashboard)/settings/page.tsx
   - [ ] Implement src/app/(dashboard)/settings/profile/page.tsx
   - [ ] Implement src/app/(dashboard)/subscriptions/page.tsx
   - [ ] Implement src/app/(dashboard)/subscriptions/plans/page.tsx
@@ -138,13 +137,27 @@ Logic Description Solution
 
 // Category Suggested Enhancement
 
-- [ ] Auth Link invite → user signup flow auto-role assignment
+- [ x] Auth Link invite → user signup flow auto-role assignment
 - [ ] Accounting Utility + Payment summaries per tenant
 - [ ] DB Add foreign key cascades; non-null constraints
 - [ ] Notifications Email invite acceptance, subscription expiry alerts
-- [ ] Type-safety Add safeHandler() for consistent responses
-- [ ] Roles Separate admin/tenant routes
+- [x] Type-safety Add safeHandler() for consistent responses
+- [x] Roles Separate admin/tenant routes
 - [ ] Subscriptions Add renewal handling job/cron
-- [ ] RPC Implement Hono RPC client as typed bridge to FE
-- [ ] Infra Add CORS + rate-limiting middleware
+- [x] RPC Implement Hono oRPC client as typed bridge to FE
+- [x] Infra Add CORS
+- [ ] rate-limiting middleware
 ```
+
+---
+
+### Faster Delivery
+
+- [ ] Suspense + Optimistic APIs
+- [x] Properties
+- [x] Tenants
+- [ ] Units
+- [ ] Leases
+- [ ] Payment
+- [ ] Utilities
+- [ ] Tenant-Rent Portal

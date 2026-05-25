@@ -1,4 +1,4 @@
-import { useQuery } from "@tanstack/react-query";
+import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
 import { orpc } from "@/utils/orpc";
 
 export function useTenant(id: string) {
@@ -8,4 +8,12 @@ export function useTenant(id: string) {
 		}),
 		enabled: !!id,
 	});
+}
+
+export function useSuspenseTenant(id: string) {
+	return useSuspenseQuery(
+		orpc.rent.tenant.getTenantById.queryOptions({
+			input: { id },
+		}),
+	);
 }

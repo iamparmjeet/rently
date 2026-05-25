@@ -1,16 +1,18 @@
 // apps/web/src/components/features/tenants/tenant-card.tsx
-"use client";
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
 import { Card, CardContent, CardHeader } from "@rently/ui/components/card";
+import type { TenantDetail } from "@rently/validators";
 import {
 	IconBuilding,
 	IconMail,
 	IconPhone,
 	IconUser,
 } from "@tabler/icons-react";
+import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { DateRecordMeta } from "@/components/shared/date-record-meta";
 
 // Exported so TenantCardActions can reuse without re-declaring
 export interface Tenant {
@@ -30,7 +32,7 @@ export interface Tenant {
 }
 
 interface TenantCardProps {
-	tenant: Tenant;
+	tenant: TenantDetail;
 	// Render slot — TenantCardActions injects the DropdownMenu here
 	// Keeps the card dumb: it displays, actions component orchestrates
 	actionsSlot?: React.ReactNode;
@@ -46,29 +48,33 @@ const statusVariants = {
 export function TenantCard({ tenant, actionsSlot }: TenantCardProps) {
 	return (
 		<Card className="flex flex-col">
-			<CardHeader className="flex-row items-start gap-4 space-y-0 pb-2">
-				<div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted">
-					{tenant.avatarUrl ? (
-						<Image
-							src={tenant.avatarUrl}
-							alt={tenant.name}
-							fill
-							className="size-full rounded-full object-cover"
-						/>
-					) : (
-						<IconUser className="size-6 text-muted-foreground" />
-					)}
-				</div>
-				<div className="min-w-0 flex-1">
+			<CardHeader className="flex justify-between gap-4 space-y-0 pb-2">
+				<div className="flex items-center gap-2">
+					<div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted">
+						{tenant.avatarUrl ? (
+							<Image
+								src={tenant.avatarUrl}
+								alt={tenant.name}
+								fill
+								className="size-full rounded-full object-cover"
+							/>
+						) : (
+							<IconUser className="size-6 text-muted-foreground" />
+						)}
+					</div>
 					<h3 className="truncate font-semibold">{tenant.name}</h3>
-					<Badge variant={statusVariants[tenant.status]} className="mt-1">
-						{tenant.status}
-					</Badge>
 				</div>
+				<div className="min-w-0 flex-1" />
+				<Badge
+					variant={statusVariants[tenant.status]}
+					className="mt-1 capitalize"
+				>
+					{tenant.status}
+				</Badge>
 				{/* Action menu injected by parent */}
 				{actionsSlot}
 			</CardHeader>
-			<CardContent className="flex flex-1 flex-col gap-3">
+			<CardContent className="flex flex-col gap-3">
 				{/* Contact info */}
 				<div className="space-y-1 text-sm">
 					<div className="flex items-center gap-2 text-muted-foreground">
@@ -106,11 +112,14 @@ export function TenantCard({ tenant, actionsSlot }: TenantCardProps) {
 					</div>
 				)}
 				{/* View CTA */}
-				<div className="mt-auto pt-2">
-					<Button variant="outline" size="sm" className="w-full">
-						<Link href={`/tenants/${tenant.id}`}>View Details</Link>
-					</Button>
-				</div>
+
+				<Button variant="outline" size="sm" className="mt-2 w-full">
+					<Link href={`/tenants/${tenant.id}` as Route}>View Details</Link>
+				</Button>
+				<DateRecordMeta
+					createdAt={tenant.createdAt}
+					updatedAt={tenant.updatedAt}
+				/>
 			</CardContent>
 		</Card>
 	);

@@ -10,7 +10,8 @@ import Link from "next/link";
 import { SetPasswordForm } from "@/components/forms/set-password-form";
 
 interface PageProps {
-	// Next.js 15: searchParams is a Promise
+	token?: string;
+	error?: string;
 	searchParams: Promise<{ token?: string }>;
 }
 
@@ -56,6 +57,9 @@ export default async function SetPasswordPage({ searchParams }: PageProps) {
 					</CardHeader>
 					<CardContent>
 						{!token ? <InvalidResetLink /> : <SetPasswordForm token={token} />}
+						<p className="mt-2 text-slate-500 text-sm">
+							Choose a strong password to secure your RentWise account.
+						</p>
 					</CardContent>
 				</Card>
 

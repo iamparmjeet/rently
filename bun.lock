@@ -113,8 +113,8 @@
     "packages/auth": {
       "name": "@rently/auth",
       "dependencies": {
-        "@rently/api": "workspace:*",
         "@rently/db": "workspace:*",
+        "@rently/email": "workspace:*",
         "@rently/env": "workspace:*",
         "better-auth": "catalog:",
         "dotenv": "catalog:",

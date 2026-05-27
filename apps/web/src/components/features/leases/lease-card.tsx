@@ -29,9 +29,17 @@ interface LeaseCardProps {
 	lease: LeaseWithDetails;
 	onDelete?: (id: string) => void;
 	isDeleting?: boolean;
+	createdAt: Date;
+	updatedAt: Date;
 }
 
-export function LeaseCard({ lease, onDelete, isDeleting }: LeaseCardProps) {
+export function LeaseCard({
+	lease,
+	onDelete,
+	isDeleting,
+	createdAt,
+	updatedAt,
+}: LeaseCardProps) {
 	const startDate = new Date(lease.startDate).toLocaleDateString("en-IN", {
 		day: "2-digit",
 		month: "short",
@@ -139,8 +147,8 @@ export function LeaseCard({ lease, onDelete, isDeleting }: LeaseCardProps) {
 			</CardFooter>
 			<DateRecordMeta
 				className="px-4"
-				createdAt={lease.createdAt}
-				updatedAt={lease.updatedAt}
+				createdAt={createdAt}
+				updatedAt={updatedAt}
 			/>
 		</Card>
 	);

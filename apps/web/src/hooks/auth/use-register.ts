@@ -34,5 +34,8 @@ export const useRegister = () => {
 		},
 	});
 
-	return { onSubmit: mutation.mutate, isLoading: mutation.isPending };
+	return {
+		onSubmit: (data: RegisterFormType) => mutation.mutate(data),
+		isLoading: mutation.isPending,
+	};
 };

@@ -21,6 +21,7 @@ export const useLogin = () => {
 			if (result.error) {
 				throw new Error(result.error.message);
 			}
+
 			return result;
 		},
 		onSuccess: (_, __, context) => {
@@ -33,5 +34,8 @@ export const useLogin = () => {
 		},
 	});
 
-	return { onSubmit: mutation.mutate, isLoading: mutation.isPending };
+	return {
+		onSubmit: (data: LoginFormType) => mutation.mutate(data),
+		isLoading: mutation.isPending,
+	};
 };

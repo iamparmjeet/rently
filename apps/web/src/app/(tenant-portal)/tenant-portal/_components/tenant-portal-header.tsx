@@ -45,7 +45,7 @@ export function TenantPortalHeader() {
 					<Button
 						variant="outline"
 						size="sm"
-						onClick={handleLogout}
+						onClick={() => handleLogout}
 						className="cursor-pointer gap-2"
 					>
 						<IconLogout className="h-4 w-4" />

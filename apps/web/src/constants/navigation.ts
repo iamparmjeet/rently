@@ -94,4 +94,4 @@ export const PROTECTED_ROUTES = [
 ] as const;
 
 // Auth routes (login/register) — kept here for colocation
-export const AUTH_ROUTES = ["/login", "/register"] as const;
+export const AUTH_ROUTES = ["/login", "/register", "/forgot-password"] as const;

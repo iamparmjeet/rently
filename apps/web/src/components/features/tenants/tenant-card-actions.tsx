@@ -44,6 +44,7 @@ import {
 	SheetTitle,
 } from "@rently/ui/components/sheet";
 import { Textarea } from "@rently/ui/components/textarea";
+import type { TenantListItem } from "@rently/validators";
 import {
 	IconDotsVertical,
 	IconLoader2,
@@ -59,7 +60,7 @@ import {
 	useSendEmailToTenant,
 	useUpdateTenant,
 } from "@/hooks/tenants";
-import { type Tenant, TenantCard } from "./tenant-card";
+import { TenantCard } from "./tenant-card";
 
 // ─── Edit form schema ─────────────────────────────────────────────────────────
 const editTenantFormSchema = z.object({
@@ -84,7 +85,7 @@ type SendEmailForm = z.infer<typeof sendEmailFormSchema>;
 
 // ─── Props ────────────────────────────────────────────────────────────────────
 interface TenantCardActionsProps {
-	tenant: Tenant;
+	tenant: TenantListItem;
 }
 
 export function TenantCardActions({ tenant }: TenantCardActionsProps) {

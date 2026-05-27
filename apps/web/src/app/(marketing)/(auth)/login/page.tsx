@@ -21,9 +21,11 @@ import {
 	IconEyeOff,
 	IconLoader2,
 } from "@tabler/icons-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { AUTH_ROUTES } from "@/constants/navigation";
 import { useLogin, useSocialLogin } from "@/hooks/auth";
 import { type LoginFormType, loginSchema } from "@/types/auth-types";
 
@@ -118,7 +120,7 @@ export default function LoginPage() {
 						<div className="flex items-center justify-between">
 							<Label htmlFor="password">Password</Label>
 							<Link
-								href="/forgot-password"
+								href={AUTH_ROUTES["2"] as Route}
 								className="text-primary text-xs hover:underline"
 							>
 								Forgot password?

@@ -17,7 +17,7 @@ import {
 	DropdownMenuTrigger,
 } from "@rently/ui/components/dropdown-menu";
 import { cn } from "@rently/ui/lib/utils";
-import type { UnitWithLease } from "@rently/validators";
+import type { UnitDetail } from "@rently/validators";
 import {
 	IconBuildingStore,
 	IconDots,
@@ -30,7 +30,7 @@ import Link from "next/link";
 import { DateRecordMeta } from "@/components/shared/date-record-meta";
 
 interface UnitCardProps {
-	unit: UnitWithLease;
+	unit: UnitDetail;
 	showPropertyName?: boolean; // false on property detail page (redundant), true on /units page
 	onDelete?: (id: string) => void;
 	isDeleting?: boolean;

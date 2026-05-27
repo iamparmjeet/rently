@@ -2,7 +2,7 @@
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
 import { Card, CardContent, CardHeader } from "@rently/ui/components/card";
-import type { TenantDetail } from "@rently/validators";
+import type { TenantListItem } from "@rently/validators";
 import {
 	IconBuilding,
 	IconMail,
@@ -14,32 +14,14 @@ import Image from "next/image";
 import Link from "next/link";
 import { DateRecordMeta } from "@/components/shared/date-record-meta";
 
-// Exported so TenantCardActions can reuse without re-declaring
-export interface Tenant {
-	id: string;
-	name: string;
-	email: string;
-	phone: string | null;
-	status: "active" | "pending" | "expired" | "accepted";
-	currentLease: {
-		id: string;
-		propertyName: string;
-		unitNumber: string;
-		rent: number;
-		endDate: string | null;
-	} | null;
-	avatarUrl: string | null;
-}
-
 interface TenantCardProps {
-	tenant: TenantDetail;
+	tenant: TenantListItem;
 	// Render slot — TenantCardActions injects the DropdownMenu here
 	// Keeps the card dumb: it displays, actions component orchestrates
 	actionsSlot?: React.ReactNode;
 }
 
 const statusVariants = {
-	active: "default",
 	accepted: "default",
 	pending: "secondary",
 	expired: "outline",

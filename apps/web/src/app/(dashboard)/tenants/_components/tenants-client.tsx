@@ -33,10 +33,7 @@ export default function TenantsClientPage() {
 				title="Tenants"
 				description="Manage your tenants and their rental agreements"
 			>
-				{/* WHY only invite, not "Add Manually"?
-                  The /tenants/new page doesn't exist yet.
-                  Rather than a dead link, we only show what works.
-                  TODO: add /tenants/new page and re-add the button */}
+				{/*  TODO: add /tenants/new page and re-add the button */}
 				<Button
 					nativeButton={false}
 					variant="outline"
@@ -57,7 +54,7 @@ export default function TenantsClientPage() {
 
 			{/* Status filter tabs */}
 			<div className="flex gap-2">
-				{(["all", "active", "pending", "expired"] as const).map((s) => (
+				{(["all", "accepted", "pending", "expired"] as const).map((s) => (
 					<Button
 						key={s}
 						variant={statusFilter === s ? "default" : "outline"}

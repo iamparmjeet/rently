@@ -52,7 +52,7 @@ export default function EditTenantPage({
 
 	function handleSubmit(values: TenantProfileFormValues) {
 		updateTenant.mutate(
-			{ tenantId: id, data: values },
+			{ tenantId: id, ...values },
 			{ onSuccess: () => router.push(`/tenants/${id}`) },
 		);
 	}
@@ -84,7 +84,7 @@ export default function EditTenantPage({
 						uidNumber={tenant.profile?.uidNumber}
 						panNumber={tenant.profile?.panNumber}
 						defaultValues={{
-							phone: tenant.profile?.phone ?? tenant.phone ?? undefined,
+							phone: tenant.phone ?? undefined,
 							address: tenant.profile?.address ?? undefined,
 							emergencyContact: tenant.profile?.emergencyContact ?? undefined,
 							emergencyContactName:

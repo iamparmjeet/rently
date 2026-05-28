@@ -1,0 +1,1 @@
+ALTER TABLE "utilities" ADD COLUMN "batch_id" uuid;

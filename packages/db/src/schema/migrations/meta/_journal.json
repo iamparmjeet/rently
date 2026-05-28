@@ -78,6 +78,34 @@
 			"when": 1779451062214,
 			"tag": "0010_common_roland_deschain",
 			"breakpoints": true
+		},
+		{
+			"idx": 11,
+			"version": "7",
+			"when": 1779944972757,
+			"tag": "0011_noisy_hercules",
+			"breakpoints": true
+		},
+		{
+			"idx": 12,
+			"version": "7",
+			"when": 1779946883931,
+			"tag": "0012_elite_maverick",
+			"breakpoints": true
+		},
+		{
+			"idx": 13,
+			"version": "7",
+			"when": 1779961055622,
+			"tag": "0013_superb_iron_lad",
+			"breakpoints": true
+		},
+		{
+			"idx": 14,
+			"version": "7",
+			"when": 1779988482033,
+			"tag": "0014_hesitant_supreme_intelligence",
+			"breakpoints": true
 		}
 	]
 }

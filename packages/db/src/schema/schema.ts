@@ -24,6 +24,7 @@ import {
 	TENANT_VERIFICATION_STATUS_VALUES,
 } from "../constants/user-roles";
 import { auditColumns, idColumn } from "../utils/columns";
+import { generatedId } from "../utils/id";
 import { user } from "./auth";
 
 // ******* Owner Related Table like Properties, Units, Leases ***
@@ -78,19 +79,22 @@ export const leases = pgTable("leases", {
 
 export const utilities = pgTable("utilities", {
 	...idColumn(),
+	batchId: uuid("batch_id").$defaultFn(() => generatedId()),
 	leaseId: uuid("lease_id")
 		.notNull()
 		.references(() => leases.id, { onDelete: "cascade" }),
 	utilityType: text("utility_type", {
 		enum: UTILITY_TYPE_VALUES,
 	}).notNull(),
-	readingDate: timestamp("reading_date").notNull(),
-	ratePerUnit: real("rate_per_unit"),
-	unitsUsed: real("units_used").notNull(),
+	previousReadingDate: timestamp("previous_reading_date"),
+	currentReadingDate: timestamp("reading_date").notNull(),
 	previousReading: real("previous_reading").notNull(),
 	currentReading: real("current_reading").notNull(),
+	unitsUsed: real("units_used"),
+	ratePerUnit: real("rate_per_unit"),
 	fixedCharge: integer("fixed_charge"),
 	totalAmount: integer("total_amount").notNull(),
+	description: text("description"),
 	isPaid: boolean("is_paid").notNull().default(false),
 	...auditColumns(),
 });

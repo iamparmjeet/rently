@@ -1,40 +1,34 @@
 // apps/web/src/app/(dashboard)/utilities/page.tsx
-"use client";
 
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "@rently/ui/components/card";
-import { IconBolt } from "@tabler/icons-react";
+import { Suspense } from "react";
+import UtilitiesClient from "./_components/utilities-client";
+
+function UtilitiesPageSkeleton() {
+	return (
+		<div className="col-span-12 flex flex-col gap-6">
+			<div className="flex items-center justify-between">
+				<div className="space-y-2">
+					<div className="h-7 w-40 animate-pulse rounded-md bg-muted" />
+					<div className="h-4 w-56 animate-pulse rounded bg-muted" />
+				</div>
+				<div className="h-9 w-36 animate-pulse rounded-md bg-muted" />
+			</div>
+			<div className="grid grid-cols-3 gap-4">
+				{Array.from({ length: 3 }).map((_, i) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: skeleton
+					<div key={i} className="h-24 animate-pulse rounded-xl bg-muted" />
+				))}
+			</div>
+			<div className="h-10 w-full animate-pulse rounded-md bg-muted" />
+			<div className="h-64 w-full animate-pulse rounded-xl bg-muted" />
+		</div>
+	);
+}
 
 export default function UtilitiesPage() {
 	return (
-		<div className="col-span-12 flex flex-col gap-6">
-			<div>
-				<h1 className="font-semibold text-2xl">Utilities</h1>
-				<p className="mt-0.5 text-muted-foreground text-sm">
-					Track electricity, water, and maintenance readings
-				</p>
-			</div>
-
-			<Card>
-				<CardHeader>
-					<div className="flex items-center gap-2">
-						<IconBolt className="size-5 text-muted-foreground" />
-						<CardTitle className="text-base">Utility Management</CardTitle>
-					</div>
-				</CardHeader>
-				<CardContent className="py-16 text-center">
-					<IconBolt className="mx-auto mb-4 size-16 text-muted-foreground/30" />
-					<h3 className="mb-2 font-semibold text-lg">Coming Soon</h3>
-					<p className="mx-auto max-w-md text-muted-foreground text-sm">
-						Utility reading tracking and billing calculations will be available
-						soon.
-					</p>
-				</CardContent>
-			</Card>
-		</div>
+		<Suspense fallback={<UtilitiesPageSkeleton />}>
+			<UtilitiesClient />
+		</Suspense>
 	);
 }

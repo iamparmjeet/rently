@@ -43,7 +43,7 @@ export function UtilityDetailSheet({
 
 	return (
 		<Sheet open={open} onOpenChange={onOpenChange}>
-			<SheetContent className="w-full max-w-md overflow-y-auto sm:max-w-lg">
+			<SheetContent className="parm w-full max-w-md overflow-y-auto sm:max-w-lg">
 				<SheetHeader>
 					<SheetTitle>
 						{first?.unitNumber} — {first?.propertyName}
@@ -58,10 +58,10 @@ export function UtilityDetailSheet({
 					{periodLabel && (
 						<div className="rounded-md bg-muted px-4 py-3 text-sm">
 							<span className="text-muted-foreground">Billing period: </span>
-							<span className="font-medium">{periodLabel}</span>
+							<span className="font-medium">{periodLabel}</span> <br />
 							{days !== null && (
-								<span className="ml-2 text-muted-foreground">
-									({days} days)
+								<span className="text-muted-foreground">
+									Total Days: {days} days
 								</span>
 							)}
 						</div>

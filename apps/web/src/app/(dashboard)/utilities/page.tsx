@@ -15,7 +15,6 @@ function UtilitiesPageSkeleton() {
 			</div>
 			<div className="grid grid-cols-3 gap-4">
 				{Array.from({ length: 3 }).map((_, i) => (
-					// biome-ignore lint/suspicious/noArrayIndexKey: skeleton
 					<div key={i} className="h-24 animate-pulse rounded-xl bg-muted" />
 				))}
 			</div>

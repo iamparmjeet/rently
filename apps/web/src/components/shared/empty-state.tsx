@@ -1,15 +1,16 @@
 // apps/web/src/components/shared/empty-state.tsx
 
-import type { Icon } from "@tabler/icons-react";
+import { cn } from "@rently/ui/lib/utils";
 import type { ReactNode } from "react";
 
 interface EmptyStateProps {
 	// The Tabler icon component to display — e.g. IconBuilding, IconUsers
-	icon: Icon;
+	icon: React.ElementType;
 	title: string;
 	description?: string;
 	// Optional action slot — e.g. a "Create first property" button
 	children?: ReactNode;
+	className?: string;
 }
 
 // WHY a shared component: every list page (properties, units, leases, tenants)
@@ -20,9 +21,15 @@ export function EmptyState({
 	title,
 	description,
 	children,
+	className,
 }: EmptyStateProps) {
 	return (
-		<div className="col-span-12 flex flex-col items-center justify-center py-20 text-center">
+		<div
+			className={cn(
+				className,
+				"col-span-12 flex flex-col items-center justify-center py-20 text-center",
+			)}
+		>
 			<div className="mb-4 flex size-16 items-center justify-center rounded-2xl bg-muted">
 				<IconComponent className="size-8 text-muted-foreground/50" />
 			</div>

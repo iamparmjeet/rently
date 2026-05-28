@@ -1,7 +1,9 @@
 import { ORPCError } from "@orpc/server";
 import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode, StatusPhrase } from "@rently/api/utils";
+import { OWNER_ONLY_PAYMENT_METHODS_VALUE } from "@rently/db/constants/payment-constants";
 import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
+import type { UserRole } from "@rently/db/constants/user-roles";
 import {
 	leases,
 	payments,
@@ -18,7 +20,22 @@ import { eq } from "drizzle-orm";
 import z from "zod";
 import { isLeaseOwner } from "../helpers";
 
-// ─── Shared helper ───────────────────────────────────────────────────────────
+// ─── Shared helper ─────
+function assertMethodAllowedForRole(
+	method: string | null | undefined,
+	role: UserRole,
+) {
+	if (!method) return;
+	const isOwnerOnly = (
+		OWNER_ONLY_PAYMENT_METHODS_VALUE as readonly string[]
+	).includes(method);
+
+	if (!isOwnerOnly && role !== "owner") {
+		throw new ORPCError("FORBIDDEN", {
+			message: "Cash and cheque payments can only be recorded by the owner",
+		});
+	}
+}
 // Fetches a payment + walks the JOIN chain to get ownerId for auth
 async function getOwnedPayment(
 	db: import("@rently/db").Database,
@@ -84,6 +101,7 @@ export const createPayment = ownerProcedure
 		// Transaction: insert payment + conditionally mark utility as paid
 		// Why a transaction? If the utility update fails, we don't want a
 		// dangling payment record pointing at an unpaid utility.
+		assertMethodAllowedForRole(input.paymentMethods, "owner");
 
 		const payment = await db.transaction(async (tx) => {
 			const [newPayment] = await tx
@@ -128,6 +146,11 @@ export const updatePayment = ownerProcedure
 
 		// getOwnedPayment does find + auth check
 		await getOwnedPayment(db, input.id, authUser.id);
+
+		// Recheck role restriction
+		if (input.data.paymentMethods) {
+			assertMethodAllowedForRole(input.data.paymentMethods, "owner");
+		}
 
 		const [updated] = await db
 			.update(payments)

@@ -39,7 +39,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
 	return (
 		<AlertDialog>
-			<AlertDialogTrigger asChild>{trigger}</AlertDialogTrigger>
+			<AlertDialogTrigger>{trigger}</AlertDialogTrigger>
 
 			<AlertDialogContent>
 				<AlertDialogHeader>

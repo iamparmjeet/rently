@@ -59,8 +59,33 @@ export const PAYMENT_METHOD_VALUES = Object.values(PAYMENT_METHODS) as [
 	...PaymentMethod[],
 ];
 
+export const OWNER_ONLY_PAYMENT_METHODS = {
+	CASH: "cash",
+	CHEQUE: "cheque",
+} as const;
+
+export type OwnerOnlyPaymentMethod =
+	(typeof OWNER_ONLY_PAYMENT_METHODS)[keyof typeof OWNER_ONLY_PAYMENT_METHODS];
+
+export const OWNER_ONLY_PAYMENT_METHODS_VALUE = Object.values(
+	OWNER_ONLY_PAYMENT_METHODS,
+) as [OwnerOnlyPaymentMethod, ...OwnerOnlyPaymentMethod[]];
+
+export const DIGITAL_PAYMENT_METHODS = [
+	"upi",
+	"bank_transfer",
+	"online",
+] as const;
+
+export type DigitalPaymentMethod =
+	(typeof DIGITAL_PAYMENT_METHODS)[keyof typeof DIGITAL_PAYMENT_METHODS];
+
+export const DIGITAL_PAYMENT_METHODS_VALUE = Object.values(
+	DIGITAL_PAYMENT_METHODS,
+) as [DigitalPaymentMethod, ...DigitalPaymentMethod[]];
+
 export const PAYMENT_STATUS = {
-	PENDING: "pending",
+	UNPAID: "unpaid",
 	PAID: "paid",
 	FAILED: "failed",
 } as const;

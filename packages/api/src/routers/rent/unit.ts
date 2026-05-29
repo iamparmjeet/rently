@@ -1,0 +1,211 @@
+import { ORPCError } from "@orpc/server";
+import { ownerProcedure } from "@rently/api/procedures";
+import { StatusCode, StatusPhrase } from "@rently/api/utils";
+import { user } from "@rently/db/schema/auth";
+import { leases, properties, units } from "@rently/db/schema/schema";
+import {
+	CreateUnitSchema,
+	UnitDetailSchema,
+	UnitSelectSchema,
+	UnitWithLeaseSchema,
+	UpdateUnitSchema,
+} from "@rently/validators";
+import { and, eq } from "drizzle-orm";
+import z from "zod";
+import { VerifyUnitOwnership } from "../helpers";
+
+//1) create
+export const createUnit = ownerProcedure
+	.route({
+		method: "POST",
+		path: "/rent/unit/create",
+		successStatus: StatusCode.CREATED,
+	})
+	.input(CreateUnitSchema)
+	.output(z.object({ unit: UnitSelectSchema }))
+	.handler(async ({ context, input }) => {
+		const { db, user } = context;
+
+		// Verify user ownes the parent property before allowing unit creation
+		const [property] = await db
+			.select({ ownerId: properties.ownerId })
+			.from(properties)
+			.where(eq(properties.id, input.propertyId))
+			.limit(1);
+
+		if (!property) {
+			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+				message: "Property Not Found",
+			});
+		}
+
+		if (property.ownerId !== user.id) {
+			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+				message: "you don't own this property",
+			});
+		}
+
+		//
+		const [unit] = await db
+			.insert(units)
+			.values({
+				...input,
+				status: "available",
+			})
+			.returning();
+
+		if (!unit) {
+			throw new ORPCError(StatusPhrase.INTERNAL_SERVER_ERROR, {
+				message: "Failed to create unit",
+			});
+		}
+
+		return { unit };
+	});
+
+// 2) update
+export const updateUnit = ownerProcedure
+	.route({ method: "PATCH", path: "/rent/unit/update" })
+	.input(z.object({ id: z.string(), data: UpdateUnitSchema }))
+	.output(z.object({ unit: UnitSelectSchema }))
+	.handler(async ({ context, input }) => {
+		const { db, user: authUser } = context;
+
+		// Verfiy ownership
+		await VerifyUnitOwnership(db, authUser.id, input.id);
+
+		const [unit] = await db
+			.update(units)
+			.set({ ...input.data, updatedAt: new Date() })
+			.where(eq(units.id, input.id))
+			.returning();
+
+		if (!unit) {
+			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+				message: "Unit not found after update",
+			});
+		}
+
+		return { unit };
+	});
+
+// 3) getUnitbyId
+export const getUnitById = ownerProcedure
+	.route({ method: "GET", path: "/rent/unit/get" })
+	.input(z.object({ id: z.string() }))
+	.output(
+		z.object({
+			unit: UnitWithLeaseSchema,
+			// activeLease: ActiveLeaseSchema.nullable(),
+		}),
+	)
+	.handler(async ({ context, input }) => {
+		const { db, user: authUser } = context;
+
+		const [result] = await db
+			.select({
+				id: units.id,
+				propertyId: units.propertyId,
+				unitNumber: units.unitNumber,
+				type: units.type,
+				area: units.area,
+				baseRent: units.baseRent,
+				description: units.description,
+				status: units.status,
+				createdAt: units.createdAt,
+				updatedAt: units.updatedAt,
+				propertyName: properties.name,
+				ownerId: properties.ownerId,
+			})
+			.from(units)
+			.innerJoin(properties, eq(units.propertyId, properties.id))
+			.where(eq(units.id, input.id))
+			.limit(1);
+
+		if (!result) {
+			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+				message: `Unit ${input.id} not found`,
+			});
+		}
+
+		if (result.ownerId !== authUser.id) {
+			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+				message: "you don't have access to this unit",
+			});
+		}
+
+		// Add active lease query
+		const [activeLease] = await db
+			.select({
+				id: leases.id,
+				tenantId: leases.tenantId,
+				tenantName: user.name,
+				tenantEmail: user.email,
+				rent: leases.rent,
+				startDate: leases.startDate,
+				status: leases.status,
+			})
+			.from(leases)
+			.innerJoin(user, eq(leases.tenantId, user.id))
+			.where(and(eq(leases.unitId, input.id), eq(leases.status, "active")))
+			.limit(1);
+
+		const { ownerId: _, ...unitFields } = result;
+		return {
+			unit: {
+				...unitFields,
+				activeLease: activeLease ?? null,
+			},
+		};
+	});
+
+// 4) list
+export const listUnits = ownerProcedure
+	.route({ method: "GET", path: "/rent/unit/list" })
+	.input(z.object({ propertyId: z.string().optional() }))
+	.output(z.object({ units: z.array(UnitDetailSchema) }))
+	.handler(async ({ context, input }) => {
+		const { db, user: authUser } = context;
+
+		const whereClause = input.propertyId
+			? and(
+					eq(properties.ownerId, authUser.id),
+					eq(units.propertyId, input.propertyId),
+				)
+			: eq(properties.ownerId, authUser.id);
+
+		const result = await db
+			.select({
+				id: units.id,
+				propertyId: units.propertyId,
+				unitNumber: units.unitNumber,
+				type: units.type,
+				area: units.area,
+				baseRent: units.baseRent,
+				description: units.description,
+				status: units.status,
+				createdAt: units.createdAt,
+				updatedAt: units.updatedAt,
+				propertyName: properties.name,
+			})
+			.from(units)
+			.innerJoin(properties, eq(units.propertyId, properties.id))
+			.where(whereClause)
+			.orderBy(units.unitNumber);
+
+		return { units: result };
+	});
+
+// 5) deleteUnit
+export const deleteUnit = ownerProcedure
+	.route({ method: "DELETE", path: "/rent/unit/delete" })
+	.input(z.object({ id: z.string() }))
+	.output(z.object({ success: z.literal(true) }))
+	.handler(async ({ context, input }) => {
+		const { db, user: authUser } = context;
+
+		await VerifyUnitOwnership(db, authUser.id, input.id);
+		await db.delete(units).where(eq(units.id, input.id));
+
+		return { success: true as const };
+	});

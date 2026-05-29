@@ -1,0 +1,198 @@
+import { ORPCError } from "@orpc/server";
+import { properties, units } from "@rently/db/schema/schema";
+import type { Property } from "@rently/validators";
+import {
+	CreatePropertySchema,
+	PropertySelectSchema,
+	UnitSelectSchema,
+	UpdatePropertySchema,
+} from "@rently/validators";
+import { eq } from "drizzle-orm";
+import z from "zod";
+import { ownerProcedure } from "../../procedures";
+import { StatusCode, StatusPhrase } from "../../utils";
+
+// 1) list all Properties
+export const listProperties = ownerProcedure
+	.route({ method: "GET", path: "/rent/property/lists" }) // for OPENAPI
+	.output(z.object({ properties: z.array(PropertySelectSchema) }))
+	.handler(async ({ context }): Promise<{ properties: Property[] }> => {
+		const { db, user } = context;
+
+		const res = await db
+			.select()
+			.from(properties)
+			.where(eq(properties.ownerId, user.id))
+			.orderBy(properties.createdAt);
+		return { properties: res };
+	});
+
+// 2) get Single Property
+
+export const getPropertyById = ownerProcedure
+	.route({ method: "GET", path: "/rent/property/get" })
+	.input(z.object({ id: z.uuid() }))
+	.output(z.object({ property: PropertySelectSchema }))
+	.handler(async ({ context, input }) => {
+		const { db, user } = context;
+
+		const [property] = await db
+			.select()
+			.from(properties)
+			.where(eq(properties.id, input.id));
+
+		if (!property) {
+			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+				message: `Property ${input.id} not found`,
+			});
+		}
+
+		// Authorization - Property Belongs to current user
+		if (property.ownerId !== user.id) {
+			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+				message: "You do not have access to this property",
+			});
+		}
+
+		return { property };
+	});
+
+// 3) Create Property
+export const createProperty = ownerProcedure
+	.route({
+		method: "POST",
+		path: "/rent/property/create",
+		successStatus: StatusCode.CREATED,
+	})
+	.input(CreatePropertySchema)
+	.output(z.object({ property: PropertySelectSchema }))
+	.handler(async ({ context, input }) => {
+		const { db, user } = context;
+
+		const [property] = await db
+			.insert(properties)
+			.values({
+				name: input.name,
+				address: input.address,
+				type: input.type,
+				ownerId: user.id,
+			})
+			.returning();
+
+		if (!property) {
+			throw new ORPCError(StatusPhrase.INTERNAL_SERVER_ERROR, {
+				message: "Failed to create Property",
+			});
+		}
+
+		return { property };
+	});
+
+// 4) Update Property
+export const updateProperty = ownerProcedure
+	.route({ method: "PATCH", path: "/rent/property/update" })
+	.input(z.object({ id: z.uuid(), data: UpdatePropertySchema }))
+	.handler(async ({ context, input }) => {
+		const { db, user } = context;
+
+		// First Verify ownership
+		const [existing] = await db
+			.select()
+			.from(properties)
+			.where(eq(properties.id, input.id));
+
+		if (!existing) throw new ORPCError(StatusPhrase.NOT_FOUND);
+
+		if (existing.ownerId !== user.id)
+			throw new ORPCError(StatusPhrase.FORBIDDEN);
+
+		const [updated] = await db
+			.update(properties)
+			.set({ ...input.data, updatedAt: new Date() })
+			.where(eq(properties.id, input.id))
+			.returning();
+
+		return { property: updated };
+	});
+
+// 5) Delete
+export const deleteProperty = ownerProcedure
+	.route({ method: "DELETE", path: "/rent/property/delete" })
+	.input(z.object({ id: z.uuid() }))
+	.handler(async ({ context, input }) => {
+		const { db, user } = context;
+
+		const [existing] = await db
+			.select()
+			.from(properties)
+			.where(eq(properties.id, input.id));
+
+		if (!existing) throw new ORPCError(StatusPhrase.NOT_FOUND);
+		if (existing.ownerId !== user.id)
+			throw new ORPCError(StatusPhrase.FORBIDDEN);
+
+		await db.delete(properties).where(eq(properties.id, input.id));
+
+		return { success: true };
+	});
+
+// 6_ Get Units for a specific property
+export const getUnits = ownerProcedure
+	.route({ method: "GET", path: "/rent/property/units" })
+	.input(z.object({ propertyId: z.uuid() }))
+	.output(z.object({ units: z.array(UnitSelectSchema) }))
+	.handler(async ({ context, input }) => {
+		const { db, user } = context;
+
+		// Verify Ownership
+		const [property] = await db
+			.select({ ownerId: properties.ownerId })
+			.from(properties)
+			.where(eq(properties.id, input.propertyId));
+
+		if (!property) {
+			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+				message: "Property Not Found",
+			});
+		}
+		if (property.ownerId !== user.id) {
+			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+				message: "You do not own this property",
+			});
+		}
+
+		const unitsList = await db
+			.select()
+			.from(units)
+			.where(eq(units.propertyId, input.propertyId));
+
+		return { units: unitsList };
+	});
+
+// 7 GetSpecificpropertyUnits
+
+// export const getPropertyUnits = safeHandler(async (c: Context<AppBindings>) => {
+// 	const db = c.get("db");
+// 	const user = c.get("user");
+// 	const propertyId = c.req.param("id");
+
+// 	if (!propertyId) {
+// 		return badRequest(c, "Property ID is required");
+// 	}
+
+// 	//ownership
+// 	const owns = await isPropertyOwner(c, user.id, propertyId);
+// 	if (!owns) return forbidden(c, "You do not own this property");
+
+// 	try {
+// 		const unitsList = await db.query.units.findMany({
+// 			where: (unit, { eq }) => eq(unit.propertyId, propertyId),
+// 			orderBy: (unit, { asc }) => [asc(unit.unitNumber)],
+// 		});
+
+// 		return success(c, { units: unitsList });
+// 	} catch (err) {
+// 		console.error("Property Units Fetch Error", err);
+// 		return badRequest(c, "Failed to fetch units for Property", err);
+// 	}
+// });

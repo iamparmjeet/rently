@@ -1,0 +1,17 @@
+{
+	"extends": "@rently/config/tsconfig.base.json",
+	"compilerOptions": {
+		"jsx": "preserve",
+		"plugins": [
+			{
+				"name": "next"
+			}
+		],
+		"paths": {
+			"@/*": ["./src/*"],
+			"@rently/ui/*": ["../../packages/ui/src/*"]
+		}
+	},
+	"include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],
+	"exclude": ["node_modules"]
+}

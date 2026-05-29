@@ -1,0 +1,22 @@
+{
+	"name": "@rently/hooks",
+	"version": "0.0.1",
+	"private": true,
+	"exports": {
+		".": "./src/index.ts",
+		"./orpc": "./src/orpc-context.tsx",
+		"./tenants": "./src/tenants/index.ts"
+	},
+	"peerDependencies": {
+		"react": "^19"
+	},
+	"dependencies": {
+		"@rently/api": "workspace:*",
+		"@tanstack/react-query": "^5.0.0",
+		"sonner": "^2.0.7"
+	},
+	"devDependencies": {
+		"@rently/config": "workspace:*",
+		"@types/react": "^19"
+	}
+}

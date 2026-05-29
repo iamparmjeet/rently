@@ -1,5 +1,6 @@
 // src/app/(marketing)/page.tsx
 
+import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
 import {
 	IconArrowRight,
@@ -63,33 +64,7 @@ export default function HomePage() {
 		<div className="flex min-h-screen flex-col">
 			<main className="flex-1">
 				{/* Hero Section */}
-				<section className="relative overflow-hidden py-20 md:py-32">
-					<div className="container mx-auto px-4">
-						<div className="mx-auto max-w-3xl text-center">
-							<h1 className="font-bold text-4xl tracking-tight md:text-6xl">
-								Property Management,{" "}
-								<span className="text-primary">Simplified</span>
-							</h1>
-							<p className="mt-6 text-lg text-muted-foreground md:text-xl">
-								RentWise helps landlords and property managers track tenants,
-								automate rent collection, and manage utilities — all in one
-								place.
-							</p>
-							<div className="mt-10 flex flex-col gap-4 sm:flex-row sm:justify-center">
-								<Button size="lg">
-									<Link href="/register">Get Started Free</Link>
-									<IconArrowRight className="ml-2 h-4 w-4" />
-								</Button>
-								<Button size="lg" variant="outline">
-									<Link href="#how-it-works">See How It Works</Link>
-								</Button>
-							</div>
-						</div>
-					</div>
-
-					{/* Decorative gradient */}
-					<div className="absolute -top-1/2 left-1/2 -z-10 h-125 w-125 -translate-x-1/2 rounded-full bg-primary/5 blur-3xl" />
-				</section>
+				<HeroSection />
 
 				{/* Features Section */}
 				<section id="features" className="bg-muted/50 py-20">
@@ -232,5 +207,38 @@ export default function HomePage() {
 				</section>
 			</main>
 		</div>
+	);
+}
+
+// Hero Section
+function HeroSection() {
+	return (
+		<section className="relative overflow-hidden py-20 md:py-32">
+			<div className="container mx-auto px-4">
+				<div className="mx-auto max-w-3xl text-center">
+					<Badge> Smart property management for India</Badge>
+					<h1 className="font-bold text-4xl tracking-tight md:text-6xl">
+						Property Management,{" "}
+						<span className="text-primary">Simplified</span>
+					</h1>
+					<p className="mt-6 text-lg text-muted-foreground md:text-xl">
+						RentWise helps landlords and property managers track tenants,
+						automate rent collection, and manage utilities — all in one place.
+					</p>
+					<div className="mt-10 flex flex-col gap-4 sm:flex-row sm:justify-center">
+						<Button size="lg">
+							<Link href="/register">Get Started Free</Link>
+							<IconArrowRight className="ml-2 h-4 w-4" />
+						</Button>
+						<Button size="lg" variant="outline">
+							<Link href="#how-it-works">See How It Works</Link>
+						</Button>
+					</div>
+				</div>
+			</div>
+
+			{/* Decorative gradient */}
+			<div className="absolute -top-1/2 left-1/2 -z-10 h-125 w-125 -translate-x-1/2 rounded-full bg-primary/5 blur-3xl" />
+		</section>
 	);
 }

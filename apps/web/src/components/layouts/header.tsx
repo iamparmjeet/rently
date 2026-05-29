@@ -2,6 +2,7 @@
 import { Button } from "@rently/ui/components/button";
 import { cn } from "@rently/ui/lib/utils";
 import { IconMenu, IconX } from "@tabler/icons-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { useState } from "react";
 import Logo from "../shared/logo";
@@ -26,8 +27,8 @@ export function Header() {
 					{navLinks.map((link) => (
 						<Link
 							key={link.href}
-							href={link.href}
-							className="font-medium text-muted-foreground text-sm transition-colors hover:text-foreground"
+							href={link.href as Route}
+							className="font-medium text-base text-muted-foreground transition-colors hover:text-foreground"
 						>
 							{link.label}
 						</Link>
@@ -36,11 +37,13 @@ export function Header() {
 
 				{/* Desktop CTAs */}
 				<div className="hidden md:flex md:items-center md:gap-4">
-					<Button variant="ghost">
+					<Button variant="ghost" className="text-base">
 						<Link href="/login">Log in</Link>
 					</Button>
-					<Button>
-						<Link href="/register">Get Started</Link>
+					<Button className="px-4 py-6 text-base">
+						<Link href="/register" className="">
+							Get Started
+						</Link>
 					</Button>
 				</div>
 
@@ -69,7 +72,7 @@ export function Header() {
 					{navLinks.map((link) => (
 						<Link
 							key={link.href}
-							href={link.href}
+							href={link.href as Route}
 							className="font-medium text-muted-foreground text-sm transition-colors hover:text-foreground"
 							onClick={() => setMobileMenuOpen(false)}
 						>

@@ -236,7 +236,7 @@ export default function DashboardPage() {
 				</Link>
 			</div>
 
-			{/* ── Properties ───────────────────────── col-3 */}
+			{/* ── Properties ─── col-3 */}
 			<div className="relative col-span-3 overflow-hidden rounded-2xl border border-border/40 bg-card p-6 shadow-sm">
 				{/* Decorative geometry */}
 				<div className="pointer-events-none absolute -top-7 -right-7 size-32 rounded-full bg-primary/5" />

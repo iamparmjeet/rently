@@ -1,13 +1,11 @@
 // src/components/layouts/footer.tsx
 
 import { Button } from "@rently/ui/components/button";
-import {
-	IconBrandGithub,
-	IconBrandTwitter,
-	IconBuilding,
-} from "@tabler/icons-react";
+import { IconBrandGithub, IconBrandTwitter } from "@tabler/icons-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { Year } from "@/lib/date";
+import Logo from "../shared/logo";
 
 const footerLinks = {
 	product: [
@@ -34,26 +32,11 @@ export function Footer() {
 				<div className="grid gap-8 md:grid-cols-4">
 					{/* Brand */}
 					<div className="flex flex-col gap-4">
-						<Link href="/" className="flex items-center gap-2">
-							<IconBuilding className="h-6 w-6 text-primary" />
-							<span className="font-semibold text-xl">RentWise</span>
-						</Link>
+						<Logo />
 						<p className="text-muted-foreground text-sm">
 							Simplify your property management with smart tenant tracking,
 							automated rent collection, and comprehensive utilities management.
 						</p>
-						<div className="flex gap-4">
-							<Button variant="ghost" size="icon">
-								<a href="#" aria-label="Twitter">
-									<IconBrandTwitter className="h-4 w-4" />
-								</a>
-							</Button>
-							<Button variant="ghost" size="icon">
-								<a href="#" aria-label="GitHub">
-									<IconBrandGithub className="h-4 w-4" />
-								</a>
-							</Button>
-						</div>
 					</div>
 
 					{/* Links */}
@@ -63,7 +46,7 @@ export function Footer() {
 							{footerLinks.product.map((link) => (
 								<li key={link.href}>
 									<Link
-										href={link.href}
+										href={link.href as Route}
 										className="text-muted-foreground text-sm transition-colors hover:text-foreground"
 									>
 										{link.label}
@@ -79,7 +62,7 @@ export function Footer() {
 							{footerLinks.company.map((link) => (
 								<li key={link.href}>
 									<Link
-										href={link.href}
+										href={link.href as Route}
 										className="text-muted-foreground text-sm transition-colors hover:text-foreground"
 									>
 										{link.label}
@@ -95,7 +78,7 @@ export function Footer() {
 							{footerLinks.legal.map((link) => (
 								<li key={link.href}>
 									<Link
-										href={link.href}
+										href={link.href as Route}
 										className="text-muted-foreground text-sm transition-colors hover:text-foreground"
 									>
 										{link.label}

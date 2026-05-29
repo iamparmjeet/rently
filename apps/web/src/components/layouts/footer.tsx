@@ -1,7 +1,5 @@
 // src/components/layouts/footer.tsx
 
-import { Button } from "@rently/ui/components/button";
-import { IconBrandGithub, IconBrandTwitter } from "@tabler/icons-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { Year } from "@/lib/date";

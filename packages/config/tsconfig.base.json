@@ -4,7 +4,7 @@
 		"target": "ESNext",
 		"module": "ESNext",
 		"moduleResolution": "bundler",
-		"lib": ["ESNext"],
+		"lib": ["ESNext", "DOM", "DOM.Iterable"],
 		"verbatimModuleSyntax": true,
 		"strict": true,
 		"skipLibCheck": true,
@@ -16,7 +16,6 @@
 		"noUncheckedIndexedAccess": true,
 		"noUnusedLocals": true,
 		"noUnusedParameters": true,
-		"noFallthroughCasesInSwitch": true,
-		"types": ["bun"]
+		"noFallthroughCasesInSwitch": true
 	}
 }

@@ -1,3 +1,6 @@
 {
-	"extends": "@rently/config/tsconfig.base.json"
+	"extends": "@rently/config/tsconfig.base.json",
+	"compilerOptions": {
+		"types": ["bun"]
+	}
 }

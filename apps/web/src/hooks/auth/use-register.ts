@@ -1,10 +1,10 @@
 import { env } from "@rently/env/web";
+import type { RegisterFormType } from "@rently/validators";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { NavigationLinkMap } from "@/constants/navigation";
+import { NavigationLinkMap, toRoute } from "@/constants/navigation";
 import { signUp } from "@/lib/auth-client";
-import type { RegisterFormType } from "@/types/auth-types";
 
 export const useRegister = () => {
 	const router = useRouter();
@@ -27,7 +27,7 @@ export const useRegister = () => {
 		},
 		onSuccess: (data, variables, context) => {
 			toast.success(`Welcome ${variables.name}`, { id: context.toastId });
-			router.push(NavigationLinkMap.Dashboard.href);
+			router.push(toRoute(NavigationLinkMap.Dashboard.href));
 		},
 		onError: (err, _, context) => {
 			toast.error(err.message, { id: context?.toastId });

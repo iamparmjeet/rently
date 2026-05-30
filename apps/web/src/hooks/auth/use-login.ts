@@ -1,12 +1,17 @@
+import type { LoginFormType } from "@rently/validators";
 import { useMutation } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+import type { Route } from "next";
+import { useRouter, useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { NavigationLinkMap } from "@/constants/navigation";
+import { NavigationLinkMap, toRoute } from "@/constants/navigation";
 import { signIn } from "@/lib/auth-client";
-import type { LoginFormType } from "@/types/auth-types";
+import { isTrustedCallbackUrl } from "@/lib/trusted-url";
 
 export const useLogin = () => {
 	const router = useRouter();
+
+	const searchParams = useSearchParams();
+
 	const mutation = useMutation({
 		onMutate: () => {
 			const toastId = toast.loading("Signing in...");
@@ -26,7 +31,18 @@ export const useLogin = () => {
 		},
 		onSuccess: (_, __, context) => {
 			toast.success("Welcome back", { id: context.toastId });
-			router.push(NavigationLinkMap.Dashboard.href);
+			const callbackUrl = searchParams.get("callbackUrl");
+
+			// redirect
+			if (callbackUrl && isTrustedCallbackUrl(callbackUrl)) {
+				if (callbackUrl.startsWith("/")) {
+					router.push(callbackUrl as unknown as Route<string>);
+				} else {
+					window.location.href = callbackUrl;
+				}
+				return;
+			}
+			router.push(toRoute(NavigationLinkMap.Dashboard.href));
 		},
 		onError: (err, _, context) => {
 			toast.error(err.message, { id: context?.toastId });

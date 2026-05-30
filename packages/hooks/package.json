@@ -4,15 +4,17 @@
 	"private": true,
 	"exports": {
 		".": "./src/index.ts",
-		"./orpc": "./src/orpc-context.tsx",
-		"./tenants": "./src/tenants/index.ts"
+		"./orpc": "./src/orpc-context.tsx"
 	},
 	"peerDependencies": {
 		"react": "^19"
 	},
 	"dependencies": {
 		"@rently/api": "workspace:*",
+		"@rently/validators": "workspace:*",
+		"@rently/auth": "workspace:*",
 		"@tanstack/react-query": "^5.0.0",
+		"next": "^16.2.6",
 		"sonner": "^2.0.7"
 	},
 	"devDependencies": {

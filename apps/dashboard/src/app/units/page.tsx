@@ -11,12 +11,12 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@rently/ui/components/select";
+import { NotFoundState } from "@rently/ui/shared/not-found-state";
+import { PageHeader } from "@rently/ui/shared/page-header";
 import { IconPlus } from "@tabler/icons-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { UnitCard } from "@/components/features/units/unit-card";
-import { NotFoundState } from "@/components/shared/not-found-state";
-import { PageHeader } from "@/components/shared/page-header";
 import { useDeleteUnit, useUnits } from "@/hooks/units";
 
 type UnitFilters = {

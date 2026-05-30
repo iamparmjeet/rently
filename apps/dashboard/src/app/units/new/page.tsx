@@ -8,11 +8,11 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
+import { DetailHeader } from "@rently/ui/shared/detail-header";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { Suspense } from "react";
 import { UnitForm, type UnitFormValues } from "@/components/forms/unit-form";
-import { DetailHeader } from "@/components/shared/detail-header";
 import { useCreateUnit } from "@/hooks/units";
 
 function NewUnitContent() {

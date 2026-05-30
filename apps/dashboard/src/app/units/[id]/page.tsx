@@ -9,6 +9,9 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
+import { DetailHeader } from "@rently/ui/shared/detail-header";
+import { NotFoundState } from "@rently/ui/shared/not-found-state";
+import { PageLoader } from "@rently/ui/shared/page-loader";
 import {
 	IconAlertCircle,
 	IconBuildingStore,
@@ -23,9 +26,6 @@ import type { Route } from "next";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use } from "react";
-import { DetailHeader } from "@/components/shared/detail-header";
-import { NotFoundState } from "@/components/shared/not-found-state";
-import { PageLoader } from "@/components/shared/page-loader";
 import { useDeleteUnit, useUnit } from "@/hooks/units";
 
 export default function UnitDetailPage({

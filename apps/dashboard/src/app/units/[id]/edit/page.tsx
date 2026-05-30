@@ -10,13 +10,13 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
+import { NotFoundState } from "@rently/ui/shared/not-found-state";
+import { PageLoader } from "@rently/ui/shared/page-loader";
 import { IconArrowLeft } from "@tabler/icons-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use } from "react";
 import { UnitForm, type UnitFormValues } from "@/components/forms/unit-form";
-import { NotFoundState } from "@/components/shared/not-found-state";
-import { PageLoader } from "@/components/shared/page-loader";
 import { useUnit, useUpdateUnit } from "@/hooks/units";
 
 export default function EditUnitPage({

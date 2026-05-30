@@ -7,6 +7,9 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
+import { DateRecordMeta } from "@rently/ui/shared/date-record-meta";
+import { NotFoundState } from "@rently/ui/shared/not-found-state";
+import { PageLoader } from "@rently/ui/shared/page-loader";
 import { IconArrowLeft } from "@tabler/icons-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
@@ -15,9 +18,6 @@ import {
 	PropertyForm,
 	type PropertyFormValues,
 } from "@/components/forms/property-form";
-import { DateRecordMeta } from "@/components/shared/date-record-meta";
-import { NotFoundState } from "@/components/shared/not-found-state";
-import { PageLoader } from "@/components/shared/page-loader";
 import { useProperty, useUpdateProperty } from "@/hooks/properties";
 
 export default function EditPropertyPage({

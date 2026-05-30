@@ -8,13 +8,13 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
+import { DetailHeader } from "@rently/ui/shared/detail-header";
+import { NotFoundState } from "@rently/ui/shared/not-found-state";
+import { PageLoader } from "@rently/ui/shared/page-loader";
 import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { use } from "react";
 import { LeaseForm, type LeaseFormValues } from "@/components/forms/lease-form";
-import { DetailHeader } from "@/components/shared/detail-header";
-import { NotFoundState } from "@/components/shared/not-found-state";
-import { PageLoader } from "@/components/shared/page-loader";
 import { useLease, useUpdateLease } from "@/hooks/leases";
 import { useTenants } from "@/hooks/tenants";
 import { useUnits } from "@/hooks/units";

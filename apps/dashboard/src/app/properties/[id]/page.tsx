@@ -8,10 +8,10 @@ import {
 } from "@rently/ui/components//card";
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
+import { DetailHeader } from "@rently/ui/shared/detail-header";
 import { IconBuilding, IconPencil, IconPlus } from "@tabler/icons-react";
 import Link from "next/link";
 import { use } from "react";
-import { DetailHeader } from "@/components/shared/detail-header";
 import { useProperty } from "@/hooks/properties";
 import { usePropertyUnits } from "@/hooks/units";
 

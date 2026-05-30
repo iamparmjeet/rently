@@ -2,12 +2,12 @@
 "use client";
 
 import { Button } from "@rently/ui/components/button";
+import { CardSkeleton } from "@rently/ui/shared/card-skelton";
+import { PageHeader } from "@rently/ui/shared/page-header";
 import { IconPlus } from "@tabler/icons-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { LeaseCard } from "@/components/features/leases/lease-card";
-import { CardSkeleton } from "@/components/shared/card-skelton";
-import { PageHeader } from "@/components/shared/page-header";
 import { useDeleteLease, useLeases } from "@/hooks/leases";
 
 type StatusFilter = "all" | "active" | "expired" | "terminated";

@@ -4,13 +4,13 @@
 // The Suspense boundary in page.tsx handles the loading state.
 //
 import { Button } from "@rently/ui/components/button";
+import { PageHeader } from "@rently/ui/shared/page-header";
 import { IconPlus } from "@tabler/icons-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { PropertyFiltersBar } from "@/components/features/properties/property-filters";
 import { PropertyGrid } from "@/components/features/properties/property-grid";
 import { PropertyStats } from "@/components/features/properties/property-stats";
-import { PageHeader } from "@/components/shared/page-header";
 import { useDeleteProperty, useSuspenseProperties } from "@/hooks/properties";
 import type { PropertyFilters } from "@/types/property";
 

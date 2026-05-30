@@ -1,12 +1,12 @@
 "use client";
 
 import { Card, CardContent } from "@rently/ui/components/card";
+import { DetailHeader } from "@rently/ui/shared/detail-header";
 import { useRouter } from "next/navigation";
 import {
 	PropertyForm,
 	type PropertyFormValues,
 } from "@/components/forms/property-form";
-import { DetailHeader } from "@/components/shared/detail-header";
 import { useCreateProperty } from "@/hooks/properties";
 
 export default function NewPropertyPage() {

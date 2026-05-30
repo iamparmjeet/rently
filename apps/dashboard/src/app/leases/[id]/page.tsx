@@ -8,15 +8,15 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
+import { DetailHeader } from "@rently/ui/shared/detail-header";
+import { NotFoundState } from "@rently/ui/shared/not-found-state";
+import { PageLoader } from "@rently/ui/shared/page-loader";
 import { IconPencil, IconTrash } from "@tabler/icons-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use } from "react";
 import { LeaseDetails } from "@/components/features/leases/lease-details";
 import LeaseStatusBadge from "@/components/features/leases/lease-status-badge";
-import { DetailHeader } from "@/components/shared/detail-header";
-import { NotFoundState } from "@/components/shared/not-found-state";
-import { PageLoader } from "@/components/shared/page-loader";
 import { useDeleteLease, useLease } from "@/hooks/leases";
 
 export default function LeaseDetailPage({

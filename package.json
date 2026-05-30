@@ -34,6 +34,10 @@
 		"build": "turbo build",
 		"check-types": "turbo check-types",
 		"dev:web": "turbo -F web dev",
+		"dev:dashboard": "turbo -F dashboard dev",
+		"dev:tenant": "turbo -F tenant dev",
+		"build:dashboard": "turbo -F dashboard build",
+		"build:tenant": "turbo -F tenant build",
 		"dev:server": "turbo -F server dev",
 		"db:push": "turbo -F @rently/db db:push",
 		"db:studio": "turbo -F @rently/db db:studio",
@@ -43,17 +47,20 @@
 	},
 	"dependencies": {
 		"@better-fetch/fetch": "^1.1.21",
+		"@orpc/tanstack-query": "^1.14.4",
 		"@rently/env": "workspace:*",
+		"@types/node": "^25.9.1",
+		"dev": "^0.1.5",
 		"dotenv": "^17.4.2",
 		"drizzle-orm": "^0.45.2",
 		"zod": "^4.4.3"
 	},
 	"devDependencies": {
-		"@biomejs/biome": "^2.4.14",
+		"@biomejs/biome": "^2.4.16",
 		"@rently/config": "workspace:*",
-		"@types/bun": "^1.3.13",
-		"lefthook": "^2.1.6",
-		"turbo": "^2.9.10",
+		"@types/bun": "^1.3.14",
+		"lefthook": "^2.1.9",
+		"turbo": "^2.9.16",
 		"typescript": "^6.0.3"
 	},
 	"packageManager": "bun@1.3.13"

@@ -34,8 +34,10 @@ export function createAuth() {
 				const typeUser = user as typeof user & { role?: string };
 				if (typeUser.role === USER_ROLES.TENANT) {
 					const urlObj = new URL(url);
-					const ownerName = urlObj.searchParams.get("owner")
-						? decodeURIComponent(urlObj.searchParams.get("owner")!)
+					const ownerParam = urlObj.searchParams.get("owner");
+
+					const ownerName = ownerParam
+						? decodeURIComponent(ownerParam)
 						: "Your Landlord";
 
 					await sendTenantSetupEmail({

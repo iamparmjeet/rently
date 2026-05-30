@@ -8,6 +8,14 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { openAPI } from "better-auth/plugins";
 
+const authHostname = new URL(env.BETTER_AUTH_URL).hostname;
+const isProduction = env.NODE_ENV === "production";
+const cookieDomain = isProduction
+	? `.${authHostname.split(".").slice(-2).join(".")}`
+	: undefined;
+
+const trustedOrigins = env.CORS_ORIGINS;
+
 export function createAuth() {
 	const db = createDb();
 
@@ -16,7 +24,7 @@ export function createAuth() {
 			provider: "pg",
 			schema: schema,
 		}),
-		trustedOrigins: [env.CORS_ORIGIN],
+		trustedOrigins,
 		emailAndPassword: {
 			enabled: true,
 			sendResetPassword: async ({ user, url }) => {
@@ -76,7 +84,7 @@ export function createAuth() {
 		},
 		session: {
 			expiresIn: 7 * 24 * 60 * 60, // 7 days in seconds
-			cookieName: "rently_session",
+			// cookieName: "rently_session",
 		},
 		secret: env.BETTER_AUTH_SECRET,
 		baseURL: env.BETTER_AUTH_URL,
@@ -84,8 +92,10 @@ export function createAuth() {
 			cookiePrefix: "rently",
 			useSecureCookies: process.env.NODE_ENV === "production",
 			defaultCookieAttributes: {
-				sameSite: "none",
-				secure: true,
+				domain: cookieDomain,
+				sameSite:
+					env.NODE_ENV === "production" ? ("lax" as const) : ("lax" as const),
+				secure: isProduction,
 				httpOnly: true,
 			},
 			database: {

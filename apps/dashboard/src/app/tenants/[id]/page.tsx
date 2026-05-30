@@ -11,6 +11,7 @@
 //   ├── ProfileCard (address, emergency contacts)
 //   └── DangerZone (remove tenant with ConfirmDialog)
 
+import { useSendPasswordReset } from "@rently/hooks";
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
 import {
@@ -19,6 +20,8 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
+import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
+import { SendEmailDialog } from "@rently/ui/shared/send-email-dialog";
 import {
 	IconArrowLeft,
 	IconBuilding,
@@ -36,13 +39,7 @@ import {
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use } from "react";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { SendEmailDialog } from "@/components/shared/send-email-dialog";
-import {
-	useRemoveTenant,
-	useSendPasswordReset,
-	useTenant,
-} from "@/hooks/tenants";
+import { useRemoveTenant, useTenant } from "@/hooks/tenants";
 
 // ── Verification status visual map ──────────────────────────────────────────
 const verificationBadge = {

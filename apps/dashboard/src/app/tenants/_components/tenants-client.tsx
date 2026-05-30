@@ -6,11 +6,11 @@
 
 import type { InviteStatus } from "@rently/db/constants/rent-constants";
 import { Button } from "@rently/ui/components/button";
+import { PageHeader } from "@rently/ui/shared/page-header";
 import { IconMail, IconPlus } from "@tabler/icons-react";
 import Link from "next/link";
 import { useMemo, useState } from "react";
 import { TenantCard } from "@/components/features/tenants/tenant-card";
-import { PageHeader } from "@/components/shared/page-header";
 import { useSuspenseTenants } from "@/hooks/tenants";
 
 // type StatusFilter = ["All", ...InviteStatus] as const;

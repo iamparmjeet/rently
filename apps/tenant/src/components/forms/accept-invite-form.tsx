@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useAcceptInvite } from "@rently/hooks";
 import { Button } from "@rently/ui/components/button";
 import { Field, FieldError } from "@rently/ui/components/field";
 import { Input } from "@rently/ui/components/input";
@@ -13,11 +14,11 @@ import {
 	IconLoader2,
 	IconLock,
 } from "@tabler/icons-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import z from "zod";
-import { useAcceptInvite } from "@/hooks/invite";
 
 const acceptFormSchema = AcceptInviteSchema.omit({
 	token: true,
@@ -54,7 +55,7 @@ function SuccessState() {
 				</p>
 			</div>
 			<Button className={"mt-2 w-full"}>
-				<Link href="/login">Go to Login </Link>
+				<Link href={"/login" as Route}>Go to Login</Link>
 			</Button>
 		</div>
 	);

@@ -14,6 +14,7 @@ import {
 	IconClockOff,
 	IconMailOff,
 } from "@tabler/icons-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { AcceptInviteForm } from "@/components/forms/accept-invite-form";
 import { client } from "@/utils/orpc";
@@ -31,7 +32,7 @@ function InviteNotFound() {
 				</p>
 			</div>
 			<Button variant="outline" className="mt-2">
-				<Link href="/login">Go to Login</Link>
+				<Link href={"/login" as Route}>Go to Login</Link>
 			</Button>
 		</div>
 	);
@@ -51,7 +52,7 @@ function InviteExpired() {
 				</p>
 			</div>
 			<Button variant="outline" className="mt-2">
-				<Link href="/login">Go to Login</Link>
+				<Link href={"/login" as Route}>Go to Login</Link>
 			</Button>
 		</div>
 	);
@@ -70,7 +71,7 @@ function InviteAlreadyAccepted() {
 				</p>
 			</div>
 			<Button className="mt-2 w-full">
-				<Link href="/login">Go to Login</Link>
+				<Link href={"/login" as Route}>Go to Login</Link>
 			</Button>
 		</div>
 	);
@@ -154,7 +155,10 @@ export default async function InvitePage({ params }: PageProps) {
 				{/* Footer note */}
 				<p className="mt-6 text-center text-muted-foreground text-xs">
 					Already have an account?{" "}
-					<Link href="/login" className="text-primary hover:underline">
+					<Link
+						href={"/login" as Route}
+						className="text-primary hover:underline"
+					>
 						Sign in
 					</Link>
 				</p>

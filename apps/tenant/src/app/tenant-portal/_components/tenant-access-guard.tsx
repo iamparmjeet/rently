@@ -3,7 +3,10 @@
 
 import { useEffect } from "react";
 import { toast } from "sonner";
-import type { RedirectErrorKey } from "@/constants/redirect-errors";
+import {
+	REDIRECT_ERRORS,
+	type RedirectErrorKey,
+} from "@/constants/redirect-errors";
 
 interface TenantAccessGuardProps {
 	// Optional — only present when middleware attached ?error=

@@ -6,6 +6,7 @@ import {
 	CardTitle,
 } from "@rently/ui/components/card";
 import { IconBuilding, IconMailOff } from "@tabler/icons-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { SetPasswordForm } from "@/components/forms/set-password-form";
 
@@ -29,7 +30,7 @@ function InvalidResetLink() {
 				</p>
 			</div>
 			<Button variant="outline" className="mt-2">
-				<Link href="/login">Go to Login</Link>
+				<Link href={"/login" as Route}>Go to Login</Link>
 			</Button>
 		</div>
 	);
@@ -65,7 +66,10 @@ export default async function SetPasswordPage({ searchParams }: PageProps) {
 
 				<p className="mt-6 text-center text-muted-foreground text-xs">
 					Already have an account?{" "}
-					<Link href="/login" className="text-primary hover:underline">
+					<Link
+						href={"/login" as Route}
+						className="text-primary hover:underline"
+					>
 						Sign in
 					</Link>
 				</p>

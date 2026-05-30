@@ -9,6 +9,7 @@ import {
 	IconSettings,
 	IconUsers,
 } from "@tabler/icons-react";
+import type { Route } from "next";
 
 interface NavigationLink {
 	name: string;
@@ -95,3 +96,7 @@ export const PROTECTED_ROUTES = [
 
 // Auth routes (login/register) — kept here for colocation
 export const AUTH_ROUTES = ["/login", "/register", "/forgot-password"] as const;
+
+export function toRoute(href: NavigationHrefT): Route<string> {
+	return href as unknown as Route<string>;
+}

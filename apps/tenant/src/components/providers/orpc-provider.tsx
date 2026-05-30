@@ -1,4 +1,9 @@
-import { createAppClient, createAppUtils, createRPCLink } from "@rently/api";
+"use client";
+import {
+	createAppClient,
+	createAppUtils,
+	createRPCLink,
+} from "@rently/api/client";
 import { env } from "@rently/env/web";
 import { ORPCProvider } from "@rently/hooks/orpc";
 
@@ -14,7 +19,7 @@ const link = createRPCLink({
 const client = createAppClient(link);
 const utils = createAppUtils(client);
 
-export function DashboardORPCProvider({
+export function TenantORPCProvider({
 	children,
 }: {
 	children: React.ReactNode;

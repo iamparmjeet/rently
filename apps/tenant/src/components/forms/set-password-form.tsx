@@ -10,6 +10,7 @@ import {
 	FieldSet,
 } from "@rently/ui/components/field";
 import { Input } from "@rently/ui/components/input";
+import type { Route } from "next";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
@@ -75,7 +76,7 @@ export function SetPasswordForm({ token }: SetPasswordFormProps) {
 		}
 
 		toast.success("Password set! You can now log in.");
-		router.push("/login");
+		router.push("/login" as Route);
 	}
 
 	return (

@@ -1,9 +1,8 @@
-// src/app/(tenant-portal)/tenant-portal/_components/tenant-portal-header.tsx
 "use client";
 
 import { Button } from "@rently/ui/components/button";
+import Logo from "@rently/ui/shared/logo";
 import { IconLogout } from "@tabler/icons-react";
-import Logo from "@/components/shared/logo";
 import { useLogout } from "@/hooks/auth";
 import { useSession } from "@/lib/auth-client";
 

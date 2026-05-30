@@ -10,6 +10,8 @@
 	"dependencies": {
 		"@t3-oss/env-core": "^0.13.1",
 		"@t3-oss/env-nextjs": "^0.13.1",
+		"@types/node": "^25.9.1",
+		"dev": "^0.1.5",
 		"dotenv": "catalog:",
 		"zod": "catalog:"
 	},

@@ -1,9 +1,9 @@
+import type { LoginFormType } from "@rently/validators";
 import { useMutation } from "@tanstack/react-query";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
-import { NavigationLinkMap } from "@/constants/navigation";
+import { NavigationLinkMap, toRoute } from "@/constants/navigation";
 import { signIn } from "@/lib/auth-client";
-import type { LoginFormType } from "@/types/auth-types";
 
 export const useLogin = () => {
 	const router = useRouter();
@@ -26,7 +26,7 @@ export const useLogin = () => {
 		},
 		onSuccess: (_, __, context) => {
 			toast.success("Welcome back", { id: context.toastId });
-			router.push(NavigationLinkMap.Dashboard.href);
+			router.push(toRoute(NavigationLinkMap.Dashboard.href));
 		},
 		onError: (err, _, context) => {
 			toast.error(err.message, { id: context?.toastId });

@@ -2,6 +2,7 @@
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
 import { Card, CardContent, CardHeader } from "@rently/ui/components/card";
+import { DateRecordMeta } from "@rently/ui/shared/date-record-meta";
 import type { TenantListItem } from "@rently/validators";
 import {
 	IconBuilding,
@@ -12,7 +13,6 @@ import {
 import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { DateRecordMeta } from "@/components/shared/date-record-meta";
 
 interface TenantCardProps {
 	tenant: TenantListItem;

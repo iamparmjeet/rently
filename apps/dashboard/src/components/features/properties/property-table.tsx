@@ -3,6 +3,7 @@
 
 import type { PropertyType } from "@rently/db/constants/rent-constants";
 import { Button } from "@rently/ui/components/button";
+import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
 import type { Property } from "@rently/validators";
 import {
 	IconBuildingStore,
@@ -11,7 +12,6 @@ import {
 	IconTrash,
 } from "@tabler/icons-react";
 import Link from "next/link";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
 
 interface PropertyTableProps {
 	properties: Property[];

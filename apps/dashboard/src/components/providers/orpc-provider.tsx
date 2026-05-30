@@ -1,4 +1,10 @@
-import { createAppClient, createAppUtils, createRPCLink } from "@rently/api";
+"use client";
+
+import {
+	createAppClient,
+	createAppUtils,
+	createRPCLink,
+} from "@rently/api/client";
 import { env } from "@rently/env/web";
 import { ORPCProvider } from "@rently/hooks/orpc";
 

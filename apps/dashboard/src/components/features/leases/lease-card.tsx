@@ -13,6 +13,7 @@ import {
 	DropdownMenuTrigger,
 } from "@rently/ui/components/dropdown-menu";
 import { cn } from "@rently/ui/lib/utils";
+import { DateRecordMeta } from "@rently/ui/shared/date-record-meta";
 import type { LeaseWithDetails } from "@rently/validators";
 import {
 	IconCalendar,
@@ -22,7 +23,6 @@ import {
 	IconUser,
 } from "@tabler/icons-react";
 import Link from "next/link";
-import { DateRecordMeta } from "@/components/shared/date-record-meta";
 import LeaseStatusBadge from "./lease-status-badge";
 
 interface LeaseCardProps {

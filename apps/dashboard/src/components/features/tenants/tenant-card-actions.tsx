@@ -1,6 +1,7 @@
 // apps/web/src/components/features/tenants/tenant-card-actions.tsx
 "use client";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useSendEmailToTenant } from "@rently/hooks";
 import {
 	AlertDialog,
 	AlertDialogAction,
@@ -55,11 +56,7 @@ import {
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import z from "zod";
-import {
-	useRemoveTenant,
-	useSendEmailToTenant,
-	useUpdateTenant,
-} from "@/hooks/tenants";
+import { useRemoveTenant, useUpdateTenant } from "@/hooks/tenants";
 import { TenantCard } from "./tenant-card";
 
 // ─── Edit form schema ─────────────────────────────────────────────────────────

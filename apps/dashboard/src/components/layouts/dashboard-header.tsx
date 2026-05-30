@@ -138,7 +138,7 @@ function UserButton() {
 
 					<DropdownMenuItem
 						className="cursor-pointer rounded-[calc(var(--radius)*1.4)] text-destructive focus:text-destructive"
-						onClick={handleLogout}
+						onClick={() => handleLogout}
 					>
 						<IconLogout className="h-4 w-4" />
 						Sign out

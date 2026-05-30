@@ -17,6 +17,7 @@ import {
 	DropdownMenuTrigger,
 } from "@rently/ui/components/dropdown-menu";
 import { cn } from "@rently/ui/lib/utils";
+import { DateRecordMeta } from "@rently/ui/shared/date-record-meta";
 import type { UnitDetail } from "@rently/validators";
 import {
 	IconBuildingStore,
@@ -27,7 +28,6 @@ import {
 	IconTrash,
 } from "@tabler/icons-react";
 import Link from "next/link";
-import { DateRecordMeta } from "@/components/shared/date-record-meta";
 
 interface UnitCardProps {
 	unit: UnitDetail;

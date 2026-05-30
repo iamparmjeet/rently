@@ -19,6 +19,7 @@ import {
 } from "@rently/ui/components/field";
 import { Input } from "@rently/ui/components/input";
 import { Switch } from "@rently/ui/components/switch";
+import { paiseToFormValue } from "@rently/ui/lib/currency";
 import {
 	type FixedCharge,
 	type MeterReading,
@@ -26,7 +27,6 @@ import {
 	type UtilityBatchFormValues,
 } from "@rently/validators";
 import { useForm } from "react-hook-form";
-import { paiseToFormValue } from "@/lib/currency";
 
 interface UtilityFormProps {
 	defaultValues?: Partial<UtilityBatchFormValues>;

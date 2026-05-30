@@ -13,10 +13,10 @@ import {
 	SidebarMenuItem,
 	SidebarRail,
 } from "@rently/ui/components/sidebar";
+import Logo from "@rently/ui/shared/logo";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { NavigationLinks } from "@/constants/navigation";
-import Logo from "../shared/logo";
 
 export function AppSidebar() {
 	const pathname = usePathname();

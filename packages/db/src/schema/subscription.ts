@@ -84,6 +84,6 @@ export const invoices = pgTable("invoices", {
 	periodEnd: text("period_end").notNull(),
 	paymentStatus: text("payment_status", {
 		enum: PAYMENT_STATUS_VALUES,
-	}).default(PAYMENT_STATUS.PENDING),
+	}).default(PAYMENT_STATUS.UNPAID),
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });

@@ -13,6 +13,7 @@ import {
 import { Field, FieldError } from "@rently/ui/components/field";
 import { Input } from "@rently/ui/components/input";
 import { Label } from "@rently/ui/components/label";
+import { type RegisterFormType, registerSchema } from "@rently/validators";
 import {
 	IconBrandGithub,
 	IconBrandGoogle,
@@ -25,7 +26,6 @@ import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { useRegister, useSocialLogin } from "@/hooks/auth";
-import { type RegisterFormType, registerSchema } from "@/types/auth-types";
 
 export default function RegisterPage() {
 	const [showPassword, setShowPassword] = useState(false);

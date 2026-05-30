@@ -13,6 +13,7 @@ import {
 import { Field, FieldError } from "@rently/ui/components/field";
 import { Input } from "@rently/ui/components/input";
 import { Label } from "@rently/ui/components/label";
+import { type LoginFormType, loginSchema } from "@rently/validators";
 import {
 	IconBrandGithub,
 	IconBrandGoogle,
@@ -27,7 +28,6 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { AUTH_ROUTES } from "@/constants/navigation";
 import { useLogin, useSocialLogin } from "@/hooks/auth";
-import { type LoginFormType, loginSchema } from "@/types/auth-types";
 
 export default function LoginPage() {
 	const [showPassword, setShowPassword] = useState(false);

@@ -17,7 +17,6 @@ import {
 } from "@rently/db/schema/schema";
 import {
 	CreateUtilitySchema,
-	PaymentSelectSchema,
 	RecordUtilityPaymentSchema,
 	UpdateUtilitySchema,
 	UtilityListItemSchema,

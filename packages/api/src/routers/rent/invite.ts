@@ -18,7 +18,7 @@ import {
 import { and, desc, eq } from "drizzle-orm";
 import z from "zod";
 
-// Helper function
+// ********* Helper function **************
 async function findPendingInvite(
 	db: Database,
 	email: string,
@@ -38,6 +38,7 @@ async function findPendingInvite(
 	return existing;
 }
 
+// ******** Router ****************
 // 1) Create Invite
 export const createInvite = ownerProcedure
 	.route({
@@ -250,7 +251,7 @@ export const acceptInvite = publicProcedure
 				email: invite.email,
 				name: invite.name ?? invite.email,
 				password: input.password,
-				phone: input.phone ?? invite.phone ?? undefined,
+				phone: input.phone ?? invite.phone ?? "",
 				role: USER_ROLES.TENANT,
 			},
 			headers: context.headers,

@@ -1,3 +1,4 @@
+"use client";
 import type { ORPCUtils } from "@rently/api";
 import type { AppRouterClient } from "@rently/api/routers/index";
 import { createContext, useContext } from "react";

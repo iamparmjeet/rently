@@ -25,6 +25,8 @@ const identifyUser = createAuthMiddleware(auth as BetterAuthInstance, {
 	maskEmail: true,
 });
 
+const allowedOrigins = env.CORS_ORIGINS;
+
 const app = new Hono<EvlogVariables>();
 
 app.use(evlog());
@@ -36,7 +38,7 @@ app.use("*", async (c, next) => {
 app.use(
 	"/*",
 	cors({
-		origin: env.CORS_ORIGIN,
+		origin: allowedOrigins,
 		allowMethods: ["GET", "POST", "OPTIONS", "PATCH", "DELETE"],
 		allowHeaders: ["Content-Type", "Authorization"],
 		credentials: true,

@@ -36,6 +36,7 @@ import {
 	IconUser,
 	IconUserMinus,
 } from "@tabler/icons-react";
+import Image from "next/image";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { use } from "react";
@@ -177,9 +178,11 @@ export default function TenantDetailPage({
 					{/* Avatar */}
 					<div className="flex size-16 shrink-0 items-center justify-center rounded-full bg-muted">
 						{tenant.avatarUrl ? (
-							<img
+							<Image
 								src={tenant.avatarUrl}
 								alt={tenant.name}
+								width="50"
+								height="50"
 								className="size-full rounded-full object-cover"
 							/>
 						) : (

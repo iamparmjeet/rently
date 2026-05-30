@@ -107,7 +107,7 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-	runtime: "nodejs",
+	// runtime: "nodejs",
 	matcher: [
 		// "/api/:path*",
 		"/((?!api|_next/static|_next/image|favicon.ico|api/auth|.*\\..*).*)",

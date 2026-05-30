@@ -15,6 +15,7 @@ import { SidebarTrigger, useSidebar } from "@rently/ui/components/sidebar";
 import { IconBell, IconLogout, IconSearch } from "@tabler/icons-react";
 import Image from "next/image";
 import Link from "next/link";
+import { toRoute } from "@/constants/navigation";
 import { useLogout } from "@/hooks/auth";
 import { useSession } from "@/lib/auth-client";
 import { AppSidebar } from "./deashboard-sidebar";
@@ -128,7 +129,7 @@ function UserButton() {
 					<DropdownMenuSeparator className="my-2" />
 					<DropdownMenuItem className="cursor-pointer rounded-[calc(var(--radius)*1.4)]">
 						<Link
-							href="/dashboard/settings"
+							href={toRoute("/settings")}
 							className="flex items-center gap-2"
 						>
 							Settings

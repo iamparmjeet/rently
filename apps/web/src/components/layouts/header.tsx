@@ -1,11 +1,11 @@
 "use client";
 import { Button } from "@rently/ui/components/button";
 import { cn } from "@rently/ui/lib/utils";
+import Logo from "@rently/ui/shared/logo";
 import { IconMenu, IconX } from "@tabler/icons-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { useState } from "react";
-import Logo from "../shared/logo";
 
 const navLinks = [
 	{ href: "#features", label: "Features" },

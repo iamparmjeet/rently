@@ -1,9 +1,7 @@
-// src/components/layouts/footer.tsx
-
+import { Year } from "@rently/ui/lib/date";
+import Logo from "@rently/ui/shared/logo";
 import type { Route } from "next";
 import Link from "next/link";
-import { Year } from "@/lib/date";
-import Logo from "../shared/logo";
 
 const footerLinks = {
 	product: [

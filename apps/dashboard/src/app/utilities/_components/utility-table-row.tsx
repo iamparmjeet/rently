@@ -1,10 +1,10 @@
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
 import { TableCell, TableRow } from "@rently/ui/components/table";
+import { formatRupees } from "@rently/ui/lib/currency";
+import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
 import type { UtilityListItem } from "@rently/validators";
 import { IconCheck, IconEdit, IconTrash } from "@tabler/icons-react";
-import { ConfirmDialog } from "@/components/shared/confirm-dialog";
-import { formatRupees } from "@/lib/currency";
 
 interface UtilityTableRowProps {
 	utility: UtilityListItem;

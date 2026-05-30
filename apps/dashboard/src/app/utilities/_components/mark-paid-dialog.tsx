@@ -20,13 +20,17 @@ import {
 } from "@rently/ui/components/field";
 import { Input } from "@rently/ui/components/input";
 import {
+	formatRupees,
+	paiseToFormValue,
+	toPaise,
+} from "@rently/ui/lib/currency";
+import {
 	type RecordUtilityPayment,
 	RecordUtilityPaymentSchema,
 	type UtilityListItem,
 } from "@rently/validators";
 import { useForm } from "react-hook-form";
 import { useRecordUtilityPayment } from "@/hooks/utilities";
-import { formatRupees, paiseToFormValue, toPaise } from "@/lib/currency";
 
 export function MarkPaidDialog({
 	utility,

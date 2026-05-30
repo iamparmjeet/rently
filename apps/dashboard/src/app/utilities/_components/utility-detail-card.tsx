@@ -1,7 +1,7 @@
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
+import { formatRupees } from "@rently/ui/lib/currency";
 import type { UtilityListItem } from "@rently/validators";
-import { formatRupees } from "@/lib/currency";
 
 export function UtilityDetailCard({
 	utility: u,

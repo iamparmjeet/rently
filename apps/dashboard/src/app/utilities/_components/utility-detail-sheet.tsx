@@ -5,8 +5,8 @@ import {
 	SheetHeader,
 	SheetTitle,
 } from "@rently/ui/components/sheet";
+import { formatRupees } from "@rently/ui/lib/currency";
 import type { UtilityListItem } from "@rently/validators";
-import { formatRupees } from "@/lib/currency";
 import { UtilityDetailCard } from "./utility-detail-card";
 
 export function UtilityDetailSheet({

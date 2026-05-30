@@ -5,23 +5,24 @@
 	"scripts": {
 		"dev": "next dev --port 3001",
 		"build": "next build",
-		"start": "next start"
+		"start": "next start",
+		"check-types": "tsc --noEmit"
 	},
 	"dependencies": {
 		"@better-fetch/fetch": "^1.1.21",
-		"@hookform/resolvers": "^5.2.2",
+		"@hookform/resolvers": "^5.4.0",
 		"@orpc/client": "catalog:",
 		"@orpc/server": "catalog:",
 		"@orpc/tanstack-query": "^1.13.14",
 		"@rently/api": "workspace:*",
 		"@rently/env": "workspace:*",
+		"@rently/hooks": "workspace:*",
 		"@rently/ui": "workspace:*",
 		"@tabler/icons-react": "^3.42.0",
 		"@tanstack/react-form": "^1.28.0",
 		"@tanstack/react-query": "^5.90.12",
 		"babel-plugin-react-compiler": "^1.0.0",
 		"better-auth": "catalog:",
-		"date-fns": "^4.2.1",
 		"dotenv": "catalog:",
 		"evlog": "catalog:",
 		"lucide-react": "catalog:",
@@ -29,9 +30,9 @@
 		"next-themes": "catalog:",
 		"react": "catalog:",
 		"react-dom": "catalog:",
-		"react-hook-form": "^7.75.0",
+		"react-hook-form": "^7.76.1",
 		"sonner": "catalog:",
-		"zod": "catalog:"
+		"zod": "^4.4.3"
 	},
 	"devDependencies": {
 		"@rently/config": "workspace:*",

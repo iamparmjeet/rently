@@ -3,14 +3,7 @@ import { USER_ROLES } from "@rently/db/constants/user-roles";
 import { env } from "@rently/env/web";
 import { evlogMiddleware } from "evlog/next";
 import { type NextRequest, NextResponse } from "next/server";
-import {
-	AUTH_ROUTES,
-	NavigationLinkMap,
-	PROTECTED_ROUTES,
-} from "./constants/navigation";
-import type { RedirectErrorKey } from "./constants/redirect-errors";
-
-const TENANT_PORTAL = "/tenant-portal";
+import { PROTECTED_ROUTES } from "./constants/navigation";
 
 type SessionResponse = {
 	session: {
@@ -25,16 +18,15 @@ type SessionResponse = {
 };
 
 // Helper — keeps the redirect construction readable and typed
-function redirectWithError(
-	base: string,
-	request: NextRequest,
-	error: RedirectErrorKey,
-): NextResponse {
-	const url = new URL(base, request.url);
-	url.searchParams.set("error", error);
-	return NextResponse.redirect(url);
+function getWebLoginUrl(request: NextRequest): URL {
+	const webBaseUrl = env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3001";
+	const loginUrl = new URL("/login", webBaseUrl);
+
+	loginUrl.searchParams.set("callbackUrl", request.url);
+	return loginUrl;
 }
 
+// Main Function
 export default async function proxy(request: NextRequest) {
 	evlogMiddleware();
 	const { pathname } = request.nextUrl;
@@ -42,58 +34,52 @@ export default async function proxy(request: NextRequest) {
 	const isProtectedRoute = PROTECTED_ROUTES.some((route) =>
 		pathname.startsWith(route),
 	);
-	const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route));
+	// Public Route
+	if (!isProtectedRoute) return NextResponse.next();
 
+	// fast path cookie check
 	// Check cookie first
 	const sessionCookie = request.cookies.get("rently.session_token");
 	const hasSession = !!sessionCookie?.value;
 
 	// Gate -1 - no session -> login
-	if (isProtectedRoute && !hasSession) {
-		const loginUrl = new URL("/login", request.url);
-		loginUrl.searchParams.set("callbackUrl", pathname);
-		return NextResponse.redirect(loginUrl);
+	if (!hasSession) {
+		return NextResponse.redirect(getWebLoginUrl(request));
 	}
 
-	// Gate -2 - Already logged in, trying to reach login/register -> dashboard
-	if (isAuthRoute && hasSession) {
-		return NextResponse.redirect(
-			new URL(NavigationLinkMap.Dashboard.href, request.url),
-		);
+	// Gate -2 - Already logged in, trying to reach login/register -> dashboard and session exist but verify with server
+	const serverUrl = env.NEXT_PUBLIC_SERVER_URL;
+	const { data: session, error } = await betterFetch<SessionResponse>(
+		"/api/auth/get-session",
+		{
+			baseURL: serverUrl,
+			headers: {
+				cookie: request.headers.get("cookie") ?? "",
+			},
+		},
+	);
+
+	if (error || !session.user) {
+		return NextResponse.redirect(getWebLoginUrl(request));
 	}
 
 	// Gate-3 Role Check - Only runs when session exists on a protected route
-	if (isProtectedRoute && hasSession) {
-		const serverUrl = env.NEXT_PUBLIC_SERVER_URL;
-		const { data: session, error } = await betterFetch<SessionResponse>(
-			"/api/auth/get-session",
-			{
-				baseURL: serverUrl,
-				headers: {
-					cookie: request.headers.get("cookie") ?? "",
-				},
-			},
-		);
 
-		// Cookie exits but session is ivalid/expired
-		if (error || !session?.user) {
-			const loginUrl = new URL("/login", request.url);
-			loginUrl.searchParams.set("callbackUrl", pathname);
-			return NextResponse.redirect(loginUrl);
-		}
+	// Tenant Guard
+	const role = session.user.role as string | undefined;
 
-		// Tenant Guard
-		const role = session.user.role as string | undefined;
-		if (role === USER_ROLES.TENANT) {
-			return redirectWithError(TENANT_PORTAL, request, "unauthorized_access");
-		}
+	if (role === USER_ROLES.TENANT) {
+		const tenantPortalUrl = env.NEXT_PUBLIC_TENANT_URL
+			? new URL("/tenant-portal", env.NEXT_PUBLIC_TENANT_URL)
+			: new URL("tenant-portal", request.url);
 
-		// Owner Guard
-		if (role !== USER_ROLES.OWNER) {
-			return NextResponse.redirect(
-				new URL(NavigationLinkMap.Dashboard.href, request.url),
-			);
-		}
+		return NextResponse.redirect(tenantPortalUrl);
+	}
+
+	// Owner Guard
+	if (role !== USER_ROLES.OWNER) {
+		const webUrl = env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3001";
+		return NextResponse.redirect(new URL("/", webUrl));
 	}
 
 	return NextResponse.next();

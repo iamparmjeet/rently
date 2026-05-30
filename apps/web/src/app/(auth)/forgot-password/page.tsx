@@ -20,7 +20,7 @@ import {
 import { Input } from "@rently/ui/components/input";
 import { IconBuilding, IconMailCheck } from "@tabler/icons-react";
 import Link from "next/link";
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -130,40 +130,41 @@ export default function ForgotPasswordPage() {
 							</CardDescription>
 						)}
 					</CardHeader>
+					<Suspense fallback={null}>
+						<CardContent>
+							{phase === "submitted" ? (
+								<SubmittedView email={submittedEmail} />
+							) : (
+								<form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+									<FieldSet>
+										<FieldGroup className="flex flex-col gap-4">
+											<Field data-invalid={!!errors.email}>
+												<FieldLabel htmlFor="email">Email address</FieldLabel>
+												<Input
+													id="email"
+													type="email"
+													placeholder="you@example.com"
+													autoComplete="email"
+													disabled={isSubmitting}
+													{...register("email")}
+													aria-invalid={!!errors.email}
+												/>
+												<FieldError errors={[errors.email]} />
+											</Field>
+										</FieldGroup>
+									</FieldSet>
 
-					<CardContent>
-						{phase === "submitted" ? (
-							<SubmittedView email={submittedEmail} />
-						) : (
-							<form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-								<FieldSet>
-									<FieldGroup className="flex flex-col gap-4">
-										<Field data-invalid={!!errors.email}>
-											<FieldLabel htmlFor="email">Email address</FieldLabel>
-											<Input
-												id="email"
-												type="email"
-												placeholder="you@example.com"
-												autoComplete="email"
-												disabled={isSubmitting}
-												{...register("email")}
-												aria-invalid={!!errors.email}
-											/>
-											<FieldError errors={[errors.email]} />
-										</Field>
-									</FieldGroup>
-								</FieldSet>
-
-								<Button
-									type="submit"
-									disabled={isSubmitting}
-									className="w-full"
-								>
-									{isSubmitting ? "Sending..." : "Send Reset Link"}
-								</Button>
-							</form>
-						)}
-					</CardContent>
+									<Button
+										type="submit"
+										disabled={isSubmitting}
+										className="w-full"
+									>
+										{isSubmitting ? "Sending..." : "Send Reset Link"}
+									</Button>
+								</form>
+							)}
+						</CardContent>
+					</Suspense>
 				</Card>
 
 				<p className="mt-6 text-center text-muted-foreground text-xs">

@@ -1,5 +1,6 @@
 // packages/validators/src/index.ts
 
+export * from "./auth";
 export * from "./invite";
 export * from "./lease";
 export * from "./payment";

@@ -11,6 +11,8 @@ import { useMemo, useState } from "react";
 import { PropertyFiltersBar } from "@/components/features/properties/property-filters";
 import { PropertyGrid } from "@/components/features/properties/property-grid";
 import { PropertyStats } from "@/components/features/properties/property-stats";
+import { Container } from "@/components/shared/container";
+import { useDashboardStats } from "@/hooks/dashboard";
 import { useDeleteProperty, useSuspenseProperties } from "@/hooks/properties";
 import type { PropertyFilters } from "@/types/property";
 
@@ -28,6 +30,7 @@ export default function PropertiesClient() {
 	// No useEffect, no useState for data
 	const { data } = useSuspenseProperties();
 	const deleteProperty = useDeleteProperty();
+	const { data: dashData } = useDashboardStats();
 	// console.log("properties", data);
 
 	// Client-side filtering/sorting (happens on cached data, no network)
@@ -62,45 +65,48 @@ export default function PropertiesClient() {
 	}, [data?.properties, filters]);
 
 	return (
-		<div className="col-span-12 flex flex-col gap-6">
-			{/* Page Header */}
-			<PageHeader
-				title="Properties"
-				description="Manage your properties and units"
-			>
-				<Button>
-					<Link href="/properties/new" className="flex items-center gap-2">
-						<IconPlus className="size-4" /> New Property
-					</Link>
-				</Button>
-			</PageHeader>
+		<Container>
+			<div className="col-span-12 flex flex-col gap-6">
+				{/* Page Header */}
+				<PageHeader
+					title="Properties"
+					description="Manage your properties and track occupancy"
+				>
+					<Button className="h-10">
+						<Link href="/properties/new" className="flex items-center gap-2">
+							<IconPlus className="size-4" /> New Property
+						</Link>
+					</Button>
+				</PageHeader>
 
-			{/* Stats bar — loading skeleton built into component */}
-			<PropertyStats
-				totalProperties={data?.properties.length ?? 0}
-				totalUnits={0}
-				occupiedUnits={0}
-				monthlyRevenue={0}
-				isLoading={false}
-			/>
+				{/* Stats bar — loading skeleton built into component */}
+				<PropertyStats
+					totalProperties={data?.properties.length ?? 0}
+					totalUnits={0}
+					occupiedUnits={0}
+					monthlyRevenue={0}
+					isLoading={false}
+				/>
 
-			{/* Filters */}
-			<PropertyFiltersBar
-				filters={filters}
-				onFiltersChange={setFilters}
-				viewMode={viewMode}
-				onViewModeChange={setViewMode}
-			/>
+				{/* Filters */}
+				<PropertyFiltersBar
+					filters={filters}
+					onFiltersChange={setFilters}
+					viewMode={viewMode}
+					onViewModeChange={setViewMode}
+				/>
 
-			{/* Property Grid */}
-			<PropertyGrid
-				allProperties={data?.properties ?? []}
-				properties={filteredProperties}
-				onDelete={(id) => deleteProperty.mutate({ id })}
-				isDeletingId={
-					deleteProperty.isPending ? deleteProperty.variables?.id : undefined
-				}
-			/>
-		</div>
+				{/* Property Grid */}
+				<PropertyGrid
+					unitStats={dashData}
+					allProperties={data?.properties ?? []}
+					properties={filteredProperties}
+					onDelete={(id) => deleteProperty.mutate({ id })}
+					isDeletingId={
+						deleteProperty.isPending ? deleteProperty.variables?.id : undefined
+					}
+				/>
+			</div>
+		</Container>
 	);
 }

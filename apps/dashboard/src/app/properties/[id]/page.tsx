@@ -9,9 +9,17 @@ import {
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
 import { DetailHeader } from "@rently/ui/shared/detail-header";
-import { IconBuilding, IconPencil, IconPlus } from "@tabler/icons-react";
+import {
+	IconBuilding,
+	IconHome2,
+	IconLayout,
+	IconPencil,
+	IconPlus,
+} from "@tabler/icons-react";
 import Link from "next/link";
 import { use } from "react";
+import { Container } from "@/components/shared/container";
+import { IconWrapper } from "@/components/shared/icon-wrapper";
 import { useProperty } from "@/hooks/properties";
 import { usePropertyUnits } from "@/hooks/units";
 
@@ -48,124 +56,148 @@ export default function PropertyDetailPage({
 	const monthlyRevenue = occupiedUnits.reduce((sum, u) => sum + u.baseRent, 0);
 
 	return (
-		<div className="col-span-12 space-y-6">
-			{/*Breadcrumb  + actions*/}
-			<DetailHeader
-				backHref={"/properties"}
-				title={property.name}
-				subtitle={property.address}
-			>
-				<div className="flex gap-2">
-					<Button variant={"outline"}>
-						<Link
-							href={`/properties/${id}/edit`}
-							className="flex items-center gap-2"
+		<Container>
+			<div className="col-span-12 space-y-6">
+				{/*Breadcrumb  + actions*/}
+				<DetailHeader
+					backHref={"/properties"}
+					title={property.name}
+					subtitle={property.address}
+				>
+					<div className="flex gap-2">
+						<Button
+							variant={"secondary"}
+							className="h-10 bg-white hover:bg-blue-100"
 						>
-							<IconPencil className="size-4" />
-							Edit
-						</Link>
-					</Button>
-					<Button>
-						<Link
-							href={`/units/new?propertyId=${id}`}
-							className="flex items-center gap-2"
-						>
-							<IconPlus className="size-4" />
-							Add Unit
-						</Link>
-					</Button>
-				</div>
-			</DetailHeader>
-
-			{/* Property Info Card*/}
-			<Card>
-				<CardHeader>
-					<div className="flex items-center gap-2">
-						<IconBuilding className="size-5 text-muted-foreground" />
-						<CardTitle className="text-base">Details</CardTitle>
-						<Badge variant="outline" className="ml-auto capitalize">
-							{property.type}
-						</Badge>
-					</div>
-				</CardHeader>
-				<CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-					<div>
-						<p className="text-muted-foreground text-xs">Total Units</p>
-						<p className="font-semibold text-2xl">{units.length}</p>
-					</div>
-					<div>
-						<p className="text-muted-foreground text-xs">Occupied</p>
-						<p className="font-semibold text-2xl text-green-600">
-							{occupiedUnits.length}
-						</p>
-					</div>
-					<div>
-						<p className="text-muted-foreground text-xs">Vacant</p>
-						<p className="font-semibold text-2xl text-orange-500">
-							{units.length - occupiedUnits.length}
-						</p>
-					</div>
-					<div>
-						<p className="text-muted-foreground text-xs">Monthly Revenue</p>
-						<p className="font-semibold text-2xl">
-							₹{monthlyRevenue.toLocaleString("en-IN")}
-						</p>
-					</div>
-				</CardContent>
-			</Card>
-
-			{/* Units List */}
-			<div>
-				<h2 className="mb-3 font-semibold text-base">Units</h2>
-				{unitsLoading ? (
-					<div className="space-y-2">
-						{Array.from({ length: 3 }).map((_, i) => (
-							<div key={i} className="h-16 animate-pulse rounded-lg bg-muted" />
-						))}
-					</div>
-				) : units.length === 0 ? (
-					<div className="rounded-xl border border-dashed py-12 text-center">
-						<p>
-							No Units yet.
-							<Button>
-								<Link href={`/units/new?propertyId=${id}`}>
-									Add the first unit.
-								</Link>
-							</Button>
-						</p>
-					</div>
-				) : (
-					<div className="space-y-2">
-						{units.map((unit) => (
 							<Link
-								key={unit.id}
-								href={`/units/${unit.id}`}
-								className="flex items-center gap-4 rounded-lg border bg-card p-4 transition hover:bg-accent/50"
+								href={`/properties/${id}/edit`}
+								className="flex items-center gap-2"
 							>
-								<div className="flex-1">
-									<p className="font-medium">Unit {unit.unitNumber}</p>
-									<p className="text-muted-foreground text-xs capitalize">
-										{unit.type} . {unit.area ? `${unit.area} sq ft` : "N/A"}
-									</p>
-								</div>
-								<div className="text-right">
-									<p className="font-medium text-sm">
-										₹{unit.baseRent.toLocaleString("en-IN")}
-									</p>
+								<IconPencil className="size-4" />
+								Edit
+							</Link>
+						</Button>
+						<Button className={"h-10"}>
+							<Link
+								href={`/units/new?propertyId=${id}`}
+								className="flex items-center gap-2"
+							>
+								<IconPlus className="size-4" />
+								Add Unit
+							</Link>
+						</Button>
+					</div>
+				</DetailHeader>
+
+				{/* Property Info Card*/}
+				<Card className="p-4 shadow-xs">
+					<CardHeader>
+						<div className="flex items-center gap-2">
+							<IconHome2 className="size-6 text-muted-foreground" />
+							<CardTitle className="font-semibold text-lg">
+								Property Details
+							</CardTitle>
+							<Badge
+								variant="outline"
+								className="ml-auto bg-blue-100 text-blue-600"
+							>
+								{property.type}
+							</Badge>
+						</div>
+					</CardHeader>
+					<CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+						<div>
+							<p className="text-base text-muted-foreground">Total Units</p>
+							<p className="font-semibold text-3xl">{units.length}</p>
+						</div>
+						<div>
+							<p className="text-base text-muted-foreground">Occupied</p>
+							<p className="font-semibold text-3xl text-green-700">
+								{occupiedUnits.length}
+							</p>
+						</div>
+						<div>
+							<p className="text-base text-muted-foreground">Vacant</p>
+							<p className="font-semibold text-3xl text-orange-700">
+								{units.length - occupiedUnits.length}
+							</p>
+						</div>
+						<div>
+							<p className="text-base text-muted-foreground">Monthly Revenue</p>
+							<p className="font-semibold text-3xl">
+								₹{monthlyRevenue.toLocaleString("en-IN")}
+							</p>
+						</div>
+					</CardContent>
+				</Card>
+
+				{/* Units List */}
+				<div>
+					<h2 className="mb-3 font-semibold text-lg">Units</h2>
+					{unitsLoading ? (
+						<div className="space-y-2">
+							{Array.from({ length: 3 }).map((_, i) => (
+								<div
+									key={i}
+									className="h-16 animate-pulse rounded-lg bg-muted"
+								/>
+							))}
+						</div>
+					) : units.length === 0 ? (
+						<div className="rounded-xl border border-dashed py-12 text-center">
+							<p>
+								No Units yet.
+								<Button>
+									<Link href={`/units/new?propertyId=${id}`}>
+										Add the first unit.
+									</Link>
+								</Button>
+							</p>
+						</div>
+					) : (
+						<div className="space-y-2">
+							{units.map((unit) => (
+								<Link
+									key={unit.id}
+									href={`/units/${unit.id}`}
+									className="flex items-center gap-4 rounded-lg border bg-card p-4 shadow-xs transition hover:bg-accent/50"
+								>
+									<IconWrapper className="text-blue-500">
+										<IconLayout />
+									</IconWrapper>
+									<div className="flex-1">
+										<p className="font-medium text-lg">
+											Unit {unit.unitNumber}
+										</p>
+										<p className="text-base text-muted-foreground capitalize">
+											{unit.type} . {unit.area ? `${unit.area} sq ft` : "N/A"}
+										</p>
+									</div>
+									<div className="text-right">
+										<p className="font-medium text-base">
+											₹{unit.baseRent.toLocaleString("en-IN")}/mo
+										</p>
+
+										<p className="text-gray-500 text-xs">
+											{unit.activeLease
+												? unit.activeLease.tenantName
+												: "tenant Name"}
+										</p>
+									</div>
 									<Badge
 										variant={
-											unit.status === "occupied" ? "default" : "secondary"
+											unit.status === "occupied" ? "outline" : "secondary"
 										}
-										className="mt-0.5 text-xs"
+										className="mt-0.5 rounded text-xs"
 									>
 										{unit.status}
 									</Badge>
-								</div>
-							</Link>
-						))}
-					</div>
-				)}
+								</Link>
+							))}
+						</div>
+					)}
+				</div>
 			</div>
-		</div>
+		</Container>
 	);
 }

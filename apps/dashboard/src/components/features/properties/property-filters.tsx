@@ -35,7 +35,7 @@ export function PropertyFiltersBar({
 				onChange={(e) =>
 					onFiltersChange({ ...filters, search: e.target.value })
 				}
-				className="sm:max-w-xs"
+				className="h-10 bg-white sm:max-w-xs"
 			/>
 
 			{/* Type filter */}
@@ -48,8 +48,8 @@ export function PropertyFiltersBar({
 					})
 				}
 			>
-				<SelectTrigger className="w-35">
-					<SelectValue placeholder="All Types" />
+				<SelectTrigger className="h-10! w-35 bg-white">
+					<SelectValue placeholder="All Types" className="h-10" />
 				</SelectTrigger>
 				<SelectContent>
 					<SelectItem value="all">All Types</SelectItem>
@@ -69,7 +69,7 @@ export function PropertyFiltersBar({
 					onFiltersChange({ ...filters, sortBy, sortOrder });
 				}}
 			>
-				<SelectTrigger className="w-40">
+				<SelectTrigger className="h-10! w-40 bg-white">
 					<SelectValue />
 				</SelectTrigger>
 				<SelectContent>

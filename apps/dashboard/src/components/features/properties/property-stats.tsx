@@ -2,9 +2,10 @@ import { Card, CardContent } from "@rently/ui/components/card";
 import {
 	IconBuilding,
 	IconChartBar,
-	IconHome2,
+	IconLayoutBoard,
 	IconUsers,
 } from "@tabler/icons-react";
+import { IconWrapper } from "@/components/shared/icon-wrapper";
 
 interface PropertyStatsProps {
 	totalProperties: number;
@@ -26,16 +27,16 @@ const Stat = ({
 	isLoading?: boolean;
 }) => (
 	<Card>
-		<CardContent className="flex items-center gap-3 p-4">
-			<div className="rounded-md bg-primary/10 p-2">
-				<Icon className="h-4 w-4 text-primary" />
-			</div>
+		<CardContent className="flex flex-col items-start gap-4 p-4">
+			<IconWrapper>
+				<Icon className="size-6 text-primary" />
+			</IconWrapper>
 			<div>
 				<p className="text-muted-foreground text-xs">{label}</p>
 				{isLoading ? (
-					<div className="h-5 w-16 animate-pulse rounded bg-muted" />
+					<div className="size-5 animate-pulse rounded bg-muted" />
 				) : (
-					<p className="font-semibold text-lg">{value}</p>
+					<p className="font-semibold text-2xl">{value}</p>
 				)}
 			</div>
 		</CardContent>
@@ -61,7 +62,7 @@ export function PropertyStats({
 				isLoading={isLoading}
 			/>
 			<Stat
-				icon={IconHome2}
+				icon={IconLayoutBoard}
 				label="Total Units"
 				value={totalUnits}
 				isLoading={isLoading}

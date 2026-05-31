@@ -1,19 +1,21 @@
 import { Button } from "@rently/ui/components/button";
 import type { Property } from "@rently/validators";
 import Link from "next/link";
-import { PropertyCard } from "./property-card";
+import { PropertyCard, type PropertyCardProps } from "./property-card";
 
 interface PropertyGridProps {
 	properties: Property[];
 	allProperties: Property[];
 	onDelete: (id: string) => void;
 	isDeletingId: string | undefined;
+	unitStats: PropertyCardProps;
 }
 
 export function PropertyGrid({
 	properties,
 	allProperties,
 	onDelete,
+	unitStats,
 	isDeletingId,
 }: PropertyGridProps) {
 	if (properties.length === 0) {
@@ -40,6 +42,7 @@ export function PropertyGrid({
 					property={property}
 					onDelete={onDelete}
 					isDeleting={isDeletingId === property.id}
+					unitStats={unitStats}
 				/>
 			))}
 		</div>

@@ -11,14 +11,14 @@ import {
 	DropdownMenuTrigger,
 } from "@rently/ui/components/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@rently/ui/components/sheet";
-import { SidebarTrigger, useSidebar } from "@rently/ui/components/sidebar";
+import { useSidebar } from "@rently/ui/components/sidebar";
 import { IconBell, IconLogout, IconSearch } from "@tabler/icons-react";
 import Image from "next/image";
 import Link from "next/link";
 import { toRoute } from "@/constants/navigation";
 import { useLogout } from "@/hooks/auth";
 import { useSession } from "@/lib/auth-client";
-import { AppSidebar } from "./deashboard-sidebar";
+import { DashbaordSidebar } from "./dashboard-sidebar";
 
 export default function DashboardHeader() {
 	return (
@@ -26,7 +26,7 @@ export default function DashboardHeader() {
 			{/* Mobile Menu Trigger */}
 			<div className="flex items-center gap-4">
 				<MobileMenuTrigger />
-				<SidebarTrigger size="lg" className="-ml-2" />
+
 				{/* Desktop Search */}
 				<div className="group relative hidden lg:block">
 					<div className="flex h-12 items-center rounded-[calc(var(--radius)*1.8)] border border-input bg-muted/50 px-4 transition-all focus-within:border-primary focus-within:bg-background focus-within:shadow-lg focus-within:shadow-primary/10">
@@ -67,7 +67,7 @@ function MobileMenuTrigger() {
 				}
 			/>
 			<SheetContent side="left" className="w-72 p-0">
-				<AppSidebar />
+				<DashbaordSidebar />
 			</SheetContent>
 		</Sheet>
 	);

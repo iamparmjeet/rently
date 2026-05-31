@@ -64,7 +64,10 @@ export function DashbaordSidebar() {
 							{overviewLinks.map((item) => (
 								<SidebarMenuItem key={item.name} className="">
 									<SidebarMenuButton
-										isActive={pathname === item.href}
+										isActive={
+											pathname === item.href ||
+											pathname.startsWith(item.href + "/")
+										}
 										tooltip={item.name}
 									>
 										<Link href={item.href} className="flex items-center gap-2">
@@ -88,7 +91,10 @@ export function DashbaordSidebar() {
 							{systemLinks.map((item) => (
 								<SidebarMenuItem key={item.name}>
 									<SidebarMenuButton
-										isActive={pathname === item.href}
+										isActive={
+											pathname === item.href ||
+											pathname.startsWith(item.href + "/")
+										}
 										tooltip={item.name}
 									>
 										<Link href={item.href} className="flex items-center gap-2">

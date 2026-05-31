@@ -131,3 +131,12 @@
         @apply font-sans;
     }
 }
+
+[data-sidebar="sidebar"] {
+    --sidebar-foreground: theme(--color-slate-200);
+    /* inactive text + icon */
+    --sidebar-accent: theme(--color-blue-600);
+    /* hover bg */
+    --sidebar-accent-foreground: theme(--color-slate-200);
+    /* hover text + icon */
+}

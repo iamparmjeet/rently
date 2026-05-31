@@ -1,10 +1,10 @@
 import type { Icon } from "@tabler/icons-react";
 import {
 	IconBolt,
-	IconBuilding,
 	IconDoor,
 	IconFileText,
-	IconHome,
+	IconHome2,
+	IconLayoutDashboard,
 	IconReceipt,
 	IconSettings,
 	IconUsers,
@@ -21,12 +21,12 @@ export const NavigationLinkMap = {
 	Dashboard: {
 		name: "Dashboard",
 		href: "/dashboard",
-		icon: IconHome,
+		icon: IconLayoutDashboard,
 	},
 	Properties: {
 		name: "Properties",
 		href: "/properties",
-		icon: IconBuilding,
+		icon: IconHome2,
 	},
 	Units: {
 		name: "Units",

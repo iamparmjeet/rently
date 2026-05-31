@@ -10,7 +10,6 @@ import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
 import { DetailHeader } from "@rently/ui/shared/detail-header";
 import {
-	IconBuilding,
 	IconHome2,
 	IconLayout,
 	IconPencil,

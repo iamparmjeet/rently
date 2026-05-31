@@ -66,7 +66,7 @@ export function DashbaordSidebar() {
 									<SidebarMenuButton
 										isActive={
 											pathname === item.href ||
-											pathname.startsWith(item.href + "/")
+											pathname.startsWith(`${item.href}/`)
 										}
 										tooltip={item.name}
 									>
@@ -93,7 +93,7 @@ export function DashbaordSidebar() {
 									<SidebarMenuButton
 										isActive={
 											pathname === item.href ||
-											pathname.startsWith(item.href + "/")
+											pathname.startsWith(`${item.href}/`)
 										}
 										tooltip={item.name}
 									>

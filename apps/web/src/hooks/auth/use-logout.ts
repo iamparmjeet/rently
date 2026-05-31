@@ -1,10 +1,9 @@
+import { env } from "@rently/env/web";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { signOut } from "@/lib/auth-client";
 
 export const useLogout = () => {
-	const router = useRouter();
 	const queryClient = useQueryClient();
 	// future: const resetPropertyStore = usePropertyStore(s => s.reset)
 	// future: const resetTenantStore = useTenantStore(s => s.reset)
@@ -26,7 +25,8 @@ export const useLogout = () => {
 			// future: resetPropertyStore()
 			// future: resetTenantStore()
 			toast.success("Signed Out", { id: context.toastId });
-			router.push("/login");
+			// redirect
+			window.location.href = `${env.NEXT_PUBLIC_APP_URL}/dashboard`;
 		},
 		onError: (err, _, context) => {
 			toast.error("Error while signing out", { id: context?.toastId });

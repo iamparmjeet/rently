@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode, StatusPhrase } from "@rently/api/utils";
+import { LEASE_STATUSES } from "@rently/db/constants/rent-constants";
 import { user } from "@rently/db/schema/auth";
 import { leases, properties, units } from "@rently/db/schema/schema";
 import {
@@ -163,7 +164,7 @@ export const getUnitById = ownerProcedure
 export const listUnits = ownerProcedure
 	.route({ method: "GET", path: "/rent/unit/list" })
 	.input(z.object({ propertyId: z.string().optional() }))
-	.output(z.object({ units: z.array(UnitDetailSchema) }))
+	.output(z.object({ units: z.array(UnitWithLeaseSchema) }))
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
@@ -174,7 +175,7 @@ export const listUnits = ownerProcedure
 				)
 			: eq(properties.ownerId, authUser.id);
 
-		const result = await db
+		const rows = await db
 			.select({
 				id: units.id,
 				propertyId: units.propertyId,
@@ -186,12 +187,56 @@ export const listUnits = ownerProcedure
 				status: units.status,
 				createdAt: units.createdAt,
 				updatedAt: units.updatedAt,
+				// From properties join (ownership context)
 				propertyName: properties.name,
+				// Lease fields - all nullable (left Joins mean vacan units get nullable)
+				leaseId: leases.id,
+				leaseRent: leases.rent,
+				leaseStartDate: leases.startDate,
+				leaseStatus: leases.status,
+				leaseTenantId: leases.tenantId,
+				// Tenant fields -- also nullable
+				tenantName: user.name,
+				tenantEmail: user.email,
 			})
 			.from(units)
 			.innerJoin(properties, eq(units.propertyId, properties.id))
+			.leftJoin(
+				leases,
+				and(
+					eq(leases.unitId, units.id),
+					eq(leases.status, LEASE_STATUSES.ACTIVE),
+				),
+			)
+			.leftJoin(user, eq(user.id, leases.tenantId))
 			.where(whereClause)
 			.orderBy(units.unitNumber);
+
+		const result = rows.map((row) => ({
+			id: row.id,
+			propertyId: row.propertyId,
+			unitNumber: row.unitNumber,
+			type: row.type,
+			area: row.area,
+			baseRent: row.baseRent,
+			description: row.description,
+			status: row.status,
+			createdAt: row.createdAt,
+			updatedAt: row.updatedAt,
+			propertyName: row.propertyName,
+			activeLease: row.leaseId
+				? {
+						id: row.leaseId,
+						tenantId: row.leaseTenantId as string,
+						tenantName: row.tenantName,
+						tenantEmail: row.tenantEmail,
+						rent: row.leaseRent as number,
+						startDate: row.leaseStartDate as Date,
+						status:
+							row.leaseStatus as (typeof LEASE_STATUSES)[keyof typeof LEASE_STATUSES],
+					}
+				: null,
+		}));
 
 		return { units: result };
 	});

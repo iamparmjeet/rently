@@ -43,9 +43,9 @@ export function FormDialog({
 	submitLabel = "Save",
 }: FormDialogProps) {
 	const [internalOpen, setInternalOpen] = useState(false);
-	const isControlled = controlledOpen !== undefined;
-	const open = isControlled ? controlledOpen : internalOpen;
-	const onOpenChange = isControlled ? controlledOnOpenChange! : setInternalOpen;
+
+	const open = controlledOpen ?? internalOpen;
+	const onOpenChange = controlledOnOpenChange ?? setInternalOpen;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -80,7 +80,7 @@ export function useFormDialog() {
 
 	return {
 		open,
-		onOpenChane: setOpen,
+		onOpenChange: setOpen,
 		openDialog: () => setOpen(true),
 		closeDialog: () => setOpen(false),
 	};

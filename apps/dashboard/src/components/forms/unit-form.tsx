@@ -33,6 +33,7 @@ interface UnitFormProps {
 	isSubmitting?: boolean;
 	submitLabel?: string;
 	showStatus?: boolean;
+	formId?: string;
 }
 
 export function UnitForm({
@@ -40,6 +41,7 @@ export function UnitForm({
 	defaultValues,
 	onSubmit,
 	isSubmitting,
+	formId,
 	submitLabel = "Save Unit",
 }: UnitFormProps) {
 	const {
@@ -64,7 +66,7 @@ export function UnitForm({
 	const typeValue = watch("type");
 
 	return (
-		<form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+		<form onSubmit={handleSubmit(onSubmit)} id={formId} className="space-y-6">
 			<FieldSet>
 				<FieldLegend>Unit Details</FieldLegend>
 
@@ -160,14 +162,15 @@ export function UnitForm({
 					</Field>
 				</FieldGroup>
 			</FieldSet>
-
-			<Button
-				type="submit"
-				disabled={isSubmitting}
-				className="w-full cursor-pointer"
-			>
-				{isSubmitting ? "Saving..." : submitLabel}
-			</Button>
+			{!formId && (
+				<Button
+					type="submit"
+					disabled={isSubmitting}
+					className="w-full cursor-pointer"
+				>
+					{isSubmitting ? "Saving..." : submitLabel}
+				</Button>
+			)}
 		</form>
 	);
 }

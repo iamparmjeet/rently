@@ -9,6 +9,8 @@ import {
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
 import { DetailHeader } from "@rently/ui/shared/detail-header";
+import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
+import type { UnitWithLease } from "@rently/validators";
 import {
 	IconHome2,
 	IconLayout,
@@ -17,10 +19,15 @@ import {
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { use } from "react";
+import {
+	PropertyForm,
+	type PropertyFormValues,
+} from "@/components/forms/property-form";
+import { UnitForm, type UnitFormValues } from "@/components/forms/unit-form";
 import { Container } from "@/components/shared/container";
 import { IconWrapper } from "@/components/shared/icon-wrapper";
-import { useProperty } from "@/hooks/properties";
-import { usePropertyUnits } from "@/hooks/units";
+import { useOptimisticUpdateProperty, useProperty } from "@/hooks/properties";
+import { useCreateUnit, usePropertyUnits } from "@/hooks/units";
 
 export default function PropertyDetailPage({
 	params,
@@ -29,8 +36,25 @@ export default function PropertyDetailPage({
 }) {
 	const { id } = use(params);
 
+	const addUnit = useFormDialog();
+	const createUnit = useCreateUnit();
+	const editProperty = useFormDialog();
+	const updateProperty = useOptimisticUpdateProperty();
+
 	const { data: propertyData, isLoading: propertyLoading } = useProperty(id);
 	const { data: unitsData, isLoading: unitsLoading } = usePropertyUnits(id);
+
+	function handleCreateUnit(values: UnitFormValues) {
+		createUnit.mutate(values, {
+			onSuccess: () => addUnit.closeDialog(),
+		});
+	}
+	function handlerUpdateProperty(values: PropertyFormValues) {
+		updateProperty.mutate(
+			{ id, data: values },
+			{ onSuccess: () => editProperty.closeDialog() },
+		);
+	}
 
 	if (propertyLoading) {
 		return (
@@ -65,26 +89,53 @@ export default function PropertyDetailPage({
 				>
 					<div className="flex gap-2">
 						<Button
+							onClick={editProperty.openDialog}
 							variant={"secondary"}
 							className="h-10 bg-white hover:bg-blue-100"
 						>
-							<Link
-								href={`/properties/${id}/edit`}
-								className="flex items-center gap-2"
-							>
-								<IconPencil className="size-4" />
-								Edit
-							</Link>
+							<IconPencil className="size-4" />
+							Edit
 						</Button>
-						<Button className={"h-10"}>
-							<Link
-								href={`/units/new?propertyId=${id}`}
-								className="flex items-center gap-2"
-							>
-								<IconPlus className="size-4" />
-								Add Unit
-							</Link>
+						<FormDialog
+							open={editProperty.open}
+							onOpenChange={editProperty.onOpenChange}
+							title={`Edit Property : ${property.name}`}
+							description="Update the property details."
+							formId="update-property-form"
+							isSubmitting={updateProperty.isPending}
+							submitLabel="Update Property"
+						>
+							<PropertyForm
+								key={editProperty.open ? "open" : "closed"}
+								defaultValues={{
+									name: property.name,
+									address: property.address,
+									type: property.type,
+								}}
+								formId="update-property-form"
+								onSubmit={handlerUpdateProperty}
+								isSubmitting={updateProperty.isPending}
+							/>
+						</FormDialog>
+						<Button onClick={addUnit.openDialog} className="h-10">
+							<IconPlus className="mr-2 size-4" /> Add Unit
 						</Button>
+						<FormDialog
+							open={addUnit.open}
+							onOpenChange={addUnit.onOpenChange}
+							title="Add Unit"
+							description="Fill in the details for the new unit."
+							formId="create-unit-form"
+							isSubmitting={createUnit.isPending}
+							submitLabel="Create Unit"
+						>
+							<UnitForm
+								propertyId={property.id}
+								formId="create-unit-form"
+								onSubmit={handleCreateUnit}
+								isSubmitting={createUnit.isPending}
+							/>
+						</FormDialog>
 					</div>
 				</DetailHeader>
 
@@ -134,69 +185,78 @@ export default function PropertyDetailPage({
 				<div>
 					<h2 className="mb-3 font-semibold text-lg">Units</h2>
 					{unitsLoading ? (
-						<div className="space-y-2">
-							{Array.from({ length: 3 }).map((_, i) => (
-								<div
-									key={i}
-									className="h-16 animate-pulse rounded-lg bg-muted"
-								/>
-							))}
-						</div>
+						<UnitSkelton />
 					) : units.length === 0 ? (
-						<div className="rounded-xl border border-dashed py-12 text-center">
-							<p>
-								No Units yet.
-								<Button>
-									<Link href={`/units/new?propertyId=${id}`}>
-										Add the first unit.
-									</Link>
-								</Button>
-							</p>
-						</div>
+						<NoUnit id={id} />
 					) : (
 						<div className="space-y-2">
 							{units.map((unit) => (
-								<Link
-									key={unit.id}
-									href={`/units/${unit.id}`}
-									className="flex items-center gap-4 rounded-lg border bg-card p-4 shadow-xs transition hover:bg-accent/50"
-								>
-									<IconWrapper className="text-blue-500">
-										<IconLayout />
-									</IconWrapper>
-									<div className="flex-1">
-										<p className="font-medium text-lg">
-											Unit {unit.unitNumber}
-										</p>
-										<p className="text-base text-muted-foreground capitalize">
-											{unit.type} . {unit.area ? `${unit.area} sq ft` : "N/A"}
-										</p>
-									</div>
-									<div className="text-right">
-										<p className="font-medium text-base">
-											₹{unit.baseRent.toLocaleString("en-IN")}/mo
-										</p>
-
-										<p className="text-gray-500 text-xs">
-											{unit.activeLease
-												? unit.activeLease.tenantName
-												: "tenant Name"}
-										</p>
-									</div>
-									<Badge
-										variant={
-											unit.status === "occupied" ? "outline" : "secondary"
-										}
-										className="mt-0.5 rounded text-xs"
-									>
-										{unit.status}
-									</Badge>
-								</Link>
+								<DetailUnitsList key={unit.id} unit={unit} />
 							))}
 						</div>
 					)}
 				</div>
 			</div>
 		</Container>
+	);
+}
+
+// ************ components
+
+function UnitSkelton() {
+	return (
+		<div className="space-y-2">
+			{Array.from({ length: 3 }).map((_, i) => (
+				<div key={i} className="h-16 animate-pulse rounded-lg bg-muted" />
+			))}
+		</div>
+	);
+}
+
+function NoUnit({ id }: { id: string }) {
+	return (
+		<div className="rounded-xl border border-dashed py-12 text-center">
+			<p>
+				No Units yet.
+				<Button>
+					<Link href={`/units/new?propertyId=${id}`}>Add the first unit.</Link>
+				</Button>
+			</p>
+		</div>
+	);
+}
+
+function DetailUnitsList({ unit }: { unit: UnitWithLease }) {
+	return (
+		<Link
+			key={unit.id}
+			href={`/units/${unit.id}`}
+			className="flex items-center gap-4 rounded-lg border bg-card p-4 shadow-xs transition hover:bg-accent/50"
+		>
+			<IconWrapper className="text-blue-500">
+				<IconLayout />
+			</IconWrapper>
+			<div className="flex-1">
+				<p className="font-medium text-lg">Unit {unit.unitNumber}</p>
+				<p className="text-base text-muted-foreground capitalize">
+					{unit.type} . {unit.area ? `${unit.area} sq ft` : "N/A"}
+				</p>
+			</div>
+			<div className="text-right">
+				<p className="font-medium text-base">
+					₹{unit.baseRent.toLocaleString("en-IN")}/mo
+				</p>
+
+				<p className="text-gray-500 text-xs">
+					{unit.activeLease ? unit.activeLease.tenantName : "tenant Name"}
+				</p>
+			</div>
+			<Badge
+				variant={unit.status === "occupied" ? "outline" : "secondary"}
+				className="mt-0.5 rounded text-xs"
+			>
+				{unit.status}
+			</Badge>
+		</Link>
 	);
 }

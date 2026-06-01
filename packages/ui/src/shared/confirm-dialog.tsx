@@ -1,4 +1,3 @@
-// apps/web/src/components/shared/confirm-dialog.tsx
 "use client";
 
 import {
@@ -16,7 +15,9 @@ import { IconLoader2 } from "@tabler/icons-react";
 
 interface ConfirmDialogProps {
 	// The button/element that opens the dialog
-	trigger: React.ReactNode;
+	open?: boolean;
+	onOpenChange?: (open: boolean) => void;
+	trigger?: React.ReactNode;
 	title: string;
 	description: string;
 	confirmLabel?: string;
@@ -28,6 +29,8 @@ interface ConfirmDialogProps {
 }
 
 export function ConfirmDialog({
+	open,
+	onOpenChange,
 	trigger,
 	title,
 	description,
@@ -38,8 +41,8 @@ export function ConfirmDialog({
 	isLoading = false,
 }: ConfirmDialogProps) {
 	return (
-		<AlertDialog>
-			<AlertDialogTrigger>{trigger}</AlertDialogTrigger>
+		<AlertDialog open={open} onOpenChange={onOpenChange}>
+			{trigger && <AlertDialogTrigger>{trigger}</AlertDialogTrigger>}
 
 			<AlertDialogContent>
 				<AlertDialogHeader>
@@ -48,7 +51,7 @@ export function ConfirmDialog({
 				</AlertDialogHeader>
 
 				<AlertDialogFooter>
-					<AlertDialogCancel disabled={isLoading}>
+					<AlertDialogCancel disabled={isLoading} className="cursor-pointer">
 						{cancelLabel}
 					</AlertDialogCancel>
 
@@ -57,7 +60,7 @@ export function ConfirmDialog({
 						disabled={isLoading}
 						className={
 							destructive
-								? "bg-destructive text-destructive-foreground hover:bg-destructive/90"
+								? "cursor-pointer bg-red-600 text-red-100 hover:bg-red-500"
 								: undefined
 						}
 					>

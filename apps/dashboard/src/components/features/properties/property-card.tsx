@@ -7,22 +7,10 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@rently/ui/components/dropdown-menu";
+
 import { cn } from "@rently/ui/lib/utils";
 import { DateRecordMeta } from "@rently/ui/shared/date-record-meta";
-import {
-	IconBuildingStore,
-	IconDots,
-	IconHome,
-	IconPencil,
-	IconTrash,
-} from "@tabler/icons-react";
+import { IconBuildingStore, IconHome } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
 import { IconWrapper } from "@/components/shared/icon-wrapper";
@@ -42,19 +30,22 @@ export interface PropertyCardProps {
 	unitStats?: {
 		totalProperties: number;
 		occupiedUnits: number;
-		totalUnits?: number;
+		totalUnits: number;
 		availableUnits: number;
-		monthlyRevenue?: number;
+		monthlyRevenue: number;
 	};
 	onDelete?: (id: string) => void;
 	isDeleting?: boolean;
+	actionsSlot?: React.ReactNode;
 }
+
+export type PropertyUnitStats = NonNullable<PropertyCardProps["unitStats"]>;
 
 export function PropertyCard({
 	property,
 	unitStats,
-	onDelete,
 	isDeleting,
+	actionsSlot,
 }: PropertyCardProps) {
 	const queryClient = useQueryClient();
 
@@ -107,31 +98,7 @@ export function PropertyCard({
 					</div>
 
 					{/* Actions Dropdown */}
-					<DropdownMenu>
-						<DropdownMenuTrigger>
-							<IconDots className="size-4 rotate-90" />
-							<span className="sr-only">Open menu</span>
-						</DropdownMenuTrigger>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem>
-								<Link
-									href={`/properties/${property.id}/edit`}
-									className="flex items-center"
-								>
-									<IconPencil className="mr-2 h-4 w-4" />
-									Edit
-								</Link>
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								className="text-destructive focus:text-destructive"
-								onClick={() => onDelete?.(property.id)}
-							>
-								<IconTrash className="mr-2 h-4 w-4" />
-								Delete
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
+					{actionsSlot}
 				</div>
 			</CardHeader>
 

@@ -29,12 +29,14 @@ interface PropertyFormProps {
 	onSubmit: (values: PropertyFormValues) => void;
 	isSubmitting?: boolean;
 	submitLabel?: string;
+	formId?: string;
 }
 
 export function PropertyForm({
 	defaultValues,
 	onSubmit,
 	isSubmitting,
+	formId,
 	submitLabel = "Save Property",
 }: PropertyFormProps) {
 	const {
@@ -56,7 +58,7 @@ export function PropertyForm({
 	const typeValue = watch("type");
 
 	return (
-		<form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+		<form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 			<FieldSet>
 				<FieldLegend>Property Details</FieldLegend>
 
@@ -114,9 +116,11 @@ export function PropertyForm({
 				</FieldGroup>
 			</FieldSet>
 
-			<Button type="submit" disabled={isSubmitting} className="w-full">
-				{isSubmitting ? "Saving..." : submitLabel}
-			</Button>
+			{!formId && ( // ← only show own button in standalone mode
+				<Button type="submit" disabled={isSubmitting} className="w-full">
+					{isSubmitting ? "Saving..." : submitLabel}
+				</Button>
+			)}
 		</form>
 	);
 }

@@ -5,7 +5,7 @@ export function IconWrapper({
 	className,
 }: {
 	children: React.ReactNode;
-	className: string;
+	className?: string;
 }) {
 	return (
 		<div className={cn("rounded-md bg-primary/10 p-2", className)}>

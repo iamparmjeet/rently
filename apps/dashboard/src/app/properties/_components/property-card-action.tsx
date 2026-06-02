@@ -3,6 +3,7 @@
 import {
 	DropdownMenu,
 	DropdownMenuContent,
+	DropdownMenuGroup,
 	DropdownMenuItem,
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
@@ -51,22 +52,24 @@ export function PropertyCardActions({ property }: PropertyCardActionsProps) {
 				<span className="sr-only">Open menu</span>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">
-				<DropdownMenuItem
-					className="cursor-pointer"
-					onClick={() => setIsEditOpen(true)}
-				>
-					<IconPencil className="mr-2 size-4" />
-					Edit
-				</DropdownMenuItem>
-				<DropdownMenuSeparator />
-				<DropdownMenuItem
-					className="text-destructive focus:text-destructive"
-					// disabled={deleteProperty.isPending}
-					onClick={() => setIsDeleteOpen(true)}
-				>
-					<IconTrash className="mr-2 size-4" />
-					Delete
-				</DropdownMenuItem>
+				<DropdownMenuGroup>
+					<DropdownMenuItem
+						className="cursor-pointer"
+						onClick={() => setIsEditOpen(true)}
+					>
+						<IconPencil className="mr-2 size-4" />
+						Edit
+					</DropdownMenuItem>
+					<DropdownMenuSeparator />
+					<DropdownMenuItem
+						className="text-destructive focus:text-destructive"
+						// disabled={deleteProperty.isPending}
+						onClick={() => setIsDeleteOpen(true)}
+					>
+						<IconTrash className="mr-2 size-4" />
+						Delete
+					</DropdownMenuItem>
+				</DropdownMenuGroup>
 			</DropdownMenuContent>
 		</DropdownMenu>
 	);

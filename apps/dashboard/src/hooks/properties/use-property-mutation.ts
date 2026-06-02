@@ -140,6 +140,10 @@ export function useOptimisticCreateProperty() {
 								...variables,
 								id: `optimistic-${Date.now()}`, // temp id
 								ownerId: session?.user.id ?? "",
+								yearBuilt: variables.yearBuilt ?? null,
+								totalArea: variables.totalArea ?? null,
+								floors: variables.floors ?? null,
+								description: variables.description ?? null,
 								createdAt: new Date(),
 								updatedAt: new Date(),
 							},

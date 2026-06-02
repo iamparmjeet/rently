@@ -1,20 +1,18 @@
 "use client";
 
-// Uses useSuspenseProperties() — data is ALWAYS defined here.
-// The Suspense boundary in page.tsx handles the loading state.
-//
-import { Button } from "@rently/ui/components/button";
 import { PageHeader } from "@rently/ui/shared/page-header";
-import { IconPlus } from "@tabler/icons-react";
-import Link from "next/link";
+
 import { useMemo, useState } from "react";
-import { PropertyFiltersBar } from "@/components/features/properties/property-filters";
-import { PropertyGrid } from "@/components/features/properties/property-grid";
-import { PropertyStats } from "@/components/features/properties/property-stats";
+import {
+	PropertyFiltersBar,
+	PropertyGrid,
+	PropertyStats,
+} from "@/components/features/properties";
+
 import { Container } from "@/components/shared/container";
-import { useDashboardStats } from "@/hooks/dashboard";
-import { useDeleteProperty, useSuspenseProperties } from "@/hooks/properties";
+import { useSuspenseProperties } from "@/hooks/properties";
 import type { PropertyFilters } from "@/types/property";
+import PropertyActionButton from "./property-action-button";
 
 export default function PropertiesClient() {
 	const [viewMode, setViewMode] = useState<"grid" | "table">("grid");
@@ -28,9 +26,8 @@ export default function PropertiesClient() {
 	// --- Data fetching ---
 	// useProperties() handles: fetching, caching, loading, error
 	// No useEffect, no useState for data
-	const { data } = useSuspenseProperties();
-	const deleteProperty = useDeleteProperty();
-	const { data: dashData } = useDashboardStats();
+	const { data, isLoading } = useSuspenseProperties();
+
 	// console.log("properties", data);
 
 	// Client-side filtering/sorting (happens on cached data, no network)
@@ -60,9 +57,22 @@ export default function PropertiesClient() {
 						dir *
 						(new Date(a.createdAt).getTime() - new Date(b.createdAt).getTime())
 					);
+				if (filters.sortBy === "units")
+					return dir * (a.totalUnits - b.totalUnits);
 				return 0;
 			});
 	}, [data?.properties, filters]);
+
+	// Page Stats
+	const pageStats = useMemo(() => {
+		const list = data?.properties ?? [];
+		return {
+			totalProperties: list.length,
+			totalUnits: list.reduce((sum, p) => sum + p.totalUnits, 0),
+			occupiedUnits: list.reduce((sum, p) => sum + p.occupiedUnits, 0),
+			monthlyRevenue: list.reduce((sum, p) => sum + p.monthlyRevenue, 0),
+		};
+	}, [data?.properties]);
 
 	return (
 		<Container>
@@ -72,20 +82,16 @@ export default function PropertiesClient() {
 					title="Properties"
 					description="Manage your properties and track occupancy"
 				>
-					<Button className="h-10">
-						<Link href="/properties/new" className="flex items-center gap-2">
-							<IconPlus className="size-4" /> New Property
-						</Link>
-					</Button>
+					<PropertyActionButton withIcon={true} />
 				</PageHeader>
 
 				{/* Stats bar — loading skeleton built into component */}
 				<PropertyStats
-					totalProperties={data?.properties.length ?? 0}
-					totalUnits={0}
-					occupiedUnits={0}
-					monthlyRevenue={0}
-					isLoading={false}
+					totalProperties={pageStats.totalProperties}
+					totalUnits={pageStats.totalUnits}
+					occupiedUnits={pageStats.occupiedUnits}
+					monthlyRevenue={pageStats.monthlyRevenue}
+					isLoading={isLoading}
 				/>
 
 				{/* Filters */}
@@ -98,13 +104,9 @@ export default function PropertiesClient() {
 
 				{/* Property Grid */}
 				<PropertyGrid
-					unitStats={dashData}
 					allProperties={data?.properties ?? []}
 					properties={filteredProperties}
-					onDelete={(id) => deleteProperty.mutate({ id })}
-					isDeletingId={
-						deleteProperty.isPending ? deleteProperty.variables?.id : undefined
-					}
+					isLoading={isLoading}
 				/>
 			</div>
 		</Container>

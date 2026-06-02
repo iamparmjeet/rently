@@ -1,12 +1,6 @@
 "use client";
 
 import {
-	Dialog,
-	DialogContent,
-	DialogHeader,
-	DialogTitle,
-} from "@rently/ui/components/dialog";
-import {
 	DropdownMenu,
 	DropdownMenuContent,
 	DropdownMenuItem,
@@ -15,13 +9,10 @@ import {
 } from "@rently/ui/components/dropdown-menu";
 import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
 import { FormDialog } from "@rently/ui/shared/form-dialog";
+import type { PropertyWithStats } from "@rently/validators";
 import { IconDots, IconPencil, IconTrash } from "@tabler/icons-react";
 import { useState } from "react";
 import { PropertyCard } from "@/components/features/properties";
-import type {
-	PropertyCardProps,
-	PropertyUnitStats,
-} from "@/components/features/properties/property-card";
 import {
 	PropertyForm,
 	type PropertyFormValues,
@@ -29,14 +20,10 @@ import {
 import { useDeleteProperty, useUpdateProperty } from "@/hooks/properties";
 
 interface PropertyCardActionsProps {
-	property: PropertyCardProps["property"];
-	unitStats?: PropertyUnitStats;
+	property: PropertyWithStats;
 }
 
-export function PropertyCardActions({
-	property,
-	unitStats,
-}: PropertyCardActionsProps) {
+export function PropertyCardActions({ property }: PropertyCardActionsProps) {
 	const [isEditOpen, setIsEditOpen] = useState(false);
 	const [isDeleteOpen, setIsDeleteOpen] = useState(false);
 
@@ -64,7 +51,6 @@ export function PropertyCardActions({
 				<span className="sr-only">Open menu</span>
 			</DropdownMenuTrigger>
 			<DropdownMenuContent align="end">
-				{/* WHY: onClick sets state — no Link, no navigation */}
 				<DropdownMenuItem
 					className="cursor-pointer"
 					onClick={() => setIsEditOpen(true)}
@@ -89,39 +75,36 @@ export function PropertyCardActions({
 		<>
 			<PropertyCard
 				property={property}
-				unitStats={unitStats}
 				actionsSlot={actionsSlot}
 				isDeleting={deleteProperty.isPending}
 			/>
 
 			{/* ── Edit Dialog ── */}
-			<Dialog open={isEditOpen} onOpenChange={setIsEditOpen}>
-				<DialogContent>
-					<DialogHeader>
-						<DialogTitle>Edit {property.name}</DialogTitle>
-					</DialogHeader>
 
-					<FormDialog
-						open={isEditOpen}
-						onOpenChange={setIsEditOpen}
-						title={`Edit ${property.name}`}
-						formId="edit-property-form"
-						isSubmitting={updateProperty.isPending}
-						submitLabel="Save Changes"
-					>
-						<PropertyForm
-							formId="edit-property-form" //  hides internal submit + sets form id
-							defaultValues={{
-								name: property.name,
-								address: property.address,
-								type: property.type,
-							}}
-							onSubmit={handleEditSubmit}
-							isSubmitting={updateProperty.isPending}
-						/>
-					</FormDialog>
-				</DialogContent>
-			</Dialog>
+			<FormDialog
+				open={isEditOpen}
+				onOpenChange={setIsEditOpen}
+				title={`Edit ${property.name}`}
+				formId="edit-property-form"
+				isSubmitting={updateProperty.isPending}
+				submitLabel="Save Changes"
+			>
+				<PropertyForm
+					formId="edit-property-form" //  hides internal submit + sets form id
+					defaultValues={{
+						name: property.name,
+						address: property.address,
+						type: property.type,
+						description: property.description,
+						floors: property.floors,
+						totalArea: property.totalArea,
+						yearBuilt: property.yearBuilt,
+					}}
+					onSubmit={handleEditSubmit}
+					isSubmitting={updateProperty.isPending}
+				/>
+			</FormDialog>
+
 			<ConfirmDialog
 				open={isDeleteOpen}
 				onOpenChange={setIsDeleteOpen}

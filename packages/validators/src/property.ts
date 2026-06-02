@@ -4,7 +4,7 @@ import {
 	createSelectSchema,
 	createUpdateSchema,
 } from "drizzle-zod";
-import type z from "zod";
+import z from "zod";
 
 // ******** Property **********
 // Layer 1 ) DB Derived
@@ -38,9 +38,17 @@ export const PropertyListItemSchema = PropertySelectSchema.pick({
 	createdAt: true,
 });
 
+export const PropertyWithStatsSchema = PropertySelectSchema.extend({
+	totalUnits: z.number().int(),
+	occupiedUnits: z.number().int(),
+	availableUnits: z.number().int(),
+	monthlyRevenue: z.number().int(),
+});
+
 // TS Types derieved from Zod (not from InferSelectModel)
 export type Property = z.infer<typeof PropertySelectSchema>;
 export type NewProperty = z.infer<typeof PropertyInsertSchema>;
 export type CreateProperty = z.infer<typeof CreatePropertySchema>;
 export type UpdateProperty = z.infer<typeof UpdatePropertySchema>;
 export type PropertyListItem = z.infer<typeof PropertyListItemSchema>;
+export type PropertyWithStats = z.infer<typeof PropertyWithStatsSchema>;

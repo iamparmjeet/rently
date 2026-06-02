@@ -45,7 +45,7 @@ export default function RootLayout({
 					<DashboardORPCProvider>
 						<SidebarProvider>
 							<DashbaordSidebar />
-							<div className="flex min-h-screen w-full flex-col bg-mist-100">
+							<div className="flex min-h-screen w-full flex-col bg-stone-100">
 								<DashboardHeader />
 								{children}
 								<Toaster position="bottom-right" />

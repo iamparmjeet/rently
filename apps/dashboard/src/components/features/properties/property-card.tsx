@@ -139,12 +139,13 @@ export function PropertyCard({
 					>
 						{property.type}
 					</Badge>
-					{/*{unitStats && (
-						<span className="ml-auto font-medium text-muted-foreground text-xs">
-							₹{unitStats?.monthlyRevenue.toLocaleString("en-IN")}/mo
-						</span>
-					)}*/}
+
+					<span className="ml-auto font-medium text-muted-foreground text-xs">
+						₹{property?.monthlyRevenue.toLocaleString("en-IN")}/mo
+					</span>
+
 					<Button
+						nativeButton={false}
 						variant="outline"
 						size="sm"
 						className="ml-auto"

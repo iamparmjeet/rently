@@ -1,13 +1,14 @@
 import { ORPCError } from "@orpc/server";
-import { properties, units } from "@rently/db/schema/schema";
-import type { Property } from "@rently/validators";
+import { leases, properties, units } from "@rently/db/schema/schema";
+import type { PropertyWithStats } from "@rently/validators";
 import {
 	CreatePropertySchema,
 	PropertySelectSchema,
+	PropertyWithStatsSchema,
 	UnitSelectSchema,
 	UpdatePropertySchema,
 } from "@rently/validators";
-import { eq } from "drizzle-orm";
+import { and, count, eq, sql } from "drizzle-orm";
 import z from "zod";
 import { ownerProcedure } from "../../procedures";
 import { StatusCode, StatusPhrase } from "../../utils";
@@ -15,17 +16,50 @@ import { StatusCode, StatusPhrase } from "../../utils";
 // 1) list all Properties
 export const listProperties = ownerProcedure
 	.route({ method: "GET", path: "/rent/property/lists" }) // for OPENAPI
-	.output(z.object({ properties: z.array(PropertySelectSchema) }))
-	.handler(async ({ context }): Promise<{ properties: Property[] }> => {
-		const { db, user } = context;
+	.output(z.object({ properties: z.array(PropertyWithStatsSchema) }))
+	.handler(
+		async ({ context }): Promise<{ properties: PropertyWithStats[] }> => {
+			const { db, user } = context;
 
-		const res = await db
-			.select()
-			.from(properties)
-			.where(eq(properties.ownerId, user.id))
-			.orderBy(properties.createdAt);
-		return { properties: res };
-	});
+			const rows = await db
+				.select({
+					id: properties.id,
+					ownerId: properties.ownerId,
+					name: properties.name,
+					address: properties.address,
+					type: properties.type,
+					createdAt: properties.createdAt,
+					updatedAt: properties.updatedAt,
+					totalUnits: count(units.id),
+					occupiedUnits:
+						sql<number>`count(case when ${units.status} = 'occupied' then 1 end)`.mapWith(
+							Number,
+						),
+					yearBuilt: properties.yearBuilt,
+					totalArea: properties.totalArea,
+					floors: properties.floors,
+					monthlyRevenue: sql<number>`coalesce(sum(${leases.rent}), 0)`.mapWith(
+						Number,
+					),
+					description: properties.description,
+				})
+				.from(properties)
+				.leftJoin(units, eq(units.propertyId, properties.id))
+				.leftJoin(
+					leases,
+					and(eq(leases.unitId, units.id), eq(leases.status, "active")),
+				)
+				.where(eq(properties.ownerId, user.id))
+				.groupBy(properties.id)
+				.orderBy(properties.createdAt);
+			return {
+				properties: rows.map((row) => ({
+					...row,
+					availableUnits: row.totalUnits - row.occupiedUnits,
+				})),
+			};
+		},
+	);
 
 // 2) get Single Property
 
@@ -76,6 +110,10 @@ export const createProperty = ownerProcedure
 				address: input.address,
 				type: input.type,
 				ownerId: user.id,
+				floors: input.floors,
+				description: input.description,
+				yearBuilt: input.yearBuilt,
+				totalArea: input.totalArea,
 			})
 			.returning();
 

@@ -13,8 +13,12 @@ export const PROPERTY_TYPES_VALUES = Object.values(PROPERTY_TYPES) as [
 //  Units
 
 export const UNIT_TYPES = {
-	ROOM: "room",
+	STUDIO: "studio",
 	SHOP: "shop",
+	ONEBHK: "1BHK",
+	TWOBHK: "2BHK",
+	THREEBHK: "3BHK",
+	FOURBHK: "4BHK",
 } as const;
 
 export type UnitType = (typeof UNIT_TYPES)[keyof typeof UNIT_TYPES];
@@ -34,6 +38,19 @@ export type UnitStatus = (typeof UNIT_STATUSES)[keyof typeof UNIT_STATUSES];
 export const UNIT_STATUS_VALUES = Object.values(UNIT_STATUSES) as [
 	UnitStatus,
 	...UnitStatus[],
+];
+
+export const UNIT_FURNISHING = {
+	UNFURNISHED: "unfurnished",
+	FULLYFURNISHED: "fully_furnished",
+	SEMIFURNEISHED: "semi_furnished",
+};
+export type UnitFurnishing =
+	(typeof UNIT_FURNISHING)[keyof typeof UNIT_FURNISHING];
+
+export const UNIT_FURNISHING_VALUES = Object.values(UNIT_FURNISHING) as [
+	UnitFurnishing,
+	...UnitFurnishing[],
 ];
 
 // ---

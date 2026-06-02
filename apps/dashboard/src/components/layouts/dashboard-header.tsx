@@ -15,6 +15,7 @@ import { SidebarTrigger, useSidebar } from "@rently/ui/components/sidebar";
 import { IconBell, IconLogout, IconSearch } from "@tabler/icons-react";
 import Image from "next/image";
 import Link from "next/link";
+import { useEffect, useState } from "react";
 import { useLogout } from "@/hooks/auth";
 import { useSession } from "@/lib/auth-client";
 import { DashbaordSidebar } from "./dashboard-sidebar";
@@ -75,7 +76,18 @@ function MobileMenuTrigger() {
 function UserButton() {
 	const { data: session } = useSession();
 	const { handleLogout } = useLogout();
+	const [mounted, setMounted] = useState(false);
 
+	useEffect(() => {
+		setMounted(true);
+	}, []);
+
+	if (!mounted) {
+		// same dimensions as the real button so layout doesn't shift on mount
+		return (
+			<div className="h-12 w-12 rounded-[calc(var(--radius)*1.8)] bg-muted" />
+		);
+	}
 	if (!session?.user) return null;
 
 	return (

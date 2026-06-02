@@ -11,6 +11,7 @@ import {
 	DialogHeader,
 	DialogTitle,
 } from "../components/dialog";
+import { Separator } from "../components/separator";
 import { cn } from "../lib/utils";
 
 const sizeClasses = {
@@ -49,21 +50,37 @@ export function FormDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
-			<DialogContent className={cn(sizeClasses[size])}>
+			<DialogContent className={cn(sizeClasses[size], "rounded-lg px-0")}>
 				<DialogHeader>
-					<DialogTitle>{title}</DialogTitle>
-					{description && <DialogDescription>{description}</DialogDescription>}
+					<DialogTitle className="mx-4 font-bold text-xl">{title}</DialogTitle>
+					{description && (
+						<DialogDescription className="mx-3">
+							{description}
+						</DialogDescription>
+					)}
+					<Separator className="my-2" />
 				</DialogHeader>
-				{children}
-				<DialogFooter>
+				<span className="mx-6">{children}</span>
+				<DialogFooter className="mr-6">
 					<DialogClose
 						render={
-							<Button variant="outline" type="button" disabled={isSubmitting} />
+							<Button
+								size="lg"
+								variant="outline"
+								type="button"
+								disabled={isSubmitting}
+							/>
 						}
 					>
 						Cancel
 					</DialogClose>
-					<Button type="submit" form={formId} disabled={isSubmitting}>
+					<Button
+						size="lg"
+						className=""
+						type="submit"
+						form={formId}
+						disabled={isSubmitting}
+					>
 						{isSubmitting && (
 							<IconLoader2 className="mr-2 size-4 animate-spin" />
 						)}

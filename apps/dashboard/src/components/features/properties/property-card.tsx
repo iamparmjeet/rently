@@ -10,6 +10,7 @@ import {
 
 import { cn } from "@rently/ui/lib/utils";
 import { DateRecordMeta } from "@rently/ui/shared/date-record-meta";
+import type { PropertyWithStats } from "@rently/validators";
 import { IconBuildingStore, IconHome } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
@@ -17,43 +18,22 @@ import { IconWrapper } from "@/components/shared/icon-wrapper";
 import { orpc } from "@/utils/orpc";
 
 export interface PropertyCardProps {
-	property: {
-		id: string;
-		name: string;
-		address: string;
-		type: "residential" | "commercial";
-		createdAt: Date;
-		updatedAt: Date;
-	};
-	// Units are optional - card works without them (for list view)
-	// They're shown when available (for detail preview)
-	unitStats?: {
-		totalProperties: number;
-		occupiedUnits: number;
-		totalUnits: number;
-		availableUnits: number;
-		monthlyRevenue: number;
-	};
-	onDelete?: (id: string) => void;
+	property: PropertyWithStats;
 	isDeleting?: boolean;
 	actionsSlot?: React.ReactNode;
 }
 
-export type PropertyUnitStats = NonNullable<PropertyCardProps["unitStats"]>;
-
 export function PropertyCard({
 	property,
-	unitStats,
 	isDeleting,
 	actionsSlot,
 }: PropertyCardProps) {
 	const queryClient = useQueryClient();
 
-	const occupancyRate = unitStats
-		? unitStats.totalUnits > 0
-			? Math.round((unitStats.occupiedUnits / unitStats.totalUnits) * 100)
-			: 0
-		: null;
+	const occupancyRate =
+		property.totalUnits > 0
+			? Math.round((property.occupiedUnits / property.totalUnits) * 100)
+			: 0;
 
 	function handleMouseEnter() {
 		// Prefetch the property detail
@@ -66,7 +46,11 @@ export function PropertyCard({
 		// Prefetch the units for this property.
 		// The detail page will need these — prefetch them together.
 		queryClient.prefetchQuery(
-			orpc.rent.unit.listUnits.queryOptions({ input: {} }),
+			orpc.rent.unit.listUnits.queryOptions({
+				input: {
+					propertyId: property.id,
+				},
+			}),
 		);
 	}
 	const isResidential = property.type === "residential";
@@ -103,44 +87,44 @@ export function PropertyCard({
 			</CardHeader>
 
 			{/* Unit Stats — only rendered if unitStats provided */}
-			{unitStats && (
-				<CardContent className="">
-					<div className="grid grid-cols-3 gap-2 text-center">
-						<div className="rounded-md bg-muted p-2">
-							<p className="font-semibold text-lg">{unitStats.totalUnits}</p>
-							<p className="text-muted-foreground text-xs">Total</p>
-						</div>
-						<div className="rounded-md bg-muted p-2">
-							<p className="font-semibold text-green-600 text-lg">
-								{unitStats.occupiedUnits}
-							</p>
-							<p className="text-muted-foreground text-xs">Occupied</p>
-						</div>
-						<div className="rounded-md bg-muted p-2">
-							<p className="font-semibold text-lg text-orange-500">
-								{unitStats.availableUnits}
-							</p>
-							<p className="text-muted-foreground text-xs">Vacant</p>
-						</div>
-					</div>
 
-					{/* Occupancy bar */}
-					{occupancyRate !== null && (
-						<div className="mt-3">
-							<div className="mb-1 flex justify-between text-muted-foreground text-xs">
-								<span>Occupancy</span>
-								<span>{occupancyRate}%</span>
-							</div>
-							<div className="h-1.5 w-full rounded-full bg-muted">
-								<div
-									className="h-full rounded-full bg-primary transition-all"
-									style={{ width: `${occupancyRate}%` }}
-								/>
-							</div>
-						</div>
-					)}
-				</CardContent>
-			)}
+			<CardContent className="">
+				<div className="grid grid-cols-3 gap-2 text-center">
+					<div className="rounded-md bg-muted p-2">
+						<p className="font-semibold text-lg">
+							{property ? property.totalUnits : "0"}
+						</p>
+						<p className="text-muted-foreground text-xs">Total</p>
+					</div>
+					<div className="rounded-md bg-muted p-2">
+						<p className="font-semibold text-green-600 text-lg">
+							{property ? property.occupiedUnits : "0"}
+						</p>
+						<p className="text-muted-foreground text-xs">Occupied</p>
+					</div>
+					<div className="rounded-md bg-muted p-2">
+						<p className="font-semibold text-lg text-orange-500">
+							{property ? property.availableUnits : "0"}
+						</p>
+						<p className="text-muted-foreground text-xs">Vacant</p>
+					</div>
+				</div>
+
+				{/* Occupancy bar */}
+
+				<div className="mt-3">
+					<div className="mb-1 flex justify-between text-muted-foreground text-xs">
+						<span>Occupancy</span>
+						<span>{occupancyRate ? occupancyRate : 0}%</span>
+					</div>
+					<div className="h-1.5 w-full rounded-full bg-muted">
+						<div
+							className="h-full rounded-full bg-primary transition-all"
+							style={{ width: `${occupancyRate ? occupancyRate : 0}%` }}
+						/>
+					</div>
+				</div>
+			</CardContent>
 
 			<CardFooter className="flex w-full flex-col gap-4">
 				<div className="flex w-full items-center justify-between">
@@ -160,8 +144,13 @@ export function PropertyCard({
 							₹{unitStats?.monthlyRevenue.toLocaleString("en-IN")}/mo
 						</span>
 					)}*/}
-					<Button variant="outline" size="sm" className="ml-auto">
-						<Link href={`/properties/${property.id}`}>View</Link>
+					<Button
+						variant="outline"
+						size="sm"
+						className="ml-auto"
+						render={<Link href={`/properties/${property.id}`} />}
+					>
+						View
 					</Button>
 				</div>
 				<DateRecordMeta

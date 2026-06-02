@@ -1,47 +1,48 @@
-import { Button } from "@rently/ui/components/button";
-import type { Property } from "@rently/validators";
-import Link from "next/link";
+import type { PropertyWithStats } from "@rently/validators";
+import PropertyActionButton from "@/app/properties/_components/property-action-button";
 import { PropertyCardActions } from "@/app/properties/_components/property-card-action";
-import type { PropertyCardProps } from "./property-card";
+import { PropertyCardSkeleton } from "@/app/properties/_components/property-card-skelton";
 
 interface PropertyGridProps {
-	properties: Property[];
-	allProperties: Property[];
+	properties: PropertyWithStats[];
+	allProperties: PropertyWithStats[];
+	isLoading?: boolean;
 	// onDelete: (id: string) => void;
 	// isDeletingId: string | undefined;
-	unitStats: PropertyCardProps;
 }
 
 export function PropertyGrid({
 	properties,
 	allProperties,
-
-	unitStats,
+	isLoading,
 }: PropertyGridProps) {
+	if (isLoading) {
+		return (
+			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+				{Array.from({ length: 6 }).map((_, i) => (
+					// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton, order never changes
+					<PropertyCardSkeleton key={i} animationDelay={i * 80} />
+				))}
+			</div>
+		);
+	}
+
 	if (properties.length === 0) {
 		return (
-			<div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
-				<p className="text-muted-foreground">
+			<div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-white py-16 text-center shadow">
+				<p className="mb-2 text-muted-foreground">
 					{allProperties.length === 0
 						? "No properties yet. Add your first one!"
 						: "No properties match your filters."}
 				</p>
-				{allProperties.length === 0 && (
-					<Button className="mt-4">
-						<Link href="/properties/new">Add Property</Link>
-					</Button>
-				)}
+				{allProperties.length === 0 && <PropertyActionButton />}
 			</div>
 		);
 	}
 	return (
 		<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 			{properties.map((property) => (
-				<PropertyCardActions
-					key={property.id}
-					property={property}
-					unitStats={unitStats}
-				/>
+				<PropertyCardActions key={property.id} property={property} />
 			))}
 		</div>
 	);

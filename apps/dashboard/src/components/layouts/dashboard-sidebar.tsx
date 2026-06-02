@@ -13,7 +13,6 @@ import {
 	SidebarMenuButton,
 	SidebarMenuItem,
 	SidebarRail,
-	SidebarTrigger,
 } from "@rently/ui/components/sidebar";
 import Logo from "@rently/ui/shared/logo";
 import Link from "next/link";
@@ -46,7 +45,6 @@ export function DashbaordSidebar() {
 					<SidebarMenuItem className="w-full">
 						<SidebarContent className="flex flex-row items-center justify-between">
 							<Logo className="p-4" />
-							<SidebarTrigger size="lg" className="-ml-2" />
 						</SidebarContent>
 						<Separator className="my-4 w-full" />
 					</SidebarMenuItem>

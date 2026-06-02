@@ -11,22 +11,21 @@ import {
 	DropdownMenuTrigger,
 } from "@rently/ui/components/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@rently/ui/components/sheet";
-import { useSidebar } from "@rently/ui/components/sidebar";
+import { SidebarTrigger, useSidebar } from "@rently/ui/components/sidebar";
 import { IconBell, IconLogout, IconSearch } from "@tabler/icons-react";
 import Image from "next/image";
 import Link from "next/link";
-import { toRoute } from "@/constants/navigation";
 import { useLogout } from "@/hooks/auth";
 import { useSession } from "@/lib/auth-client";
 import { DashbaordSidebar } from "./dashboard-sidebar";
 
 export default function DashboardHeader() {
 	return (
-		<header className="flex h-20 items-center justify-between border-border/50 border-b bg-background/80 px-6 backdrop-blur-xl">
+		<header className="flex h-20 items-center justify-between border-border/50 border-b bg-background px-6 backdrop-blur-xl">
 			{/* Mobile Menu Trigger */}
 			<div className="flex items-center gap-4">
 				<MobileMenuTrigger />
-
+				<SidebarTrigger size="lg" className="-ml-2" />
 				{/* Desktop Search */}
 				<div className="group relative hidden lg:block">
 					<div className="flex h-12 items-center rounded-[calc(var(--radius)*1.8)] border border-input bg-muted/50 px-4 transition-all focus-within:border-primary focus-within:bg-background focus-within:shadow-lg focus-within:shadow-primary/10">
@@ -83,7 +82,10 @@ function UserButton() {
 		<DropdownMenu>
 			<DropdownMenuTrigger
 				render={
-					<Button className="group relative flex h-12 w-12 items-center justify-center rounded-[calc(var(--radius)*1.8)] bg-linear-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:scale-105 hover:shadow-primary/30 hover:shadow-xl">
+					<Button
+						nativeButton
+						className="group relative flex h-12 w-12 items-center justify-center rounded-[calc(var(--radius)*1.8)] bg-linear-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:scale-105 hover:shadow-primary/30 hover:shadow-xl"
+					>
 						{session.user.image ? (
 							<Image
 								src={session.user.image}
@@ -100,8 +102,8 @@ function UserButton() {
 					</Button>
 				}
 			/>
-			<DropdownMenuGroup>
-				<DropdownMenuContent align="end" className="w-72 cursor-pointer p-3">
+			<DropdownMenuContent align="end" className="w-72 cursor-pointer p-3">
+				<DropdownMenuGroup>
 					<DropdownMenuLabel>
 						<div className="flex items-center gap-3">
 							<div className="flex h-12 w-12 items-center justify-center rounded-[calc(var(--radius)*1.8)] bg-linear-to-br from-primary to-primary/80 text-primary-foreground">
@@ -129,23 +131,22 @@ function UserButton() {
 					<DropdownMenuSeparator className="my-2" />
 					<DropdownMenuItem className="cursor-pointer rounded-[calc(var(--radius)*1.4)]">
 						<Link
-							href={toRoute("/settings")}
+							href="/dashboard/settings"
 							className="flex items-center gap-2"
 						>
 							Settings
 						</Link>
 					</DropdownMenuItem>
 					<DropdownMenuSeparator className="my-2" />
-
 					<DropdownMenuItem
 						className="cursor-pointer rounded-[calc(var(--radius)*1.4)] text-destructive focus:text-destructive"
-						onClick={() => handleLogout}
+						onClick={handleLogout}
 					>
 						<IconLogout className="h-4 w-4" />
 						Sign out
 					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenuGroup>
+				</DropdownMenuGroup>
+			</DropdownMenuContent>
 		</DropdownMenu>
 	);
 }
@@ -155,19 +156,19 @@ function NotificationButton() {
 		<DropdownMenu>
 			<DropdownMenuTrigger
 				render={
-					<Button
-						className="relative flex h-12 w-12 items-center justify-center rounded-[calc(var(--radius)*1.8)] border border-border bg-background transition-all hover:border-border/80 hover:bg-muted"
-						type="button"
-					>
+					<Button className="relative flex h-12 w-12 items-center justify-center rounded-[calc(var(--radius)*1.8)] border border-border bg-background transition-all hover:border-border/80 hover:bg-muted">
 						<IconBell className="h-5 w-5 text-muted-foreground" />
 						<span className="absolute top-2.5 right-2.5 h-2.5 w-2.5 rounded-full bg-destructive" />
 					</Button>
 				}
 			/>
-			<DropdownMenuContent align="end" className="w-80 p-4">
+			<DropdownMenuContent align="end" className="w-80 rounded-xl p-4">
 				<DropdownMenuGroup>
-					<DropdownMenuLabel className="text-base">
+					<DropdownMenuLabel className="inline-flex font-bold text-base text-black">
 						Notifications
+						<span className="ml-2 inline-flex size-4 items-center justify-center rounded-full bg-blue-700 p-3 text-white text-xs">
+							{0}
+						</span>
 					</DropdownMenuLabel>
 					<DropdownMenuSeparator className="my-2" />
 					<div className="py-4 text-center text-muted-foreground text-sm">

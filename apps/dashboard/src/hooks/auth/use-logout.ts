@@ -35,5 +35,5 @@ export const useLogout = () => {
 		},
 	});
 
-	return { handleLogout: mutation.mutate };
+	return { handleLogout: () => mutation.mutate };
 };

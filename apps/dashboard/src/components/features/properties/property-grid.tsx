@@ -20,7 +20,6 @@ export function PropertyGrid({
 		return (
 			<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
 				{Array.from({ length: 6 }).map((_, i) => (
-					// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton, order never changes
 					<PropertyCardSkeleton key={i} animationDelay={i * 80} />
 				))}
 			</div>

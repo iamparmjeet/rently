@@ -7,7 +7,6 @@ import {
 	FieldError,
 	FieldGroup,
 	FieldLabel,
-	FieldLegend,
 	FieldSet,
 } from "@rently/ui/components/field";
 import { Input } from "@rently/ui/components/input";
@@ -18,6 +17,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@rently/ui/components/select";
+import { Textarea } from "@rently/ui/components/textarea";
 import { CreatePropertySchema } from "@rently/validators";
 import { useForm } from "react-hook-form";
 import type { z } from "zod";
@@ -51,6 +51,10 @@ export function PropertyForm({
 			name: "",
 			address: "",
 			type: "residential",
+			description: "",
+			floors: "",
+			totalArea: "",
+			yearBuilt: "",
 			...defaultValues,
 		},
 	});
@@ -58,11 +62,9 @@ export function PropertyForm({
 	const typeValue = watch("type");
 
 	return (
-		<form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+		<form id={formId} onSubmit={handleSubmit(onSubmit)}>
 			<FieldSet>
-				<FieldLegend>Property Details</FieldLegend>
-
-				<FieldGroup className="flex flex-col gap-4">
+				<FieldGroup className="flex flex-col gap-3">
 					{/* Name */}
 					<Field data-invalid={!!errors.name}>
 						<FieldLabel htmlFor="name">Property Name</FieldLabel>
@@ -79,7 +81,7 @@ export function PropertyForm({
 					{/* Address */}
 					<Field data-invalid={!!errors.address}>
 						<FieldLabel htmlFor="address">Address</FieldLabel>
-						<Input
+						<Textarea
 							id="address"
 							placeholder="e.g. 123 Main Street, Ludhiana"
 							disabled={isSubmitting}
@@ -88,30 +90,83 @@ export function PropertyForm({
 						/>
 						<FieldError errors={[errors.address]} />
 					</Field>
+					<div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+						{/* Type */}
+						<Field data-invalid={!!errors.type}>
+							<FieldLabel>Property Type</FieldLabel>
 
-					{/* Type */}
-					<Field data-invalid={!!errors.type}>
-						<FieldLabel>Property Type</FieldLabel>
+							<Select
+								value={typeValue}
+								onValueChange={(val) =>
+									setValue("type", val as PropertyFormValues["type"], {
+										shouldValidate: true,
+									})
+								}
+								disabled={isSubmitting}
+							>
+								<SelectTrigger>
+									<SelectValue placeholder="Select type" />
+								</SelectTrigger>
+								<SelectContent>
+									<SelectItem value="residential">Residential</SelectItem>
+									<SelectItem value="commercial">Commercial</SelectItem>
+								</SelectContent>
+							</Select>
 
-						<Select
-							value={typeValue}
-							onValueChange={(val) =>
-								setValue("type", val as PropertyFormValues["type"], {
-									shouldValidate: true,
-								})
-							}
+							<FieldError errors={[errors.type]} />
+						</Field>
+						{/* Year Built*/}
+						<Field data-invalid={!!errors.yearBuilt}>
+							<FieldLabel htmlFor="yearBuilt">Year Built</FieldLabel>
+							<Input
+								id="yearBuilt"
+								type="number"
+								min={1900}
+								placeholder="2020"
+								disabled={isSubmitting}
+								{...register("yearBuilt")}
+								aria-invalid={!!errors.yearBuilt}
+							/>
+							<FieldError errors={[errors.yearBuilt]} />
+						</Field>
+						{/* Total Area */}
+						<Field data-invalid={!!errors.totalArea}>
+							<FieldLabel htmlFor="totalArea">Total Area (sq ft)</FieldLabel>
+							<Input
+								id="totalArea"
+								type="number"
+								min={0}
+								placeholder="2400"
+								disabled={isSubmitting}
+								{...register("totalArea")}
+								aria-invalid={!!errors.totalArea}
+							/>
+							<FieldError errors={[errors.totalArea]} />
+						</Field>
+						<Field data-invalid={!!errors.floors}>
+							<FieldLabel htmlFor="floors">Florrs</FieldLabel>
+							<Input
+								id="floors"
+								type="number"
+								min={1}
+								placeholder="2"
+								disabled={isSubmitting}
+								{...register("floors")}
+								aria-invalid={!!errors.floors}
+							/>
+							<FieldError errors={[errors.floors]} />
+						</Field>
+					</div>
+					<Field data-invalid={!!errors.description}>
+						<FieldLabel htmlFor="description">Description</FieldLabel>
+						<Textarea
+							id="description"
+							placeholder="e.g. Any Additional Details about the property"
 							disabled={isSubmitting}
-						>
-							<SelectTrigger>
-								<SelectValue placeholder="Select type" />
-							</SelectTrigger>
-							<SelectContent>
-								<SelectItem value="residential">Residential</SelectItem>
-								<SelectItem value="commercial">Commercial</SelectItem>
-							</SelectContent>
-						</Select>
-
-						<FieldError errors={[errors.type]} />
+							{...register("description")}
+							aria-invalid={!!errors.description}
+						/>
+						<FieldError errors={[errors.description]} />
 					</Field>
 				</FieldGroup>
 			</FieldSet>

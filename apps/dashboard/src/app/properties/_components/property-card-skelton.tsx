@@ -41,7 +41,6 @@ export function PropertyCardSkeleton({
 				{/* mirrors the grid-cols-3 stat grid */}
 				<div className="grid grid-cols-3 gap-2">
 					{Array.from({ length: 3 }).map((_, i) => (
-						// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton, order never changes
 						<Skeleton key={i} className="h-14 rounded-md" />
 					))}
 				</div>

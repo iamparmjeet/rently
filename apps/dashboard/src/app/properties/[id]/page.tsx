@@ -1,13 +1,13 @@
 "use client";
 
+import { Badge } from "@rently/ui/components/badge";
+import { Button } from "@rently/ui/components/button";
 import {
 	Card,
 	CardContent,
 	CardHeader,
 	CardTitle,
-} from "@rently/ui/components//card";
-import { Badge } from "@rently/ui/components/badge";
-import { Button } from "@rently/ui/components/button";
+} from "@rently/ui/components/card";
 import { DetailHeader } from "@rently/ui/shared/detail-header";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
 import type { UnitWithLease } from "@rently/validators";
@@ -218,8 +218,8 @@ function NoUnit({ id }: { id: string }) {
 		<div className="rounded-xl border border-dashed py-12 text-center">
 			<p>
 				No Units yet.
-				<Button>
-					<Link href={`/units/new?propertyId=${id}`}>Add the first unit.</Link>
+				<Button render={<Link href={`/units/new?propertyId=${id}`} />}>
+					Add the first unit.
 				</Button>
 			</p>
 		</div>
@@ -248,7 +248,7 @@ function DetailUnitsList({ unit }: { unit: UnitWithLease }) {
 				</p>
 
 				<p className="text-gray-500 text-xs">
-					{unit.activeLease ? unit.activeLease.tenantName : "tenant Name"}
+					{unit.activeLease ? unit.activeLease.tenantName : "tenant"}
 				</p>
 			</div>
 			<Badge

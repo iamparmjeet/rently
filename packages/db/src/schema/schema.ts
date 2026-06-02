@@ -11,6 +11,7 @@ import {
 import {
 	boolean,
 	integer,
+	numeric,
 	pgTable,
 	real,
 	text,
@@ -37,6 +38,10 @@ export const properties = pgTable("properties", {
 	name: text("name").notNull(),
 	address: text("address").notNull(),
 	type: text("type", { enum: PROPERTY_TYPES_VALUES }).notNull(),
+	yearBuilt: numeric("year-built"),
+	totalArea: numeric("total-area"),
+	floors: numeric("floors"),
+	description: text("description"),
 	...auditColumns(),
 });
 
@@ -69,6 +74,9 @@ export const leases = pgTable("leases", {
 	status: text("status", {
 		enum: LEASE_STATUS_VALUES,
 	}).notNull(),
+	notice: numeric("notice"),
+	rentDueDay: timestamp("rent-due-date"),
+	description: text("description"),
 	referenceId: uuid("reference_id").references(() => user.id),
 	...auditColumns(),
 });

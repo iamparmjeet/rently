@@ -1,7 +1,5 @@
-// apps/web/src/app/(dashboard)/utilities/page.tsx
-
 import { Suspense } from "react";
-import UtilitiesClient from "./_components/utilities-client";
+import UtilitiesClient from "@/components/features/utilities/utilities-client";
 
 function UtilitiesPageSkeleton() {
 	return (

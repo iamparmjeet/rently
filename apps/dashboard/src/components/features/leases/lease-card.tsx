@@ -155,7 +155,7 @@ export function LeaseCard({
 			<CardFooter className="gap-2 pt-0">
 				<LeaseStatusBadge status={lease.status} />
 				<span className="ml-auto text-muted-foreground text-xs">
-					Deposit: ₹{lease.deposit.toLocaleString("en-IN")}
+					Deposit: ₹{lease?.deposit?.toLocaleString("en-IN")}
 				</span>
 			</CardFooter>
 			<DateRecordMeta

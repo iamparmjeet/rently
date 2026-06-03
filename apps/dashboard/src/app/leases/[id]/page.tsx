@@ -57,6 +57,9 @@ export default function LeaseDetailPage({
 				propertyName: u.propertyName ?? "",
 				baseRent: u.baseRent,
 				propertyId: u.propertyId,
+				type: u.type,
+				area: u.area,
+				furnishing: u.furnishing,
 			})),
 		[unitsData?.units],
 	);

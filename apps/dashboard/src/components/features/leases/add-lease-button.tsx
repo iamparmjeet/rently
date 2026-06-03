@@ -43,6 +43,9 @@ export function AddLeaseButton({
 		unitNumber: u.unitNumber,
 		propertyName: u.propertyName ?? "",
 		baseRent: u.baseRent,
+		type: u.type,
+		area: u.area,
+		furnishing: u.furnishing,
 	}));
 
 	const tenantOptions = (tenantsData?.tenants ?? []).map((t) => ({

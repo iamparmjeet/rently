@@ -119,5 +119,6 @@ export const PAYMENT_STATUS_VALUES = Object.values(PAYMENT_STATUS) as [
 //   },
 // ];
 
-export const RATEPERUNIT = 9;
-export const FIXEDCHARGE = 100;
+// in Paisa
+export const RATEPERUNIT = 900;
+export const FIXEDCHARGE = 10000;

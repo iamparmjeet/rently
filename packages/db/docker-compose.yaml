@@ -6,9 +6,9 @@ services:
     container_name: pg_db_local_rently
     restart: on-failure
     environment:
-      POSTGRES_DB: rently_db
       POSTGRES_USER: rently_db_user
       POSTGRES_PASSWORD: rently_db_password
+      POSTGRES_DB: rently_db
     ports:
       - "5432:5432"
     volumes:

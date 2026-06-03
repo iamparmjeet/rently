@@ -56,6 +56,12 @@ export function useUpdateLease() {
 					input: { id: variables.id },
 				}),
 			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.unit.listUnits.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.unit.getUnitById.key(),
+			});
 			toast.success("Lease Updated Successfully", { id: context.toastId });
 		},
 
@@ -90,12 +96,24 @@ export function useTerminateLease() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.lease.listLeases.key(),
 			});
+
 			toast.success("Lease terminated", { id: context.toastId });
 		},
 
 		onError: (error, _, context) => {
 			toast.error(`Failed to terminate lease: ${error.message}`, {
 				id: context?.toastId,
+			});
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.lease.listLeases.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.unit.listUnits.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.unit.getUnitById.key(),
 			});
 		},
 	});
@@ -278,6 +296,12 @@ export function useOptimisticUpdateLease() {
 					input: { id: variables.id },
 				}),
 			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.unit.listUnits.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.unit.getUnitById.key(),
+			});
 			toast.success("Lease Updated Successfully", { id: context.toastId });
 		},
 		// onSettled
@@ -339,23 +363,27 @@ export function useOptimisticTerminateLease() {
 				id: context?.toastId,
 			});
 		},
-		onSuccess: (_, __, context) => {
-			// removeQueries = clear cache without refetching
-			// invalidateQueries = clear + immediately trigger refetch
-			// For delete, we just want to clear — nothing to refetch
-			// queryClient.removeQueries({
-			// 	queryKey: orpc.rent.lease.listLease.key(),
-			// });
-
+		onSuccess: (_, variables, context) => {
 			// Invalidate list so count updates
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.lease.listLeases.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.lease.getLeaseById.key({
+					input: { id: variables.id },
+				}),
 			});
 			toast.success("Lease terminated", { id: context.toastId });
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.lease.listLeases.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.unit.listUnits.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.unit.getUnitById.key(),
 			});
 		},
 	});

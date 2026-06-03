@@ -66,17 +66,18 @@ export function useUpdateLease() {
 	});
 }
 
-export function useDeleteLease() {
+export function useTerminateLease() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
 		onMutate: () => {
-			const toastId = toast.loading("Lease deleting...");
+			const toastId = toast.loading("Terminating lease...");
 			return { toastId };
 		},
 		// The mutationFn receives the property id as its argument
-		mutationFn: (input: Parameters<typeof client.rent.lease.deleteLease>[0]) =>
-			client.rent.lease.deleteLease(input),
+		mutationFn: (
+			input: Parameters<typeof client.rent.lease.terminateLease>[0],
+		) => client.rent.lease.terminateLease(input),
 		onSuccess: (_, __, context) => {
 			// removeQueries = clear cache without refetching
 			// invalidateQueries = clear + immediately trigger refetch
@@ -89,11 +90,11 @@ export function useDeleteLease() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.lease.listLeases.key(),
 			});
-			toast.success("Lease deleted", { id: context.toastId });
+			toast.success("Lease terminated", { id: context.toastId });
 		},
 
 		onError: (error, _, context) => {
-			toast.error(`Failed to delete lease: ${error.message}`, {
+			toast.error(`Failed to terminate lease: ${error.message}`, {
 				id: context?.toastId,
 			});
 		},
@@ -293,12 +294,12 @@ export function useOptimisticUpdateLease() {
 	});
 }
 
-export function useOptimisticDeleteLease() {
+export function useOptimisticTerminateLease() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
 		onMutate: async (variables) => {
-			const toastId = toast.loading("Lease deleting...");
+			const toastId = toast.loading("Terminating lease...");
 			// Cancel
 			await queryClient.cancelQueries({
 				queryKey: orpc.rent.lease.listLeases.key(),
@@ -322,8 +323,9 @@ export function useOptimisticDeleteLease() {
 			return { toastId, prevList, id: variables.id };
 		},
 		// The mutationFn receives the property id as its argument
-		mutationFn: (input: Parameters<typeof client.rent.lease.deleteLease>[0]) =>
-			client.rent.lease.deleteLease(input),
+		mutationFn: (
+			input: Parameters<typeof client.rent.lease.terminateLease>[0],
+		) => client.rent.lease.terminateLease(input),
 		// onError
 		onError: (error, _, context) => {
 			// Rollback the list
@@ -333,7 +335,7 @@ export function useOptimisticDeleteLease() {
 					context.prevList,
 				);
 			}
-			toast.error(`Failed to delete lease: ${error.message}`, {
+			toast.error(`Failed to terminate lease: ${error.message}`, {
 				id: context?.toastId,
 			});
 		},
@@ -349,7 +351,7 @@ export function useOptimisticDeleteLease() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.lease.listLeases.key(),
 			});
-			toast.success("Lease deleted", { id: context.toastId });
+			toast.success("Lease terminated", { id: context.toastId });
 		},
 		onSettled: () => {
 			queryClient.invalidateQueries({

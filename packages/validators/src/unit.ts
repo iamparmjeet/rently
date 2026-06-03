@@ -28,6 +28,7 @@ export const UpdateUnitSchema = createUpdateSchema(units).pick({
 	type: true,
 	area: true,
 	baseRent: true,
+	furnishing: true,
 	description: true,
 	status: true,
 });
@@ -35,6 +36,12 @@ export const UpdateUnitSchema = createUpdateSchema(units).pick({
 // Layer 3 - API output
 export const UnitDetailSchema = UnitSelectSchema.extend({
 	propertyName: z.string(),
+	propertyId: z.string(),
+	unitNumber: z.string(),
+	baseRent: z.number(),
+	area: z.number().nullable(),
+	description: z.string().nullable(),
+	furnishing: z.string().nullable(),
 });
 
 // Lease Summary embedded inside a unit details response

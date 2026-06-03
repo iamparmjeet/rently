@@ -1,14 +1,12 @@
 import type { PropertyWithStats } from "@rently/validators";
-import PropertyActionButton from "@/app/properties/_components/property-action-button";
-import { PropertyCardActions } from "@/app/properties/_components/property-card-action";
-import { PropertyCardSkeleton } from "@/app/properties/_components/property-card-skelton";
+import { PropertyActionButton } from "./property-action-button";
+import { PropertyCardActions } from "./property-card-action";
+import { PropertyCardSkeleton } from "./property-card-skelton";
 
 interface PropertyGridProps {
 	properties: PropertyWithStats[];
 	allProperties: PropertyWithStats[];
 	isLoading?: boolean;
-	// onDelete: (id: string) => void;
-	// isDeletingId: string | undefined;
 }
 
 export function PropertyGrid({

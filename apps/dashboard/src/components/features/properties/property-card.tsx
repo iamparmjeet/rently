@@ -10,11 +10,11 @@ import {
 
 import { cn } from "@rently/ui/lib/utils";
 import { DateRecordMeta } from "@rently/ui/shared/date-record-meta";
+import { IconWrapper } from "@rently/ui/shared/icon-wrapper";
 import type { PropertyWithStats } from "@rently/validators";
 import { IconBuildingStore, IconHome } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import Link from "next/link";
-import { IconWrapper } from "@/components/shared/icon-wrapper";
 import { orpc } from "@/utils/orpc";
 
 export interface PropertyCardProps {

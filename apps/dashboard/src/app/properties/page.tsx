@@ -1,4 +1,4 @@
-import PropertiesClient from "./_components/properties-client";
+import { PropertiesClient } from "@/components/features/properties";
 
 export default function PropertiesPage() {
 	return <PropertiesClient />;

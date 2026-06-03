@@ -23,6 +23,7 @@ async function getLeaseWithOwner(db: Database, leaseId: string) {
 			leaseId: leases.id,
 			unitId: leases.unitId,
 			ownerId: properties.ownerId,
+			status: leases.status,
 		})
 		.from(leases)
 		.innerJoin(units, eq(leases.unitId, units.id))
@@ -134,6 +135,12 @@ export const updateLease = ownerProcedure
 				});
 			}
 
+			if (ownership.status === "terminated" || ownership.status === "expired") {
+				throw new ORPCError(StatusPhrase.BAD_REQUEST, {
+					message: "Terminated or expired leases cannot be edited.",
+				});
+			}
+
 			if (
 				input.data.status === "terminated" ||
 				input.data.status === "expired"
@@ -174,7 +181,7 @@ export const getLeaseById = ownerProcedure
 				rent: leases.rent,
 				deposit: leases.deposit,
 				notice: leases.notice,
-				rentDueDay: leases.rentDueDay,
+				rentDueDate: leases.rentDueDate,
 				description: leases.description,
 				status: leases.status,
 				referenceId: leases.referenceId,

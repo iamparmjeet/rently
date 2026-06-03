@@ -27,24 +27,30 @@ import z from "zod";
 import { isLeaseOwner, VerifyLeaseOwnership } from "../helpers";
 
 // ******** Shared Helper ************
-type ComputeTotal = {
+type ComputeTotalInput = {
 	utilityType: string;
 	currentReading: number | null | undefined;
 	previousReading: number | null | undefined;
 	ratePerUnit: number | null | undefined;
 	fixedCharge: number | null | undefined;
 };
-function computeTotal({
+function computeTotalPaisa({
 	currentReading,
 	fixedCharge,
 	previousReading,
 	ratePerUnit,
 	utilityType,
-}: ComputeTotal): number {
+}: ComputeTotalInput): number {
 	if (utilityType === UTILITY_TYPES.MAINTENANCE) {
 		return fixedCharge ?? 0;
 	}
 	const units = (currentReading ?? 0) - (previousReading ?? 0);
+	if (units < 0) {
+		throw new ORPCError("BAD_REQUEST", {
+			message: "Current reading cannot be less than previous reading",
+		});
+	}
+
 	return Math.round(
 		units * (ratePerUnit ?? RATEPERUNIT) + (fixedCharge ?? FIXEDCHARGE),
 	);
@@ -126,10 +132,10 @@ export const createUtility = ownerProcedure
 			? input.currentReading - input.previousReading
 			: null;
 
-		const totalAmount = computeTotal({
+		const totalAmount = computeTotalPaisa({
 			utilityType: input.utilityType,
 			currentReading: input.currentReading,
-			previousReading: input.currentReading,
+			previousReading: input.previousReading,
 			ratePerUnit: input.ratePerUnit,
 			fixedCharge: input.fixedCharge,
 		});
@@ -191,7 +197,7 @@ export const updateUtility = ownerProcedure
 			? (finalCurrent ?? 0) - (finalPrevious ?? 0)
 			: null;
 
-		const totalAmount = computeTotal({
+		const totalAmount = computeTotalPaisa({
 			utilityType: finalType,
 			currentReading: finalCurrent,
 			previousReading: finalPrevious,

@@ -42,6 +42,8 @@ export function LeaseCard({
 	createdAt,
 	updatedAt,
 }: LeaseCardProps) {
+	const isTerminated = lease.status === "terminated";
+
 	const startDate = new Date(lease.startDate).toLocaleDateString("en-IN", {
 		day: "2-digit",
 		month: "short",
@@ -94,6 +96,7 @@ export function LeaseCard({
 								</Link>
 							</DropdownMenuItem>
 							<DropdownMenuItem
+								disabled={isTerminated}
 								onClick={() => (onEdit ? onEdit(lease) : undefined)}
 							>
 								{onEdit ? (
@@ -113,6 +116,7 @@ export function LeaseCard({
 							</DropdownMenuItem>
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
+								disabled={isTerminated}
 								className="text-destructive focus:text-destructive"
 								onClick={() => onDelete?.(lease.leaseId)}
 							>

@@ -60,10 +60,10 @@ export default async function proxy(request: NextRequest) {
 	if (isAuthRoute && hasSession) {
 		const callbackUrl = request.nextUrl.searchParams.get("callbackUrl");
 		if (callbackUrl && isTrustedCallbackUrl(callbackUrl)) {
-			return NextResponse.redirect(callbackUrl);
+			return NextResponse.redirect(new URL(callbackUrl, request.url));
 		}
 		return NextResponse.redirect(
-			new URL(NavigationLinkMap.Dashboard.href, request.url),
+			new URL(`${env.NEXT_PUBLIC_DASHBOARD_URL}/dashboard`, request.url),
 		);
 	}
 

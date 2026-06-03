@@ -1,4 +1,3 @@
-// apps/web/src/components/forms/lease-form.tsx
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -140,13 +139,6 @@ export function LeaseForm({
 		setValue("unitId", "", { shouldValidate: false });
 		setValue("rent", 0, { shouldValidate: false });
 	}
-
-	console.log({
-		selectedPropertyId,
-		unit0PropertyId: units[0]?.propertyId, // ← actual value, not the array
-		unit1PropertyId: units[1]?.propertyId,
-		filteredCount: filteredUnits.length,
-	});
 
 	if (tenants.length === 0) {
 		return (

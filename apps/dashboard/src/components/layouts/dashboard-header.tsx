@@ -22,7 +22,7 @@ import { DashbaordSidebar } from "./dashboard-sidebar";
 
 export default function DashboardHeader() {
 	return (
-		<header className="flex h-20 items-center justify-between border-border/50 border-b bg-background px-6 backdrop-blur-xl">
+		<header className="flex h-20 items-center justify-between border-b bg-background px-6 backdrop-blur-xl">
 			{/* Mobile Menu Trigger */}
 			<div className="flex items-center gap-4">
 				<MobileMenuTrigger />

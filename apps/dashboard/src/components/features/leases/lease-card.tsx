@@ -27,6 +27,7 @@ import LeaseStatusBadge from "./lease-status-badge";
 
 interface LeaseCardProps {
 	lease: LeaseWithDetails;
+	onEdit?: (lease: LeaseWithDetails) => void;
 	onDelete?: (id: string) => void;
 	isDeleting?: boolean;
 	createdAt: Date;
@@ -34,6 +35,7 @@ interface LeaseCardProps {
 }
 
 export function LeaseCard({
+	onEdit,
 	lease,
 	onDelete,
 	isDeleting,
@@ -91,14 +93,23 @@ export function LeaseCard({
 									View Details
 								</Link>
 							</DropdownMenuItem>
-							<DropdownMenuItem>
-								<Link
-									href={`/leases/${lease.leaseId}/edit`}
-									className="flex items-center"
-								>
-									<IconPencil className="mr-2 size-4" />
-									Edit
-								</Link>
+							<DropdownMenuItem
+								onClick={() => (onEdit ? onEdit(lease) : undefined)}
+							>
+								{onEdit ? (
+									<>
+										<IconPencil className="mr-2 size-4" />
+										Edit
+									</>
+								) : (
+									<Link
+										href={`/leases/${lease.leaseId}/edit`}
+										className="flex items-center"
+									>
+										<IconPencil className="mr-2 size-4" />
+										Edit
+									</Link>
+								)}
 							</DropdownMenuItem>
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
@@ -139,11 +150,9 @@ export function LeaseCard({
 
 			<CardFooter className="gap-2 pt-0">
 				<LeaseStatusBadge status={lease.status} />
-				{lease.deposit && (
-					<span className="ml-auto text-muted-foreground text-xs">
-						Deposit: ₹{lease.deposit.toLocaleString("en-IN")}
-					</span>
-				)}
+				<span className="ml-auto text-muted-foreground text-xs">
+					Deposit: ₹{lease.deposit.toLocaleString("en-IN")}
+				</span>
 			</CardFooter>
 			<DateRecordMeta
 				className="px-4"

@@ -6,9 +6,9 @@ interface LeaseStatusBadgeProps {
 }
 
 const STATUS_STYLES: Record<LeaseStatus, string> = {
-	active: "bg-green-100 text-green-800 hover:bg-green-200",
-	expired: "bg-amber-100 text-amber-800 hover:bg-amber-200",
-	terminated: "bg-red-100 text-red-800 hover:text-red-200",
+	active: "bg-green-100 text-green-800",
+	expired: "bg-amber-100 text-amber-800 ",
+	terminated: "bg-red-100 text-red-800",
 };
 
 const STATUS_LABELS: Record<LeaseStatus, string> = {

@@ -1,42 +1,37 @@
-// apps/web/src/app/(dashboard)/utilities/_components/utilities-client.tsx
 "use client";
 
 import {
 	FIXEDCHARGE,
-	type PaymentStatus,
 	RATEPERUNIT,
 } from "@rently/db/constants/payment-constants";
+
 import { Button } from "@rently/ui/components/button";
 import {
 	Dialog,
 	DialogContent,
 	DialogHeader,
 	DialogTitle,
-	DialogTrigger,
 } from "@rently/ui/components/dialog";
 import { Input } from "@rently/ui/components/input";
 import {
-	Select,
-	SelectContent,
-	SelectItem,
-	SelectTrigger,
-	SelectValue,
-} from "@rently/ui/components/select";
-import {
-	Table,
-	TableBody,
-	TableHead,
-	TableHeader,
-	TableRow,
-} from "@rently/ui/components/table";
-import { paiseToFormValue, toPaise } from "@rently/ui/lib/currency";
-import { EmptyState } from "@rently/ui/shared/empty-state";
+	formatFormRupees,
+	formatRupees,
+	paiseToFormValue,
+	toPaise,
+} from "@rently/ui/lib/currency";
 import { PageHeader } from "@rently/ui/shared/page-header";
 import type {
 	UtilityBatchFormValues,
 	UtilityListItem,
 } from "@rently/validators";
-import { IconBolt, IconPlus } from "@tabler/icons-react";
+import {
+	IconBolt,
+	IconDroplet,
+	IconFileInvoice,
+	IconPlus,
+	IconReceipt,
+	IconTool,
+} from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { UtilityForm } from "@/components/forms/utility-form";
 import { Container } from "@/components/shared/container";
@@ -48,20 +43,22 @@ import {
 	useSuspenseUtilities,
 } from "@/hooks/utilities";
 import type { client } from "@/utils/orpc";
-import { LeasePickerThenForm } from "./lease-picker-form";
+import { type CombinedBillGroup, CombinedBillRow } from "./combined-bill-row";
+import { ElectricityRow } from "./electricity-row";
+import { FixedChargeRow } from "./fixed-charge-row";
+import { UnitPickerUtilityForm } from "./lease-picker-form";
 import { MarkPaidDialog } from "./mark-paid-dialog";
-import { StatCard } from "./stat-card";
 import { UtilityDetailSheet } from "./utility-detail-sheet";
-import { UtilityTableRow } from "./utility-table-row";
 
-type UtilityFilters = {
-	search: string;
-	isPaid: "all" | PaymentStatus;
-};
+// ── Types ────────────────────────────────────────────────────────────────────
+
+type UtilityTab = "electricity" | "water" | "maintenance" | "combined";
 
 type BatchItem = Parameters<
 	typeof client.rent.utility.createUtilityBatch
 >[0]["items"][number];
+
+// ── Component ────────────────────────────────────────────────────────────────
 
 export default function UtilitiesClient() {
 	const { data } = useSuspenseUtilities();
@@ -71,10 +68,8 @@ export default function UtilitiesClient() {
 	const updateUtility = useOptimisticUpdateUtility();
 	const removeUtility = useOptimisticRemoveUtility();
 
-	const [filters, setFilters] = useState<UtilityFilters>({
-		search: "",
-		isPaid: "all",
-	});
+	const [activeTab, setActiveTab] = useState<UtilityTab>("electricity");
+	const [search, setSearch] = useState("");
 	const [createOpen, setCreateOpen] = useState(false);
 	const [editTarget, setEditTarget] = useState<UtilityListItem | null>(null);
 	const [detailTarget, setDetailTarget] = useState<UtilityListItem | null>(
@@ -84,106 +79,145 @@ export default function UtilitiesClient() {
 		null,
 	);
 
-	// derived data
-	// Client-side filter on cached data — no network cost.
-	// The backend already filtered by ownerId — we only filter the display here.
-	const filteredUtilities = useMemo(() => {
-		const list = data?.utilities ?? [];
-		return list.filter((u) => {
-			if (filters.search) {
-				const q = filters.search.toLowerCase();
-				if (
-					!u.unitNumber.toLowerCase().includes(q) &&
-					!u.propertyName.toLowerCase().includes(q) &&
-					!(u.tenantName ?? "").toLowerCase().includes(q)
-				)
-					return false;
-			}
-			if (filters.isPaid === "paid" && !u.isPaid) return false;
-			if (filters.isPaid === "unpaid" && u.isPaid) return false;
-			return true;
+	const utilities = data?.utilities ?? [];
+	const leases = leasesData?.leases ?? [];
+
+	// ── Derived: filter by type + search ─────────────────────────────────────
+	const filtered = useMemo(() => {
+		const q = search.toLowerCase();
+		return utilities.filter((u) => {
+			if (activeTab !== "combined" && u.utilityType !== activeTab) return false;
+			if (!q) return true;
+			return (
+				(u.tenantName ?? "").toLowerCase().includes(q) ||
+				u.propertyName.toLowerCase().includes(q) ||
+				u.unitNumber.toLowerCase().includes(q)
+			);
 		});
-	}, [data?.utilities, filters]);
+	}, [utilities, activeTab, search]);
 
-	// Stats derived from server data — no separate API call needed
+	// ── Derived: stats ───────────────────────────────────────────────────────
 	const stats = useMemo(() => {
-		const all = data?.utilities ?? [];
-		const unpaidEntries = all.filter((u) => !u.isPaid);
-		const unpaidTotal = unpaidEntries.reduce(
-			(sum, u) => sum + u.totalAmount,
-			0,
-		);
+		const thisMonth = new Date().getMonth();
+		const thisYear = new Date().getFullYear();
+
+		const monthlyUtilities = utilities.filter((u) => {
+			const d = new Date(u.currentReadingDate);
+			return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
+		});
+
+		const sum = (arr: UtilityListItem[]) =>
+			arr.reduce((acc, u) => acc + u.totalAmount, 0);
+
 		return {
-			total: all.length,
-			unpaidCount: unpaidEntries.length,
-			// totalAmount is in paise — divide by 100 for rupee display
-			unpaidRupees: (unpaidTotal / 100).toFixed(2),
+			totalBills: sum(monthlyUtilities),
+			waterTotal: sum(
+				monthlyUtilities.filter((u) => u.utilityType === "water"),
+			),
+			maintenanceTotal: sum(
+				monthlyUtilities.filter((u) => u.utilityType === "maintenance"),
+			),
+			unpaidTotal: sum(utilities.filter((u) => !u.isPaid)),
+			unpaidCount: utilities.filter((u) => !u.isPaid).length,
+			electricityCount: utilities.filter((u) => u.utilityType === "electricity")
+				.length,
+			waterCount: utilities.filter((u) => u.utilityType === "water").length,
+			maintenanceCount: utilities.filter((u) => u.utilityType === "maintenance")
+				.length,
 		};
-	}, [data?.utilities]);
+	}, [utilities]);
 
-	// Active leases for the create form's lease selector
-	const activeLeases = useMemo(
-		() =>
-			leasesData?.leases
-				?.filter((l) => l.status === "active")
+	// ── Derived: combined bills (group by leaseId, join with lease for rent) ──
+	// WHY: "Combined Bills" is a pure client-side aggregation — no API needed.
+	// For each leaseId that has utility entries, find the matching lease and
+	// sum all utility totals. Then add the lease's rent for the grand total.
+	const combinedGroups = useMemo((): CombinedBillGroup[] => {
+		const map = new Map<string, CombinedBillGroup>();
 
-				.map((l) => ({
-					id: l.leaseId,
-					unitId: l.unitId,
-					unitNumber: l.unitNumber,
-					tenantName: l.tenantName,
-				})) ?? [],
-		[leasesData?.leases],
-	);
+		for (const u of utilities) {
+			const lease = leases.find((l) => l.leaseId === u.leaseId);
+			if (!lease) continue; // skip orphaned utilities (shouldn't happen)
 
-	// Handlers
+			const existing = map.get(u.leaseId);
+
+			if (existing) {
+				existing.utilities.push(u);
+				if (u.utilityType === "electricity")
+					existing.electricityTotal += u.totalAmount;
+				if (u.utilityType === "water") existing.waterTotal += u.totalAmount;
+				if (u.utilityType === "maintenance")
+					existing.maintenanceTotal += u.totalAmount;
+				existing.utilityTotal += u.totalAmount;
+				existing.grandTotal += u.totalAmount;
+				existing.allPaid = existing.allPaid && u.isPaid;
+			} else {
+				map.set(u.leaseId, {
+					lease,
+					utilities: [u],
+					electricityTotal: u.utilityType === "electricity" ? u.totalAmount : 0,
+					waterTotal: u.utilityType === "water" ? u.totalAmount : 0,
+					maintenanceTotal: u.utilityType === "maintenance" ? u.totalAmount : 0,
+					utilityTotal: u.totalAmount,
+					// grandTotal starts with rent + this first utility
+					grandTotal: lease.rent + u.totalAmount,
+					allPaid: u.isPaid,
+				});
+			}
+		}
+
+		return Array.from(map.values()).sort((a, b) =>
+			(a.lease.tenantName ?? "").localeCompare(b.lease.tenantName ?? ""),
+		);
+	}, [utilities, leases]);
+
+	// ── Handlers ─────────────────────────────────────────────────────────────
+
 	function handleCreate(values: UtilityBatchFormValues) {
-		const items: BatchItem[] = [];
-		const sharedDates = {
+		const sharedItemFields = {
 			leaseId: values.leaseId,
-			batchId: values.batchId ?? null,
+			batchId: values.batchId,
 			previousReadingDate: new Date(values.previousReadingDate),
 			currentReadingDate: new Date(values.currentReadingDate),
-			// WHY readingDate = currentReadingDate: the "reading date" is when
-			// the meter was last read — i.e. the end of the billing period.
-			readingDate: new Date(values.currentReadingDate),
 		};
 
+		const items: BatchItem[] = [];
+
 		if (values.electricity) {
+			// WHY: destructure to drop isPaid — CreateUtilitySchema omits it intentionally
+			const { isPaid: _isPaid, ...elecFields } = values.electricity;
 			items.push({
-				...sharedDates,
-				utilityType: "electricity",
-				previousReading: values.electricity.previousReading,
-				currentReading: values.electricity.currentReading,
-				ratePerUnit: toPaise(values.electricity.ratePerUnit),
-				fixedCharge: toPaise(values.electricity.fixedCharge),
-				description: null,
+				utilityType: "electricity" as const,
+				...sharedItemFields,
+				...elecFields,
+				ratePerUnit: toPaise(elecFields.ratePerUnit),
+				fixedCharge: toPaise(elecFields.fixedCharge),
 			});
 		}
 
 		if (values.water) {
+			const { isPaid: _isPaid, ...waterFields } = values.water;
+			// WHY: water/maintenance are flat charges — no meter, but BatchItemSchema
+			// inherits previousReading/currentReading as required from CreateUtilitySchema.
+			// Zero is semantically correct: unitsUsed = max(0, 0 - 0) = 0, bill = fixedCharge.
 			items.push({
-				...sharedDates,
-				utilityType: "water",
-				// WHY 0 for readings: fixed mode has no meter. unitsUsed = 0.
-				// Server computes totalAmount = 0 * 0 + fixedCharge = fixedCharge.
+				utilityType: "water" as const,
+				...sharedItemFields,
 				previousReading: 0,
 				currentReading: 0,
-				ratePerUnit: 0,
-				fixedCharge: toPaise(values.water.fixedCharge),
-				description: values.water.description ?? null,
+				...waterFields,
+				fixedCharge: toPaise(waterFields.fixedCharge),
 			});
 		}
 
 		if (values.maintenance) {
+			const { isPaid: _isPaid, ...maintFields } = values.maintenance;
 			items.push({
-				...sharedDates,
-				utilityType: "maintenance",
+				utilityType: "maintenance" as const,
+				...sharedItemFields,
 				previousReading: 0,
 				currentReading: 0,
-				ratePerUnit: 0,
-				fixedCharge: toPaise(values.maintenance.fixedCharge),
-				description: values.maintenance.description ?? null,
+				...maintFields,
+				fixedCharge: toPaise(maintFields.fixedCharge),
 			});
 		}
 
@@ -196,208 +230,392 @@ export default function UtilitiesClient() {
 	function handleUpdate(values: UtilityBatchFormValues) {
 		if (!editTarget) return;
 
-		// Extract only the section matching the row being edited,
-		// convert rupees → paise for monetary fields.
-		const sharedDates = {
-			previousReadingDate: new Date(values.previousReadingDate),
-			currentReadingDate: new Date(values.currentReadingDate),
-		};
-
-		let updateData = {};
-		if (editTarget.utilityType === "electricity" && values.electricity) {
-			updateData = {
-				...sharedDates,
-				previousReading: values.electricity.previousReading,
-				currentReading: values.electricity.currentReading,
-				ratePerUnit: toPaise(values.electricity.ratePerUnit),
-				fixedCharge: toPaise(values.electricity.fixedCharge),
-			};
-		} else if (editTarget.utilityType === "water" && values.water) {
-			updateData = {
-				...sharedDates,
-				fixedCharge: toPaise(values.water.fixedCharge),
-				// description: values.water.description ?? null,
-			};
-		} else if (editTarget.utilityType === "maintenance" && values.maintenance) {
-			updateData = {
-				...sharedDates,
-				fixedCharge: toPaise(values.maintenance.fixedCharge),
-				description: values.maintenance.description ?? null,
-			};
-		}
+		const typeFields = (() => {
+			if (editTarget.utilityType === "electricity" && values.electricity) {
+				const { isPaid: _isPaid, ...rest } = values.electricity;
+				return {
+					...rest,
+					ratePerUnit: toPaise(rest.ratePerUnit),
+					fixedCharge: toPaise(rest.fixedCharge),
+				};
+			}
+			if (editTarget.utilityType === "water" && values.water) {
+				const { isPaid: _isPaid, ...rest } = values.water;
+				return {
+					...rest,
+					fixedCharge: toPaise(rest.fixedCharge),
+				};
+			}
+			if (editTarget.utilityType === "maintenance" && values.maintenance) {
+				const { isPaid: _isPaid, ...rest } = values.maintenance;
+				return {
+					...rent,
+					fixedCharge: toPaise(rest.fixedCharge),
+				};
+			}
+			return {} as const;
+		})();
 
 		updateUtility.mutate(
-			{ id: editTarget.id, data: updateData },
+			{
+				id: editTarget.id,
+				data: {
+					// WHY: form stores dates as ISO strings; UpdateUtilitySchema
+					// inherits Date type from drizzle-zod's timestamp column inference
+					previousReadingDate: new Date(values.previousReadingDate),
+					currentReadingDate: new Date(values.currentReadingDate),
+					...typeFields,
+				},
+			},
 			{ onSuccess: () => setEditTarget(null) },
 		);
 	}
 
+	function handleDelete(id: string) {
+		removeUtility.mutate({ id });
+	}
+
+	// ── Batch items for detail sheet (all utilities with same batchId) ────────
 	const batchItems = useMemo(() => {
-		// ← always UtilityListItem[], inferred automatically
-		if (!detailTarget) return [];
-		if (!detailTarget.batchId) return [detailTarget];
-		return data.utilities.filter((u) => u.batchId === detailTarget.batchId);
-	}, [data.utilities, detailTarget]);
+		if (!detailTarget?.batchId) return detailTarget ? [detailTarget] : [];
+		return utilities.filter((u) => u.batchId === detailTarget.batchId);
+	}, [detailTarget, utilities]);
+
+	// ── Render ────────────────────────────────────────────────────────────────
 
 	return (
 		<Container>
-			<div className="col-span-12 flex min-h-screen flex-col gap-6">
-				{/* Page Header */}
-				<PageHeader
-					title="Utilities"
-					description="Track meter readings and electricity billing"
-				>
-					<Dialog open={createOpen} onOpenChange={setCreateOpen}>
-						<DialogTrigger
-							render={
-								<Button onClick={() => setCreateOpen(true)}>
-									<IconPlus className="size-4" />
-									New Reading
-								</Button>
-							}
-						/>
-						<DialogContent className="max-w-md">
-							<DialogHeader>
-								<DialogTitle>Record Utility Reading</DialogTitle>
-							</DialogHeader>
-							{/* WHY: We require the owner to pick a lease first before opening the form.
-						    The leaseId is required — it's how we enforce ownership on the backend. */}
-							<LeasePickerThenForm
-								leases={activeLeases}
-								onSubmit={handleCreate}
-								isSubmitting={createBatch.isPending}
-							/>
-						</DialogContent>
-					</Dialog>
-				</PageHeader>
+			{/* Page header */}
+			<PageHeader
+				title="Utilities"
+				description="Track electricity, water, and maintenance charges"
+			>
+				<Button onClick={() => setCreateOpen(true)}>
+					<IconPlus className="size-4" />
+					Add Reading
+				</Button>
+			</PageHeader>
 
-				{/* Stats */}
-				<div className="grid grid-cols-3 gap-4">
-					<StatCard label="Total Readings" value={String(stats.total)} />
-					<StatCard
-						label="Unpaid Readings"
-						value={String(stats.unpaidCount)}
-						highlight={stats.unpaidCount > 0}
-					/>
-					<StatCard
-						label="Total Unpaid"
-						value={`₹${stats.unpaidRupees}`}
-						highlight={stats.unpaidCount > 0}
-					/>
-				</div>
-
-				{/* Filters */}
-				<div className="flex gap-3">
-					<Input
-						placeholder="Search by unit, property, tenant..."
-						value={filters.search}
-						onChange={(e) =>
-							setFilters((f) => ({ ...f, search: e.target.value }))
-						}
-						className="max-w-xs"
-					/>
-					<Select
-						value={filters.isPaid}
-						onValueChange={(v) =>
-							setFilters((f) => ({
-								...f,
-								isPaid: v as UtilityFilters["isPaid"],
-							}))
-						}
-					>
-						<SelectTrigger className="w-36">
-							<SelectValue />
-						</SelectTrigger>
-						<SelectContent>
-							<SelectItem value="all">All</SelectItem>
-							<SelectItem value="paid">Paid</SelectItem>
-							<SelectItem value="unpaid">Unpaid</SelectItem>
-						</SelectContent>
-					</Select>
-				</div>
-
-				{/* Table */}
-				{filteredUtilities.length === 0 ? (
-					<EmptyState
-						className="rounded-md bg-white"
-						icon={IconBolt}
-						title="No utility readings"
-						description="Record your first meter reading to get started."
-					/>
-				) : (
-					<div className="rounded-md border">
-						<Table className="rounded-md bg-white font-large">
-							<TableHeader>
-								<TableRow>
-									<TableHead>Unit / Property</TableHead>
-									<TableHead>Tenant</TableHead>
-									<TableHead>Date</TableHead>
-									<TableHead>Type</TableHead>
-									<TableHead className="text-right">Units Used</TableHead>
-									<TableHead className="text-right">Total (₹)</TableHead>
-									<TableHead>Status</TableHead>
-									<TableHead className="text-right">Actions</TableHead>
-								</TableRow>
-							</TableHeader>
-							<TableBody>
-								{filteredUtilities.map((u) => (
-									<UtilityTableRow
-										key={u.id}
-										utility={u}
-										onViewDetail={() => setDetailTarget(u)}
-										onEdit={() => setEditTarget(u)}
-										onDelete={() => removeUtility.mutate({ id: u.id })}
-										onMarkPaid={() => setMarkPaidTarget(u)}
-										isDeleting={
-											removeUtility.isPending &&
-											removeUtility.variables?.id === u.id
-										}
-									/>
-								))}
-							</TableBody>
-						</Table>
-					</div>
-				)}
-
-				{/* Edit Dialog */}
-				<Dialog
-					open={!!editTarget}
-					onOpenChange={(o) => !o && setEditTarget(null)}
-				>
-					<DialogContent className="max-w-md">
-						<DialogHeader>
-							<DialogTitle>Edit Meter Reading</DialogTitle>
-						</DialogHeader>
-						{editTarget && (
-							<UtilityForm
-								leaseId={editTarget.leaseId}
-								defaultValues={mapUtilityToFormDefaults(editTarget)}
-								onSubmit={handleUpdate}
-								isSubmitting={updateUtility.isPending}
-								submitLabel="Update Reading"
-							/>
-						)}
-					</DialogContent>
-				</Dialog>
-
-				{/* Detail Sheet */}
-				<UtilityDetailSheet
-					items={batchItems}
-					open={detailTarget !== null}
-					onOpenChange={(o) => !o && setDetailTarget(null)}
-					onMarkPaid={setMarkPaidTarget}
+			{/* Stat cards */}
+			<div className="my-5 grid grid-cols-4 gap-3">
+				<StatCard
+					icon={<IconReceipt className="size-5 text-primary" />}
+					label="Bills This Month"
+					value={formatRupees(stats.totalBills)}
+					sub={`${stats.electricityCount + stats.waterCount + stats.maintenanceCount} entries`}
+					accent
 				/>
-
-				{/* Mark Paid Dialog */}
-				<MarkPaidDialog
-					utility={markPaidTarget}
-					open={markPaidTarget !== null}
-					onOpenChange={(o) => !o && setMarkPaidTarget(null)}
+				<StatCard
+					icon={<IconDroplet className="size-5 text-sky-600" />}
+					label="Water Charges"
+					value={formatRupees(stats.waterTotal)}
+					sub={`${stats.waterCount} units`}
+				/>
+				<StatCard
+					icon={<IconTool className="size-5 text-violet-600" />}
+					label="Maintenance"
+					value={formatRupees(stats.maintenanceTotal)}
+					sub={`${stats.maintenanceCount} jobs`}
+				/>
+				<StatCard
+					icon={<IconBolt className="size-5 text-destructive" />}
+					label="Unpaid Bills"
+					value={formatRupees(stats.unpaidTotal)}
+					sub={`${stats.unpaidCount} pending`}
+					danger={stats.unpaidCount > 0}
 				/>
 			</div>
+
+			{/* Tab bar */}
+			<div className="mb-5 flex w-fit gap-1 rounded-lg border bg-muted/40 p-1">
+				<TabBtn
+					active={activeTab === "electricity"}
+					onClick={() => setActiveTab("electricity")}
+					icon={<IconBolt className="size-3.5" />}
+					label="Electricity"
+					count={
+						utilities.filter((u) => u.utilityType === "electricity").length
+					}
+				/>
+				<TabBtn
+					active={activeTab === "water"}
+					onClick={() => setActiveTab("water")}
+					icon={<IconDroplet className="size-3.5" />}
+					label="Water"
+					count={utilities.filter((u) => u.utilityType === "water").length}
+				/>
+				<TabBtn
+					active={activeTab === "maintenance"}
+					onClick={() => setActiveTab("maintenance")}
+					icon={<IconTool className="size-3.5" />}
+					label="Maintenance"
+					count={
+						utilities.filter((u) => u.utilityType === "maintenance").length
+					}
+				/>
+				<TabBtn
+					active={activeTab === "combined"}
+					onClick={() => setActiveTab("combined")}
+					icon={<IconFileInvoice className="size-3.5" />}
+					label="Combined Bills"
+					count={combinedGroups.length}
+				/>
+			</div>
+
+			{/* Combined bills tab has no per-type filter, others have search */}
+			{activeTab !== "combined" && (
+				<div className="mb-4 flex items-center gap-3">
+					<Input
+						placeholder={`Search ${activeTab} readings...`}
+						value={search}
+						onChange={(e) => setSearch(e.target.value)}
+						className="max-w-sm"
+					/>
+					<Button
+						variant="outline"
+						size="sm"
+						onClick={() => setCreateOpen(true)}
+						className="ml-auto"
+					>
+						<IconPlus className="size-3.5" />
+						Add {activeTab === "electricity" ? "Reading" : "Bill"}
+					</Button>
+				</div>
+			)}
+
+			{/* Tab content */}
+			<div className="overflow-hidden rounded-xl border bg-white">
+				{/* Tab header */}
+				<div className="flex items-center justify-between border-b px-5 py-3">
+					<div>
+						<p className="font-semibold text-sm capitalize">
+							{activeTab === "combined"
+								? "Combined Bills"
+								: `${activeTab} Readings`}
+						</p>
+						<p className="text-muted-foreground text-xs">
+							{activeTab === "combined"
+								? "Rent + utilities breakdown per tenant"
+								: activeTab === "electricity"
+									? `Rate: ${formatFormRupees(RATEPERUNIT)}/unit (default)`
+									: "Flat charges per unit"}
+						</p>
+					</div>
+					{activeTab === "electricity" && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => setCreateOpen(true)}
+						>
+							<IconPlus className="size-3.5" />
+							Add Reading
+						</Button>
+					)}
+					{activeTab === "combined" && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => {
+								// TODO: Generate all bills action
+							}}
+						>
+							Generate All
+						</Button>
+					)}
+				</div>
+
+				{/* Rows */}
+				{activeTab === "combined" ? (
+					combinedGroups.length === 0 ? (
+						<EmptyStateRow message="No utility data yet. Add readings to see combined bills." />
+					) : (
+						combinedGroups.map((group) => (
+							<CombinedBillRow key={group.lease.leaseId} group={group} />
+						))
+					)
+				) : filtered.length === 0 ? (
+					<EmptyStateRow
+						message={`No ${activeTab} readings found.${search ? " Try clearing the search." : ""}`}
+					/>
+				) : (
+					filtered.map((u) => {
+						const isDeleting =
+							removeUtility.isPending && removeUtility.variables?.id === u.id;
+
+						const sharedProps = {
+							utility: u,
+							onEdit: () => setEditTarget(u),
+							onDelete: () => handleDelete(u.id),
+							onMarkPaid: () => setMarkPaidTarget(u),
+							onViewDetail: () => setDetailTarget(u),
+							isDeleting,
+						};
+
+						if (u.utilityType === "electricity") {
+							return <ElectricityRow key={u.id} {...sharedProps} />;
+						}
+						// water + maintenance both use the flat charge row
+						return <FixedChargeRow key={u.id} {...sharedProps} />;
+					})
+				)}
+			</div>
+
+			{/* ── Dialogs ─────────────────────────────────────────────────── */}
+
+			{/* Create dialog */}
+			<Dialog open={createOpen} onOpenChange={setCreateOpen}>
+				<DialogContent className="">
+					<DialogHeader>
+						<DialogTitle>Add Reading / Bill</DialogTitle>
+					</DialogHeader>
+					<UnitPickerUtilityForm
+						leases={leases}
+						onSubmit={handleCreate}
+						isSubmitting={createBatch.isPending}
+						initialType={activeTab === "combined" ? undefined : activeTab}
+					/>
+				</DialogContent>
+			</Dialog>
+
+			{/* Edit dialog */}
+			<Dialog
+				open={editTarget !== null}
+				onOpenChange={(o) => !o && setEditTarget(null)}
+			>
+				<DialogContent className="max-w-md">
+					<DialogHeader>
+						<DialogTitle>Edit Reading</DialogTitle>
+					</DialogHeader>
+					{editTarget && (
+						<UtilityForm
+							leaseId={editTarget.leaseId}
+							defaultValues={mapUtilityToFormDefaults(editTarget)}
+							onSubmit={handleUpdate}
+							isSubmitting={updateUtility.isPending}
+							submitLabel="Save Changes"
+						/>
+					)}
+				</DialogContent>
+			</Dialog>
+
+			{/* Detail sheet */}
+			<UtilityDetailSheet
+				items={batchItems}
+				open={detailTarget !== null}
+				onOpenChange={(o) => !o && setDetailTarget(null)}
+				onMarkPaid={setMarkPaidTarget}
+			/>
+
+			{/* Mark paid dialog */}
+			<MarkPaidDialog
+				utility={markPaidTarget}
+				open={markPaidTarget !== null}
+				onOpenChange={(o) => !o && setMarkPaidTarget(null)}
+			/>
 		</Container>
 	);
 }
+
+// ── Sub-components ────────────────────────────────────────────────────────────
+
+function StatCard({
+	icon,
+	label,
+	value,
+	sub,
+	accent,
+	danger,
+}: {
+	icon: React.ReactNode;
+	label: string;
+	value: string;
+	sub: string;
+	accent?: boolean;
+	danger?: boolean;
+}) {
+	return (
+		<div
+			className={`rounded-xl border p-4 ${
+				accent
+					? "border-primary/20 bg-primary text-primary-foreground"
+					: danger
+						? "border-destructive/20 bg-destructive/5"
+						: "bg-white"
+			}`}
+		>
+			<div
+				className={`mb-3 flex size-9 items-center justify-center rounded-lg ${accent ? "bg-white/20" : "bg-muted"}`}
+			>
+				{icon}
+			</div>
+			<p
+				className={`text-xs ${accent ? "text-primary-foreground/75" : "text-muted-foreground"}`}
+			>
+				{label}
+			</p>
+			<p
+				className={`mt-1 font-bold text-2xl tracking-tight ${danger ? "text-destructive" : ""}`}
+			>
+				{value}
+			</p>
+			<p
+				className={`mt-1 text-xs ${accent ? "text-primary-foreground/75" : "text-muted-foreground"}`}
+			>
+				{sub}
+			</p>
+		</div>
+	);
+}
+
+function TabBtn({
+	active,
+	onClick,
+	icon,
+	label,
+	count,
+}: {
+	active: boolean;
+	onClick: () => void;
+	icon: React.ReactNode;
+	label: string;
+	count: number;
+}) {
+	return (
+		<button
+			type="button"
+			onClick={onClick}
+			className={`flex items-center gap-1.5 rounded-md px-4 py-2 font-medium text-sm transition-all ${
+				active
+					? "bg-white text-foreground shadow-sm"
+					: "text-muted-foreground hover:text-foreground"
+			}`}
+		>
+			{icon}
+			{label}
+			{count > 0 && (
+				<span
+					className={`rounded-full px-1.5 py-0.5 font-bold text-[10px] ${
+						active
+							? "bg-primary/10 text-primary"
+							: "bg-muted text-muted-foreground"
+					}`}
+				>
+					{count}
+				</span>
+			)}
+		</button>
+	);
+}
+
+function EmptyStateRow({ message }: { message: string }) {
+	return (
+		<div className="flex items-center justify-center px-5 py-12 text-center">
+			<p className="text-muted-foreground text-sm">{message}</p>
+		</div>
+	);
+}
+
+// ── Helpers ───────────────────────────────────────────────────────────────────
 
 function mapUtilityToFormDefaults(
 	u: UtilityListItem,
@@ -409,7 +627,7 @@ function mapUtilityToFormDefaults(
 			: new Date().toISOString().split("T")[0],
 		currentReadingDate: u.currentReadingDate
 			? new Date(u.currentReadingDate).toISOString().split("T")[0]
-			: new Date(u.currentReadingDate).toISOString().split("T")[0],
+			: new Date().toISOString().split("T")[0],
 	};
 
 	if (u.utilityType === "electricity") {
@@ -418,7 +636,7 @@ function mapUtilityToFormDefaults(
 			electricity: {
 				previousReading: Number(u.previousReading),
 				currentReading: Number(u.currentReading),
-				// WHY paiseToFormValue: the DB stores paise; the form expects rupees
+				// WHY paiseToFormValue: DB stores paise; form expects rupees
 				ratePerUnit: paiseToFormValue(u.ratePerUnit ?? RATEPERUNIT),
 				fixedCharge: paiseToFormValue(u.fixedCharge ?? FIXEDCHARGE),
 				isPaid: u.isPaid,

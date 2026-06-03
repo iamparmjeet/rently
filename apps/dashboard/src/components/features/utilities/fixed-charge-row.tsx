@@ -146,7 +146,7 @@ export function FixedChargeRow({
 				disabled={!u.tenantPhone}
 				title={u.tenantPhone ? "Send via WhatsApp" : "No phone number"}
 			>
-				<IconBrandWhatsapp />
+				<IconBrandWhatsapp className="size-4" />
 				WA
 			</Button>
 

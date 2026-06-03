@@ -122,7 +122,7 @@ export function ElectricityRow({
 				title={u.tenantPhone ? "Send via WhatsApp" : "No phone number"}
 			>
 				{/* Simple WA icon inline */}
-				<IconBrandWhatsapp />
+				<IconBrandWhatsapp className="size-4" />
 				WA
 			</Button>
 

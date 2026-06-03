@@ -9,8 +9,10 @@ import {
 	CardTitle,
 } from "@rently/ui/components/card";
 import { DetailHeader } from "@rently/ui/shared/detail-header";
+import { EmptyState } from "@rently/ui/shared/empty-state";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
-import type { UnitWithLease } from "@rently/validators";
+import { IconWrapper } from "@rently/ui/shared/icon-wrapper";
+import type { CreateUnit, UnitWithLease } from "@rently/validators";
 import {
 	IconHome2,
 	IconLayout,
@@ -19,15 +21,15 @@ import {
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { use } from "react";
+import { AddUnitButton } from "@/components/features/units/add-unit-button";
 import {
 	PropertyForm,
 	type PropertyFormValues,
 } from "@/components/forms/property-form";
-import { UnitForm, type UnitFormValues } from "@/components/forms/unit-form";
+import { UnitForm } from "@/components/forms/unit-form";
 import { Container } from "@/components/shared/container";
-import { IconWrapper } from "@/components/shared/icon-wrapper";
 import { useOptimisticUpdateProperty, useProperty } from "@/hooks/properties";
-import { useCreateUnit, usePropertyUnits } from "@/hooks/units";
+import { useOptimisticCreateUnit, usePropertyUnits } from "@/hooks/units";
 
 export default function PropertyDetailPage({
 	params,
@@ -37,14 +39,14 @@ export default function PropertyDetailPage({
 	const { id } = use(params);
 
 	const addUnit = useFormDialog();
-	const createUnit = useCreateUnit();
+	const createUnit = useOptimisticCreateUnit();
 	const editProperty = useFormDialog();
 	const updateProperty = useOptimisticUpdateProperty();
 
 	const { data: propertyData, isLoading: propertyLoading } = useProperty(id);
 	const { data: unitsData, isLoading: unitsLoading } = usePropertyUnits(id);
 
-	function handleCreateUnit(values: UnitFormValues) {
+	function handleCreateUnit(values: CreateUnit) {
 		createUnit.mutate(values, {
 			onSuccess: () => addUnit.closeDialog(),
 		});
@@ -111,6 +113,10 @@ export default function PropertyDetailPage({
 									name: property.name,
 									address: property.address,
 									type: property.type,
+									description: property.description,
+									floors: property.floors,
+									totalArea: property.totalArea,
+									yearBuilt: property.yearBuilt,
 								}}
 								formId="update-property-form"
 								onSubmit={handlerUpdateProperty}
@@ -158,23 +164,23 @@ export default function PropertyDetailPage({
 					<CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
 						<div>
 							<p className="text-base text-muted-foreground">Total Units</p>
-							<p className="font-semibold text-3xl">{units.length}</p>
+							<p className="font-semibold text-2xl">{units.length}</p>
 						</div>
 						<div>
 							<p className="text-base text-muted-foreground">Occupied</p>
-							<p className="font-semibold text-3xl text-green-700">
+							<p className="font-semibold text-2xl text-green-700">
 								{occupiedUnits.length}
 							</p>
 						</div>
 						<div>
 							<p className="text-base text-muted-foreground">Vacant</p>
-							<p className="font-semibold text-3xl text-orange-700">
+							<p className="font-semibold text-2xl text-orange-700">
 								{units.length - occupiedUnits.length}
 							</p>
 						</div>
 						<div>
 							<p className="text-base text-muted-foreground">Monthly Revenue</p>
-							<p className="font-semibold text-3xl">
+							<p className="font-semibold text-2xl">
 								₹{monthlyRevenue.toLocaleString("en-IN")}
 							</p>
 						</div>
@@ -215,14 +221,14 @@ function UnitSkelton() {
 
 function NoUnit({ id }: { id: string }) {
 	return (
-		<div className="rounded-xl border border-dashed py-12 text-center">
-			<p>
-				No Units yet.
-				<Button render={<Link href={`/units/new?propertyId=${id}`} />}>
-					Add the first unit.
-				</Button>
-			</p>
-		</div>
+		<EmptyState
+			icon={IconLayout}
+			title="No units yet"
+			description="Add your first unit to start tracking tenants and rent."
+			className="rounded-xl bg-white shadow"
+		>
+			<AddUnitButton propertyId={id} withIcon />
+		</EmptyState>
 	);
 }
 

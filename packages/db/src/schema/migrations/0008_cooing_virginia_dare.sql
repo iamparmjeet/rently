@@ -1,1 +1,0 @@
-ALTER TABLE "tenant_invites" ALTER COLUMN "invited_by" SET DATA TYPE text;

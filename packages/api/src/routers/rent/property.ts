@@ -8,7 +8,7 @@ import {
 	UnitSelectSchema,
 	UpdatePropertySchema,
 } from "@rently/validators";
-import { and, count, eq, sql } from "drizzle-orm";
+import { and, count, eq, isNull, sql } from "drizzle-orm";
 import z from "zod";
 import { ownerProcedure } from "../../procedures";
 import { StatusCode, StatusPhrase } from "../../utils";
@@ -30,6 +30,7 @@ export const listProperties = ownerProcedure
 					type: properties.type,
 					createdAt: properties.createdAt,
 					updatedAt: properties.updatedAt,
+					deletedAt: properties.deletedAt,
 					totalUnits: count(units.id),
 					occupiedUnits:
 						sql<number>`count(case when ${units.status} = 'occupied' then 1 end)`.mapWith(
@@ -49,7 +50,9 @@ export const listProperties = ownerProcedure
 					leases,
 					and(eq(leases.unitId, units.id), eq(leases.status, "active")),
 				)
-				.where(eq(properties.ownerId, user.id))
+				.where(
+					and(eq(properties.ownerId, user.id), isNull(properties.deletedAt)),
+				)
 				.groupBy(properties.id)
 				.orderBy(properties.createdAt);
 			return {
@@ -73,7 +76,7 @@ export const getPropertyById = ownerProcedure
 		const [property] = await db
 			.select()
 			.from(properties)
-			.where(eq(properties.id, input.id));
+			.where(and(eq(properties.id, input.id), isNull(properties.deletedAt)));
 
 		if (!property) {
 			throw new ORPCError(StatusPhrase.NOT_FOUND, {
@@ -169,7 +172,23 @@ export const deleteProperty = ownerProcedure
 		if (existing.ownerId !== user.id)
 			throw new ORPCError(StatusPhrase.FORBIDDEN);
 
-		await db.delete(properties).where(eq(properties.id, input.id));
+		const activeUnits = await db
+			.select({ id: units.id })
+			.from(units)
+			.where(and(eq(units.propertyId, input.id), isNull(units.deletedAt)))
+			.limit(1);
+
+		if (activeUnits.length > 0) {
+			throw new ORPCError("CONFLICT", {
+				message:
+					"Cannot arhieve a property with active units. Archieve all units first.",
+			});
+		}
+
+		await db
+			.update(properties)
+			.set({ deletedAt: new Date(), updatedAt: new Date() })
+			.where(eq(properties.id, input.id));
 
 		return { success: true };
 	});

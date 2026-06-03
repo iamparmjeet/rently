@@ -6,12 +6,11 @@ import { user } from "@rently/db/schema/auth";
 import { leases, properties, units } from "@rently/db/schema/schema";
 import {
 	CreateUnitSchema,
-	UnitDetailSchema,
 	UnitSelectSchema,
 	UnitWithLeaseSchema,
 	UpdateUnitSchema,
 } from "@rently/validators";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 import z from "zod";
 import { VerifyUnitOwnership } from "../helpers";
 
@@ -113,14 +112,16 @@ export const getUnitById = ownerProcedure
 				baseRent: units.baseRent,
 				description: units.description,
 				status: units.status,
+				furnishing: units.furnishing,
 				createdAt: units.createdAt,
 				updatedAt: units.updatedAt,
+				deletedAt: units.deletedAt,
 				propertyName: properties.name,
 				ownerId: properties.ownerId,
 			})
 			.from(units)
 			.innerJoin(properties, eq(units.propertyId, properties.id))
-			.where(eq(units.id, input.id))
+			.where(and(eq(units.id, input.id), isNull(units.deletedAt)))
 			.limit(1);
 
 		if (!result) {
@@ -172,8 +173,9 @@ export const listUnits = ownerProcedure
 			? and(
 					eq(properties.ownerId, authUser.id),
 					eq(units.propertyId, input.propertyId),
+					isNull(units.deletedAt),
 				)
-			: eq(properties.ownerId, authUser.id);
+			: and(eq(properties.ownerId, authUser.id), isNull(units.deletedAt));
 
 		const rows = await db
 			.select({
@@ -183,10 +185,12 @@ export const listUnits = ownerProcedure
 				type: units.type,
 				area: units.area,
 				baseRent: units.baseRent,
+				furnishing: units.furnishing,
 				description: units.description,
 				status: units.status,
 				createdAt: units.createdAt,
 				updatedAt: units.updatedAt,
+				deletedAt: units.deletedAt,
 				// From properties join (ownership context)
 				propertyName: properties.name,
 				// Lease fields - all nullable (left Joins mean vacan units get nullable)
@@ -221,8 +225,10 @@ export const listUnits = ownerProcedure
 			baseRent: row.baseRent,
 			description: row.description,
 			status: row.status,
+			furnishing: row.furnishing,
 			createdAt: row.createdAt,
 			updatedAt: row.updatedAt,
+			deletedAt: row.deletedAt,
 			propertyName: row.propertyName,
 			activeLease: row.leaseId
 				? {
@@ -250,7 +256,24 @@ export const deleteUnit = ownerProcedure
 		const { db, user: authUser } = context;
 
 		await VerifyUnitOwnership(db, authUser.id, input.id);
-		await db.delete(units).where(eq(units.id, input.id));
+
+		const activeLease = await db
+			.select({ id: leases.id })
+			.from(leases)
+			.where(and(eq(leases.unitId, input.id), eq(leases.status, "active")))
+			.limit(1);
+
+		if (activeLease.length > 0) {
+			throw new ORPCError("CONFLICT", {
+				message:
+					"Cannot delete a unit with an active lease,End the Lease First.",
+			});
+		}
+
+		await db
+			.update(units)
+			.set({ deletedAt: new Date(), updatedAt: new Date() })
+			.where(eq(units.id, input.id));
 
 		return { success: true as const };
 	});

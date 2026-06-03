@@ -15,7 +15,7 @@ import {
 	InviteListItemSchema,
 	InvitePublicSchema,
 } from "@rently/validators";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import z from "zod";
 
 // ********* Helper function **************
@@ -93,7 +93,6 @@ export const createInvite = ownerProcedure
 			ownerName: user.name,
 			token,
 		}).catch(console.error);
-
 		return { invite };
 	});
 
@@ -135,11 +134,17 @@ export const getInviteByToken = publicProcedure
 				phone: tenantInvites.phone,
 				status: tenantInvites.status,
 				expiresAt: tenantInvites.expiresAt,
+				deletedAt: tenantInvites.deletedAt,
 				emergencyContact: tenantInvites.emergencyContact,
 				invitedById: tenantInvites.invitedById,
 			})
 			.from(tenantInvites)
-			.where(eq(tenantInvites.token, input.token))
+			.where(
+				and(
+					eq(tenantInvites.token, input.token),
+					isNull(tenantInvites.deletedAt),
+				),
+			)
 			.limit(1);
 
 		if (!invite) {

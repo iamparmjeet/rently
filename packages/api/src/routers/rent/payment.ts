@@ -217,27 +217,45 @@ export const listPayments = ownerProcedure
 	});
 
 // Remove
-export const deletePayment = ownerProcedure
-	.route({ method: "DELETE", path: "/rent/payment/delete" })
-	.input(z.object({ id: z.string() }))
-	.output(z.object({ success: z.boolean() }))
+export const voidPayment = ownerProcedure
+	.route({ method: "DELETE", path: "/rent/payment/void" })
+	.input(z.object({ id: z.string(), reason: z.string().optional() }))
+	.output(z.object({ reversal: PaymentSelectSchema }))
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
 		// need UtilityId before deleting
 		const existing = await getOwnedPayment(db, input.id, authUser.id);
 
-		await db.transaction(async (tx) => {
-			await tx.delete(payments).where(eq(payments.id, input.id));
+		const reversal = await db.transaction(async (tx) => {
+			const [reversalRow] = await tx
+				.insert(payments)
+				.values({
+					leaseId: existing.leaseId,
+					amount: -existing.amount,
+					paymentDate: new Date(),
+					type: "reversal",
+					description: input.reason ?? `Reversal of payment ${existing.id}`,
+					referenceNumber: existing.id,
+					utilityId: null,
+				})
+				.returning();
 
-			// Reverse the side effect - if this payment covered a utility, unmark it
+			if (!reversalRow) {
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message: "Failed to create reversal",
+				});
+			}
+
+			// Reverse the utility
 			if (existing.utilityId) {
 				await tx
 					.update(utilities)
 					.set({ isPaid: false })
 					.where(eq(utilities.id, existing.utilityId));
 			}
+			return reversalRow;
 		});
 
-		return { success: true };
+		return { reversal };
 	});

@@ -22,7 +22,7 @@ export const useRegister = () => {
 			if (result.error) throw new Error(result.error.message);
 			return result;
 		},
-		onSuccess: (data, variables, context) => {
+		onSuccess: (_data, variables, context) => {
 			toast.success(`Welcome ${variables.name}`, { id: context.toastId });
 			// redirect
 			window.location.href = `${env.NEXT_PUBLIC_DASHBOARD_URL}/dashboard`;

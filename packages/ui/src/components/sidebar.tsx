@@ -80,7 +80,7 @@ function SidebarProvider({
 			} else {
 				_setOpen(openState);
 			}
-
+			// biome-ignore lint/suspicious/noDocumentCookie: intentional — persists sidebar state for SSR hydration, Cookie Store API not viable here
 			// This sets the cookie to keep the sidebar state.
 			document.cookie = `${SIDEBAR_COOKIE_NAME}=${openState}; path=/; max-age=${SIDEBAR_COOKIE_MAX_AGE}`;
 		},

@@ -9,37 +9,24 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
-import {
-	DropdownMenu,
-	DropdownMenuContent,
-	DropdownMenuItem,
-	DropdownMenuSeparator,
-	DropdownMenuTrigger,
-} from "@rently/ui/components/dropdown-menu";
+
 import { cn } from "@rently/ui/lib/utils";
 import { DateRecordMeta } from "@rently/ui/shared/date-record-meta";
 import type { UnitDetail } from "@rently/validators";
-import {
-	IconBuildingStore,
-	IconDots,
-	IconHome,
-	IconPencil,
-	IconRuler,
-	IconTrash,
-} from "@tabler/icons-react";
+import { IconBuildingStore, IconHome, IconRuler } from "@tabler/icons-react";
 import Link from "next/link";
 
 interface UnitCardProps {
 	unit: UnitDetail;
 	showPropertyName?: boolean; // false on property detail page (redundant), true on /units page
-	onDelete?: (id: string) => void;
 	isDeleting?: boolean;
+	actionsSlot?: React.ReactNode;
 }
 
 export function UnitCard({
 	unit,
 	showPropertyName = true,
-	onDelete,
+	actionsSlot,
 	isDeleting,
 }: UnitCardProps) {
 	const isOccupied = unit.status === "occupied";
@@ -54,7 +41,7 @@ export function UnitCard({
 			<CardHeader className="pb-3">
 				<div className="flex items-start justify-between gap-2">
 					<div className="flex items-center gap-2">
-						{unit.type === "room" ? (
+						{unit.type === "studio" ? (
 							<IconHome className="size-4 shrink-0 text-muted-foreground" />
 						) : (
 							<IconBuildingStore className="size-4 shrink-0 text-muted-foreground" />
@@ -62,39 +49,8 @@ export function UnitCard({
 						<CardTitle className="text-base">Unit {unit.unitNumber}</CardTitle>
 					</div>
 
-					<DropdownMenu>
-						<DropdownMenuTrigger
-							render={
-								<Button
-									type="button"
-									variant="outline"
-									className="rounded p-1 hover:bg-muted"
-								>
-									<IconDots className="size-4" />
-									<span className="sr-only">Open menu</span>
-								</Button>
-							}
-						/>
-						<DropdownMenuContent align="end">
-							<DropdownMenuItem>
-								<Link
-									href={`/units/${unit.id}/edit`}
-									className="flex items-center"
-								>
-									<IconPencil className="mr-2 size-4" />
-									Edit
-								</Link>
-							</DropdownMenuItem>
-							<DropdownMenuSeparator />
-							<DropdownMenuItem
-								className="text-destructive focus:text-destructive"
-								onClick={() => onDelete?.(unit.id)}
-							>
-								<IconTrash className="mr-2 size-4" />
-								Delete
-							</DropdownMenuItem>
-						</DropdownMenuContent>
-					</DropdownMenu>
+					{/* Actions Dropdown*/}
+					{actionsSlot}
 				</div>
 
 				{/* Property name — shown on /units list page */}

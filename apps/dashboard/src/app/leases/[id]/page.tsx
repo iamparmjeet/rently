@@ -1,4 +1,3 @@
-// apps/web/src/app/(dashboard)/leases/[id]/page.tsx
 "use client";
 
 import { Button } from "@rently/ui/components/button";

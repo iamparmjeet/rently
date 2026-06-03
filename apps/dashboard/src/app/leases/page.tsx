@@ -65,6 +65,7 @@ export default function LeasesPage() {
 			(unitsData?.units ?? []).map((u) => ({
 				id: u.id,
 				unitNumber: u.unitNumber,
+				propertyId: u.propertyId,
 				propertyName: u.propertyName ?? "",
 				baseRent: u.baseRent,
 			})),
@@ -121,7 +122,6 @@ export default function LeasesPage() {
 					endDate: values.endDate ? new Date(values.endDate) : undefined,
 					rent: values.rent,
 					deposit: values.deposit,
-					// status: values.status,
 				},
 			},
 			{ onSuccess: () => setEditingLease(null) },
@@ -198,7 +198,7 @@ export default function LeasesPage() {
 						))}
 					</div>
 				) : filtered.length === 0 ? (
-					<div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
+					<div className="flex h-full flex-col items-center justify-center rounded-xl border border-dashed bg-white py-16 text-center">
 						<p className="text-muted-foreground">
 							{data?.leases?.length === 0
 								? "No leases yet. Create your first one!"
@@ -247,6 +247,7 @@ export default function LeasesPage() {
 					{editingLease && (
 						<LeaseForm
 							key={editingLease.leaseId}
+							// propertyId={properties}
 							units={allUnits}
 							tenants={tenants}
 							properties={properties}

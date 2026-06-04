@@ -11,7 +11,7 @@ interface QuickAction {
 	href: string;
 	label: string;
 	sub: string;
-	icon: typeof Icon;
+	icon: Icon;
 	iconClass: string;
 	bgClass: string;
 }

@@ -6,7 +6,7 @@ import { StatNumber } from "./stat-number";
 type StatCardVariant = "default" | "accent";
 
 interface StatCardProps {
-	icon: typeof Icon;
+	icon: Icon;
 	value: number;
 	label: string;
 	href: string;

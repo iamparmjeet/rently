@@ -1,4 +1,3 @@
-// apps/dashboard/src/components/forms/lease-form.tsx
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -34,7 +33,7 @@ import { useEffect, useState } from "react";
 import { type Resolver, useForm } from "react-hook-form";
 import z from "zod";
 
-// ── Types ─────────────────────────────────────────────────────────────────────
+// ── Types ────────
 
 // WHY: UnitOption is a projection of UnitDetail — only the fields the form
 // needs. Keeps the form decoupled from the full DB row type.
@@ -60,7 +59,7 @@ type TenantOption = {
 	email: string;
 };
 
-// ── Form schema ────────────────────────────────────────────────────────────────
+// ── Form schema ──────────────
 // WHY: String dates — <input type="date"> produces "YYYY-MM-DD" strings.
 // The conversion to Date happens at the mutation call site (the handler), not here.
 export const LeaseFormSchema = z.object({
@@ -74,7 +73,7 @@ export const LeaseFormSchema = z.object({
 
 export type LeaseFormValues = z.infer<typeof LeaseFormSchema>;
 
-// ── Props ──────────────────────────────────────────────────────────────────────
+// ── Props ─────────
 
 interface LeaseFormProps {
 	propertyId?: string;
@@ -85,7 +84,7 @@ interface LeaseFormProps {
 	defaultValues?: Partial<LeaseFormValues>;
 	onSubmit: (values: LeaseFormValues) => void;
 	isSubmitting?: boolean;
-	submitLabel?: string;
+	// submitLabel?: string;
 }
 
 // ── Display helpers ────────────────────────────────────────────────────────────
@@ -116,7 +115,7 @@ export function LeaseForm({
 	defaultValues,
 	onSubmit,
 	isSubmitting,
-	submitLabel = "Save Lease",
+	// submitLabel = "Save Lease",
 }: LeaseFormProps) {
 	const {
 		register,
@@ -169,8 +168,8 @@ export function LeaseForm({
 	}, [selectedUnit, isEditMode, setValue]);
 
 	// When the owner changes property, reset unit + rent — previous selection is now stale
-	function handlePropertyChange(newPropertyId: string) {
-		setSelectedPropertyId(newPropertyId);
+	function handlePropertyChange(newPropertyId: string | null) {
+		setSelectedPropertyId(newPropertyId ?? "");
 		setValue("unitId", "", { shouldValidate: false });
 		setValue("rent", 0, { shouldValidate: false });
 	}
@@ -292,7 +291,7 @@ export function LeaseForm({
 									<Select
 										value={watchedTenantId}
 										onValueChange={(val) =>
-											setValue("tenantId", val, { shouldValidate: true })
+											setValue("tenantId", val ?? "", { shouldValidate: true })
 										}
 										disabled={isSubmitting}
 									>

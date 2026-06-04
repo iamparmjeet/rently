@@ -1,12 +1,16 @@
+import { env } from "@rently/env/web";
+import type { LoginFormType } from "@rently/validators";
 import { useMutation } from "@tanstack/react-query";
-import { useRouter } from "next/navigation";
+
+import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-import { NavigationLinkMap } from "@/constants/navigation";
+
 import { signIn } from "@/lib/auth-client";
-import type { LoginFormType } from "@/types/auth-types";
+import { isTrustedCallbackUrl } from "@/lib/trusted-url";
 
 export const useLogin = () => {
-	const router = useRouter();
+	const searchParams = useSearchParams();
+
 	const mutation = useMutation({
 		onMutate: () => {
 			const toastId = toast.loading("Signing in...");
@@ -26,7 +30,16 @@ export const useLogin = () => {
 		},
 		onSuccess: (_, __, context) => {
 			toast.success("Welcome back", { id: context.toastId });
-			router.push(NavigationLinkMap.Dashboard.href);
+			console.log("onSuccess");
+			console.log("cookie", document.cookie);
+			const callbackUrl = searchParams.get("callbackUrl");
+
+			// redirect
+			if (callbackUrl && isTrustedCallbackUrl(callbackUrl)) {
+				window.location.href = callbackUrl;
+				return;
+			}
+			window.location.href = `${env.NEXT_PUBLIC_DASHBOARD_URL}/dashboard`;
 		},
 		onError: (err, _, context) => {
 			toast.error(err.message, { id: context?.toastId });

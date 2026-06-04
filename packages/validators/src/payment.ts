@@ -40,9 +40,15 @@ export const RecordUtilityPaymentSchema = z.object({
 	notes: z.string().optional(),
 });
 
+export const PaymentListItemSchema = PaymentSelectSchema.extend({
+	tenantName: z.string().nullable(),
+	tenantPhone: z.string().nullable(),
+});
+
 // TS Types derieved from Zod (not from InferSelectModel)
 export type Payment = z.infer<typeof PaymentSelectSchema>;
 export type NewPayment = z.infer<typeof PaymentInsertSchema>;
 export type CreatePayment = z.infer<typeof CreatePaymentSchema>;
 export type UpdatePayment = z.infer<typeof UpdatePaymentSchema>;
 export type RecordUtilityPayment = z.infer<typeof RecordUtilityPaymentSchema>;
+export type PaymentListItem = z.infer<typeof PaymentListItemSchema>;

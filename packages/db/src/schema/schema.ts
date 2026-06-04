@@ -4,6 +4,7 @@ import {
 	LEASE_STATUS_VALUES,
 	PAYMENT_TYPE_VALUES,
 	PROPERTY_TYPES_VALUES,
+	UNIT_FURNISHING_VALUES,
 	UNIT_STATUS_VALUES,
 	UNIT_TYPES_VALUES,
 	UTILITY_TYPE_VALUES,
@@ -11,6 +12,7 @@ import {
 import {
 	boolean,
 	integer,
+	numeric,
 	pgTable,
 	real,
 	text,
@@ -23,7 +25,7 @@ import {
 	DOCUMENT_REQUEST_STATUS_VALUES,
 	TENANT_VERIFICATION_STATUS_VALUES,
 } from "../constants/user-roles";
-import { auditColumns, idColumn } from "../utils/columns";
+import { auditColumns, idColumn, softDeleteColumn } from "../utils/columns";
 import { generatedId } from "../utils/id";
 import { user } from "./auth";
 
@@ -33,35 +35,42 @@ export const properties = pgTable("properties", {
 	...idColumn(),
 	ownerId: uuid("owner_id")
 		.notNull()
-		.references(() => user.id, { onDelete: "cascade" }),
+		.references(() => user.id, { onDelete: "restrict" }),
 	name: text("name").notNull(),
 	address: text("address").notNull(),
 	type: text("type", { enum: PROPERTY_TYPES_VALUES }).notNull(),
+	yearBuilt: numeric("year-built"),
+	totalArea: numeric("total-area"),
+	floors: numeric("floors"),
+	description: text("description"),
 	...auditColumns(),
+	...softDeleteColumn(),
 });
 
 export const units = pgTable("units", {
 	...idColumn(),
 	propertyId: uuid("property_id")
 		.notNull()
-		.references(() => properties.id, { onDelete: "cascade" }),
+		.references(() => properties.id, { onDelete: "restrict" }),
 	unitNumber: text("unit_number").notNull(),
 	type: text("type", { enum: UNIT_TYPES_VALUES }).notNull(),
 	area: real("area"),
 	baseRent: integer("base_rent").notNull(), // Paisa or cents
+	furnishing: text("furnishing", { enum: UNIT_FURNISHING_VALUES }),
 	description: text("description"),
 	status: text("status", { enum: UNIT_STATUS_VALUES }).notNull(),
 	...auditColumns(),
+	...softDeleteColumn(),
 });
 
 export const leases = pgTable("leases", {
 	...idColumn(),
 	unitId: uuid("unit_id")
 		.notNull()
-		.references(() => units.id, { onDelete: "cascade" }),
+		.references(() => units.id, { onDelete: "restrict" }),
 	tenantId: uuid("tenant_id")
 		.notNull()
-		.references(() => user.id, { onDelete: "cascade" }),
+		.references(() => user.id, { onDelete: "restrict" }),
 	startDate: timestamp("start_date").notNull(),
 	endDate: timestamp("end_date"),
 	rent: integer("rent").notNull(),
@@ -69,6 +78,9 @@ export const leases = pgTable("leases", {
 	status: text("status", {
 		enum: LEASE_STATUS_VALUES,
 	}).notNull(),
+	notice: integer("notice"),
+	rentDueDate: integer("rent-due-date"),
+	description: text("description"),
 	referenceId: uuid("reference_id").references(() => user.id),
 	...auditColumns(),
 });
@@ -82,7 +94,7 @@ export const utilities = pgTable("utilities", {
 	batchId: uuid("batch_id").$defaultFn(() => generatedId()),
 	leaseId: uuid("lease_id")
 		.notNull()
-		.references(() => leases.id, { onDelete: "cascade" }),
+		.references(() => leases.id, { onDelete: "restrict" }),
 	utilityType: text("utility_type", {
 		enum: UTILITY_TYPE_VALUES,
 	}).notNull(),
@@ -103,7 +115,7 @@ export const payments = pgTable("payments", {
 	...idColumn(),
 	leaseId: uuid("lease_id")
 		.notNull()
-		.references(() => leases.id, { onDelete: "cascade" }),
+		.references(() => leases.id, { onDelete: "restrict" }),
 	amount: integer("amount").notNull(),
 	paymentDate: timestamp("payment_date").notNull(),
 	paymentMethods: text("payment_method", {
@@ -139,13 +151,14 @@ export const tenantInvites = pgTable("tenant_invites", {
 		enum: INVITE_STATUS_VALUES,
 	}).default(INVITE_STATUSES.PENDING),
 	...auditColumns(),
+	...softDeleteColumn(),
 });
 
 export const tenantProfiles = pgTable("tenant_profiles", {
 	...idColumn(),
 	userId: uuid("user_id")
 		.notNull()
-		.references(() => user.id, { onDelete: "cascade" }),
+		.references(() => user.id, { onDelete: "restrict" }),
 	// Business rule enforcedin API layer, not db layer
 	// Immutable after first set - can change only after approval
 	uidNumber: text("uid_number").unique(),
@@ -173,6 +186,7 @@ export const tenantProfiles = pgTable("tenant_profiles", {
 	invitedId: uuid("invite_id").references(() => tenantInvites.id),
 	createdById: uuid("created_by").references(() => user.id),
 	...auditColumns(),
+	...softDeleteColumn(),
 });
 
 //  owner-controlled document modification workflow
@@ -180,7 +194,7 @@ export const documentUpdateRequests = pgTable("document_update_requests", {
 	...idColumn(),
 	tenantProfileId: uuid("tenant_profile_id")
 		.notNull()
-		.references(() => tenantProfiles.id, { onDelete: "cascade" }), // ← forward ref OK in .references()
+		.references(() => tenantProfiles.id, { onDelete: "restrict" }), // ← forward ref OK in .references()
 	requestedById: uuid("requested_by_id")
 		.notNull()
 		.references(() => user.id), // who requested the change (owner or tenant)
@@ -202,24 +216,28 @@ export const documentUpdateRequests = pgTable("document_update_requests", {
 	completedAt: timestamp("completed_at"),
 	newValueSubmitted: text("new_value"),
 	...auditColumns(),
+	...softDeleteColumn(),
 });
 
 export const ownerProfiles = pgTable("owner_profiles", {
 	...idColumn(),
 	userId: uuid("user_id")
 		.notNull()
-		.references(() => user.id, { onDelete: "cascade" }),
+		.references(() => user.id, { onDelete: "restrict" }),
 	companyName: text("company_name").notNull(),
 	address: text("address"),
 	gstNumber: text("gst_number"),
 	upiId: text("upi_id"),
+	...auditColumns(),
+	...softDeleteColumn(),
 });
 
 export const referrers = pgTable("referrers", {
 	...idColumn(),
 	referredUserId: uuid("referred_user_id")
 		.notNull()
-		.references(() => user.id, { onDelete: "cascade" }),
+		.references(() => user.id, { onDelete: "restrict" }),
 	note: text("note"),
 	...auditColumns(),
+	...softDeleteColumn(),
 });

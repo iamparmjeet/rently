@@ -10,6 +10,10 @@
 			"types": "./src/context.ts",
 			"default": "./src/context.ts"
 		},
+		"./client": {
+			"types": "./src/client.ts",
+			"default": "./src/client.ts"
+		},
 		"./routers/index": {
 			"types": "./src/routers/index.ts",
 			"default": "./src/routers/index.ts"
@@ -35,6 +39,7 @@
 		"@rently/env": "workspace:*",
 		"dotenv": "catalog:",
 		"drizzle-orm": "^0.45.2",
+		"server-only": "^0.0.1",
 		"zod": "catalog:"
 	},
 	"devDependencies": {

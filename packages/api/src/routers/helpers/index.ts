@@ -2,7 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { StatusPhrase } from "@rently/api/utils";
 import type { Database } from "@rently/db";
 import { leases, properties, units } from "@rently/db/schema/schema";
-import { eq } from "drizzle-orm";
+import { and, eq, isNull } from "drizzle-orm";
 
 export async function VerifyUnitOwnership(
 	db: Database,
@@ -13,7 +13,7 @@ export async function VerifyUnitOwnership(
 		.select({ ownerId: properties.ownerId })
 		.from(units)
 		.innerJoin(properties, eq(units.propertyId, properties.id))
-		.where(eq(units.id, unitId))
+		.where(and(eq(units.id, unitId), isNull(units.deletedAt)))
 		.limit(1);
 
 	if (!result) {

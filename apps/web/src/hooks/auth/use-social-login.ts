@@ -1,10 +1,10 @@
 import { env } from "@rently/env/web";
+import type { SocialProvider } from "@rently/validators";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
 import { NavigationLinkMap } from "@/constants/navigation";
 import { signIn } from "@/lib/auth-client";
-import type { SocialProvider } from "@/types/auth-types";
 
 export const useSocialLogin = () => {
 	const [loadingProvider, setLoadingProvider] = useState<SocialProvider | null>(
@@ -34,7 +34,7 @@ export const useSocialLogin = () => {
 		await signIn.social(
 			{
 				provider,
-				callbackURL: `${env.NEXT_PUBLIC_APP_URL}/${NavigationLinkMap.Dashboard.href}`,
+				callbackURL: `${env.NEXT_PUBLIC_DASHBOARD_URL}/${NavigationLinkMap.Dashboard.href}`,
 			},
 			{
 				onError: (err) => {

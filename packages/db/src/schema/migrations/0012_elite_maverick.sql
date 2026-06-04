@@ -1,1 +1,0 @@
-ALTER TABLE "utilities" ADD COLUMN "previous_reading_date" timestamp;

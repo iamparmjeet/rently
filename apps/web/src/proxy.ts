@@ -9,6 +9,7 @@ import {
 	PROTECTED_ROUTES,
 } from "./constants/navigation";
 import type { RedirectErrorKey } from "./constants/redirect-errors";
+import { isTrustedCallbackUrl } from "./lib/trusted-url";
 
 const TENANT_PORTAL = "/tenant-portal";
 
@@ -57,14 +58,19 @@ export default async function proxy(request: NextRequest) {
 
 	// Gate -2 - Already logged in, trying to reach login/register -> dashboard
 	if (isAuthRoute && hasSession) {
+		const callbackUrl = request.nextUrl.searchParams.get("callbackUrl");
+		if (callbackUrl && isTrustedCallbackUrl(callbackUrl)) {
+			return NextResponse.redirect(new URL(callbackUrl, request.url));
+		}
 		return NextResponse.redirect(
-			new URL(NavigationLinkMap.Dashboard.href, request.url),
+			new URL(`${env.NEXT_PUBLIC_DASHBOARD_URL}/dashboard`, request.url),
 		);
 	}
 
 	// Gate-3 Role Check - Only runs when session exists on a protected route
 	if (isProtectedRoute && hasSession) {
 		const serverUrl = env.NEXT_PUBLIC_SERVER_URL;
+
 		const { data: session, error } = await betterFetch<SessionResponse>(
 			"/api/auth/get-session",
 			{
@@ -82,8 +88,9 @@ export default async function proxy(request: NextRequest) {
 			return NextResponse.redirect(loginUrl);
 		}
 
-		// Tenant Guard
 		const role = session.user.role as string | undefined;
+
+		// Tenant Guard
 		if (role === USER_ROLES.TENANT) {
 			return redirectWithError(TENANT_PORTAL, request, "unauthorized_access");
 		}
@@ -100,7 +107,7 @@ export default async function proxy(request: NextRequest) {
 }
 
 export const config = {
-	runtime: "nodejs",
+	// runtime: "nodejs",
 	matcher: [
 		// "/api/:path*",
 		"/((?!api|_next/static|_next/image|favicon.ico|api/auth|.*\\..*).*)",

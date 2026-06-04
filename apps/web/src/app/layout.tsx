@@ -4,6 +4,9 @@ import { Geist, Geist_Mono, Inter } from "next/font/google";
 import "../index.css";
 import { Toaster } from "@rently/ui/components/sonner";
 import { cn } from "@rently/ui/lib/utils";
+import { Footer } from "@/components/layouts/footer";
+import { Header } from "@/components/layouts/header";
+import { WebORPCProvider } from "@/components/providers/orpc-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
@@ -38,10 +41,14 @@ export default function RootLayout({
 				className={`${geistSans.variable} ${geistMono.variable} antialiased`}
 			>
 				<QueryProvider>
-					<div className="flex min-h-screen flex-col">
-						{children}
-						<Toaster position="bottom-right" />
-					</div>
+					<WebORPCProvider>
+						<Header />
+						<div className="flex min-h-screen flex-col">
+							{children}
+							<Toaster position="bottom-right" />
+						</div>
+						<Footer />
+					</WebORPCProvider>
 				</QueryProvider>
 			</body>
 		</html>

@@ -51,7 +51,7 @@ export async function sendInviteEmail({
 	to,
 	token,
 }: InviteEmailParams): Promise<void> {
-	const inviteUrl = `${env.CORS_ORIGIN}/invite/${token}`;
+	const inviteUrl = `${env.CORS_ORIGINS}/invite/${token}`;
 
 	const { error } = await resend.emails.send({
 		from: env.EMAIL_FROM,

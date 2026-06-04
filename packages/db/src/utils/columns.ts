@@ -22,3 +22,7 @@ export const auditColumns = () => ({
 		.notNull()
 		.$onUpdate(() => new Date()),
 });
+
+export const softDeleteColumn = () => ({
+	deletedAt: timestamp("deleted_at"), // null = active
+});

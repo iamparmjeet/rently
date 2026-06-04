@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode, StatusPhrase } from "@rently/api/utils";
 import type { Database } from "@rently/db";
+import { LEASE_STATUS_VALUES } from "@rently/db/constants/rent-constants";
 import { user } from "@rently/db/schema/auth";
 import { leases, properties, units } from "@rently/db/schema/schema";
 import {
@@ -22,6 +23,7 @@ async function getLeaseWithOwner(db: Database, leaseId: string) {
 			leaseId: leases.id,
 			unitId: leases.unitId,
 			ownerId: properties.ownerId,
+			status: leases.status,
 		})
 		.from(leases)
 		.innerJoin(units, eq(leases.unitId, units.id))
@@ -120,19 +122,45 @@ export const updateLease = ownerProcedure
 			});
 		}
 
-		const [updated] = await db
-			.update(leases)
-			.set({ ...input.data, updatedAt: new Date() })
-			.where(eq(leases.id, input.id))
-			.returning();
+		const lease = await db.transaction(async (tx) => {
+			const [updated] = await tx
+				.update(leases)
+				.set({ ...input.data, updatedAt: new Date() })
+				.where(eq(leases.id, input.id))
+				.returning();
 
-		if (!updated) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
-				message: "Lease not found",
-			});
-		}
+			if (!updated) {
+				throw new ORPCError(StatusPhrase.NOT_FOUND, {
+					message: "Lease not found",
+				});
+			}
 
-		return { lease: updated };
+			if (ownership.status === "terminated" || ownership.status === "expired") {
+				throw new ORPCError(StatusPhrase.BAD_REQUEST, {
+					message: "Terminated or expired leases cannot be edited.",
+				});
+			}
+
+			if (
+				input.data.status === "terminated" ||
+				input.data.status === "expired"
+			) {
+				await tx
+					.update(units)
+					.set({ status: "available", updatedAt: new Date() })
+					.where(eq(units.id, ownership.unitId));
+			}
+
+			if (input.data.status === "active") {
+				await tx
+					.update(units)
+					.set({ status: "occupied", updatedAt: new Date() })
+					.where(eq(units.id, ownership.unitId));
+			}
+			return updated;
+		});
+
+		return { lease };
 	});
 
 // getbyId
@@ -152,6 +180,9 @@ export const getLeaseById = ownerProcedure
 				endDate: leases.endDate,
 				rent: leases.rent,
 				deposit: leases.deposit,
+				notice: leases.notice,
+				rentDueDate: leases.rentDueDate,
+				description: leases.description,
 				status: leases.status,
 				referenceId: leases.referenceId,
 				createdAt: leases.createdAt,
@@ -185,8 +216,9 @@ export const getLeaseById = ownerProcedure
 // getAll
 export const listLeases = ownerProcedure
 	.route({ method: "GET", path: "/rent/lease/list" })
+	.input(z.object({ status: z.enum(LEASE_STATUS_VALUES).optional() }))
 	.output(z.object({ leases: z.array(LeaseWithDetailsSchema) }))
-	.handler(async ({ context }) => {
+	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
 		const results = await db
@@ -197,6 +229,9 @@ export const listLeases = ownerProcedure
 				startDate: leases.startDate,
 				endDate: leases.endDate,
 				status: leases.status,
+				notice: leases.notice,
+				rentDueDate: leases.rentDueDate,
+				description: leases.description,
 				createdAt: leases.createdAt,
 				updatedAt: leases.updatedAt,
 				tenantId: leases.tenantId,
@@ -212,14 +247,19 @@ export const listLeases = ownerProcedure
 			.innerJoin(units, eq(leases.unitId, units.id))
 			.innerJoin(properties, eq(units.propertyId, properties.id))
 			.innerJoin(user, eq(leases.tenantId, user.id))
-			.where(eq(properties.ownerId, authUser.id))
+			.where(
+				and(
+					eq(properties.ownerId, authUser.id),
+					input.status ? eq(leases.status, input.status) : undefined,
+				),
+			)
 			.orderBy(sql`${leases.createdAt} desc`);
 
 		return { leases: results };
 	});
 
 // remove
-export const deleteLease = ownerProcedure
+export const terminateLease = ownerProcedure
 	.route({ method: "DELETE", path: "/rent/lease/delete" })
 	.input(z.object({ id: z.string() }))
 	.output(z.object({ success: z.boolean() }))
@@ -242,7 +282,10 @@ export const deleteLease = ownerProcedure
 
 		// transaction
 		await db.transaction(async (tx) => {
-			await tx.delete(leases).where(eq(leases.id, input.id));
+			await tx
+				.update(leases)
+				.set({ status: "terminated", updatedAt: new Date() })
+				.where(eq(leases.id, input.id));
 
 			// Reset Unit to available
 			await tx

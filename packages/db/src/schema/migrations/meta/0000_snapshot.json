@@ -1,5 +1,5 @@
 {
-	"id": "e86658e8-7ba6-4027-87e3-b96d9b86d66b",
+	"id": "3c42f32e-e84c-4f57-bbe2-a5c05493895f",
 	"prevId": "00000000-0000-0000-0000-000000000000",
 	"version": "7",
 	"dialect": "postgresql",
@@ -29,7 +29,7 @@
 				},
 				"user_id": {
 					"name": "user_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -175,7 +175,7 @@
 				},
 				"user_id": {
 					"name": "user_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				}
@@ -456,6 +456,12 @@
 					"primaryKey": false,
 					"notNull": true,
 					"default": "now()"
+				},
+				"deleted_at": {
+					"name": "deleted_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
 				}
 			},
 			"indexes": {},
@@ -466,7 +472,7 @@
 					"tableTo": "tenant_profiles",
 					"columnsFrom": ["tenant_profile_id"],
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
+					"onDelete": "restrict",
 					"onUpdate": "no action"
 				},
 				"document_update_requests_requested_by_id_user_id_fk": {
@@ -546,6 +552,24 @@
 					"primaryKey": false,
 					"notNull": true
 				},
+				"notice": {
+					"name": "notice",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"rent-due-date": {
+					"name": "rent-due-date",
+					"type": "integer",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
 				"reference_id": {
 					"name": "reference_id",
 					"type": "uuid",
@@ -575,7 +599,7 @@
 					"tableTo": "units",
 					"columnsFrom": ["unit_id"],
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
+					"onDelete": "restrict",
 					"onUpdate": "no action"
 				},
 				"leases_tenant_id_user_id_fk": {
@@ -584,7 +608,7 @@
 					"tableTo": "user",
 					"columnsFrom": ["tenant_id"],
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
+					"onDelete": "restrict",
 					"onUpdate": "no action"
 				},
 				"leases_reference_id_user_id_fk": {
@@ -642,6 +666,26 @@
 					"type": "text",
 					"primaryKey": false,
 					"notNull": false
+				},
+				"created_at": {
+					"name": "created_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"updated_at": {
+					"name": "updated_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": true,
+					"default": "now()"
+				},
+				"deleted_at": {
+					"name": "deleted_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
 				}
 			},
 			"indexes": {},
@@ -652,7 +696,7 @@
 					"tableTo": "user",
 					"columnsFrom": ["user_id"],
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
+					"onDelete": "restrict",
 					"onUpdate": "no action"
 				}
 			},
@@ -743,7 +787,7 @@
 					"tableTo": "leases",
 					"columnsFrom": ["lease_id"],
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
+					"onDelete": "restrict",
 					"onUpdate": "no action"
 				},
 				"payments_utility_id_utilities_id_fk": {
@@ -796,6 +840,30 @@
 					"primaryKey": false,
 					"notNull": true
 				},
+				"year-built": {
+					"name": "year-built",
+					"type": "numeric",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"total-area": {
+					"name": "total-area",
+					"type": "numeric",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"floors": {
+					"name": "floors",
+					"type": "numeric",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
 				"created_at": {
 					"name": "created_at",
 					"type": "timestamp",
@@ -809,6 +877,12 @@
 					"primaryKey": false,
 					"notNull": true,
 					"default": "now()"
+				},
+				"deleted_at": {
+					"name": "deleted_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
 				}
 			},
 			"indexes": {},
@@ -819,7 +893,7 @@
 					"tableTo": "user",
 					"columnsFrom": ["owner_id"],
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
+					"onDelete": "restrict",
 					"onUpdate": "no action"
 				}
 			},
@@ -864,6 +938,12 @@
 					"primaryKey": false,
 					"notNull": true,
 					"default": "now()"
+				},
+				"deleted_at": {
+					"name": "deleted_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
 				}
 			},
 			"indexes": {},
@@ -874,7 +954,7 @@
 					"tableTo": "user",
 					"columnsFrom": ["referred_user_id"],
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
+					"onDelete": "restrict",
 					"onUpdate": "no action"
 				}
 			},
@@ -938,7 +1018,7 @@
 				},
 				"invited_by": {
 					"name": "invited_by",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -962,6 +1042,12 @@
 					"primaryKey": false,
 					"notNull": true,
 					"default": "now()"
+				},
+				"deleted_at": {
+					"name": "deleted_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
 				}
 			},
 			"indexes": {},
@@ -1073,7 +1159,7 @@
 				},
 				"verified_by": {
 					"name": "verified_by",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": false
 				},
@@ -1108,6 +1194,12 @@
 					"primaryKey": false,
 					"notNull": true,
 					"default": "now()"
+				},
+				"deleted_at": {
+					"name": "deleted_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
 				}
 			},
 			"indexes": {},
@@ -1118,7 +1210,7 @@
 					"tableTo": "user",
 					"columnsFrom": ["user_id"],
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
+					"onDelete": "restrict",
 					"onUpdate": "no action"
 				},
 				"tenant_profiles_verified_by_user_id_fk": {
@@ -1178,7 +1270,7 @@
 				},
 				"property_id": {
 					"name": "property_id",
-					"type": "text",
+					"type": "uuid",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -1206,6 +1298,12 @@
 					"primaryKey": false,
 					"notNull": true
 				},
+				"furnishing": {
+					"name": "furnishing",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
+				},
 				"description": {
 					"name": "description",
 					"type": "text",
@@ -1231,6 +1329,12 @@
 					"primaryKey": false,
 					"notNull": true,
 					"default": "now()"
+				},
+				"deleted_at": {
+					"name": "deleted_at",
+					"type": "timestamp",
+					"primaryKey": false,
+					"notNull": false
 				}
 			},
 			"indexes": {},
@@ -1241,7 +1345,7 @@
 					"tableTo": "properties",
 					"columnsFrom": ["property_id"],
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
+					"onDelete": "restrict",
 					"onUpdate": "no action"
 				}
 			},
@@ -1261,6 +1365,12 @@
 					"primaryKey": true,
 					"notNull": true
 				},
+				"batch_id": {
+					"name": "batch_id",
+					"type": "uuid",
+					"primaryKey": false,
+					"notNull": false
+				},
 				"lease_id": {
 					"name": "lease_id",
 					"type": "uuid",
@@ -1273,21 +1383,15 @@
 					"primaryKey": false,
 					"notNull": true
 				},
-				"reading_date": {
-					"name": "reading_date",
+				"previous_reading_date": {
+					"name": "previous_reading_date",
 					"type": "timestamp",
-					"primaryKey": false,
-					"notNull": true
-				},
-				"rate_per_unit": {
-					"name": "rate_per_unit",
-					"type": "real",
 					"primaryKey": false,
 					"notNull": false
 				},
-				"units_used": {
-					"name": "units_used",
-					"type": "real",
+				"reading_date": {
+					"name": "reading_date",
+					"type": "timestamp",
 					"primaryKey": false,
 					"notNull": true
 				},
@@ -1303,6 +1407,18 @@
 					"primaryKey": false,
 					"notNull": true
 				},
+				"units_used": {
+					"name": "units_used",
+					"type": "real",
+					"primaryKey": false,
+					"notNull": false
+				},
+				"rate_per_unit": {
+					"name": "rate_per_unit",
+					"type": "real",
+					"primaryKey": false,
+					"notNull": false
+				},
 				"fixed_charge": {
 					"name": "fixed_charge",
 					"type": "integer",
@@ -1314,6 +1430,12 @@
 					"type": "integer",
 					"primaryKey": false,
 					"notNull": true
+				},
+				"description": {
+					"name": "description",
+					"type": "text",
+					"primaryKey": false,
+					"notNull": false
 				},
 				"is_paid": {
 					"name": "is_paid",
@@ -1345,7 +1467,7 @@
 					"tableTo": "leases",
 					"columnsFrom": ["lease_id"],
 					"columnsTo": ["id"],
-					"onDelete": "cascade",
+					"onDelete": "restrict",
 					"onUpdate": "no action"
 				}
 			},
@@ -1407,7 +1529,7 @@
 					"type": "text",
 					"primaryKey": false,
 					"notNull": false,
-					"default": "'pending'"
+					"default": "'unpaid'"
 				},
 				"created_at": {
 					"name": "created_at",

@@ -1,13 +1,14 @@
 import { ORPCError } from "@orpc/server";
-import { properties, units } from "@rently/db/schema/schema";
-import type { Property } from "@rently/validators";
+import { leases, properties, units } from "@rently/db/schema/schema";
+import type { PropertyWithStats } from "@rently/validators";
 import {
 	CreatePropertySchema,
 	PropertySelectSchema,
+	PropertyWithStatsSchema,
 	UnitSelectSchema,
 	UpdatePropertySchema,
 } from "@rently/validators";
-import { eq } from "drizzle-orm";
+import { and, count, eq, isNull, sql } from "drizzle-orm";
 import z from "zod";
 import { ownerProcedure } from "../../procedures";
 import { StatusCode, StatusPhrase } from "../../utils";
@@ -15,17 +16,53 @@ import { StatusCode, StatusPhrase } from "../../utils";
 // 1) list all Properties
 export const listProperties = ownerProcedure
 	.route({ method: "GET", path: "/rent/property/lists" }) // for OPENAPI
-	.output(z.object({ properties: z.array(PropertySelectSchema) }))
-	.handler(async ({ context }): Promise<{ properties: Property[] }> => {
-		const { db, user } = context;
+	.output(z.object({ properties: z.array(PropertyWithStatsSchema) }))
+	.handler(
+		async ({ context }): Promise<{ properties: PropertyWithStats[] }> => {
+			const { db, user } = context;
 
-		const res = await db
-			.select()
-			.from(properties)
-			.where(eq(properties.ownerId, user.id))
-			.orderBy(properties.createdAt);
-		return { properties: res };
-	});
+			const rows = await db
+				.select({
+					id: properties.id,
+					ownerId: properties.ownerId,
+					name: properties.name,
+					address: properties.address,
+					type: properties.type,
+					createdAt: properties.createdAt,
+					updatedAt: properties.updatedAt,
+					deletedAt: properties.deletedAt,
+					totalUnits: count(units.id),
+					occupiedUnits:
+						sql<number>`count(case when ${units.status} = 'occupied' then 1 end)`.mapWith(
+							Number,
+						),
+					yearBuilt: properties.yearBuilt,
+					totalArea: properties.totalArea,
+					floors: properties.floors,
+					monthlyRevenue: sql<number>`coalesce(sum(${leases.rent}), 0)`.mapWith(
+						Number,
+					),
+					description: properties.description,
+				})
+				.from(properties)
+				.leftJoin(units, eq(units.propertyId, properties.id))
+				.leftJoin(
+					leases,
+					and(eq(leases.unitId, units.id), eq(leases.status, "active")),
+				)
+				.where(
+					and(eq(properties.ownerId, user.id), isNull(properties.deletedAt)),
+				)
+				.groupBy(properties.id)
+				.orderBy(properties.createdAt);
+			return {
+				properties: rows.map((row) => ({
+					...row,
+					availableUnits: row.totalUnits - row.occupiedUnits,
+				})),
+			};
+		},
+	);
 
 // 2) get Single Property
 
@@ -39,7 +76,7 @@ export const getPropertyById = ownerProcedure
 		const [property] = await db
 			.select()
 			.from(properties)
-			.where(eq(properties.id, input.id));
+			.where(and(eq(properties.id, input.id), isNull(properties.deletedAt)));
 
 		if (!property) {
 			throw new ORPCError(StatusPhrase.NOT_FOUND, {
@@ -76,6 +113,10 @@ export const createProperty = ownerProcedure
 				address: input.address,
 				type: input.type,
 				ownerId: user.id,
+				floors: input.floors,
+				description: input.description,
+				yearBuilt: input.yearBuilt,
+				totalArea: input.totalArea,
 			})
 			.returning();
 
@@ -131,7 +172,23 @@ export const deleteProperty = ownerProcedure
 		if (existing.ownerId !== user.id)
 			throw new ORPCError(StatusPhrase.FORBIDDEN);
 
-		await db.delete(properties).where(eq(properties.id, input.id));
+		const activeUnits = await db
+			.select({ id: units.id })
+			.from(units)
+			.where(and(eq(units.propertyId, input.id), isNull(units.deletedAt)))
+			.limit(1);
+
+		if (activeUnits.length > 0) {
+			throw new ORPCError("CONFLICT", {
+				message:
+					"Cannot arhieve a property with active units. Archieve all units first.",
+			});
+		}
+
+		await db
+			.update(properties)
+			.set({ deletedAt: new Date(), updatedAt: new Date() })
+			.where(eq(properties.id, input.id));
 
 		return { success: true };
 	});

@@ -1,1 +1,0 @@
-ALTER TABLE "utilities" ADD COLUMN "description" text;

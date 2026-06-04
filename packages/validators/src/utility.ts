@@ -58,7 +58,9 @@ export const UtilityReadingSchema = z
 
 export const FixedChargeSchema = z.object({
 	// totalAmount IS the fixedCharge for maintenance — no unit calculation
-	fixedCharge: z.number().min(1, { error: "Amount must be > 0" }),
+	fixedCharge: z.number().min(1, {
+		error: "Amount must be at lease ₹1.00",
+	}),
 	description: z.string().optional(),
 	isPaid: z.boolean(),
 });

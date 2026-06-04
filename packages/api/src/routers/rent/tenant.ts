@@ -357,7 +357,7 @@ export const createTenant = ownerProcedure
 			await auth.api.requestPasswordReset({
 				body: {
 					email: input.email,
-					redirectTo: `${env.CORS_ORIGIN}/invite/${token}`,
+					redirectTo: `${env.CORS_ORIGINS}/invite/${token}`,
 				},
 			});
 		} catch (emailError) {
@@ -598,7 +598,7 @@ export const sendPasswordReset = ownerProcedure
 			await auth.api.requestPasswordReset({
 				body: {
 					email: result.tenantEmail,
-					redirectTo: `${env.CORS_ORIGIN}/set-password`,
+					redirectTo: `${env.CORS_ORIGINS}/set-password`,
 				},
 			});
 		} catch (err) {

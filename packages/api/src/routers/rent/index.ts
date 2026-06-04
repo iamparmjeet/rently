@@ -1,5 +1,6 @@
 import * as inviteProcedures from "./invite";
 import * as leaseProcedures from "./lease";
+import * as ownerProfile from "./owner-profile";
 import * as paymentProcedures from "./payment";
 import * as propertyProcedures from "./property";
 import * as statsProcedures from "./stats";
@@ -16,4 +17,5 @@ export const rentRouter = {
 	payment: paymentProcedures,
 	utility: utilityProcedures,
 	stats: statsProcedures,
+	ownerProfile,
 };

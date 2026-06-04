@@ -32,7 +32,6 @@ function ProfileTabSkeleton() {
 		<div className="space-y-6">
 			{[...Array(3)].map((_, i) => (
 				<div
-					// biome-ignore lint/suspicious/noArrayIndexKey: static skeleton
 					key={i}
 					className="space-y-4 rounded-xl border border-border bg-card p-6"
 				>

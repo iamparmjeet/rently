@@ -158,7 +158,7 @@ export function PaymentForm({
 							control={control}
 							render={({ field }) => (
 								<Select
-									value={field.value ?? ""}
+									value={selectedType ? field.value : ""}
 									onValueChange={field.onChange}
 									disabled={isSubmitting}
 								>
@@ -169,7 +169,7 @@ export function PaymentForm({
 										{Object.entries(PAYMENT_TYPES)
 											// reversal is system-generated (voidPayment) — hide from manual entry
 											.filter(([, value]) => value !== "reversal")
-											.map(([key, value]) => (
+											.map(([_, value]) => (
 												<SelectItem key={value} value={value}>
 													<span className="capitalize">{value}</span>
 												</SelectItem>

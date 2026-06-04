@@ -15,8 +15,8 @@
 		"@orpc/server": "catalog:",
 		"@orpc/tanstack-query": "^1.13.14",
 		"@rently/api": "workspace:*",
-		"@rently/hooks": "workspace:*",
 		"@rently/env": "workspace:*",
+		"@rently/hooks": "workspace:*",
 		"@rently/ui": "workspace:*",
 		"@tabler/icons-react": "^3.42.0",
 		"@tanstack/react-form": "^1.28.0",
@@ -32,6 +32,7 @@
 		"react": "catalog:",
 		"react-dom": "catalog:",
 		"react-hook-form": "^7.75.0",
+		"react-qr-code": "^2.0.21",
 		"sonner": "catalog:",
 		"zod": "catalog:"
 	},

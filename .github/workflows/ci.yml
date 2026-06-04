@@ -2,9 +2,9 @@ name: CI & Deploy
 
 on:
   push:
-    branches: [master]
+    branches: [main]
   pull_request:
-    branches: [master]
+    branches: [main]
 
 jobs:
   ci:
@@ -30,7 +30,7 @@ jobs:
   deploy-server:
     name: Deploy → Cloudflare Workers
     needs: ci
-    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
     runs-on: ubuntu-latest
 
     steps:

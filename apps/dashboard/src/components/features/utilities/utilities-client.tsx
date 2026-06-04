@@ -249,7 +249,7 @@ export default function UtilitiesClient() {
 			if (editTarget.utilityType === "maintenance" && values.maintenance) {
 				const { isPaid: _isPaid, ...rest } = values.maintenance;
 				return {
-					...rent,
+					...rest,
 					fixedCharge: toPaise(rest.fixedCharge),
 				};
 			}

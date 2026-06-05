@@ -11,7 +11,7 @@ import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
 import { DetailHeader } from "@rently/ui/shared/detail-header";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
 import { NotFoundState } from "@rently/ui/shared/not-found-state";
-import { PageLoader } from "@rently/ui/shared/page-loader";
+// import { PageLoader } from "@rently/ui/shared/page-loader";
 import { IconPencil, IconTrash } from "@tabler/icons-react";
 
 import { use, useMemo } from "react";

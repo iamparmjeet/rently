@@ -1,25 +1,18 @@
-// src/app/tenant-portal/page.tsx
-import { TenantAccessGuard } from "./_components/tenant-access-guard";
-import { TenantDashboard } from "./_components/tenant-dashboard";
+import {
+	TenantAccessGuard,
+	TenantDashboard,
+} from "@/components/features/tenant";
 
-// Next.js 15 App Router: searchParams is async — must be awaited
-type TenantPortalSearchParams = Promise<{
-	error?: string;
-}>;
+interface PageProps {
+	searchParams: Promise<{ error?: string }>;
+}
 
-export default async function TenantPortalPage({
-	searchParams,
-}: {
-	searchParams: TenantPortalSearchParams;
-}) {
+export default async function TenantPortalPage({ searchParams }: PageProps) {
 	const { error } = await searchParams;
 
 	return (
 		<>
-			{/* Client component handles the toast side-effect only */}
 			<TenantAccessGuard error={error} />
-
-			{/* Main Dashboard content */}
 			<TenantDashboard />
 		</>
 	);

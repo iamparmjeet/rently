@@ -8,6 +8,13 @@
 			"when": 1780428006187,
 			"tag": "0000_pale_shard",
 			"breakpoints": true
+		},
+		{
+			"idx": 1,
+			"version": "7",
+			"when": 1780681840997,
+			"tag": "0001_petite_iron_fist",
+			"breakpoints": true
 		}
 	]
 }

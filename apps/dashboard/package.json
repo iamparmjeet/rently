@@ -19,7 +19,6 @@
 		"@rently/hooks": "workspace:*",
 		"@rently/ui": "workspace:*",
 		"@tabler/icons-react": "^3.42.0",
-		"@tanstack/react-form": "^1.28.0",
 		"@tanstack/react-query": "^5.90.12",
 		"babel-plugin-react-compiler": "^1.0.0",
 		"better-auth": "catalog:",

@@ -16,9 +16,22 @@ import {
 } from "./index";
 
 // 1) Property ↔ Owner (user)
-export const userRelations = relations(user, ({ many }) => ({
+export const userRelations = relations(user, ({ one, many }) => ({
 	properties: many(properties),
 	leases: many(leases),
+
+	tenantProfile: one(tenantProfiles, {
+		fields: [user.id],
+		references: [tenantProfiles.userId],
+	}),
+	ownerProfile: one(ownerProfiles, {
+		fields: [user.id],
+		references: [ownerProfiles.userId],
+	}),
+	sentInvites: many(tenantInvites, {
+		relationName: "invitedBy",
+	}),
+	subscriptions: many(subscriptions),
 }));
 
 export const propertyRelations = relations(properties, ({ one, many }) => ({
@@ -34,6 +47,7 @@ export const tenantInviteRelations = relations(tenantInvites, ({ one }) => ({
 	invitedBy: one(user, {
 		fields: [tenantInvites.invitedById],
 		references: [user.id],
+		relationName: "invitedBy",
 	}),
 }));
 

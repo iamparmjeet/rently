@@ -93,66 +93,6 @@ export const listTenants = ownerProcedure
 	});
 
 // 2) GetTenantsById
-// export const getTenantById = protectedProcedure
-// 	.route({ method: "GET", path: "/rent/tenant/get" })
-// 	.input(z.object({ id: z.string() }))
-// 	.output(z.object({ tenant: TenantListItemSchema }))
-// 	.handler(async ({ context, input }) => {
-// 		const { db, user: authUser } = context;
-
-// 		// verify this tenant has a lease on one of the owner's properties.
-// 		const [result] = await db
-// 			.select({
-// 				tenantId: user.id,
-// 				name: user.name,
-// 				email: user.email,
-// 				phone: user.phone,
-// 				avatarUrl: user.image,
-// 				leaseId: leases.id,
-// 				propertyName: properties.name,
-// 				unitNumber: units.unitNumber,
-// 				rent: leases.rent,
-// 				endDate: leases.endDate,
-// 				ownerId: properties.ownerId,
-// 			})
-// 			.from(leases)
-// 			.innerJoin(units, eq(leases.unitId, units.id))
-// 			.innerJoin(properties, eq(units.propertyId, properties.id))
-// 			.innerJoin(user, eq(leases.tenantId, user.id))
-// 			.where(eq(user.id, input.id))
-// 			.limit(1);
-
-// 		if (!result) {
-// 			throw new ORPCError(StatusPhrase.NOT_FOUND, {
-// 				message: "Tenant not found",
-// 			});
-// 		}
-
-// 		if (result.ownerId !== authUser.id) {
-// 			throw new ORPCError(StatusPhrase.FORBIDDEN, {
-// 				message: "You do not have acces to this tenant",
-// 			});
-// 		}
-
-// 		return {
-// 			tenant: {
-// 				id: result.tenantId,
-// 				name: result.name,
-// 				email: result.email,
-// 				phone: result.phone,
-// 				avatarUrl: result.avatarUrl,
-// 				status: "accepted" as const,
-// 				currentLease: {
-// 					id: result.leaseId,
-// 					propertyName: result.propertyName,
-// 					unitNumber: result.unitNumber,
-// 					rent: result.rent,
-// 					endDate: result.endDate ? result.endDate.toISOString() : null,
-// 				},
-// 			},
-// 		};
-// 	});
-
 export const getTenantById = ownerProcedure
 	.route({ method: "GET", path: "/rent/tenant/get" })
 	.input(z.object({ id: z.string() }))
@@ -160,19 +100,6 @@ export const getTenantById = ownerProcedure
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
-		// ── Query design decisions ───────────────────────────────────────────
-		// Anchor: tenantProfiles (not leases)
-		//   → A tenant can exist without any lease (just created, not yet placed).
-		//     Starting from leases with INNER JOIN returns nothing in that case.
-		//
-		// Auth: WHERE tenantProfiles.createdById = authUser.id
-		//   → Pushed into the WHERE clause so we get 0 rows (not a forbidden row)
-		//     when the tenant doesn't belong to this owner. Single-query auth.
-		//
-		// Lease: LEFT JOIN with status filter inside the join condition
-		//   → LEFT JOIN keeps the tenant row even with no lease.
-		//   → The status filter (active) is in the JOIN condition, not WHERE.
-		//     If it were in WHERE, NULL rows from LEFT JOIN would be excluded.
 		const [result] = await db
 			.select({
 				// User identity
@@ -220,7 +147,7 @@ export const getTenantById = ownerProcedure
 			.limit(1);
 
 		// Zero rows means either: tenant doesn't exist, OR belongs to another owner.
-		// We return NOT_FOUND for both — don't reveal which, prevents enumeration.
+		// NOT_FOUND for both — don't reveal which, prevents enumeration.
 		if (!result) {
 			throw new ORPCError(StatusPhrase.NOT_FOUND, {
 				message: "Tenant not found",
@@ -357,7 +284,7 @@ export const createTenant = ownerProcedure
 			await auth.api.requestPasswordReset({
 				body: {
 					email: input.email,
-					redirectTo: `${env.CORS_ORIGINS}/invite/${token}`,
+					redirectTo: `${env.CORS_ORIGINS}/set-password/${token}`,
 				},
 			});
 		} catch (emailError) {

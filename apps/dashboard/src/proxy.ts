@@ -6,27 +6,20 @@ import { type NextRequest, NextResponse } from "next/server";
 import { PROTECTED_ROUTES } from "./constants/navigation";
 
 type SessionResponse = {
-	session: {
-		id: string;
-		expiresAt: string;
-	};
-	user: {
-		id: string;
-		email: string;
-		role?: string;
-	};
+	session: { id: string; expiresAt: string };
+	user: { id: string; email: string; role?: string };
 };
 
-// Helper — keeps the redirect construction readable and typed
+// WHY: Login lives on apps/web — all unauthenticated redirects from the dashboard
+// must go there, not to a local /login route.
 function getWebLoginUrl(request: NextRequest): URL {
 	const webBaseUrl = env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3001";
 	const loginUrl = new URL("/login", webBaseUrl);
-
+	// Pass the full URL as callbackUrl so the user lands back here after login.
 	loginUrl.searchParams.set("callbackUrl", request.url);
 	return loginUrl;
 }
 
-// Main Function
 export default async function proxy(request: NextRequest) {
 	evlogMiddleware();
 	const { pathname } = request.nextUrl;
@@ -34,61 +27,57 @@ export default async function proxy(request: NextRequest) {
 	const isProtectedRoute = PROTECTED_ROUTES.some((route) =>
 		pathname.startsWith(route),
 	);
-	// Public Route
 	if (!isProtectedRoute) return NextResponse.next();
 
-	// fast path cookie check
-	// Check cookie first
+	// Fast-path: no cookie → redirect to web login immediately.
 	const sessionCookie = request.cookies.get("rently.session_token");
 	const hasSession = !!sessionCookie?.value;
 
-	// Gate -1 - no session -> login
 	if (!hasSession) {
 		return NextResponse.redirect(getWebLoginUrl(request));
 	}
 
-	// Gate -2 - Already logged in, trying to reach login/register -> dashboard and session exist but verify with server
+	// Cookie exists — verify with the server before trusting role.
 	const serverUrl = env.NEXT_PUBLIC_SERVER_URL;
 	const { data: session, error } = await betterFetch<SessionResponse>(
 		"/api/auth/get-session",
 		{
 			baseURL: serverUrl,
-			headers: {
-				cookie: request.headers.get("cookie") ?? "",
-			},
+			headers: { cookie: request.headers.get("cookie") ?? "" },
 		},
 	);
 
-	if (error || !session.user) {
+	// GOTCHA: session can be null (not just undefined) when no active session is found.
+	// Use optional chaining — !session.user would throw TypeError on null.
+	if (error || !session?.user) {
 		return NextResponse.redirect(getWebLoginUrl(request));
 	}
 
-	// Gate-3 Role Check - Only runs when session exists on a protected route
-
-	// Tenant Guard
 	const role = session.user.role as string | undefined;
 
+	// GOTCHA: NEXT_PUBLIC_TENANT_URL is required (z.url(), not optional) in env schema.
+	// No ternary fallback needed — T3 env throws at startup if it's missing.
+	// The old fallback `new URL("tenant-portal", request.url)` was wrong in two ways:
+	//   1. Missing leading slash → resolved relative to current path segment
+	//   2. Same app origin → /tenant-portal on dashboard = infinite redirect loop
 	if (role === USER_ROLES.TENANT) {
-		const tenantPortalUrl = env.NEXT_PUBLIC_TENANT_URL
-			? new URL("/tenant-portal", env.NEXT_PUBLIC_TENANT_URL)
-			: new URL("tenant-portal", request.url);
-
-		return NextResponse.redirect(tenantPortalUrl);
+		return NextResponse.redirect(
+			new URL("/tenant-portal", env.NEXT_PUBLIC_TENANT_URL),
+		);
 	}
 
-	// Owner Guard
+	// Owner passes through. Unknown role → back to web home.
 	if (role !== USER_ROLES.OWNER) {
-		const webUrl = env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3001";
-		return NextResponse.redirect(new URL("/", webUrl));
+		return NextResponse.redirect(
+			new URL("/", env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3001"),
+		);
 	}
 
 	return NextResponse.next();
 }
 
 export const config = {
-	// runtime: "nodejs",
 	matcher: [
-		// "/api/:path*",
 		"/((?!api|_next/static|_next/image|favicon.ico|api/auth|.*\\..*).*)",
 	],
 };

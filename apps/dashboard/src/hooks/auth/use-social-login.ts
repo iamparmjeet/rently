@@ -34,7 +34,7 @@ export const useSocialLogin = () => {
 		await signIn.social(
 			{
 				provider,
-				callbackURL: `${env.NEXT_PUBLIC_APP_URL}/${NavigationLinkMap.Dashboard.href}`,
+				callbackURL: `${env.NEXT_PUBLIC_DASHBOARD_URL}${NavigationLinkMap.Dashboard.href}`,
 			},
 			{
 				onError: (err) => {

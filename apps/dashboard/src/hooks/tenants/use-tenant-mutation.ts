@@ -191,7 +191,10 @@ export function useSuspenseUpdateTenant() {
 							t.id === variables.tenantId
 								? {
 										...t,
-										...variables,
+										phone:
+											variables.phone !== undefined
+												? (variables.phone ?? null)
+												: t.phone,
 										id: t.id,
 									}
 								: t,

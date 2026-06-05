@@ -3,113 +3,70 @@ import { USER_ROLES } from "@rently/db/constants/user-roles";
 import { env } from "@rently/env/web";
 import { evlogMiddleware } from "evlog/next";
 import { type NextRequest, NextResponse } from "next/server";
-import {
-	AUTH_ROUTES,
-	NavigationLinkMap,
-	PROTECTED_ROUTES,
-} from "./constants/navigation";
-import type { RedirectErrorKey } from "./constants/redirect-errors";
+import { AUTH_ROUTES } from "./constants/navigation";
 import { isTrustedCallbackUrl } from "./lib/trusted-url";
 
-const TENANT_PORTAL = "/tenant-portal";
-
 type SessionResponse = {
-	session: {
-		id: string;
-		expiresAt: string;
-	};
-	user: {
-		id: string;
-		email: string;
-		role?: string;
-	};
+	session: { id: string; expiresAt: string };
+	user: { id: string; email: string; role?: string };
 };
-
-// Helper — keeps the redirect construction readable and typed
-function redirectWithError(
-	base: string,
-	request: NextRequest,
-	error: RedirectErrorKey,
-): NextResponse {
-	const url = new URL(base, request.url);
-	url.searchParams.set("error", error);
-	return NextResponse.redirect(url);
-}
 
 export default async function proxy(request: NextRequest) {
 	evlogMiddleware();
 	const { pathname } = request.nextUrl;
 
-	const isProtectedRoute = PROTECTED_ROUTES.some((route) =>
-		pathname.startsWith(route),
-	);
+	// apps/web only has auth pages + landing page — no protected routes to guard.
+	// The ONLY job for this proxy: if a logged-in user hits an auth route, redirect them
+	// to the right app. Everything else passes through unconditionally.
 	const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route));
+	if (!isAuthRoute) return NextResponse.next();
 
-	// Check cookie first
+	// Fast-path: no cookie → unauthenticated user on login/register → let them through.
 	const sessionCookie = request.cookies.get("rently.session_token");
-	const hasSession = !!sessionCookie?.value;
+	if (!sessionCookie?.value) return NextResponse.next();
 
-	// Gate -1 - no session -> login
-	if (isProtectedRoute && !hasSession) {
-		const loginUrl = new URL("/login", request.url);
-		loginUrl.searchParams.set("callbackUrl", pathname);
-		return NextResponse.redirect(loginUrl);
+	// Cookie exists — verify with the server and redirect based on role.
+	// WHY: We must server-verify here because:
+	//   1. The cookie might be stale (expired session) → show the page, don't redirect
+	//   2. We need the role to know WHICH app to redirect to
+	const { data: session, error } = await betterFetch<SessionResponse>(
+		"/api/auth/get-session",
+		{
+			baseURL: env.NEXT_PUBLIC_SERVER_URL,
+			headers: { cookie: request.headers.get("cookie") ?? "" },
+		},
+	);
+
+	// Stale/invalid cookie → let them use the auth page normally
+	if (error || !session?.user) return NextResponse.next();
+
+	const role = session.user.role;
+	const callbackUrl = request.nextUrl.searchParams.get("callbackUrl");
+
+	// Honour an explicit, trusted callbackUrl first — handles the "redirected from
+	// tenant-portal / dashboard" case where proxy set callbackUrl before login.
+	// GOTCHA: isTrustedCallbackUrl rejects external URLs — open redirect is not possible.
+	if (callbackUrl && isTrustedCallbackUrl(callbackUrl)) {
+		return NextResponse.redirect(new URL(callbackUrl, request.url));
 	}
 
-	// Gate -2 - Already logged in, trying to reach login/register -> dashboard
-	if (isAuthRoute && hasSession) {
-		const callbackUrl = request.nextUrl.searchParams.get("callbackUrl");
-		if (callbackUrl && isTrustedCallbackUrl(callbackUrl)) {
-			return NextResponse.redirect(new URL(callbackUrl, request.url));
-		}
+	// Role-aware redirect — each role has exactly one home.
+	// GOTCHA: NEXT_PUBLIC_TENANT_URL is required in env schema (z.url()).
+	// new URL("/tenant-portal", absoluteBase) correctly ignores the existing path.
+	if (role === USER_ROLES.TENANT) {
 		return NextResponse.redirect(
-			new URL(`${env.NEXT_PUBLIC_DASHBOARD_URL}/dashboard`, request.url),
+			new URL("/tenant-portal", env.NEXT_PUBLIC_TENANT_URL),
 		);
 	}
 
-	// Gate-3 Role Check - Only runs when session exists on a protected route
-	if (isProtectedRoute && hasSession) {
-		const serverUrl = env.NEXT_PUBLIC_SERVER_URL;
-
-		const { data: session, error } = await betterFetch<SessionResponse>(
-			"/api/auth/get-session",
-			{
-				baseURL: serverUrl,
-				headers: {
-					cookie: request.headers.get("cookie") ?? "",
-				},
-			},
-		);
-
-		// Cookie exits but session is ivalid/expired
-		if (error || !session?.user) {
-			const loginUrl = new URL("/login", request.url);
-			loginUrl.searchParams.set("callbackUrl", pathname);
-			return NextResponse.redirect(loginUrl);
-		}
-
-		const role = session.user.role as string | undefined;
-
-		// Tenant Guard
-		if (role === USER_ROLES.TENANT) {
-			return redirectWithError(TENANT_PORTAL, request, "unauthorized_access");
-		}
-
-		// Owner Guard
-		if (role !== USER_ROLES.OWNER) {
-			return NextResponse.redirect(
-				new URL(NavigationLinkMap.Dashboard.href, request.url),
-			);
-		}
-	}
-
-	return NextResponse.next();
+	// Owner (or unknown role) → dashboard
+	return NextResponse.redirect(
+		new URL("/dashboard", env.NEXT_PUBLIC_DASHBOARD_URL),
+	);
 }
 
 export const config = {
-	// runtime: "nodejs",
 	matcher: [
-		// "/api/:path*",
 		"/((?!api|_next/static|_next/image|favicon.ico|api/auth|.*\\..*).*)",
 	],
 };

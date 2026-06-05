@@ -80,8 +80,8 @@ export const invoices = pgTable("invoices", {
 		.$type<string>(),
 	amount: integer("amount").notNull(),
 	currency: text("currency").default(CURRENCY_TYPES.INR),
-	periodStart: text("period_start").notNull(),
-	periodEnd: text("period_end").notNull(),
+	periodStart: timestamp("period_start").notNull(),
+	periodEnd: timestamp("period_end").notNull(),
 	paymentStatus: text("payment_status", {
 		enum: PAYMENT_STATUS_VALUES,
 	}).default(PAYMENT_STATUS.UNPAID),

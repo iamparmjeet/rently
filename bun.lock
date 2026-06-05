@@ -39,7 +39,6 @@
         "@rently/hooks": "workspace:*",
         "@rently/ui": "workspace:*",
         "@tabler/icons-react": "^3.42.0",
-        "@tanstack/react-form": "^1.28.0",
         "@tanstack/react-query": "^5.90.12",
         "babel-plugin-react-compiler": "^1.0.0",
         "better-auth": "catalog:",
@@ -196,6 +195,7 @@
         "@rently/db": "workspace:*",
         "@rently/email": "workspace:*",
         "@rently/env": "workspace:*",
+        "@rently/validators": "workspace:*",
         "dotenv": "catalog:",
         "drizzle-orm": "^0.45.2",
         "server-only": "^0.0.1",
@@ -203,7 +203,6 @@
       },
       "devDependencies": {
         "@rently/config": "workspace:*",
-        "@rently/validators": "workspace:*",
         "hono": "catalog:",
         "typescript": "catalog:",
       },

@@ -1,82 +1,76 @@
-// app/(marketing)/(auth)/forgot-password/page.tsx
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { env } from "@rently/env/web";
 import { Button } from "@rently/ui/components/button";
-import {
-	Card,
-	CardContent,
-	CardDescription,
-	CardHeader,
-	CardTitle,
-} from "@rently/ui/components/card";
-import {
-	Field,
-	FieldError,
-	FieldGroup,
-	FieldLabel,
-	FieldSet,
-} from "@rently/ui/components/field";
 import { Input } from "@rently/ui/components/input";
-import { IconBuilding, IconMailCheck } from "@tabler/icons-react";
+import { Label } from "@rently/ui/components/label";
+import Logo from "@rently/ui/shared/logo";
+import { IconLoader2, IconMailCheck } from "@tabler/icons-react";
 import Link from "next/link";
-import { Suspense, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
 import { authClient } from "@/lib/auth-client";
 
-// ─── Schema ───────────────────────────────────────────────────────────────────
-// WHY: Inline schema here, not in @rently/validators — this is a pure frontend
-// auth concern, not a DB-derived shape. No Drizzle table backs this.
+// ─── Schema ───
+//  Inline here intentionally — no Drizzle table backs this shape.
+// The three-layer validator pattern only applies to DB-derived domains.
+// This is a pure frontend auth flow concern that lives nowhere else.
 const forgotPasswordSchema = z.object({
-	email: z.string().min(1, { error: "Email is required" }).email({
-		error: "Enter a valid email address",
-	}),
+	email: z.email("Enter a valid email address"),
 });
 
 type ForgotPasswordValues = z.infer<typeof forgotPasswordSchema>;
-
-// ─── Two UI phases ────────────────────────────────────────────────────────────
-// WHY: Splitting into "idle" and "submitted" is a state machine pattern.
-// The form disappears after submit — user can't accidentally double-submit.
 type PagePhase = "idle" | "submitted";
 
-// ─── Success state component ─────
+const INPUT_CLS =
+	"block  w-full rounded-md border border-border px-3 text-[14px] outline-none transition-all placeholder:text-muted-foreground focus:border-primary focus:shadow-[0_0_0_3px_oklch(0.488_0.243_264.376_/_0.1)] disabled:cursor-not-allowed disabled:opacity-50 aria-[invalid=true]:border-destructive";
+
+// ─── Submitted view ──
 function SubmittedView({ email }: { email: string }) {
 	return (
-		<div className="flex flex-col items-center gap-4 py-4 text-center">
-			<div className="flex h-14 w-14 items-center justify-center rounded-full bg-primary/10">
-				<IconMailCheck className="h-7 w-7 text-primary" />
+		<div className="flex flex-col items-center gap-5 py-2 text-center">
+			<div className="flex size-13 items-center justify-center rounded-full bg-primary/10">
+				<IconMailCheck className="size-6.5 text-primary" />
 			</div>
-			<div className="space-y-1">
-				<p className="font-medium text-base">Check your inbox</p>
-				{/* WHY: We show the email so the user knows which inbox to check,
-				    but we intentionally show this message even if the email
-				    wasn't found — prevents user enumeration attacks */}
-				<p className="text-muted-foreground text-sm">
+
+			<div>
+				<p className="font-extrabold text-[19px] tracking-[-0.4px]">
+					Check your inbox
+				</p>
+
+				<p className="mt-2 text-[14px] text-muted-foreground leading-[1.6]">
 					If an account exists for{" "}
-					<span className="font-medium text-foreground">{email}</span>, a
+					<span className="font-semibold text-foreground">{email}</span>, a
 					password reset link has been sent.
 				</p>
+				<p className="mt-1 text-[13px] text-muted-foreground">
+					Check your spam folder if you don't see it within a minute.
+				</p>
 			</div>
-			<Button
-				nativeButton
-				variant="outline"
-				className="mt-2 w-full"
-				render={<Link href="/login" />}
+
+			{/* WHY: Plain Link styled as a button — this navigates to a new page,
+			    it's not a form action. Using the native <a> element (via Link)
+			    is semantically correct here. No Base UI Button needed. */}
+			<Link
+				href="/login"
+				className="mt-1 flex h-10.75 w-full items-center justify-center rounded-md border border-border font-medium text-[14px] transition-all hover:bg-muted"
 			>
 				Back to Sign In
-			</Button>
+			</Link>
 		</div>
 	);
 }
 
-// ─── Main page ─────
+// ─── Main page ───
 export default function ForgotPasswordPage() {
 	const [phase, setPhase] = useState<PagePhase>("idle");
-	// WHY: We store the submitted email separately so SubmittedView can display it.
-	// We can't read it from form state after reset() clears the form.
+
+	// WHY: We capture the submitted email into its own state piece BEFORE
+	// the phase transitions. If we read from form state after setPhase(),
+	// the form is gone from the DOM and RHF's values are inaccessible.
 	const [submittedEmail, setSubmittedEmail] = useState("");
 
 	const {
@@ -90,16 +84,10 @@ export default function ForgotPasswordPage() {
 	async function onSubmit(values: ForgotPasswordValues) {
 		const { error } = await authClient.requestPasswordReset({
 			email: values.email,
-			// WHY: This is the URL Better Auth appends its signed token to.
-			// It must match the set-password page that already exists in your app.
-			redirectTo: "/set-password",
+			redirectTo: `${env.NEXT_PUBLIC_APP_URL}/set-password`,
 		});
 
 		if (error) {
-			// WHY: We still transition to "submitted" even on error, EXCEPT for
-			// network/server failures. A "user not found" error should NOT be
-			// surfaced — that's a security leak (user enumeration). Only hard
-			// failures (rate limit, server down) get an error toast.
 			toast.error(error.message ?? "Something went wrong. Please try again.");
 			return;
 		}
@@ -109,67 +97,77 @@ export default function ForgotPasswordPage() {
 	}
 
 	return (
-		<div className="container mx-auto flex min-h-[calc(100vh-8rem)] items-center justify-center px-4 py-12">
-			<div className="w-full max-w-md">
-				{/* ── Brand mark — matches set-password page for visual consistency ── */}
-				<div className="mb-8 flex flex-col items-center gap-2">
-					<div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
-						<IconBuilding className="h-6 w-6 text-primary" />
-					</div>
-					<span className="font-semibold text-xl tracking-tight">RentWise</span>
+		<div className="flex min-h-screen items-center justify-center bg-white p-6">
+			<div className="w-full max-w-100">
+				{/* ── Brand mark ────────────── */}
+				<div className="mb-10 flex w-full items-center justify-center">
+					<Logo />
 				</div>
 
-				<Card>
-					<CardHeader>
-						<CardTitle className="text-center text-xl">
-							{phase === "submitted" ? "Email Sent" : "Forgot Password"}
-						</CardTitle>
-						{phase === "idle" && (
-							<CardDescription className="text-center">
-								Enter your email and we'll send you a reset link.
-							</CardDescription>
-						)}
-					</CardHeader>
-					<Suspense fallback={null}>
-						<CardContent>
-							{phase === "submitted" ? (
-								<SubmittedView email={submittedEmail} />
-							) : (
-								<form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-									<FieldSet>
-										<FieldGroup className="flex flex-col gap-4">
-											<Field data-invalid={!!errors.email}>
-												<FieldLabel htmlFor="email">Email address</FieldLabel>
-												<Input
-													id="email"
-													type="email"
-													placeholder="you@example.com"
-													autoComplete="email"
-													disabled={isSubmitting}
-													{...register("email")}
-													aria-invalid={!!errors.email}
-												/>
-												<FieldError errors={[errors.email]} />
-											</Field>
-										</FieldGroup>
-									</FieldSet>
+				<div className="rounded-xl border border-border bg-white p-[28px_32px] shadow-[0_1px_4px_oklch(0_0_0/0.06)]">
+					{phase === "submitted" ? (
+						<SubmittedView email={submittedEmail} />
+					) : (
+						<>
+							<div className="mb-6">
+								<h1 className="font-extrabold text-[22px] tracking-[-0.5px]">
+									Forgot password?
+								</h1>
+								<p className="mt-1.5 text-[14px] text-muted-foreground leading-[1.6]">
+									Enter your email and we'll send a reset link to your inbox.
+								</p>
+							</div>
 
-									<Button
-										type="submit"
-										disabled={isSubmitting}
-										className="w-full"
+							<form
+								onSubmit={handleSubmit(onSubmit)}
+								className="flex flex-col gap-3.5"
+							>
+								<div>
+									<Label
+										htmlFor="email"
+										className="mb-1.25 block font-semibold text-[13px]"
 									>
-										{isSubmitting ? "Sending..." : "Send Reset Link"}
-									</Button>
-								</form>
-							)}
-						</CardContent>
-					</Suspense>
-				</Card>
+										Email address
+									</Label>
+									<Input
+										id="email"
+										type="email"
+										placeholder="you@example.com"
+										autoComplete="email"
+										disabled={isSubmitting}
+										aria-invalid={!!errors.email}
+										{...register("email")}
+										className={INPUT_CLS}
+									/>
+									{errors.email && (
+										<p className="mt-1 text-[12px] text-destructive">
+											{errors.email.message}
+										</p>
+									)}
+								</div>
 
-				<p className="mt-6 text-center text-muted-foreground text-xs">
+								<Button type="submit" disabled={isSubmitting} className="h-12">
+									{isSubmitting ? (
+										<>
+											<IconLoader2 className="h-4 w-4 animate-spin" />
+											Sending...
+										</>
+									) : (
+										"Send Reset Link"
+									)}
+								</Button>
+							</form>
+						</>
+					)}
+				</div>
+
+				{/* ── Footer ────── */}
+				<p className="mt-6 text-center text-[13px] text-muted-foreground">
 					Remember your password?{" "}
-					<Link href="/login" className="text-primary hover:underline">
+					<Link
+						href="/login"
+						className="font-medium text-primary no-underline hover:underline"
+					>
 						Back to Sign In
 					</Link>
 				</p>

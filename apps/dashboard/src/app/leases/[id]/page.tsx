@@ -40,7 +40,7 @@ export default function LeaseDetailPage({
 	const terminateDialog = useFormDialog();
 
 	// server state
-	const { data, isLoading } = useSuspenseLease(id);
+	const { data } = useSuspenseLease(id);
 	const { data: unitsData } = useSuspenseUnits();
 	const { data: tenantsData } = useSuspenseTenants();
 	const { data: propertiesData } = useSuspenseProperties();
@@ -83,7 +83,8 @@ export default function LeaseDetailPage({
 		[propertiesData?.properties],
 	);
 
-	if (isLoading) return <PageLoader rows={2} />;
+	// isLoading always false in suspense
+	// if (isLoading) return <PageLoader rows={2} />;
 	if (!data?.lease) return <NotFoundState message="Lease not found." />;
 
 	const { lease } = data;

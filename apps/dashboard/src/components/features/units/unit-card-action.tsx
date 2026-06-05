@@ -67,7 +67,7 @@ export function UnitCardActions({ unit }: UnitCardActionsProps) {
 						baseRent: unit.baseRent,
 						area: unit.area,
 						description: unit.description,
-						furnishing: unit.furnishing,
+						furnishing: unit.furnishing ? null : "unfurnished",
 						type: unit.type,
 					}}
 					onSubmit={handleEditSubmit}

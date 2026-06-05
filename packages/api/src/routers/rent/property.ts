@@ -15,7 +15,7 @@ import { StatusCode } from "../../utils";
 
 // 1) list all Properties
 export const listProperties = ownerProcedure
-	.route({ method: "GET", path: "/rent/property/lists" }) // for OPENAPI
+	.route({ method: "GET", path: "/rent/property/list" }) // for OPENAPI
 	.output(z.object({ properties: z.array(PropertyWithStatsSchema) }))
 	.handler(
 		async ({ context }): Promise<{ properties: PropertyWithStats[] }> => {

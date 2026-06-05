@@ -30,11 +30,11 @@ export const plans = pgTable("plans", {
 	priceHalfYearly: integer("price_half_yearly").default(0).notNull(),
 	priceYearly: integer("price_yearly").default(0).notNull(),
 	priceTwoYear: integer("price_two_year").default(0).notNull(),
-	// discount
-	discountQuarterly: integer("discount_quarterly").default(0.05), // 5%
-	discountHalfYearly: integer("discount_half_yearly").default(0.1), // 10%
-	discountYearly: integer("discount_yearly").default(0.15),
-	discountTwoYear: integer("discount_two_year").default(0.2),
+	// discount in paise
+	discountQuarterly: integer("discount_quarterly").default(500), // 5%
+	discountHalfYearly: integer("discount_half_yearly").default(100), // 10%
+	discountYearly: integer("discount_yearly").default(150),
+	discountTwoYear: integer("discount_two_year").default(200),
 
 	...auditColumns(),
 });

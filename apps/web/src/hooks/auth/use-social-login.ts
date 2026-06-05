@@ -3,7 +3,6 @@ import type { SocialProvider } from "@rently/validators";
 import { useSearchParams } from "next/navigation";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { NavigationLinkMap } from "@/constants/navigation";
 import { signIn } from "@/lib/auth-client";
 
 export const useSocialLogin = () => {
@@ -31,10 +30,17 @@ export const useSocialLogin = () => {
 		setLoadingProvider(provider);
 		const toastId = toast.loading(`Connecting with ${provider}...`);
 		// OAuth redirect takes user away — onError is the only local callback
+		const callbackPage = new URL(`${env.NEXT_PUBLIC_APP_URL}/callback`);
+
+		const existingCallbackUrl = searchParams.get("callbackUrl");
+		if (existingCallbackUrl) {
+			callbackPage.searchParams.set("callbackUrl", existingCallbackUrl);
+		}
+
 		await signIn.social(
 			{
 				provider,
-				callbackURL: `${env.NEXT_PUBLIC_DASHBOARD_URL}/${NavigationLinkMap.Dashboard.href}`,
+				callbackURL: callbackPage.toString(),
 			},
 			{
 				onError: (err) => {

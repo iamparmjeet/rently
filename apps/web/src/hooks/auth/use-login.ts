@@ -1,10 +1,9 @@
+import { USER_ROLES } from "@rently/db/constants/user-roles";
 import { env } from "@rently/env/web";
 import type { LoginFormType } from "@rently/validators";
 import { useMutation } from "@tanstack/react-query";
-
 import { useSearchParams } from "next/navigation";
 import { toast } from "sonner";
-
 import { signIn } from "@/lib/auth-client";
 import { isTrustedCallbackUrl } from "@/lib/trusted-url";
 
@@ -28,10 +27,8 @@ export const useLogin = () => {
 
 			return result;
 		},
-		onSuccess: (_, __, context) => {
+		onSuccess: (result, __, context) => {
 			toast.success("Welcome back", { id: context.toastId });
-			console.log("onSuccess");
-			console.log("cookie", document.cookie);
 			const callbackUrl = searchParams.get("callbackUrl");
 
 			// redirect
@@ -39,6 +36,15 @@ export const useLogin = () => {
 				window.location.href = callbackUrl;
 				return;
 			}
+
+			// role
+			const role = result.data.user.role;
+
+			if (role === USER_ROLES.TENANT) {
+				window.location.href = env.NEXT_PUBLIC_TENANT_URL;
+				return;
+			}
+
 			window.location.href = `${env.NEXT_PUBLIC_DASHBOARD_URL}/dashboard`;
 		},
 		onError: (err, _, context) => {

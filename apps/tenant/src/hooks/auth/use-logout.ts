@@ -1,14 +1,10 @@
+import { env } from "@rently/env/web";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
-import type { Route } from "next";
-import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 import { signOut } from "@/lib/auth-client";
 
 export const useLogout = () => {
-	const router = useRouter();
 	const queryClient = useQueryClient();
-	// future: const resetPropertyStore = usePropertyStore(s => s.reset)
-	// future: const resetTenantStore = useTenantStore(s => s.reset)
 
 	const mutation = useMutation({
 		onMutate: () => {
@@ -27,7 +23,7 @@ export const useLogout = () => {
 			// future: resetPropertyStore()
 			// future: resetTenantStore()
 			toast.success("Signed Out", { id: context.toastId });
-			router.push("/login" as Route);
+			window.location.replace(`${env.NEXT_PUBLIC_WEB_URL}/login`);
 		},
 		onError: (err, _, context) => {
 			toast.error("Error while signing out", { id: context?.toastId });
@@ -35,5 +31,5 @@ export const useLogout = () => {
 		},
 	});
 
-	return { handleLogout: mutation.mutate };
+	return { handleLogout: () => mutation.mutate() };
 };

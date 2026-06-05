@@ -76,7 +76,7 @@ export function UnitForm({
 			baseRent: 0,
 			area: null,
 			description: null,
-			furnishing: undefined,
+			furnishing: "unfurnished",
 			type: UNIT_TYPES_VALUES[0],
 			...defaultValues,
 		},

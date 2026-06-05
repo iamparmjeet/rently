@@ -1,5 +1,4 @@
 import { ORPCError } from "@orpc/server";
-import { StatusPhrase } from "@rently/api/utils";
 import type { Database } from "@rently/db";
 import { leases, properties, units } from "@rently/db/schema/schema";
 import { and, eq, isNull } from "drizzle-orm";
@@ -17,12 +16,12 @@ export async function VerifyUnitOwnership(
 		.limit(1);
 
 	if (!result) {
-		throw new ORPCError(StatusPhrase.NOT_FOUND, {
+		throw new ORPCError("NOT_FOUND", {
 			message: "Unit Not Found",
 		});
 	}
 	if (result.ownerId !== userId) {
-		throw new ORPCError(StatusPhrase.FORBIDDEN, {
+		throw new ORPCError("FORBIDDEN", {
 			message: "You don't own this unit.",
 		});
 	}
@@ -46,12 +45,12 @@ export async function VerifyLeaseOwnership(
 		.limit(1);
 
 	if (!result) {
-		throw new ORPCError(StatusPhrase.NOT_FOUND, {
+		throw new ORPCError("NOT_FOUND", {
 			message: "Lease Not Found",
 		});
 	}
 	if (result.ownerId !== userId) {
-		throw new ORPCError(StatusPhrase.FORBIDDEN, {
+		throw new ORPCError("FORBIDDEN", {
 			message: "You don't have permission to access this lease",
 		});
 	}

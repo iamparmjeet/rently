@@ -111,7 +111,7 @@ export function useDeletePayment() {
 		},
 		onSettled: () => {
 			// WHY: removeQueries on delete — no refetch needed, data is gone
-			queryClient.removeQueries({
+			queryClient.invalidateQueries({
 				queryKey: orpc.rent.payment.listPayments.key(),
 			});
 		},

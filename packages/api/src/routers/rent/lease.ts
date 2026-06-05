@@ -122,6 +122,12 @@ export const updateLease = ownerProcedure
 			});
 		}
 
+		if (ownership.status === "terminated" || ownership.status === "expired") {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Terminated or expired leases cannot be edited.",
+			});
+		}
+
 		const lease = await db.transaction(async (tx) => {
 			const [updated] = await tx
 				.update(leases)
@@ -132,12 +138,6 @@ export const updateLease = ownerProcedure
 			if (!updated) {
 				throw new ORPCError("NOT_FOUND", {
 					message: "Lease not found",
-				});
-			}
-
-			if (ownership.status === "terminated" || ownership.status === "expired") {
-				throw new ORPCError("BAD_REQUEST", {
-					message: "Terminated or expired leases cannot be edited.",
 				});
 			}
 

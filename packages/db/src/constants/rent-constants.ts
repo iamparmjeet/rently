@@ -43,8 +43,9 @@ export const UNIT_STATUS_VALUES = Object.values(UNIT_STATUSES) as [
 export const UNIT_FURNISHING = {
 	UNFURNISHED: "unfurnished",
 	FULLYFURNISHED: "fully_furnished",
-	SEMIFURNEISHED: "semi_furnished",
-};
+	SEMIFURNISHED: "semi_furnished",
+} as const;
+
 export type UnitFurnishing =
 	(typeof UNIT_FURNISHING)[keyof typeof UNIT_FURNISHING];
 

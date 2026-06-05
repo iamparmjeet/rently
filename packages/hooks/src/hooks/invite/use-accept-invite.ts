@@ -26,7 +26,7 @@ export function useAcceptInvite() {
 
 		onError: (error, _, context) => {
 			// TODO: replace with logger when observability
-			if (error.cause === "CONFLICT") {
+			if (error.message === "CONFLICT") {
 				toast.error("This invite has already been used. Please log in.");
 				router.push("/login" as Route);
 				return;

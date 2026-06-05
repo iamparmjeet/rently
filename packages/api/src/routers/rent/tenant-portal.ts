@@ -2,7 +2,7 @@
 
 import { ORPCError } from "@orpc/server";
 import { protectedProcedure } from "@rently/api/procedures";
-import { StatusCode, StatusPhrase } from "@rently/api/utils";
+import { StatusCode } from "@rently/api/utils";
 import {
 	FIXEDCHARGE,
 	RATEPERUNIT,
@@ -260,7 +260,7 @@ export const getMyProfile = protectedProcedure
 			.limit(1);
 
 		if (!row) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: "User not found",
 			});
 		}
@@ -297,7 +297,7 @@ export const submitMyReading = protectedProcedure
 			.limit(1);
 
 		if (!activeLease) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: "No active lease found. Contact your landlord.",
 			});
 		}

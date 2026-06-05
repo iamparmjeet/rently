@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { ownerProcedure, publicProcedure } from "@rently/api/procedures";
-import { StatusCode, StatusPhrase } from "@rently/api/utils";
+import { StatusCode } from "@rently/api/utils";
 import { auth } from "@rently/auth";
 import type { Database } from "@rently/db";
 import { USER_ROLES } from "@rently/db/constants/user-roles";
@@ -56,7 +56,7 @@ export const createInvite = ownerProcedure
 		const existing = await findPendingInvite(db, input.email, user.id);
 
 		if (existing) {
-			throw new ORPCError(StatusPhrase.CONFLICT, {
+			throw new ORPCError("CONFLICT", {
 				message: `A pending invite already exists for ${input.email}. Revoke it first.`,
 			});
 		}
@@ -81,7 +81,7 @@ export const createInvite = ownerProcedure
 			.returning();
 
 		if (!invite) {
-			throw new ORPCError(StatusPhrase.INTERNAL_SERVER_ERROR, {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
 				message: "Failed to create invite.",
 			});
 		}
@@ -148,19 +148,19 @@ export const getInviteByToken = publicProcedure
 			.limit(1);
 
 		if (!invite) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: "This invite link is invalid or has already been used.",
 			});
 		}
 
 		if (invite.status === "accepted") {
-			throw new ORPCError(StatusPhrase.CONFLICT, {
+			throw new ORPCError("CONFLICT", {
 				message: "This invitation has already been accepted. Please log in",
 			});
 		}
 
 		if (invite.status === "expired") {
-			throw new ORPCError(StatusPhrase.GONE, {
+			throw new ORPCError("GONE", {
 				message:
 					"This invite link has expired. Ask your landlord to send a new one.",
 			});
@@ -172,7 +172,7 @@ export const getInviteByToken = publicProcedure
 				.set({ status: "expired" })
 				.where(eq(tenantInvites.id, invite.id));
 
-			throw new ORPCError(StatusPhrase.GONE, {
+			throw new ORPCError("GONE", {
 				message: "This Invite has expired, Ask you landlord to send a new one.",
 			});
 		}
@@ -235,7 +235,7 @@ export const acceptInvite = publicProcedure
 			.limit(1);
 
 		if (!invite) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: "Invalid invite link.",
 			});
 		}
@@ -245,7 +245,7 @@ export const acceptInvite = publicProcedure
 				invite.status === "accepted"
 					? "This Invite Link has already been used. Please log in."
 					: "Ths invite is no longer valid.";
-			throw new ORPCError(StatusPhrase.CONFLICT, {
+			throw new ORPCError("CONFLICT", {
 				message: msg,
 			});
 		}
@@ -263,7 +263,7 @@ export const acceptInvite = publicProcedure
 		});
 
 		if (!signupResult.user) {
-			throw new ORPCError(StatusPhrase.CONFLICT, {
+			throw new ORPCError("CONFLICT", {
 				message: "An account with this email already exists. Please log in.",
 			});
 		}

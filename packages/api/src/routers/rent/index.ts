@@ -5,6 +5,7 @@ import * as paymentProcedures from "./payment";
 import * as propertyProcedures from "./property";
 import * as statsProcedures from "./stats";
 import * as tenantProcedures from "./tenant";
+import * as tenantPortalProcedures from "./tenant-portal";
 import * as unitProcedures from "./unit";
 import * as utilityProcedures from "./utility";
 
@@ -18,4 +19,5 @@ export const rentRouter = {
 	utility: utilityProcedures,
 	stats: statsProcedures,
 	ownerProfile,
+	tenantPortal: tenantPortalProcedures,
 };

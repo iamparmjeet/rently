@@ -1,7 +1,7 @@
 // packages/api/src/routers/rent/tenant.ts
 import { ORPCError } from "@orpc/server";
 import { ownerProcedure } from "@rently/api/procedures";
-import { StatusCode, StatusPhrase } from "@rently/api/utils";
+import { StatusCode } from "@rently/api/utils";
 import { auth } from "@rently/auth";
 import { USER_ROLES } from "@rently/db/constants/user-roles";
 import { user } from "@rently/db/schema/auth";
@@ -149,7 +149,7 @@ export const getTenantById = ownerProcedure
 		// Zero rows means either: tenant doesn't exist, OR belongs to another owner.
 		// NOT_FOUND for both — don't reveal which, prevents enumeration.
 		if (!result) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: "Tenant not found",
 			});
 		}
@@ -215,7 +215,7 @@ export const createTenant = ownerProcedure
 			.limit(1);
 
 		if (existingUser) {
-			throw new ORPCError(StatusPhrase.CONFLICT, {
+			throw new ORPCError("CONFLICT", {
 				message: "A user with this email already exists",
 			});
 		}
@@ -271,7 +271,7 @@ export const createTenant = ownerProcedure
 				`[createTenant] Transaction failed for userId ${newUserId}. User row orphaned. Manual cleanup needed.`,
 				txError,
 			);
-			throw new ORPCError(StatusPhrase.INTERNAL_SERVER_ERROR, {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
 				message: "Failed to complete tenant setup. Please contact support.",
 			});
 		}
@@ -332,7 +332,7 @@ export const removeTenant = ownerProcedure
 			);
 
 		if (activeLeases.length === 0) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: "No active leases found for this tenant on your properties.",
 			});
 		}
@@ -407,7 +407,7 @@ export const updateTenant = ownerProcedure
 			.limit(1);
 
 		if (!lease) {
-			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+			throw new ORPCError("FORBIDDEN", {
 				message: "This tenant is not associated with your properties.",
 			});
 		}
@@ -465,7 +465,7 @@ export const sendEmailToTenant = ownerProcedure
 			.limit(1);
 
 		if (!result) {
-			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+			throw new ORPCError("FORBIDDEN", {
 				message: "Cannot send email: tenant not found on your properties.",
 			});
 		}
@@ -512,7 +512,7 @@ export const sendPasswordReset = ownerProcedure
 			.limit(1);
 
 		if (!result) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: "Tenant not found",
 			});
 		}
@@ -531,7 +531,7 @@ export const sendPasswordReset = ownerProcedure
 		} catch (err) {
 			// Non-fatal: log but don't crash. Tenant exists — they can retry.
 			console.error("[sendPasswordReset] Better Auth call failed", err);
-			throw new ORPCError(StatusPhrase.INTERNAL_SERVER_ERROR, {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
 				message: "Failed to send reset email. Please try again.",
 			});
 		}

@@ -11,7 +11,7 @@ import {
 import { and, count, eq, isNull, sql } from "drizzle-orm";
 import z from "zod";
 import { ownerProcedure } from "../../procedures";
-import { StatusCode, StatusPhrase } from "../../utils";
+import { StatusCode } from "../../utils";
 
 // 1) list all Properties
 export const listProperties = ownerProcedure
@@ -79,14 +79,14 @@ export const getPropertyById = ownerProcedure
 			.where(and(eq(properties.id, input.id), isNull(properties.deletedAt)));
 
 		if (!property) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: `Property ${input.id} not found`,
 			});
 		}
 
 		// Authorization - Property Belongs to current user
 		if (property.ownerId !== user.id) {
-			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+			throw new ORPCError("FORBIDDEN", {
 				message: "You do not have access to this property",
 			});
 		}
@@ -121,7 +121,7 @@ export const createProperty = ownerProcedure
 			.returning();
 
 		if (!property) {
-			throw new ORPCError(StatusPhrase.INTERNAL_SERVER_ERROR, {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
 				message: "Failed to create Property",
 			});
 		}
@@ -142,10 +142,9 @@ export const updateProperty = ownerProcedure
 			.from(properties)
 			.where(eq(properties.id, input.id));
 
-		if (!existing) throw new ORPCError(StatusPhrase.NOT_FOUND);
+		if (!existing) throw new ORPCError("NOT_FOUND");
 
-		if (existing.ownerId !== user.id)
-			throw new ORPCError(StatusPhrase.FORBIDDEN);
+		if (existing.ownerId !== user.id) throw new ORPCError("FORBIDDEN");
 
 		const [updated] = await db
 			.update(properties)
@@ -168,9 +167,8 @@ export const deleteProperty = ownerProcedure
 			.from(properties)
 			.where(eq(properties.id, input.id));
 
-		if (!existing) throw new ORPCError(StatusPhrase.NOT_FOUND);
-		if (existing.ownerId !== user.id)
-			throw new ORPCError(StatusPhrase.FORBIDDEN);
+		if (!existing) throw new ORPCError("NOT_FOUND");
+		if (existing.ownerId !== user.id) throw new ORPCError("FORBIDDEN");
 
 		const activeUnits = await db
 			.select({ id: units.id })
@@ -208,12 +206,12 @@ export const getUnits = ownerProcedure
 			.where(eq(properties.id, input.propertyId));
 
 		if (!property) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: "Property Not Found",
 			});
 		}
 		if (property.ownerId !== user.id) {
-			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+			throw new ORPCError("FORBIDDEN", {
 				message: "You do not own this property",
 			});
 		}

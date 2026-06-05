@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
-import { ownerProcedure, protectedProcedure } from "@rently/api/procedures";
-import { StatusCode, StatusPhrase } from "@rently/api/utils";
+import { ownerProcedure } from "@rently/api/procedures";
+import { StatusCode } from "@rently/api/utils";
 import type { Database } from "@rently/db";
 import {
 	FIXEDCHARGE,
@@ -89,13 +89,13 @@ async function getOwnedUtility(
 		.limit(1);
 
 	if (!row) {
-		throw new ORPCError(StatusPhrase.NOT_FOUND, {
+		throw new ORPCError("NOT_FOUND", {
 			message: "Utility entry not found",
 		});
 	}
 
 	if (row.ownerId !== userId) {
-		throw new ORPCError(StatusPhrase.FORBIDDEN, {
+		throw new ORPCError("FORBIDDEN", {
 			message: "You do not own this utility",
 		});
 	}
@@ -120,7 +120,7 @@ export const createUtility = ownerProcedure
 		// Verify Lease ownership
 		const ownLease = await isLeaseOwner(db, authUser.id, input.leaseId);
 		if (!ownLease) {
-			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+			throw new ORPCError("FORBIDDEN", {
 				message: "you don't own this lease",
 			});
 		}
@@ -159,7 +159,7 @@ export const createUtility = ownerProcedure
 			.returning();
 
 		if (!utility) {
-			throw new ORPCError(StatusPhrase.INTERNAL_SERVER_ERROR, {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
 				message: "Failed to create utility entry",
 			});
 		}
@@ -217,7 +217,7 @@ export const updateUtility = ownerProcedure
 			.returning();
 
 		if (!updated) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: "Utility not found after update",
 			});
 		}
@@ -376,7 +376,7 @@ export const createUtilityBatch = ownerProcedure
 		};
 	});
 
-export const recordUtilityPayment = protectedProcedure
+export const recordUtilityPayment = ownerProcedure
 	.route({
 		method: "POST",
 		path: "/rent/utility/payment",

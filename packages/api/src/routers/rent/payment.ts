@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { ownerProcedure } from "@rently/api/procedures";
-import { StatusCode, StatusPhrase } from "@rently/api/utils";
+import { StatusCode } from "@rently/api/utils";
 import { OWNER_ONLY_PAYMENT_METHODS_VALUE } from "@rently/db/constants/payment-constants";
 import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import type { UserRole } from "@rently/db/constants/user-roles";
@@ -69,13 +69,13 @@ async function getOwnedPayment(
 		.limit(1);
 
 	if (!row) {
-		throw new ORPCError(StatusPhrase.NOT_FOUND, {
+		throw new ORPCError("NOT_FOUND", {
 			message: "Payment not found",
 		});
 	}
 
 	if (row.ownerId !== userId) {
-		throw new ORPCError(StatusPhrase.FORBIDDEN, {
+		throw new ORPCError("FORBIDDEN", {
 			message: "You do not own this payment",
 		});
 	}
@@ -97,7 +97,7 @@ export const createPayment = ownerProcedure
 
 		const ownsLease = await isLeaseOwner(db, authUser.id, input.leaseId);
 		if (!ownsLease) {
-			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+			throw new ORPCError("FORBIDDEN", {
 				message: "You do not own this lease",
 			});
 		}
@@ -123,7 +123,7 @@ export const createPayment = ownerProcedure
 				.returning();
 
 			if (!newPayment) {
-				throw new ORPCError(StatusPhrase.INTERNAL_SERVER_ERROR, {
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: "Failed to record payment",
 				});
 			}
@@ -169,7 +169,7 @@ export const updatePayment = ownerProcedure
 			.returning();
 
 		if (!updated) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: "Payment not found after update",
 			});
 		}

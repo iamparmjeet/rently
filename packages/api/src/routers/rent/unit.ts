@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { ownerProcedure } from "@rently/api/procedures";
-import { StatusCode, StatusPhrase } from "@rently/api/utils";
+import { StatusCode } from "@rently/api/utils";
 import { LEASE_STATUSES } from "@rently/db/constants/rent-constants";
 import { user } from "@rently/db/schema/auth";
 import { leases, properties, units } from "@rently/db/schema/schema";
@@ -34,13 +34,13 @@ export const createUnit = ownerProcedure
 			.limit(1);
 
 		if (!property) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: "Property Not Found",
 			});
 		}
 
 		if (property.ownerId !== user.id) {
-			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+			throw new ORPCError("FORBIDDEN", {
 				message: "you don't own this property",
 			});
 		}
@@ -55,7 +55,7 @@ export const createUnit = ownerProcedure
 			.returning();
 
 		if (!unit) {
-			throw new ORPCError(StatusPhrase.INTERNAL_SERVER_ERROR, {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
 				message: "Failed to create unit",
 			});
 		}
@@ -81,7 +81,7 @@ export const updateUnit = ownerProcedure
 			.returning();
 
 		if (!unit) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: "Unit not found after update",
 			});
 		}
@@ -125,13 +125,13 @@ export const getUnitById = ownerProcedure
 			.limit(1);
 
 		if (!result) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: `Unit ${input.id} not found`,
 			});
 		}
 
 		if (result.ownerId !== authUser.id) {
-			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+			throw new ORPCError("FORBIDDEN", {
 				message: "you don't have access to this unit",
 			});
 		}

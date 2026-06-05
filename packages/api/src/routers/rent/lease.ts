@@ -1,6 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { ownerProcedure } from "@rently/api/procedures";
-import { StatusCode, StatusPhrase } from "@rently/api/utils";
+import { StatusCode } from "@rently/api/utils";
 import type { Database } from "@rently/db";
 import { LEASE_STATUS_VALUES } from "@rently/db/constants/rent-constants";
 import { user } from "@rently/db/schema/auth";
@@ -60,13 +60,13 @@ export const createLease = ownerProcedure
 			.limit(1);
 
 		if (!unit) {
-			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+			throw new ORPCError("FORBIDDEN", {
 				message: "Unit not found or you do not own it",
 			});
 		}
 
 		if (unit.status !== "available") {
-			throw new ORPCError(StatusPhrase.BAD_REQUEST, {
+			throw new ORPCError("BAD_REQUEST", {
 				message: "Unit is not available for lease",
 			});
 		}
@@ -82,7 +82,7 @@ export const createLease = ownerProcedure
 				.returning();
 
 			if (!newLease) {
-				throw new ORPCError(StatusPhrase.INTERNAL_SERVER_ERROR, {
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: "Failed to create lease",
 				});
 			}
@@ -111,13 +111,13 @@ export const updateLease = ownerProcedure
 		const ownership = await getLeaseWithOwner(db, input.id);
 
 		if (!ownership) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: "Lease not found",
 			});
 		}
 
 		if (ownership.ownerId !== authUser.id) {
-			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+			throw new ORPCError("FORBIDDEN", {
 				message: "You do not own this lease",
 			});
 		}
@@ -130,13 +130,13 @@ export const updateLease = ownerProcedure
 				.returning();
 
 			if (!updated) {
-				throw new ORPCError(StatusPhrase.NOT_FOUND, {
+				throw new ORPCError("NOT_FOUND", {
 					message: "Lease not found",
 				});
 			}
 
 			if (ownership.status === "terminated" || ownership.status === "expired") {
-				throw new ORPCError(StatusPhrase.BAD_REQUEST, {
+				throw new ORPCError("BAD_REQUEST", {
 					message: "Terminated or expired leases cannot be edited.",
 				});
 			}
@@ -197,13 +197,13 @@ export const getLeaseById = ownerProcedure
 			.limit(1);
 
 		if (!result) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: `Lease ${input.id} not found`,
 			});
 		}
 
 		if (result.ownerId !== authUser.id) {
-			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+			throw new ORPCError("FORBIDDEN", {
 				message: "You do not have access to this lease",
 			});
 		}
@@ -269,13 +269,13 @@ export const terminateLease = ownerProcedure
 		const ownership = await getLeaseWithOwner(db, input.id);
 
 		if (!ownership) {
-			throw new ORPCError(StatusPhrase.NOT_FOUND, {
+			throw new ORPCError("NOT_FOUND", {
 				message: "Lease not found",
 			});
 		}
 
 		if (ownership.ownerId !== authUser.id) {
-			throw new ORPCError(StatusPhrase.FORBIDDEN, {
+			throw new ORPCError("FORBIDDEN", {
 				message: "You do not own this lease",
 			});
 		}

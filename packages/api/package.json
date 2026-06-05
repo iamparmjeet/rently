@@ -37,6 +37,7 @@
 		"@rently/db": "workspace:*",
 		"@rently/email": "workspace:*",
 		"@rently/env": "workspace:*",
+		"@rently/validators": "workspace:*",
 		"dotenv": "catalog:",
 		"drizzle-orm": "^0.45.2",
 		"server-only": "^0.0.1",
@@ -44,7 +45,6 @@
 	},
 	"devDependencies": {
 		"@rently/config": "workspace:*",
-		"@rently/validators": "workspace:*",
 		"hono": "catalog:",
 		"typescript": "catalog:"
 	}

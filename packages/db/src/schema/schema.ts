@@ -39,8 +39,8 @@ export const properties = pgTable("properties", {
 	name: text("name").notNull(),
 	address: text("address").notNull(),
 	type: text("type", { enum: PROPERTY_TYPES_VALUES }).notNull(),
-	yearBuilt: numeric("year-built"),
-	totalArea: numeric("total-area"),
+	yearBuilt: numeric("year_built"),
+	totalArea: numeric("total_area"),
 	floors: numeric("floors"),
 	description: text("description"),
 	...auditColumns(),
@@ -56,7 +56,9 @@ export const units = pgTable("units", {
 	type: text("type", { enum: UNIT_TYPES_VALUES }).notNull(),
 	area: real("area"),
 	baseRent: integer("base_rent").notNull(), // Paisa or cents
-	furnishing: text("furnishing", { enum: UNIT_FURNISHING_VALUES }),
+	furnishing: text("furnishing", { enum: UNIT_FURNISHING_VALUES }).default(
+		"unfurnished",
+	),
 	description: text("description"),
 	status: text("status", { enum: UNIT_STATUS_VALUES }).notNull(),
 	...auditColumns(),
@@ -79,7 +81,7 @@ export const leases = pgTable("leases", {
 		enum: LEASE_STATUS_VALUES,
 	}).notNull(),
 	notice: integer("notice"),
-	rentDueDate: integer("rent-due-date"),
+	rentDueDate: integer("rent_due_date"),
 	description: text("description"),
 	referenceId: uuid("reference_id").references(() => user.id),
 	...auditColumns(),
@@ -163,7 +165,7 @@ export const tenantProfiles = pgTable("tenant_profiles", {
 	// Immutable after first set - can change only after approval
 	uidNumber: text("uid_number").unique(),
 	panNumber: text("pan_number").unique(),
-	profileImage: text("profile_iamge"),
+	profileImage: text("image"),
 	// Contact
 	phone: text("phone"),
 	email: text("email"),
@@ -178,7 +180,7 @@ export const tenantProfiles = pgTable("tenant_profiles", {
 	})
 		.default("unverified")
 		.notNull(),
-	verificationNotes: text("verfication_notes"), // Owner private
+	verificationNotes: text("verification_notes"), // Owner private
 	verifiedById: uuid("verified_by").references(() => user.id),
 	verifiedAt: timestamp("verified_at"),
 

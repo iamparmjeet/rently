@@ -1,5 +1,6 @@
 "use client";
 
+import type { UnitType } from "@rently/db/constants/rent-constants";
 import { Input } from "@rently/ui/components/input";
 import {
 	Select,
@@ -12,7 +13,7 @@ import {
 export type UnitFilters = {
 	search: string;
 	status: "all" | "available" | "occupied";
-	type: "all" | "room" | "shop";
+	type: "all" | UnitType;
 };
 
 interface UnitFiltersBarProps {

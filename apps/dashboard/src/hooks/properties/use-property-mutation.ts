@@ -272,18 +272,10 @@ export function useOptimisticUpdateProperty() {
 			});
 		},
 		// On success
-		onSuccess: (_, variables, context) => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.rent.property.listProperties.key(),
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.rent.property.getPropertyById.key({
-					input: { id: variables.id },
-				}),
-			});
+		onSuccess: (_, __, context) => {
 			toast.success("Property Updated Successfully", { id: context.toastId });
 		},
-		// onSettled
+		// onSettled - it fires on both success and error - single invalidation point.
 		onSettled: (_, __, variables) => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.property.listProperties.key(),

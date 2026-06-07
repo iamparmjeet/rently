@@ -228,7 +228,7 @@ export const createTenant = ownerProcedure
 				name: input.name,
 				password: tempPassword,
 				phone: input.phone,
-				role: USER_ROLES.TENANT,
+				// role: USER_ROLES.TENANT,
 			},
 		});
 
@@ -240,6 +240,11 @@ export const createTenant = ownerProcedure
 		// TODO: implement compensating delete via auth.api.deleteUser when better-auth exposes it
 		try {
 			await db.transaction(async (tx) => {
+				await tx
+					.update(user)
+					.set({ role: USER_ROLES.TENANT })
+					.where(eq(user.id, newUserId));
+
 				await tx.insert(tenantProfiles).values({
 					id: generatedId(),
 					userId: newUserId,

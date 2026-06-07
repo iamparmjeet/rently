@@ -257,7 +257,7 @@ export const acceptInvite = publicProcedure
 				name: invite.name ?? invite.email,
 				password: input.password,
 				phone: input.phone ?? invite.phone ?? "",
-				role: USER_ROLES.TENANT,
+				// role: USER_ROLES.TENANT,
 			},
 			headers: context.headers,
 		});

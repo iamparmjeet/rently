@@ -67,7 +67,7 @@ export function ProfileTab() {
 	// ── Personal info form (maps to authClient.updateUser) ───
 	const personalForm = useForm<PersonalInfoValues>({
 		resolver: zodResolver(PersonalInfoSchema),
-		defaultValues: {
+		values: {
 			firstName,
 			lastName: lastName ?? "",
 			phone: session?.user?.phone ?? "",
@@ -77,7 +77,7 @@ export function ProfileTab() {
 	// ── Business details form (maps to oRPC ownerProfile) ──────
 	const businessForm = useForm<UpsertOwnerProfileInput>({
 		resolver: zodResolver(UpsertOwnerProfileSchema),
-		defaultValues: {
+		values: {
 			companyName: profileData.profile?.companyName ?? "",
 			gstNumber: profileData.profile?.gstNumber ?? "",
 			address: profileData.profile?.address ?? "",

@@ -142,10 +142,7 @@ function UserButton() {
 					</DropdownMenuLabel>
 					<DropdownMenuSeparator className="my-2" />
 					<DropdownMenuItem className="cursor-pointer rounded-[calc(var(--radius)*1.4)]">
-						<Link
-							href="/dashboard/settings"
-							className="flex items-center gap-2"
-						>
+						<Link href="/settings" className="flex items-center gap-2">
 							Settings
 						</Link>
 					</DropdownMenuItem>

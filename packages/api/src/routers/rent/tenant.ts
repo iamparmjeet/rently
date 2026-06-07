@@ -1,4 +1,3 @@
-// packages/api/src/routers/rent/tenant.ts
 import { ORPCError } from "@orpc/server";
 import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
@@ -284,7 +283,7 @@ export const createTenant = ownerProcedure
 			await auth.api.requestPasswordReset({
 				body: {
 					email: input.email,
-					redirectTo: `${env.CORS_ORIGINS}/set-password/${token}`,
+					redirectTo: `${env.WEB_APP_URL}/set-password/${token}`,
 				},
 			});
 		} catch (emailError) {

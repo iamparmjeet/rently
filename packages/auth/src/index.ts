@@ -72,10 +72,12 @@ export function createAuth() {
 					type: "string",
 					required: false,
 					defaultValue: USER_ROLES.OWNER, // Default Owner
+					input: false,
 				},
 				phone: {
 					type: "string",
-					required: true,
+					required: false,
+					input: true,
 				},
 			},
 		},

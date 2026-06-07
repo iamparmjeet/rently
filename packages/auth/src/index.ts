@@ -75,7 +75,7 @@ export function createAuth() {
 				},
 				phone: {
 					type: "string",
-					required: false,
+					required: true,
 				},
 			},
 		},

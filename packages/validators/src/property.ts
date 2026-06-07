@@ -25,6 +25,10 @@ export const UpdatePropertySchema = createUpdateSchema(properties).pick({
 	name: true,
 	address: true,
 	type: true,
+	description: true,
+	floors: true,
+	totalArea: true,
+	yearBuilt: true,
 });
 
 // Layer 3 : API Output Schemas

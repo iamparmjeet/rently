@@ -1,4 +1,9 @@
-import type { Icon } from "@tabler/icons-react";
+import {
+	Card,
+	CardContent,
+	CardHeader,
+	CardTitle,
+} from "@rently/ui/components/card";
 import {
 	IconArrowUpRight,
 	IconHome2,
@@ -6,17 +11,18 @@ import {
 	IconUsers,
 } from "@tabler/icons-react";
 import Link from "next/link";
+import type { ComponentType } from "react";
 
 interface QuickAction {
 	href: string;
 	label: string;
 	sub: string;
-	icon: Icon;
+	icon: ComponentType<{ className?: string }>;
 	iconClass: string;
 	bgClass: string;
 }
 
-const QUICK_ACTIONS = [
+const QUICK_ACTIONS: QuickAction[] = [
 	{
 		href: "/units/new",
 		label: "Add Unit",
@@ -41,39 +47,43 @@ const QUICK_ACTIONS = [
 		iconClass: "text-primary",
 		bgClass: "bg-primary/10",
 	},
-] satisfies QuickAction[];
+] as const;
 
 interface QuickActionsProps {
 	className?: string;
 }
 
-export function QuickActions({ className = "" }: QuickActionsProps) {
+export function QuickActions({ className }: QuickActionsProps) {
 	return (
-		<div
+		<Card
 			className={`rounded-2xl border border-border/40 bg-card p-6 shadow-sm ${className}`}
 		>
-			<h3 className="font-semibold text-sm">Quick Actions</h3>
+			<CardHeader>
+				<CardTitle className="font-semibold text-sm">Quick Actions</CardTitle>
+			</CardHeader>
 
-			<div className="mt-4 flex flex-col gap-2">
-				{QUICK_ACTIONS.map(
-					({ href, label, sub, icon: Icon, iconClass, bgClass }) => (
-						<Link
-							key={href}
-							href={href}
-							className="group flex items-center gap-3 rounded-xl border border-border/30 bg-muted/20 p-3 transition-all hover:border-border/60 hover:bg-muted/50"
+			<CardContent className="space-y-1.5 px-3 pb-3">
+				{QUICK_ACTIONS.map((action) => (
+					<Link
+						key={action.href}
+						href={action.href}
+						className="group flex items-center gap-3 rounded-xl border border-border/30 bg-muted/20 p-3 transition-all hover:border-border/60 hover:bg-muted/50"
+					>
+						<div
+							className={`rounded-lg p-2 transition-colors ${action.bgClass}`}
 						>
-							<div className={`rounded-lg p-2 transition-colors ${bgClass}`}>
-								<Icon className={`size-4 ${iconClass}`} />
-							</div>
-							<div className="min-w-0 flex-1">
-								<p className="font-medium text-sm">{label}</p>
-								<p className="truncate text-muted-foreground text-xs">{sub}</p>
-							</div>
-							<IconArrowUpRight className="size-4 shrink-0 text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-muted-foreground" />
-						</Link>
-					),
-				)}
-			</div>
-		</div>
+							<action.icon className={`size-4 ${action.iconClass}`} />
+						</div>
+						<div className="min-w-0 flex-1">
+							<p className="font-medium text-sm">{action.label}</p>
+							<p className="truncate text-muted-foreground text-xs">
+								{action.sub}
+							</p>
+						</div>
+						<IconArrowUpRight className="size-4 shrink-0 text-muted-foreground/40 transition-all group-hover:translate-x-0.5 group-hover:-translate-y-0.5 group-hover:text-muted-foreground" />
+					</Link>
+				))}
+			</CardContent>
+		</Card>
 	);
 }

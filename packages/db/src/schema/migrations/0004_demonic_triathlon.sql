@@ -1,0 +1,1 @@
+ALTER TABLE "invoices" ALTER COLUMN "period_end" DROP DEFAULT;

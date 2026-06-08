@@ -3,17 +3,22 @@
 import { IconBuildingSkyscraper, IconFileText } from "@tabler/icons-react";
 import { DashboardPageHeader } from "@/components/features/dashboard/dashboard-page-header";
 import { OccupancyCard } from "@/components/features/dashboard/occupancy-card";
-import { PortfolioHealth } from "@/components/features/dashboard/portfolio-health";
-import { QuickActions } from "@/components/features/dashboard/quick-actions";
+import { RecentProperties } from "@/components/features/dashboard/recent-property";
+import { RecentTenants } from "@/components/features/dashboard/recent-tenants";
 import { RecentTransactions } from "@/components/features/dashboard/recent-transactions";
 import { RevenueChart } from "@/components/features/dashboard/revenue-chart";
 import { StatCard } from "@/components/features/dashboard/stat-card";
 import { UnitsCard } from "@/components/features/dashboard/unit-card";
+import { UpcomingDues } from "@/components/features/dashboard/upcoming-dues";
 import { Container } from "@/components/shared/container";
-import { useDashboardStats } from "@/hooks/dashboard";
+import { useDashboardStats, useRevenueDashboard } from "@/hooks/dashboard";
 
 export default function DashboardPage() {
 	const { data, isLoading } = useDashboardStats();
+	const { data: revenueData, isLoading: revenueLoading } =
+		useRevenueDashboard();
+
+	console.log("revData", revenueData);
 
 	return (
 		<Container>
@@ -54,21 +59,25 @@ export default function DashboardPage() {
 				/>
 
 				{/* ── Revenue chart ─────── */}
-				<RevenueChart className="col-span-full lg:col-span-8 lg:row-span-2" />
-
-				{/* ── Sidebar pair ────── */}
-				<QuickActions className="col-span-full sm:col-span-1 lg:col-span-4" />
-				<PortfolioHealth
-					occupiedUnits={data?.occupiedUnits}
-					availableUnits={data?.availableUnits}
-					activeLeases={data?.activeLeases}
-					totalProperties={data?.totalProperties}
-					isLoading={isLoading}
-					className="col-span-full sm:col-span-1 lg:col-span-4"
+				<RevenueChart
+					data={revenueData?.revenueByMonth ?? []}
+					isLoading={revenueLoading}
+					className="col-span-full lg:col-span-8 lg:row-span-1"
 				/>
 
+				{/* ── Sidebar ────── */}
+				<UpcomingDues className="col-span-full sm:col-span-1 lg:col-span-4" />
+
+				{/* Pair*/}
+				<RecentProperties className="col-span-full sm:col-span-1 lg:col-span-6 lg:row-span-10" />
+				<RecentTenants className="col-span-full sm:col-span-1 lg:col-span-6 lg:row-span-10" />
+
 				{/* ── Transactions ──────── */}
-				<RecentTransactions className="col-span-full" />
+				<RecentTransactions
+					transactions={revenueData?.recentTransactions ?? []}
+					isLoading={revenueLoading}
+					className="col-span-full"
+				/>
 			</main>
 		</Container>
 	);

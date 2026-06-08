@@ -156,6 +156,7 @@ export function useOptimisticCreateLease() {
 								endDate: variables.endDate ?? null,
 								unitId: variables.unitId,
 								status: "active",
+								rentDueDate: variables.rentDueDate ?? null,
 								tenantName: null,
 								tenantPhone: null,
 								tenantEmail: null,

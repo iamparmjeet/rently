@@ -58,6 +58,7 @@ export const LeaseWithDetailsSchema = z.object({
 	startDate: z.date(),
 	endDate: z.date().nullable(),
 	status: z.enum(LEASE_STATUS_VALUES),
+	rentDueDate: z.number().int().nullable(),
 	tenantName: z.string().nullable(),
 	tenantEmail: z.string().nullable(),
 	tenantPhone: z.string().nullable(),

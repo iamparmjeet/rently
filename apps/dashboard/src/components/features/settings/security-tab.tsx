@@ -17,6 +17,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { Container } from "@/components/shared/container";
 import { authClient } from "@/lib/auth-client";
 
 // ── Password change schema ───────────────────────────────────────────────────
@@ -82,136 +83,139 @@ export function SecurityTab() {
 	}
 
 	return (
-		<div className="space-y-6">
-			{/* ── Password ─────────────────────────────────────────────────────── */}
-			<Card>
-				<CardContent className="pt-6">
-					<form onSubmit={form.handleSubmit(handlePasswordChange)}>
-						<FieldSet className="space-y-4">
-							<p className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-								Password
-							</p>
+		<Container className="w-full p-0 sm:max-w-180">
+			<div className="space-y-6">
+				{/* ── Password ─────────────────────────────────────────────────────── */}
+				<Card>
+					<CardContent className="pt-6">
+						<form onSubmit={form.handleSubmit(handlePasswordChange)}>
+							<FieldSet className="space-y-4">
+								<p className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+									Password
+								</p>
 
-							<Field>
-								<FieldLabel>Current Password</FieldLabel>
-								<Input
-									{...form.register("currentPassword")}
-									type="password"
-									placeholder="Enter current password"
-									autoComplete="current-password"
-								/>
-								<FieldError>
-									{form.formState.errors.currentPassword?.message}
-								</FieldError>
-							</Field>
-
-							<FieldGroup className="grid grid-cols-1 gap-4 sm:grid-cols-2">
 								<Field>
-									<FieldLabel>New Password</FieldLabel>
+									<FieldLabel>Current Password</FieldLabel>
+
 									<Input
-										{...form.register("newPassword")}
+										{...form.register("currentPassword")}
 										type="password"
-										placeholder="New password"
-										autoComplete="new-password"
+										placeholder="Enter current password"
+										autoComplete="current-password"
 									/>
 									<FieldError>
-										{form.formState.errors.newPassword?.message}
+										{form.formState.errors.currentPassword?.message}
 									</FieldError>
 								</Field>
 
-								<Field>
-									<FieldLabel>Confirm Password</FieldLabel>
-									<Input
-										{...form.register("confirmPassword")}
-										type="password"
-										placeholder="Confirm new password"
-										autoComplete="new-password"
-									/>
-									<FieldError>
-										{form.formState.errors.confirmPassword?.message}
-									</FieldError>
-								</Field>
-							</FieldGroup>
+								<FieldGroup className="grid grid-cols-1 gap-4 sm:grid-cols-2">
+									<Field>
+										<FieldLabel>New Password</FieldLabel>
+										<Input
+											{...form.register("newPassword")}
+											type="password"
+											placeholder="New password"
+											autoComplete="new-password"
+										/>
+										<FieldError>
+											{form.formState.errors.newPassword?.message}
+										</FieldError>
+									</Field>
 
-							<div>
-								<Button type="submit" disabled={form.formState.isSubmitting}>
-									{form.formState.isSubmitting
-										? "Updating..."
-										: "Update Password"}
-								</Button>
+									<Field>
+										<FieldLabel>Confirm Password</FieldLabel>
+										<Input
+											{...form.register("confirmPassword")}
+											type="password"
+											placeholder="Confirm new password"
+											autoComplete="new-password"
+										/>
+										<FieldError>
+											{form.formState.errors.confirmPassword?.message}
+										</FieldError>
+									</Field>
+								</FieldGroup>
+
+								<div>
+									<Button type="submit" disabled={form.formState.isSubmitting}>
+										{form.formState.isSubmitting
+											? "Updating..."
+											: "Update Password"}
+									</Button>
+								</div>
+							</FieldSet>
+						</form>
+					</CardContent>
+				</Card>
+
+				{/* ── Two-Factor Authentication ── */}
+				<Card>
+					<CardContent className="space-y-4 pt-6">
+						<p className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+							Two-Factor Authentication
+						</p>
+
+						{/* Authenticator App row */}
+						<div className="flex items-center justify-between border-border border-b py-3">
+							<div className="flex items-start gap-3">
+								<IconShield className="mt-0.5 size-5 text-muted-foreground" />
+								<div>
+									<p className="font-medium text-sm">Authenticator App</p>
+									<p className="text-muted-foreground text-xs">
+										Use Google Authenticator or Authy for 2FA
+									</p>
+								</div>
 							</div>
-						</FieldSet>
-					</form>
-				</CardContent>
-			</Card>
-
-			{/* ── Two-Factor Authentication ── */}
-			<Card>
-				<CardContent className="space-y-4 pt-6">
-					<p className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-						Two-Factor Authentication
-					</p>
-
-					{/* Authenticator App row */}
-					<div className="flex items-center justify-between border-border border-b py-3">
-						<div className="flex items-start gap-3">
-							<IconShield className="mt-0.5 size-5 text-muted-foreground" />
-							<div>
-								<p className="font-medium text-sm">Authenticator App</p>
-								<p className="text-muted-foreground text-xs">
-									Use Google Authenticator or Authy for 2FA
-								</p>
-							</div>
+							{/* TODO: wire Better Auth 2FA plugin (totp) when enabled in auth config */}
+							<Button variant="outline" size="sm" disabled>
+								Enable
+							</Button>
 						</div>
-						{/* TODO: wire Better Auth 2FA plugin (totp) when enabled in auth config */}
-						<Button variant="outline" size="sm" disabled>
-							Enable
-						</Button>
-					</div>
 
-					{/* SMS Verification row */}
-					<div className="flex items-center justify-between py-3">
-						<div className="flex items-start gap-3">
-							<IconDeviceMobile className="mt-0.5 size-5 text-muted-foreground" />
-							<div>
-								<p className="font-medium text-sm">SMS Verification</p>
-								<p className="text-muted-foreground text-xs">
-									Verify your phone number for account recovery
-								</p>
+						{/* SMS Verification row */}
+						<div className="flex items-center justify-between py-3">
+							<div className="flex items-start gap-3">
+								<IconDeviceMobile className="mt-0.5 size-5 text-muted-foreground" />
+								<div>
+									<p className="font-medium text-sm">SMS Verification</p>
+									<p className="text-muted-foreground text-xs">
+										Verify your phone number for account recovery
+									</p>
+								</div>
 							</div>
+							{/* TODO: wire phone verification when Better Auth phoneNumber plugin is enabled */}
+							<Button variant="outline" size="sm" disabled>
+								Add phone
+							</Button>
 						</div>
-						{/* TODO: wire phone verification when Better Auth phoneNumber plugin is enabled */}
-						<Button variant="outline" size="sm" disabled>
-							Add phone
-						</Button>
-					</div>
-				</CardContent>
-			</Card>
+					</CardContent>
+				</Card>
 
-			{/* ── Active Sessions ──────── */}
-			<Card>
-				<CardContent className="pt-6">
-					<div className="flex items-center justify-between">
-						<div className="flex items-start gap-3">
-							<IconKey className="mt-0.5 size-5 text-muted-foreground" />
-							<div>
-								<p className="font-medium text-sm">Active Sessions</p>
-								<p className="text-muted-foreground text-xs">
-									Sign out all other devices except this one
-								</p>
+				{/* ── Active Sessions ──────── */}
+				<Card>
+					<CardContent className="pt-6">
+						<div className="flex items-center justify-between">
+							<div className="flex items-start gap-3">
+								<IconKey className="mt-0.5 size-5 text-muted-foreground" />
+								<div>
+									<p className="font-medium text-sm">Active Sessions</p>
+									<p className="text-muted-foreground text-xs">
+										Sign out all other devices except this one
+									</p>
+								</div>
 							</div>
+							<Button
+								variant="destructive"
+								size="sm"
+								onClick={handleRevokeAllSessions}
+								disabled={isRevokingAll}
+							>
+								{isRevokingAll ? "Revoking..." : "Revoke All"}
+							</Button>
 						</div>
-						<Button
-							variant="destructive"
-							size="sm"
-							onClick={handleRevokeAllSessions}
-							disabled={isRevokingAll}
-						>
-							{isRevokingAll ? "Revoking..." : "Revoke All"}
-						</Button>
-					</div>
-				</CardContent>
-			</Card>
-		</div>
+					</CardContent>
+				</Card>
+			</div>
+		</Container>
 	);
 }

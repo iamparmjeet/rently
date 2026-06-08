@@ -1,5 +1,6 @@
 "use client";
 
+import { Container } from "@/components/shared/container";
 // localStorage: notification preferences don't exist in the DB schema yet.
 // TODO: migrate to ownerProfiles or a dedicated notificationPreferences table.
 
@@ -108,54 +109,66 @@ export function NotificationsTab() {
 	if (!hasLoaded) return null;
 
 	return (
-		<div className="space-y-4">
-			<Card>
-				<CardContent className="space-y-4 pt-6">
-					<p className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-						Email Notifications
-					</p>
+		<Container className="w-full p-0 sm:max-w-180">
+			<div className="space-y-4">
+				<Card>
+					<CardContent className="space-y-4 pt-6">
+						<p className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+							Email Notifications
+						</p>
 
-					<div className="space-y-1 divide-y divide-border">
-						{EMAIL_TOGGLES.map(({ key, label, description }) => (
-							<div key={key} className="flex items-center justify-between py-3">
-								<div>
-									<p className="font-medium text-sm">{label}</p>
-									<p className="text-muted-foreground text-xs">{description}</p>
+						<div className="space-y-1 divide-y divide-border">
+							{EMAIL_TOGGLES.map(({ key, label, description }) => (
+								<div
+									key={key}
+									className="flex items-center justify-between py-3"
+								>
+									<div>
+										<p className="font-medium text-sm">{label}</p>
+										<p className="text-muted-foreground text-xs">
+											{description}
+										</p>
+									</div>
+									<Switch
+										checked={prefs[key]}
+										onCheckedChange={() => togglePref(key)}
+									/>
 								</div>
-								<Switch
-									checked={prefs[key]}
-									onCheckedChange={() => togglePref(key)}
-								/>
-							</div>
-						))}
-					</div>
-				</CardContent>
-			</Card>
+							))}
+						</div>
+					</CardContent>
+				</Card>
 
-			<Card>
-				<CardContent className="space-y-4 pt-6">
-					<p className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-						WhatsApp Notifications
-					</p>
+				<Card>
+					<CardContent className="space-y-4 pt-6">
+						<p className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+							WhatsApp Notifications
+						</p>
 
-					<div className="space-y-1 divide-y divide-border">
-						{WHATSAPP_TOGGLES.map(({ key, label, description }) => (
-							<div key={key} className="flex items-center justify-between py-3">
-								<div>
-									<p className="font-medium text-sm">{label}</p>
-									<p className="text-muted-foreground text-xs">{description}</p>
+						<div className="space-y-1 divide-y divide-border">
+							{WHATSAPP_TOGGLES.map(({ key, label, description }) => (
+								<div
+									key={key}
+									className="flex items-center justify-between py-3"
+								>
+									<div>
+										<p className="font-medium text-sm">{label}</p>
+										<p className="text-muted-foreground text-xs">
+											{description}
+										</p>
+									</div>
+									<Switch
+										checked={prefs[key]}
+										onCheckedChange={() => togglePref(key)}
+									/>
 								</div>
-								<Switch
-									checked={prefs[key]}
-									onCheckedChange={() => togglePref(key)}
-								/>
-							</div>
-						))}
-					</div>
-				</CardContent>
-			</Card>
+							))}
+						</div>
+					</CardContent>
+				</Card>
 
-			<Button onClick={handleSave}>Save Preferences</Button>
-		</div>
+				<Button onClick={handleSave}>Save Preferences</Button>
+			</div>
+		</Container>
 	);
 }

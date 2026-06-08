@@ -1,5 +1,6 @@
 "use client";
 
+import { Container } from "@/components/shared/container";
 // localStorage here: preferredCurrency column doesn't exist in ownerProfiles
 // (migration pending). localStorage is an acceptable interim — the setting
 // is display-only and user-specific, not business-critical data.
@@ -63,65 +64,67 @@ export function CurrencyTab() {
 	if (!hasLoaded) return null; // Avoid flash of wrong currency on hydration
 
 	return (
-		<div className="space-y-4">
-			<Card>
-				<CardContent className="space-y-4 pt-6">
-					<div>
-						<p className="font-medium text-sm">Display Currency</p>
-						<p className="mt-0.5 text-muted-foreground text-xs">
-							All amounts are stored in paisa / cents internally and converted
-							for display. Switch anytime.
-						</p>
-					</div>
+		<Container className="w-full p-0 sm:max-w-180">
+			<div className="space-y-4">
+				<Card>
+					<CardContent className="space-y-4 pt-6">
+						<div>
+							<p className="font-medium text-sm">Display Currency</p>
+							<p className="mt-0.5 text-muted-foreground text-xs">
+								All amounts are stored in paisa / cents internally and converted
+								for display. Switch anytime.
+							</p>
+						</div>
 
-					<div className="space-y-2">
-						{currencies.map((currency) => {
-							const isSelected = selected === currency.code;
-							return (
-								<button
-									key={currency.code}
-									type="button"
-									onClick={() => setSelected(currency.code)}
-									className={cn(
-										"flex w-full items-center justify-between rounded-lg border p-4 text-left transition-colors",
-										isSelected
-											? "border-primary bg-primary/5"
-											: "border-border hover:border-muted-foreground/50",
-									)}
-								>
-									<div className="flex items-center gap-3">
-										<span className="text-2xl">{currency.flag}</span>
-										<div>
-											<p className="font-medium text-sm">{currency.label}</p>
-											<p className="text-muted-foreground text-xs">
-												{currency.note}
-											</p>
+						<div className="space-y-2">
+							{currencies.map((currency) => {
+								const isSelected = selected === currency.code;
+								return (
+									<button
+										key={currency.code}
+										type="button"
+										onClick={() => setSelected(currency.code)}
+										className={cn(
+											"flex w-full items-center justify-between rounded-lg border p-4 text-left transition-colors",
+											isSelected
+												? "border-primary bg-primary/5"
+												: "border-border hover:border-muted-foreground/50",
+										)}
+									>
+										<div className="flex items-center gap-3">
+											<span className="text-2xl">{currency.flag}</span>
+											<div>
+												<p className="font-medium text-sm">{currency.label}</p>
+												<p className="text-muted-foreground text-xs">
+													{currency.note}
+												</p>
+											</div>
 										</div>
-									</div>
-									{isSelected && (
-										<div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
-											<IconCheck className="size-3 text-primary-foreground" />
-										</div>
-									)}
-								</button>
-							);
-						})}
-					</div>
+										{isSelected && (
+											<div className="flex h-5 w-5 items-center justify-center rounded-full bg-primary">
+												<IconCheck className="size-3 text-primary-foreground" />
+											</div>
+										)}
+									</button>
+								);
+							})}
+						</div>
 
-					<div className="rounded-md bg-muted px-3 py-2">
-						<p className="text-muted-foreground text-xs">
-							<span className="font-medium">Current rate:</span> 1 USD = ₹84.00
-							· Last updated: Today
-						</p>
-					</div>
+						<div className="rounded-md bg-muted px-3 py-2">
+							<p className="text-muted-foreground text-xs">
+								<span className="font-medium">Current rate:</span> 1 USD =
+								₹84.00 · Last updated: Today
+							</p>
+						</div>
 
-					<div>
-						<Button onClick={handleSave} size="sm">
-							Save Preference
-						</Button>
-					</div>
-				</CardContent>
-			</Card>
-		</div>
+						<div>
+							<Button onClick={handleSave} size="sm">
+								Save Preference
+							</Button>
+						</div>
+					</CardContent>
+				</Card>
+			</div>
+		</Container>
 	);
 }

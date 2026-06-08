@@ -22,6 +22,9 @@ export function useRecordPayment() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.payment.listPayments.key(),
 			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.stats.getRevenueDashboard.key(),
+			});
 			toast.success("Payment recorded", { id: context.toastId });
 		},
 		onError: (error, _, context) => {
@@ -52,6 +55,9 @@ export function useUpdatePayment() {
 				queryKey: orpc.rent.payment.getPaymentById.key({
 					input: { id: variables.id },
 				}),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.stats.getRevenueDashboard.key(),
 			});
 			toast.success("Payment updated", { id: context.toastId });
 		},
@@ -113,6 +119,9 @@ export function useDeletePayment() {
 			// WHY: removeQueries on delete — no refetch needed, data is gone
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.payment.listPayments.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.stats.getRevenueDashboard.key(),
 			});
 		},
 	});

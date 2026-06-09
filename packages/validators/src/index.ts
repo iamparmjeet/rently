@@ -9,4 +9,5 @@ export * from "./property";
 export * from "./subscription";
 export * from "./tenant";
 export * from "./unit";
+export * from "./upload";
 export * from "./utility";

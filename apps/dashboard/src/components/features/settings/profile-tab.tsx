@@ -13,7 +13,8 @@ import {
 import { Input } from "@rently/ui/components/input";
 import type { UpsertOwnerProfileInput } from "@rently/validators";
 import { UpsertOwnerProfileSchema } from "@rently/validators";
-import { useState } from "react";
+import Image from "next/image";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
@@ -22,6 +23,7 @@ import {
 	useSuspenseOwnerProfile,
 	useUpsertOwnerProfile,
 } from "@/hooks/settings";
+import { useUploadAvatar } from "@/hooks/upload";
 import { useMounted } from "@/hooks/use-mounted";
 import { authClient, useSession } from "@/lib/auth-client";
 
@@ -57,6 +59,9 @@ function splitName(name: string | null | undefined) {
 }
 
 export function ProfileTab() {
+	const fileInputRef = useRef<HTMLInputElement>(null);
+	const { mutate: uploadAvatar, isPending: isUploading } = useUploadAvatar();
+
 	const { data: session } = useSession();
 	const { data: profileData } = useSuspenseOwnerProfile();
 	const { mutate: upsertProfile, isPending: isSavingBusiness } =
@@ -129,20 +134,53 @@ export function ProfileTab() {
 						<div className="flex items-center gap-4">
 							{/* Initials avatar — R2 photo upload is a future enhancement */}
 							<div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary font-semibold text-primary-foreground text-xl">
-								{initials}
+								{!mounted ? (
+									// Server + client first paint: identical output — no mismatch possible
+									<span>?</span>
+								) : session?.user?.image ? (
+									<Image
+										src={session.user.image}
+										alt="Avatar"
+										width={64}
+										height={64}
+										className="rounded-xl object-cover"
+									/>
+								) : (
+									<span>{initials}</span>
+								)}
 							</div>
 							<div className="flex flex-col gap-1">
+								{/* Hidden file input — triggered by the button below */}
+								<input
+									ref={fileInputRef}
+									type="file"
+									accept="image/jpeg,image/png,image/webp"
+									className="hidden"
+									onChange={(e) => {
+										const file = e.target.files?.[0];
+										if (file) uploadAvatar(file);
+										// WHY reset: allows re-selecting the same file (onChange won't fire otherwise)
+										e.target.value = "";
+									}}
+								/>
 								<Button
+									type="button"
 									variant="outline"
 									size="sm"
-									// TODO: wire R2 presigned URL upload when implemented
-									onClick={() => toast.info("Photo upload coming soon")}
+									disabled={isUploading}
+									onClick={() => fileInputRef.current?.click()}
 								>
-									Upload photo
+									{isUploading ? "Uploading..." : "Upload Photo"}
 								</Button>
-								<span className="cursor-pointer text-muted-foreground text-xs transition-colors hover:text-destructive">
+								<Button
+									variant="link"
+									size="sm"
+									type="button"
+									className="cursor-pointer p-0! text-muted-foreground text-xs transition-colors hover:text-destructive"
+									onClick={() => toast.info("Remove photo coming soon")}
+								>
 									Remove
-								</span>
+								</Button>
 							</div>
 						</div>
 					</CardContent>

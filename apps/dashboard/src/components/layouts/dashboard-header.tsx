@@ -12,13 +12,14 @@ import {
 } from "@rently/ui/components/dropdown-menu";
 import { Sheet, SheetContent, SheetTrigger } from "@rently/ui/components/sheet";
 import { SidebarTrigger, useSidebar } from "@rently/ui/components/sidebar";
-import { IconBell, IconLogout, IconSearch } from "@tabler/icons-react";
+import { IconLogout, IconSearch } from "@tabler/icons-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useLogout } from "@/hooks/auth";
 import { useSession } from "@/lib/auth-client";
 import { DashbaordSidebar } from "./dashboard-sidebar";
+import { NotificationButton } from "./notification-button";
 
 export default function DashboardHeader() {
 	return (
@@ -154,35 +155,6 @@ function UserButton() {
 						<IconLogout className="h-4 w-4" />
 						Sign out
 					</DropdownMenuItem>
-				</DropdownMenuGroup>
-			</DropdownMenuContent>
-		</DropdownMenu>
-	);
-}
-
-function NotificationButton() {
-	return (
-		<DropdownMenu>
-			<DropdownMenuTrigger
-				render={
-					<Button className="relative flex h-12 w-12 items-center justify-center rounded-[calc(var(--radius)*1.8)] border border-border bg-background transition-all hover:border-border/80 hover:bg-muted">
-						<IconBell className="h-5 w-5 text-muted-foreground" />
-						<span className="absolute top-2.5 right-2.5 h-2.5 w-2.5 rounded-full bg-destructive" />
-					</Button>
-				}
-			/>
-			<DropdownMenuContent align="end" className="w-80 rounded-xl p-4">
-				<DropdownMenuGroup>
-					<DropdownMenuLabel className="inline-flex font-bold text-base text-black">
-						Notifications
-						<span className="ml-2 inline-flex size-4 items-center justify-center rounded-full bg-blue-700 p-3 text-white text-xs">
-							{0}
-						</span>
-					</DropdownMenuLabel>
-					<DropdownMenuSeparator className="my-2" />
-					<div className="py-4 text-center text-muted-foreground text-sm">
-						No new notifications
-					</div>
 				</DropdownMenuGroup>
 			</DropdownMenuContent>
 		</DropdownMenu>

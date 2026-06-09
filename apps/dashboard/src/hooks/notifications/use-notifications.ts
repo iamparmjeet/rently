@@ -4,7 +4,7 @@ import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/utils/orpc";
 
 const MINUTES = (n: number) => n * 60 * 1_000;
-const POLL_INTERVAL = MINUTES(60); // 60 MINUTES
+const POLL_INTERVAL = MINUTES(360); // 6 Hours
 
 export function useNotifications(enabled = false) {
 	return useQuery({

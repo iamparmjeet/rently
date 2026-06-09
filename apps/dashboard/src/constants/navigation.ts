@@ -1,6 +1,7 @@
 import type { Icon } from "@tabler/icons-react";
 import {
 	IconBolt,
+	IconCreditCard,
 	IconDoor,
 	IconFileText,
 	IconHome2,
@@ -53,6 +54,11 @@ export const NavigationLinkMap = {
 		href: "/utilities",
 		icon: IconBolt,
 	},
+	Subscriptions: {
+		name: "Subscription",
+		href: "/subscriptions",
+		icon: IconCreditCard,
+	},
 	Settings: {
 		name: "Settings",
 		href: "/settings",
@@ -74,6 +80,7 @@ const PROTECTED_KEYS = [
 	"Tenants",
 	"Leases",
 	"Payments",
+	"Subscriptions",
 	"Settings",
 ] as const satisfies readonly NavigationKey[];
 

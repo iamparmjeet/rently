@@ -23,7 +23,7 @@ import {
 	useSuspenseOwnerProfile,
 	useUpsertOwnerProfile,
 } from "@/hooks/settings";
-import { useUploadAvatar } from "@/hooks/upload";
+import { useDeleteAvatar, useUploadAvatar } from "@/hooks/upload";
 import { useMounted } from "@/hooks/use-mounted";
 import { authClient, useSession } from "@/lib/auth-client";
 
@@ -61,6 +61,7 @@ function splitName(name: string | null | undefined) {
 export function ProfileTab() {
 	const fileInputRef = useRef<HTMLInputElement>(null);
 	const { mutate: uploadAvatar, isPending: isUploading } = useUploadAvatar();
+	const { mutate: deleteAvatar, isPending: isDeleting } = useDeleteAvatar();
 
 	const { data: session } = useSession();
 	const { data: profileData } = useSuspenseOwnerProfile();
@@ -172,15 +173,18 @@ export function ProfileTab() {
 								>
 									{isUploading ? "Uploading..." : "Upload Photo"}
 								</Button>
-								<Button
-									variant="link"
-									size="sm"
-									type="button"
-									className="cursor-pointer p-0! text-muted-foreground text-xs transition-colors hover:text-destructive"
-									onClick={() => toast.info("Remove photo coming soon")}
-								>
-									Remove
-								</Button>
+								{session?.user?.image && (
+									<Button
+										type="button"
+										variant="ghost"
+										size="sm"
+										disabled={isDeleting}
+										onClick={() => deleteAvatar()}
+										className="text-destructive hover:text-destructive"
+									>
+										{isDeleting ? "Removing..." : "Remove photo"}
+									</Button>
+								)}
 							</div>
 						</div>
 					</CardContent>

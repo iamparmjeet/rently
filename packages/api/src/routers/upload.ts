@@ -6,6 +6,7 @@ import {
 	PresignedUploadUrlResponseSchema,
 } from "@rently/validators";
 import { AwsClient } from "aws4fetch";
+import z from "zod";
 
 // AwsClient is cloudflare specific
 const r2 = new AwsClient({
@@ -30,6 +31,26 @@ export const getPresignedUploadUrl = ownerProcedure
 			});
 		}
 
+		if (user.image) {
+			const baseUrl = env.R2_PUBLIC_URL.replace(/\/$/, "");
+			const oldKey = user.image.replace(`${baseUrl}/`, "");
+
+			// WHY: only delete if the key belongs to this user.
+			// If somehow a foreign URL is in user.image, skip silently.
+			if (oldKey.startsWith(`owners/${user.id}/`)) {
+				const oldObjectUrl = `https://${env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com/${env.R2_BUCKET_NAME}/${oldKey}`;
+				const deleteRequest = await r2.sign(
+					new Request(oldObjectUrl, { method: "DELETE" }),
+				);
+				// WHY: fire-and-forget is acceptable here — if the old file
+				// lingers, it's a leak, not a correctness issue. Don't block
+				// the presign on cleanup success.
+				await fetch(deleteRequest).catch(() => {
+					// TODO: log cleanup failure to structured logger — not a user-facing error
+				});
+			}
+		}
+
 		const objectUrl = `https://${env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com/${env.R2_BUCKET_NAME}/${input.key}`;
 
 		const signed = await r2.sign(
@@ -51,4 +72,35 @@ export const getPresignedUploadUrl = ownerProcedure
 			uploadUrl: signed.url,
 			publicUrl,
 		};
+	});
+
+export const deleteAvatar = ownerProcedure
+	.route({ method: "DELETE", path: "/upload/avatar" })
+	.output(z.object({ success: z.boolean() }))
+	.handler(async ({ context }) => {
+		const { user } = context;
+
+		if (!user.image) {
+			return { success: true };
+		}
+
+		const baseUrl = env.R2_PUBLIC_URL.replace(/\/$/, "");
+		const key = user.image.replace(`${baseUrl}/`, "");
+
+		if (!key.startsWith(`owners/${user.id}/`)) {
+			throw new ORPCError("FORBIDDEN", {
+				message: "Cannot delete: image key is not scoped to your account.",
+			});
+		}
+
+		const objectUrl = `https://${env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com/${env.R2_BUCKET_NAME}/${key}`;
+
+		// WHY we don't throw on R2 failure: if the file is already gone
+		// (e.g. manually deleted from bucket), we still want to clear user.image.
+		const deleteRequest = await r2.sign(
+			new Request(objectUrl, { method: "DELETE" }),
+		);
+		await fetch(deleteRequest);
+
+		return { success: true };
 	});

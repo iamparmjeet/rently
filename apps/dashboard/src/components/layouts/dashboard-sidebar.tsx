@@ -35,7 +35,7 @@ export function DashbaordSidebar() {
 	);
 
 	const systemLinks = NavigationLinks.filter((link) =>
-		["settings", "help"].includes(link.name.toLowerCase()),
+		["settings", "subscription", "help"].includes(link.name.toLowerCase()),
 	);
 
 	return (

@@ -38,7 +38,6 @@
 		"@rently/config": "workspace:*",
 		"@rently/validators": "workspace:*",
 		"@rently/db": "workspace:*",
-		"@rently/api": "workspace:*",
 		"@rently/auth": "workspace:*",
 		"@tailwindcss/postcss": "^4.1.18",
 		"@tanstack/react-query-devtools": "^5.91.1",

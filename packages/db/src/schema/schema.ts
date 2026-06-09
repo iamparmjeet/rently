@@ -19,6 +19,7 @@ import {
 	timestamp,
 	uuid,
 } from "drizzle-orm/pg-core";
+import { NOTIFICATION_TYPE_VALUES } from "../constants/notification-constants";
 import { PAYMENT_METHOD_VALUES } from "../constants/payment-constants";
 import {
 	DOCUMENT_FIELDS_VALUES,
@@ -242,4 +243,29 @@ export const referrers = pgTable("referrers", {
 	note: text("note"),
 	...auditColumns(),
 	...softDeleteColumn(),
+});
+
+// ═══════════════════════════════════════════════════════════
+// NOTIFICATIONS
+// ═══════════════════════════════════════════════════════════
+
+export const notifications = pgTable("notifications", {
+	...idColumn(),
+	// userId is the OWNER who receives this notification — never the tenant
+	userId: uuid("user_id")
+		.notNull()
+		.references(() => user.id, { onDelete: "cascade" }),
+	type: text("type", {
+		enum: NOTIFICATION_TYPE_VALUES,
+	}).notNull(),
+	title: text("title").notNull(),
+	message: text("message").notNull(),
+	isRead: boolean("is_read").default(false).notNull(),
+	// Optional link to the entity that triggered this notification
+	// WHY nullable: lease_expiring_soon links to a lease, others may not
+	entityId: uuid("entity_id"),
+	entityType: text("entity_type"), // "lease" | "utility" | "invite"
+	...auditColumns(),
+	// WHY no softDeleteColumn: notifications are marked as read, not deleted.
+	// Keeping them in the table supports future "notification history" views.
 });

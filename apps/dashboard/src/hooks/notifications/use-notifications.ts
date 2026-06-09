@@ -3,16 +3,17 @@
 import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/utils/orpc";
 
-const POLL_INTERVAL = 30_000;
+const MINUTES = (n: number) => n * 60 * 1_000;
+const POLL_INTERVAL = MINUTES(60); // 60 MINUTES
 
-export function useNotifications() {
+export function useNotifications(enabled = false) {
 	return useQuery({
 		...orpc.notification.listNotifications.queryOptions(),
-		refetchInterval: POLL_INTERVAL,
-		// WHY 10s staleTime: the data is always at most 10s old before being
+		enabled,
 		// considered stale and re-fetched on window focus. Prevents over-fetching
 		// when the user switches tabs frequently.
-		staleTime: 10_000,
+		staleTime: POLL_INTERVAL,
+		refetchOnWindowFocus: false,
 	});
 }
 
@@ -20,6 +21,7 @@ export function useUnreadCount() {
 	return useQuery({
 		...orpc.notification.getUnreadCount.queryOptions(),
 		refetchInterval: POLL_INTERVAL,
-		staleTime: 10_000,
+		staleTime: POLL_INTERVAL,
+		refetchIntervalInBackground: false,
 	});
 }

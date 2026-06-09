@@ -15,6 +15,7 @@ import {
 	IconFileText,
 	IconHome,
 } from "@tabler/icons-react";
+import { useState } from "react";
 import { useMarkAllAsRead, useMarkAsRead } from "@/hooks/notifications";
 import {
 	useNotifications,
@@ -84,15 +85,16 @@ function NotificationRow({
 }
 
 export function NotificationButton() {
+	const [open, setOpen] = useState(false);
 	const { data: countData } = useUnreadCount();
-	const { data, isLoading } = useNotifications();
+	const { data, isLoading } = useNotifications(open);
 	const { mutate: markAllAsRead, isPending } = useMarkAllAsRead();
 
 	const unreadCount = countData?.count ?? 0;
 	const notifs = data?.notifications ?? [];
 
 	return (
-		<DropdownMenu>
+		<DropdownMenu open={open} onOpenChange={setOpen}>
 			<DropdownMenuTrigger
 				render={
 					<Button

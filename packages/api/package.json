@@ -38,6 +38,7 @@
 		"@rently/email": "workspace:*",
 		"@rently/env": "workspace:*",
 		"@rently/validators": "workspace:*",
+		"aws4fetch": "^1.0.20",
 		"dotenv": "catalog:",
 		"drizzle-orm": "^0.45.2",
 		"server-only": "^0.0.1",

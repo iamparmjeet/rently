@@ -1,163 +1,382 @@
-# rently
+# RentWise
 
-This project was created with [Better-T-Stack](https://github.com/AmanVarshney01/create-better-t-stack), a modern TypeScript stack that combines Next.js, Hono, ORPC, and more.
+> **Property management SaaS built for Indian landlords.**
+> Manage properties, units, tenants, leases, utility billing, and rent payments — all from one dashboard.
+
+[![TypeScript](https://img.shields.io/badge/TypeScript-6.0-3178C6?style=flat-square&logo=typescript&logoColor=white)](https://www.typescriptlang.org/)
+[![Next.js](https://img.shields.io/badge/Next.js-16-000000?style=flat-square&logo=next.js&logoColor=white)](https://nextjs.org/)
+[![Bun](https://img.shields.io/badge/Bun-1.3-f9f1e1?style=flat-square&logo=bun&logoColor=black)](https://bun.sh/)
+[![Turborepo](https://img.shields.io/badge/Turborepo-2.x-EF4444?style=flat-square&logo=turborepo&logoColor=white)](https://turbo.build/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](./LICENSE)
+
+**Live:** [RentWise.parmjeetmishra.com](https://RentWise.parmjeetmishra.com)
+
+---
+
+## What is RentWise?
+
+RentWise is a multi-tenant SaaS for property owners who rent residential or commercial spaces. It handles the full lifecycle of a rental:
+
+- An **owner** registers, adds their properties and units, creates leases, and tracks payments.
+- A **tenant** receives an invite email, sets a password, and lands in a dedicated portal where they see their lease, dues, and utility readings — and can submit meter readings themselves.
+- All monetary values are stored as **integers in paise** (₹ × 100) to avoid floating-point errors in financial calculations.
+
+---
+
+## Monorepo Structure
+
+```
+RentWise/                          ← Turborepo root
+├── apps/
+│   ├── web/                     ← Marketing site + auth flows (port 3001)
+│   ├── dashboard/               ← Owner portal (port 3000)
+│   ├── tenant/                  ← Tenant portal (port 3002)
+│   └── server/                  ← Hono API server / Cloudflare Workers entry
+└── packages/
+    ├── api/                     ← oRPC routers + all business logic
+    ├── auth/                    ← Better Auth configuration
+    ├── db/                      ← Drizzle schema, migrations, constants
+    ├── validators/              ← Zod schemas derived from Drizzle tables
+    ├── hooks/                   ← Shared TanStack Query hooks
+    ├── ui/                      ← Shared component library (Base UI + shadcn)
+    ├── email/                   ← Resend transactional email templates
+    ├── env/                     ← T3 Env typed environment variables
+    └── config/                  ← Shared tsconfig.base.json
+```
+
+### App responsibilities
+
+| App              | Port | Who uses it | What it does                                           |
+| ---------------- | ---- | ----------- | ------------------------------------------------------ |
+| `apps/web`       | 3001 | Everyone    | Landing page, `/login`, `/register`, invite acceptance |
+| `apps/dashboard` | 3000 | Owners      | Full property management UI                            |
+| `apps/tenant`    | 3002 | Tenants     | Lease overview, bills, payments, meter readings        |
+| `apps/server`    | 8787 | Internal    | Hono + oRPC API, auth handler, OpenAPI docs            |
+
+---
+
+## Tech Stack
+
+### Backend
+
+| Layer       | Tool                         | Version |
+| ----------- | ---------------------------- | ------- |
+| Runtime     | Bun                          | 1.3.x   |
+| HTTP server | Hono                         | 4.x     |
+| API layer   | oRPC (`@orpc/server`)        | 1.x     |
+| ORM         | Drizzle ORM                  | 0.45.x  |
+| Database    | PostgreSQL (Neon serverless) | 16      |
+| Auth        | Better Auth                  | 1.6.x   |
+| Email       | Resend                       | 6.x     |
+| Validation  | Zod                          | v4      |
+| Logging     | evlog                        | 2.x     |
+
+### Frontend
+
+| Layer        | Tool                  | Version |
+| ------------ | --------------------- | ------- |
+| Framework    | Next.js App Router    | 16.x    |
+| Server state | TanStack Query        | v5      |
+| Forms        | React Hook Form + Zod | 7.x     |
+| Styling      | Tailwind CSS          | v4      |
+| Components   | Base UI + shadcn/ui   | v2      |
+| Icons        | @tabler/icons-react   | 3.x     |
+| Toasts       | Sonner                | 2.x     |
+
+### Tooling
+
+| Tool        | Purpose                                             |
+| ----------- | --------------------------------------------------- |
+| Turborepo   | Monorepo build orchestration + caching              |
+| Biome       | Linting and formatting (replaces ESLint + Prettier) |
+| Lefthook    | Git hooks (commit-msg + pre-push typecheck)         |
+| commitlint  | Conventional Commits enforcement                    |
+| tsdown      | Server bundle compilation                           |
+| drizzle-kit | Schema migrations                                   |
+
+---
+
+## Architecture
+
+### Request lifecycle
+
+```
+User action (form submit)
+  → React Hook Form + Zod (client-side validation)
+  → useMutation hook → oRPC client (@orpc/tanstack-query)
+  → apps/server (Hono receives request)
+  → createContext() → { db, headers }
+  → RPCHandler → appRouter.rent.[domain].[procedure]
+  → protectedProcedure validates Better Auth session cookie
+  → Context gains { user, session }
+  → Drizzle query runs against Neon PostgreSQL
+  → ORPCError thrown on business rule violation
+  → Response returned
+  → queryClient.invalidateQueries() fires → UI re-renders
+```
+
+### oRPC router tree
+
+```
+appRouter
+└── rent
+    ├── property   list, get, create, update, delete      ✅
+    ├── unit       list, get, create, update, delete      ✅
+    ├── lease      list, get, create, update, delete      ✅
+    ├── tenant     list, get, update, verify, sendEmail   ✅
+    ├── invite     list, get, create, resend, accept,     ✅
+    │              cancel
+    ├── payment    list, get, create, update, delete      ✅
+    └── utility    list, get, create, update, delete      ✅
+```
+
+### Auth & routing
+
+- All auth UI lives in `apps/web`. After sign-in, routing is role-based:
+  - `role: owner` → redirected to `apps/dashboard`
+  - `role: tenant` → redirected to `apps/tenant`
+- Cross-app navigation uses `window.location.replace()` with `NEXT_PUBLIC_*` env vars — never `router.push()`, which only works within a single Next.js app.
+- Route protection is handled by `proxy.ts` in each app — **there is no `middleware.ts`**.
+
+### Multi-tenancy isolation
+
+Every owner-scoped query is filtered by `ctx.user.id`. Ownership helpers (`VerifyUnitOwnership`, `VerifyLeaseOwnership`) throw `ORPCError('FORBIDDEN')` before any mutation can touch data belonging to another owner.
+
+---
 
 ## Features
 
-- **TypeScript** - For type safety and improved developer experience
-- **Next.js** - Full-stack React framework
-- **TailwindCSS** - Utility-first CSS for rapid UI development
-- **Shared UI package** - shadcn/ui primitives live in `packages/ui`
-- **Hono** - Lightweight, performant server framework
-- **oRPC** - End-to-end type-safe APIs with OpenAPI integration
-- **Bun** - Runtime environment
-- **Drizzle** - TypeScript-first ORM
-- **PostgreSQL** - Database engine
-- **Authentication** - Better-Auth
-- **Turborepo** - Optimized monorepo build system
-- **Biome** - Linting and formatting
+### Owner dashboard (`apps/dashboard`)
 
-rently/
-├── apps/
-│ ├── web/ # Frontend application (Next.js)
-│ └── server/ # Backend API (Hono, ORPC)
-├── packages/
-│ ├── ui/ # Shared shadcn/ui components and styles
-│ ├── api/ # API layer / business logic
-│ ├── auth/ # Authentication configuration & logic
-│ └── db/ # Database schema & queries
+- **Properties** — CRUD with property type (residential/commercial), address, and photo (pending R2)
+- **Units** — per-property units with type, rent amount, status (vacant/occupied)
+- **Tenants** — invite-based onboarding; owner-gated KYC (UID/PAN)
+- **Leases** — link tenant ↔ unit with start/end date, rent amount, deposit
+- **Utilities** — electricity meter readings per unit; bill calculation
+- **Payments** — rent, utility, and deposit payment records
+- **Dashboard** — occupancy rate, revenue chart (12-month), recent transactions, upcoming dues
+- **Settings** — profile, security (password change), currency preference, notification toggles, billing
 
-```
+### Tenant portal (`apps/tenant`)
 
-## Frontend
+- **Overview** — current lease summary, welcome card
+- **Bill tab** — current month rent + utility breakdown
+- **Payments tab** — payment history
+- **Readings tab** — submit electricity meter readings
+- **Documents tab** — view lease documents, request UID/PAN update (owner-gated)
 
-- [ ] Auth Integration (FE)
-  - [x] Install better-auth React package in fe
-  - [x] Create src/lib/auth.ts with better-auth exports
-  - [ ] Create src/components/providers/auth-provider.tsx
-  - [ ] Wrap app with <AuthProvider> in src/app/layout.tsx
-  - [ ] Fix login page
-    - [x] Using better auth use.login()
-    - [x] Login with email
-    - [x] Login with social
-    - [ ] On Existing User signup
-    - [ ] Email Verficiation
-    - [ ] Reset Password
-      - [ ] Revoking Sessions on Password Reset
-    - [ ] Update Password
-  - [x] Fix register page to use auth.signUp() instead of raw fetch
-    - [x] Social signin
-  - [ ] Add session state checking on login/register success
-  - [x] Add useSession() hook to dashboard layout
+### Auth flows (`apps/web`)
 
-- [ ] Route Protection
-  - [ ] Create src/components/guards/protected-route.tsx
-  - [x] Protect all /dashboard/\* routes with auth guard
-  - [x] Redirect unauthenticated users to /login
-  - [x] Redirect authenticated users from /login to /dashboard
-  - [x] Middlewares
-
-- [x] API Client
-  - [x] Install @tanstack/react-query and @tanstack/react-query-devtools
-  - [x] Create src/lib/api-client.ts (fetch wrapper with auth headers)
-  - [x] Create src/components/providers/query-provider.tsx
-  - [x] Wrap app with <QueryProvider> in src/app/layout.tsx
-
-- [ ] Dashboard Layout
-  - [x] Build src/components/layouts/dashboard-header.tsx (full implementation)
-  - [x] Build src/components/layouts/deashboard-sidebar.tsx
-  - [x] Add sidebar navigation links
-  - [ ] Add mobile responsive hamburger menu
-  - [x] Connect sidebar to dashboard layout
-
-- [x] Forms (All empty files)
-  - [x] Implement src/components/forms/property-form.tsx
-  - [x] Implement src/components/forms/unit-form.tsx
-  - [x] Implement src/components/forms/lease-form.tsx
-  - [x] Implement src/components/forms/payment-form.tsx
-  - [x] Implement src/components/forms/invite-form.tsx
-
-- [ ] Feature Components (Empty files)
-  - [x] Implement src/components/features/properties/property-card.tsx
-  - [x] Implement src/components/features/properties/property-list.tsx
-  - [x] Implement src/components/features/properties/property-table.tsx
-  - [x] Implement src/components/features/leases/lease-card.tsx
-  - [x] Implement src/components/features/leases/lease-details.tsx
-  - [x] Implement src/components/features/leases/lease-status-badge.tsx
-  - [ ] Implement src/components/features/payments/payment-history.tsx
-  - [ ] Implement src/components/features/payments/payment-methods.tsx
-  - [ ] Implement src/components/features/subscriptions/plan-card.tsx
-  - [ ] Implement src/components/features/subscriptions/subscription-status.tsx
-
-- [ ] Shared Components (Empty files)
-  - [x] Implement src/components/shared/confirm-dialog.ts
-  - [ ] Implement src/components/shared/empty-state.tsx
-  - [ ] Implement src/components/shared/error-boundary.tsx
-  - [ ] Implement src/components/shared/loading-spinner.tsx
-
-- [ ] Dashboard Pages (Empty return statements)
-  - [x] Implement src/app/(dashboard)/properties/page.tsx
-  - [x] Implement src/app/(dashboard)/properties/new/page.tsx
-  - [x] Implement src/app/(dashboard)/properties/[id]/page.tsx
-  - [x] Implement src/app/(dashboard)/properties/[id]/edit/page.tsx
-  - [x] Implement src/app/(dashboard)/units/page.tsx
-  - [x] Implement src/app/(dashboard)/units/new/page.tsx
-  - [x] Implement src/app/(dashboard)/units/[id]/page.tsx
-  - [x] Implement src/app/(dashboard)/units/[id]/edit/page.tsx
-  - [x] Implement src/app/(dashboard)/leases/page.tsx
-  - [x] Implement src/app/(dashboard)/leases/new/page.tsx
-  - [x] Implement src/app/(dashboard)/leases/[id]/page.tsx
-  - [ ] Implement src/app/(dashboard)/payments/page.tsx
-  - [ ] Implement src/app/(dashboard)/payments/[id]/page.tsx
-  - [x] Implement src/app/(dashboard)/tenants/page.tsx
-  - [x] Implement src/app/(dashboard)/tenants/[id]/page.tsx
-  - [x] Implement src/app/(dashboard)/tenants/invites/page.tsx
-  - [x] Implement src/app/(dashboard)/utilities/page.tsx
-  - [x] Implement src/app/(dashboard)/utilities/[id]/page.tsx
-  - [x] Implement src/app/(dashboard)/settings/page.tsx
-  - [ ] Implement src/app/(dashboard)/settings/profile/page.tsx
-  - [ ] Implement src/app/(dashboard)/subscriptions/page.tsx
-  - [ ] Implement src/app/(dashboard)/subscriptions/plans/page.tsx
-  - [ ] Implement src/app/(dashboard)/subscriptions/billing/page.tsx
+- Email/password registration and login
+- Google and GitHub OAuth
+- Invite-based tenant onboarding (token → set password → role assigned)
+- Session-based auth via cookie (Better Auth)
 
 ---
 
-// Pending tasks
-Logic Description Solution
+## Database Schema
 
-- [ ] Aggregate rent view combine utilities + base rent per tenant create service: RentSummaryService.getTenantBill(leaseId)
-- [ ] Admin management required for user and plan control add /admin routes
-- [ ] Trial expiry automation mark expired subscriptions add daily cron (bun or system cron)
-- [ ] Payment aggregation show total paid vs due per lease SQL SUM(amount) group queries
-- [ ] Invite email sending actual delivery layer missing add Resend/email.js or nodemailer
-- [ ] Tenant utilities union separate and combine utility costs implement aggregated query
-- [ ] Audit updatedBy, track who changes lease/payments add updated_by FK
+### Rent domain
 
-// Enhancements
+| Table                    | Description                                       |
+| ------------------------ | ------------------------------------------------- |
+| `properties`             | Top-level asset owned by a user                   |
+| `units`                  | Rentable unit inside a property                   |
+| `leases`                 | Contract linking a tenant to a unit               |
+| `utilities`              | Electricity meter readings per lease              |
+| `payments`               | Financial transactions (rent / utility / deposit) |
+| `tenantInvites`          | Owner-created invite token with expiry            |
+| `tenantProfiles`         | Extended tenant KYC (UID, PAN, emergency contact) |
+| `ownerProfiles`          | Extended owner profile (GST, UPI, company name)   |
+| `documentUpdateRequests` | Owner-gated UID/PAN change workflow               |
 
-// Category Suggested Enhancement
+### Subscription domain
 
-- [ x] Auth Link invite → user signup flow auto-role assignment
-- [ ] Accounting Utility + Payment summaries per tenant
-- [ ] DB Add foreign key cascades; non-null constraints
-- [ ] Notifications Email invite acceptance, subscription expiry alerts
-- [x] Type-safety Add safeHandler() for consistent responses
-- [x] Roles Separate admin/tenant routes
-- [ ] Subscriptions Add renewal handling job/cron
-- [x] RPC Implement Hono oRPC client as typed bridge to FE
-- [x] Infra Add CORS
-- [ ] rate-limiting middleware
+| Table           | Description                |
+| --------------- | -------------------------- |
+| `plans`         | Pricing tiers              |
+| `subscriptions` | Active plan per owner      |
+| `invoices`      | Per-billing-period records |
+
+All primary keys are **UUIDv7** — time-ordered, app-generated, no PostgreSQL extension required.
+
+---
+
+## Local Development
+
+### Prerequisites
+
+- [Bun](https://bun.sh/) ≥ 1.3
+- [Docker](https://www.docker.com/) (for local PostgreSQL)
+- Node.js is **not** required — Bun handles everything
+
+### 1. Clone and install
+
+```bash
+git clone https://github.com/iamparmjeet/rently.git
+cd rently
+bun install
+```
+
+### 2. Start the local database
+
+```bash
+# Starts a PostgreSQL 16 container (defined in packages/db/docker-compose.yaml)
+cd packages/db
+bun run db:start
+```
+
+### 3. Configure environment variables
+
+Copy the example env files and fill in values:
+
+```bash
+# Server
+cp apps/server/.env.example apps/server/.env
+
+# Frontend apps (web, dashboard, tenant share the same client vars)
+cp apps/web/.env.example apps/web/.env.local
+cp apps/dashboard/.env.example apps/dashboard/.env.local
+cp apps/tenant/.env.example apps/tenant/.env.local
+```
+
+See [Environment Variables](#environment-variables) below for all required keys.
+
+### 4. Run migrations and seed
+
+```bash
+bun run db:generate    # generate migration files from schema
+bun run db:migrate     # apply migrations to local DB
+bun run db:seed        # seed subscription plans
+```
+
+### 5. Start the dev servers
+
+```bash
+# All apps in parallel (recommended)
+bun run dev
+
+# Or individually
+bun run dev:server     # API server — port 8787
+bun run dev:web        # Marketing + auth — port 3001
+bun run dev:dashboard  # Owner portal — port 3000
+bun run dev:tenant     # Tenant portal — port 3002
 ```
 
 ---
 
-### Faster Delivery
+## Environment Variables
 
-- [ ] Suspense + Optimistic APIs
-- [x] Properties
-- [x] Tenants
-- [ ] Units
-- [ ] Leases
-- [ ] Payment
-- [ ] Utilities
-- [ ] Tenant-Rent Portal
+### `apps/server/.env`
+
+```env
+# Database
+DATABASE_URL=postgresql://rently_db_user:rently_db_password@localhost:5432/rently_db
+USE_NEON=false                  # set to "true" in production to use Neon serverless driver
+
+# Auth
+BETTER_AUTH_SECRET=             # min 32 chars — generate with: openssl rand -base64 32
+BETTER_AUTH_URL=http://localhost:8787
+CORS_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:3002
+COOKIE_DOMAIN=localhost
+WEB_APP_URL=http://localhost:3001
+
+# OAuth providers (optional in development)
+GOOGLE_CLIENT_ID=
+GOOGLE_CLIENT_SECRET=
+GITHUB_CLIENT_ID=
+GITHUB_CLIENT_SECRET=
+
+# Email
+RESEND_API_KEY=
+EMAIL_FROM=noreply@yourdomain.com
+
+NODE_ENV=development
+```
+
+### `apps/*/env.local` (all three Next.js apps)
+
+```env
+NEXT_PUBLIC_SERVER_URL=http://localhost:8787
+NEXT_PUBLIC_APP_URL=http://localhost:3001
+NEXT_PUBLIC_WEB_URL=http://localhost:3001
+NEXT_PUBLIC_DASHBOARD_URL=http://localhost:3000
+NEXT_PUBLIC_TENANT_URL=http://localhost:3002
+```
+
+---
+
+## Development Commands
+
+```bash
+# Run all apps
+bun run dev
+
+# Type-check entire monorepo
+turbo run check-types
+
+# Lint and format (Biome)
+bun run check
+
+# Database
+bun run db:generate    # generate migrations from schema changes
+bun run db:migrate     # apply pending migrations
+bun run db:push        # push schema directly (dev only — no migration file)
+bun run db:studio      # open Drizzle Studio GUI at localhost:4983
+bun run db:seed        # seed initial data (subscription plans)
+```
+
+---
+
+## Commit Convention
+
+This project uses [Conventional Commits](https://www.conventionalcommits.org/) enforced via commitlint + Lefthook.
+
+```
+<type>(<scope>): <description>
+
+Types:  feat | fix | refactor | chore | style | build
+Scopes: db | validators | api | auth | email | server | web | dashboard | tenant
+        property | unit | tenant | lease | payment | utility | invite
+```
+
+Examples:
+
+```
+feat(dashboard): add revenue chart with 12-month aggregation
+fix(api/lease): await ownership check before mutation
+refactor(validators): extract PaymentListItemSchema to enriched layer
+chore(deps): bump drizzle-orm to 0.45.2
+```
+
+---
+
+## Project Status
+
+| Area                                                               | Status         |
+| ------------------------------------------------------------------ | -------------- |
+| Database schema + constants                                        | ✅ Complete    |
+| Zod validators (all domains)                                       | ✅ Complete    |
+| oRPC API (property, unit, lease, tenant, invite, payment, utility) | ✅ Complete    |
+| Auth configuration (Better Auth)                                   | ✅ Complete    |
+| Hono server + oRPC wiring                                          | ✅ Complete    |
+| Owner dashboard — Properties, Units, Tenants, Leases, Utilities    | ✅ Complete    |
+| Owner dashboard — Payments                                         | ✅ Complete    |
+| Owner dashboard — Settings (profile, security, currency)           | ✅ Complete    |
+| Owner dashboard — Revenue dashboard                                | ✅ Complete    |
+| Tenant portal (overview, bills, payments, readings, docs)          | ✅ Complete    |
+| Invite-based tenant onboarding flow                                | ✅ Complete    |
+| Role-based cross-app routing                                       | ✅ Complete    |
+| Subscriptions / billing UI                                         | 🚧 In progress |
+| R2 file uploads (profile photo, documents)                         | 🚧 In progress |
+| Document update request workflow UI                                | 🚧 In progress |
+| Rate limiting (tenant meter submissions)                           | 📋 Planned     |
+| Admin panel                                                        | 📋 Planned     |
+| Email verification + password reset                                | 📋 Planned     |
+| Mobile-responsive sidebar                                          | 📋 Planned     |
+
+---
+
+## License
+
+MIT © [Parmjeet Mishra](https://parmjeetmishra.com)

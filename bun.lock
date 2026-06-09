@@ -170,7 +170,6 @@
         "zod": "^4.4.3",
       },
       "devDependencies": {
-        "@rently/api": "workspace:*",
         "@rently/auth": "workspace:*",
         "@rently/config": "workspace:*",
         "@rently/db": "workspace:*",

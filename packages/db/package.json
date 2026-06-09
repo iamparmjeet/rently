@@ -15,6 +15,7 @@
 		"db:studio": "drizzle-kit studio",
 		"db:migrate": "drizzle-kit migrate",
 		"db:seed": "bun run --env-file=../../apps/server/.env src/seed/plans.ts",
+		"db:beta-codes": "bun run --env-file=../../apps/server/.env src/seed/generate-beta-codes.ts",
 		"db:start": "docker compose up -d",
 		"db:watch": "docker compose up",
 		"db:stop": "docker compose stop",

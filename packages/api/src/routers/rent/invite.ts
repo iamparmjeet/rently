@@ -16,6 +16,7 @@ import {
 } from "@rently/validators";
 import { and, desc, eq, isNull } from "drizzle-orm";
 import z from "zod";
+import { enforceSubscriptionLimit } from "../helpers";
 
 // ********* Helper function **************
 async function findPendingInvite(
@@ -51,7 +52,6 @@ export const createInvite = ownerProcedure
 		const { db, user } = context;
 
 		// Prevent duplicate pending invites for same email from same owner
-		//
 		const existing = await findPendingInvite(db, input.email, user.id);
 
 		if (existing) {
@@ -59,6 +59,9 @@ export const createInvite = ownerProcedure
 				message: `A pending invite already exists for ${input.email}. Revoke it first.`,
 			});
 		}
+
+		// If this email already has a pending invite. we reject and only check the subscription limit after that.
+		await enforceSubscriptionLimit(db, user.id);
 
 		const token = crypto.randomUUID();
 		// Default 7 days expiry if owner doesn't specify

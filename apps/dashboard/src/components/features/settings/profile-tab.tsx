@@ -22,6 +22,7 @@ import {
 	useSuspenseOwnerProfile,
 	useUpsertOwnerProfile,
 } from "@/hooks/settings";
+import { useMounted } from "@/hooks/use-mounted";
 import { authClient, useSession } from "@/lib/auth-client";
 
 // ── User info form schema (Better Auth fields)
@@ -60,6 +61,7 @@ export function ProfileTab() {
 	const { data: profileData } = useSuspenseOwnerProfile();
 	const { mutate: upsertProfile, isPending: isSavingBusiness } =
 		useUpsertOwnerProfile();
+	const mounted = useMounted();
 
 	const [isSavingPersonal, setIsSavingPersonal] = useState(false);
 
@@ -116,7 +118,7 @@ export function ProfileTab() {
 		upsertProfile(values);
 	}
 
-	const initials = getInitials(session?.user?.name);
+	const initials = mounted ? getInitials(session?.user?.name) : "?";
 
 	return (
 		<Container className="w-full p-0 sm:max-w-180">

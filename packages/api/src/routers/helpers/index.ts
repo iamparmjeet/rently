@@ -1,7 +1,10 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@rently/db";
+import { TENANT_LIMIT } from "@rently/db/constants/payment-constants";
+import { LEASE_STATUSES } from "@rently/db/constants/rent-constants";
 import { leases, properties, units } from "@rently/db/schema/schema";
-import { and, eq, isNull } from "drizzle-orm";
+import { plans, subscriptions } from "@rently/db/schema/subscription";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 
 export async function VerifyUnitOwnership(
 	db: Database,
@@ -74,4 +77,45 @@ export async function isLeaseOwner(
 		.limit(1);
 
 	return result?.ownerId === userId;
+}
+
+// ******************** Subscription Helpers ***************
+
+export async function enforceSubscriptionLimit(
+	db: Database,
+	userId: string,
+): Promise<void> {
+	// 1) Fetch the user's plan tenant limit
+	const [subRow] = await db
+		.select({ tenantLimit: plans.tenantLimit })
+		.from(subscriptions)
+		.innerJoin(plans, eq(subscriptions.planId, plans.id))
+		.where(eq(subscriptions.userId, userId))
+		.orderBy(desc(subscriptions.createdAt))
+		.limit(1);
+
+	const tenantLimit = subRow?.tenantLimit ?? TENANT_LIMIT;
+
+	// 2) Count distinct active tenants under this owner's properties
+	const [countRow] = await db
+		.select({
+			count: sql<number>`count(distinct ${leases.tenantId})::int`,
+		})
+		.from(leases)
+		.innerJoin(units, eq(leases.unitId, units.id))
+		.innerJoin(properties, eq(units.propertyId, properties.id))
+		.where(
+			and(
+				eq(properties.ownerId, userId),
+				eq(leases.status, LEASE_STATUSES.ACTIVE),
+			),
+		);
+
+	const currentCount = countRow?.count ?? 0;
+
+	if (currentCount >= tenantLimit) {
+		throw new ORPCError("FORBIDDEN", {
+			message: `You've reached your plan limit of ${tenantLimit} active tenant${tenantLimit === 1 ? "" : "s"}. Upgrade to Pro to add more.`,
+		});
+	}
 }

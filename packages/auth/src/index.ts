@@ -1,12 +1,18 @@
 import { createDb } from "@rently/db";
+import {
+	BILLING_INTERVAL,
+	PLAN_STATUS,
+} from "@rently/db/constants/payment-constants";
 import { USER_ROLES } from "@rently/db/constants/user-roles";
 import * as schema from "@rently/db/schema/auth";
+import { plans, subscriptions } from "@rently/db/schema/subscription";
 import { generatedId } from "@rently/db/utils/id";
 import { sendPasswordResetEmail, sendTenantSetupEmail } from "@rently/email";
 import { env } from "@rently/env/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { openAPI } from "better-auth/plugins";
+import { eq } from "drizzle-orm";
 
 const authHostname = new URL(env.BETTER_AUTH_URL).hostname;
 const isProduction = env.NODE_ENV === "production";
@@ -107,9 +113,52 @@ export function createAuth() {
 				generateId: () => generatedId(), // for runtime
 			},
 		},
+		databaseHooks: {
+			user: {
+				create: {
+					after: async (user) => {
+						const role = user.role as string | undefined;
 
+						if (role !== USER_ROLES.OWNER) return;
+
+						try {
+							const [freePlan] = await db
+								.select({ id: plans.id })
+								.from(plans)
+								.where(eq(plans.slug, "free"))
+								.limit(1);
+
+							if (!freePlan) {
+								console.error(
+									"[auth:hook] Free plan not seeded — owner has no subscription. Run db:seed.",
+								);
+								return;
+							}
+
+							await db.insert(subscriptions).values({
+								id: generatedId(),
+								userId: user.id,
+								planId: freePlan.id,
+								status: PLAN_STATUS.ACTIVE,
+								billingInterval: BILLING_INTERVAL.MONTHLY,
+								currentPeriodStart: new Date(),
+								// null: the free plan never expires. No billing date needed.
+								currentPeriodEnd: null,
+								expired: false,
+							});
+						} catch (err) {
+							console.error(
+								"[auth:hook] Failed to provision free subscription:",
+								err,
+							);
+						}
+					},
+				},
+			},
+		},
 		plugins: [openAPI()],
 	});
 }
 
 export const auth = createAuth();
+export type Auth = typeof auth;

@@ -21,8 +21,9 @@ import {
 	TenantListItemSchema,
 	UpdateTenantProfileSchema,
 } from "@rently/validators";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray } from "drizzle-orm";
 import z from "zod";
+import { enforceSubscriptionLimit } from "../helpers";
 
 // List tenants for this owner
 export const listTenants = ownerProcedure
@@ -61,32 +62,39 @@ export const listTenants = ownerProcedure
 			.leftJoin(units, eq(leases.unitId, units.id))
 			.leftJoin(properties, eq(units.propertyId, properties.id))
 			// Ownership check: this owner created this tenant
-			.where(eq(tenantProfiles.createdById, authUser.id));
+			.where(eq(tenantProfiles.createdById, authUser.id))
+			.orderBy(desc(leases.startDate));
 
-		const tenants = results.map((row) => ({
-			id: row.tenantId,
-			name: row.name,
-			email: row.email,
-			phone: row.phone,
-			avatarUrl: row.avatarUrl,
-			createdAt: row.createdAt,
-			updatedAt: row.updatedAt,
-			// Derive status from whether an active lease exists
-			status:
-				row.leaseStatus === "active"
-					? ("accepted" as const)
-					: ("pending" as const),
-			// currentLease is null when no active lease — schema already allows .nullable()
-			currentLease: row.leaseId
-				? {
-						id: row.leaseId,
-						propertyName: row.propertyName ?? "",
-						unitNumber: row.unitNumber ?? "",
-						rent: row.rent ?? 0,
-						endDate: row.endDate ? row.endDate.toISOString() : null,
-					}
-				: null,
-		}));
+		const tenantMap = new Map<string, z.infer<typeof TenantListItemSchema>>();
+
+		for (const row of results) {
+			if (!tenantMap.has(row.tenantId)) {
+				tenantMap.set(row.tenantId, {
+					id: row.tenantId,
+					name: row.name,
+					email: row.email,
+					phone: row.phone,
+					avatarUrl: row.avatarUrl,
+					createdAt: row.createdAt,
+					updatedAt: row.updatedAt,
+					status:
+						row.leaseStatus === "active"
+							? ("accepted" as const)
+							: ("pending" as const),
+					currentLease: row.leaseId
+						? {
+								id: row.leaseId,
+								propertyName: row.propertyName ?? "",
+								unitNumber: row.unitNumber ?? "",
+								rent: row.rent ?? 0,
+								endDate: row.endDate ? row.endDate.toISOString() : null,
+							}
+						: null,
+				});
+			}
+		}
+
+		const tenants = Array.from(tenantMap.values());
 
 		return { tenants };
 	});
@@ -205,6 +213,9 @@ export const createTenant = ownerProcedure
 	.output(z.object({ tenantId: z.string() }))
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
+
+		// Reject before any expensive auth calls if over limit
+		await enforceSubscriptionLimit(db, authUser.id);
 
 		// Check does a user with this email already exists
 		const [existingUser] = await db

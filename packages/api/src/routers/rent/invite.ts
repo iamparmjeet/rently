@@ -3,8 +3,13 @@ import { ownerProcedure, publicProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
 import { auth } from "@rently/auth";
 import type { Database } from "@rently/db";
+import { NOTIFICATION_TYPES } from "@rently/db/constants/notification-constants";
 import { user } from "@rently/db/schema/auth";
-import { tenantInvites, tenantProfiles } from "@rently/db/schema/schema";
+import {
+	notifications,
+	tenantInvites,
+	tenantProfiles,
+} from "@rently/db/schema/schema";
 import { generatedId } from "@rently/db/utils/id";
 import { sendInviteEmail } from "@rently/email";
 import {
@@ -231,6 +236,7 @@ export const acceptInvite = publicProcedure
 				status: tenantInvites.status,
 				expiresAt: tenantInvites.expiresAt,
 				emergencyContact: tenantInvites.emergencyContact,
+				invitedById: tenantInvites.invitedById,
 			})
 			.from(tenantInvites)
 			.where(eq(tenantInvites.token, input.token))
@@ -285,6 +291,24 @@ export const acceptInvite = publicProcedure
 				.set({ status: "accepted" })
 				.where(eq(tenantInvites.id, invite.id));
 		});
+
+		try {
+			await db.insert(notifications).values({
+				userId: invite.invitedById,
+				type: NOTIFICATION_TYPES.INVITE_ACCEPTED,
+				title: "Tenant joined",
+				message: `${invite.name} accepted your invite and joined RentWise`,
+				entityId: invite.id,
+				entityType: "invite",
+			});
+		} catch (error) {
+			console.error(
+				"[invite:acceptInvite] failed to insert notification:",
+				error,
+			); // TODO: remove before prod
+			// WHY swallow: same pattern as submitMyReading — notification failure
+			// must not roll back a successful invite acceptance.
+		}
 
 		return {
 			success: true,

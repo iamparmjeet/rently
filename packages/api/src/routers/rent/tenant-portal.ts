@@ -3,6 +3,7 @@
 import { ORPCError } from "@orpc/server";
 import { protectedProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
+import { NOTIFICATION_TYPES } from "@rently/db/constants/notification-constants";
 import {
 	FIXEDCHARGE,
 	RATEPERUNIT,
@@ -10,6 +11,7 @@ import {
 import { user } from "@rently/db/schema/auth";
 import {
 	leases,
+	notifications,
 	payments,
 	properties,
 	tenantProfiles,
@@ -19,7 +21,7 @@ import {
 import { and, desc, eq } from "drizzle-orm";
 import z from "zod";
 
-// ─── 1. Get My Active Lease ────────────────────────────────────────────────────
+//  1. Get My Active Lease
 // WHY: Tenant needs to see their unit/property context in every tab — this is
 //      the "anchor" query. No active lease = no meaningful portal to show.
 export const getMyActiveLease = protectedProcedure
@@ -109,7 +111,7 @@ export const getMyActiveLease = protectedProcedure
 		};
 	});
 
-// ─── 2. Get My Payments ─────────────────────────────────────────────────────────
+//  2. Get My Payments
 // WHY: Tenant can only see payments for their own leases (via leases.tenantId).
 //      The JOIN scoping is the authorization — no explicit ownership check needed.
 export const getMyPayments = protectedProcedure
@@ -159,7 +161,7 @@ export const getMyPayments = protectedProcedure
 		return { payments: results };
 	});
 
-// ─── 3. Get My Utilities ────────────────────────────────────────────────────────
+//  3. Get My Utilities
 // WHY: Powers both the "My Bill" tab (latest per type = current period charges)
 //      and the "Reading" tab (history of meter readings). One query, two uses.
 export const getMyUtilities = protectedProcedure
@@ -216,7 +218,7 @@ export const getMyUtilities = protectedProcedure
 		return { utilities: results };
 	});
 
-// ─── 4. Get My Profile ──────────────────────────────────────────────────────────
+//  4. Get My Profile
 // WHY: Powers the "Profile & Docs" tab. Reads the user row + tenantProfiles row.
 //      verificationStatus drives the doc status badges (pending/verified).
 export const getMyProfile = protectedProcedure
@@ -268,7 +270,7 @@ export const getMyProfile = protectedProcedure
 		return { profile: row };
 	});
 
-// ─── 5. Submit My Reading ───────────────────────────────────────────────────────
+//  5. Submit My Reading
 // WHY: Tenants can submit their own electricity meter reading. This creates a
 //      utility record scoped to their active lease, using the owner's configured
 //      rate (from the last reading). The owner sees it as a new unpaid utility.
@@ -351,6 +353,34 @@ export const submitMyReading = protectedProcedure
 			description: input.notes ?? null,
 			isPaid: false,
 		});
+
+		try {
+			const [leaseInfo] = await db
+				.select({ ownerId: properties.ownerId, unitNumber: units.unitNumber })
+				.from(leases)
+				.innerJoin(units, eq(leases.unitId, units.id))
+				.innerJoin(properties, eq(units.propertyId, properties.id))
+				.where(eq(leases.id, activeLease.id))
+				.limit(1);
+
+			if (leaseInfo) {
+				await db.insert(notifications).values({
+					userId: leaseInfo.ownerId,
+					type: NOTIFICATION_TYPES.METER_READING_SUBMITTED,
+					title: "New meter reading submitted",
+					message: `Your tenant submitted a meter reading for Unit ${leaseInfo.unitNumber}`,
+					entityId: activeLease.id,
+					entityType: "lease",
+				});
+			}
+		} catch (error) {
+			console.error(
+				"[tenant-portal: submitMyReading] failed to submit notification:",
+				error,
+			); // TODO: remove before prod
+			// WHY swallow: a failed notification must never fail the reading submission.
+			// Owner can check manually; tenant's submission is already persisted.
+		}
 
 		return { success: true };
 	});

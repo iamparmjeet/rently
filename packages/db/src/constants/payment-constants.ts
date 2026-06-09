@@ -1,4 +1,4 @@
-export const TENANT_LIMIT = 500;
+export const TENANT_LIMIT = 50;
 
 export const PLAN_STATUS = {
 	TRIAL: "trial",

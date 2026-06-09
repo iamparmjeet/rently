@@ -43,6 +43,13 @@
 			"when": 1780942491976,
 			"tag": "0005_handy_mandroid",
 			"breakpoints": true
+		},
+		{
+			"idx": 6,
+			"version": "7",
+			"when": 1781032204830,
+			"tag": "0006_strange_shaman",
+			"breakpoints": true
 		}
 	]
 }

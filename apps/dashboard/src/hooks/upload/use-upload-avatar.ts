@@ -31,8 +31,7 @@ export function useUploadAvatar() {
 			if (!userId) throw new Error("Not authenticated");
 
 			// Build Key
-			const ext = file.type.split("/")[1];
-			const key = `owners/${userId}/avatar-${Date.now()}.${ext}`;
+			const key = `owners/${userId}/avatar`;
 
 			// Step1 - Get presigned url
 			const { publicUrl, uploadUrl } =
@@ -55,22 +54,33 @@ export function useUploadAvatar() {
 			// Step3 - Persist the public user.image
 
 			await authClient.updateUser({
-				image: publicUrl,
+				image: `${publicUrl}?v=${Date.now()}`,
 			});
 
 			return publicUrl;
+		},
+		onSuccess: (_, __, context) => {
+			toast.success("Photo updated", { id: context.toastId });
+		},
+		onError: (error, _, context) => {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to upload photo",
+				{ id: context?.toastId },
+			);
 		},
 	});
 }
 
 export function useDeleteAvatar() {
 	return useMutation({
+		onMutate: () => {
+			return { toastId: toast.loading("Deleting photo...") };
+		},
 		mutationFn: async () => {
 			await client.upload.deleteAvatar();
 			// WHY after R2 delete: clear the URL from the session profile
 			await authClient.updateUser({ image: null });
 		},
-		onMutate: () => ({ toastId: toast.loading("Removing photo...") }),
 		onSuccess: (_, __, context) => {
 			toast.success("Photo removed", { id: context.toastId });
 		},

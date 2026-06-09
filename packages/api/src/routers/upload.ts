@@ -16,6 +16,18 @@ const r2 = new AwsClient({
 	service: "s3",
 });
 
+// * Helpers
+function buildR2ObjectUrl(key: string): string {
+	return `https://${env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com/${env.R2_BUCKET_NAME}/${key}`;
+}
+
+function extractKeyFromImageUrl(imageUrl: string): string {
+	const baseUrl = env.R2_PUBLIC_URL.replace(/\/$/, "");
+	const urlWithoutQuery = imageUrl.split("?")[0] as string;
+	return urlWithoutQuery.replace(`${baseUrl}/`, "");
+}
+
+// ***** Procedures
 export const getPresignedUploadUrl = ownerProcedure
 	.route({ method: "POST", path: "/upload/presign" })
 	.input(GetPresignedUploadUrlSchema)
@@ -31,42 +43,21 @@ export const getPresignedUploadUrl = ownerProcedure
 			});
 		}
 
-		if (user.image) {
-			const baseUrl = env.R2_PUBLIC_URL.replace(/\/$/, "");
-			const oldKey = user.image.replace(`${baseUrl}/`, "");
-
-			// WHY: only delete if the key belongs to this user.
-			// If somehow a foreign URL is in user.image, skip silently.
-			if (oldKey.startsWith(`owners/${user.id}/`)) {
-				const oldObjectUrl = `https://${env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com/${env.R2_BUCKET_NAME}/${oldKey}`;
-				const deleteRequest = await r2.sign(
-					new Request(oldObjectUrl, { method: "DELETE" }),
-				);
-				// WHY: fire-and-forget is acceptable here — if the old file
-				// lingers, it's a leak, not a correctness issue. Don't block
-				// the presign on cleanup success.
-				await fetch(deleteRequest).catch(() => {
-					// TODO: log cleanup failure to structured logger — not a user-facing error
-				});
-			}
-		}
-
-		const objectUrl = `https://${env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com/${env.R2_BUCKET_NAME}/${input.key}`;
+		// No Cleanup - Client always sends the fixed Key
+		// `owners/${userId}/avatar`. R2 PUT to an existing key overwrites
+		// atomically — no orphan files, no cleanup step needed.
 
 		const signed = await r2.sign(
-			new Request(objectUrl, {
+			new Request(buildR2ObjectUrl(input.key), {
 				method: "PUT",
 				headers: { "Content-Type": input.contentType },
 			}),
 			{
 				aws: { signQuery: true },
-				// WHY 60s: short enough to be useless if intercepted;
-				// long enough for a 5MB upload on a slow connection
-				// expiresIn: 60,
 			},
 		);
 
-		const publicUrl = `${env.R2_PUBLIC_URL}/${input.key}`;
+		const publicUrl = `${env.R2_PUBLIC_URL.replace(/\/$/, "")}/${input.key}`;
 
 		return {
 			uploadUrl: signed.url,
@@ -84,22 +75,23 @@ export const deleteAvatar = ownerProcedure
 			return { success: true };
 		}
 
-		const baseUrl = env.R2_PUBLIC_URL.replace(/\/$/, "");
-		const key = user.image.replace(`${baseUrl}/`, "");
+		const key = extractKeyFromImageUrl(user.image);
 
+		// SECURITY: verify the derived key still belongs to this user.
+		// Protects against any future code path that stores a foreign URL
+		// in user.image.
 		if (!key.startsWith(`owners/${user.id}/`)) {
 			throw new ORPCError("FORBIDDEN", {
 				message: "Cannot delete: image key is not scoped to your account.",
 			});
 		}
 
-		const objectUrl = `https://${env.CLOUDFLARE_ACCOUNT_ID}.r2.cloudflarestorage.com/${env.R2_BUCKET_NAME}/${key}`;
-
 		// WHY we don't throw on R2 failure: if the file is already gone
 		// (e.g. manually deleted from bucket), we still want to clear user.image.
 		const deleteRequest = await r2.sign(
-			new Request(objectUrl, { method: "DELETE" }),
+			new Request(buildR2ObjectUrl(key), { method: "DELETE" }),
 		);
+
 		await fetch(deleteRequest);
 
 		return { success: true };

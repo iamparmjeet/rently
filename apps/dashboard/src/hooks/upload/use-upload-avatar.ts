@@ -24,7 +24,7 @@ export function useUploadAvatar() {
 		mutationFn: async (file: File) => {
 			// Client Side gate - fail fast before any network call
 			if (file.size > MAX_BYTES) {
-				throw new Error("Only JPEG, PNG, and WebP images are allowed");
+				throw new Error("File is too large. Maximum size is 5 MB.");
 			}
 
 			const userId = session?.user?.id;
@@ -59,6 +59,26 @@ export function useUploadAvatar() {
 			});
 
 			return publicUrl;
+		},
+	});
+}
+
+export function useDeleteAvatar() {
+	return useMutation({
+		mutationFn: async () => {
+			await client.upload.deleteAvatar();
+			// WHY after R2 delete: clear the URL from the session profile
+			await authClient.updateUser({ image: null });
+		},
+		onMutate: () => ({ toastId: toast.loading("Removing photo...") }),
+		onSuccess: (_, __, context) => {
+			toast.success("Photo removed", { id: context.toastId });
+		},
+		onError: (error, _, context) => {
+			toast.error(
+				error instanceof Error ? error.message : "Failed to remove photo",
+				{ id: context?.toastId },
+			);
 		},
 	});
 }

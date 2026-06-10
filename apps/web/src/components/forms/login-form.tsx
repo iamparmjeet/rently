@@ -36,10 +36,10 @@ export function LoginForm() {
 					size="lg"
 				>
 					{loadingProvider === "google" ? (
-						<span>
+						<>
 							<IconLoader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
 							Connecting...
-						</span>
+						</>
 					) : (
 						<GoogleButton />
 					)}
@@ -51,10 +51,10 @@ export function LoginForm() {
 					disabled={isLoading}
 				>
 					{loadingProvider === "github" ? (
-						<span>
+						<>
 							<IconLoader2 className="mr-2 h-4 w-4 animate-spin" />{" "}
 							Connecting...
-						</span>
+						</>
 					) : (
 						<GithubButton />
 					)}

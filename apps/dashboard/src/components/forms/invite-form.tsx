@@ -1,7 +1,6 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button } from "@rently/ui/components/button";
 import {
 	Field,
 	FieldError,
@@ -19,17 +18,20 @@ import type { z } from "zod";
 export type InviteFormValues = z.infer<typeof CreateInviteSchema>;
 
 interface InviteFormProps {
+	// WHY formId: FormDialog's footer "Send Invite" button submits the form via
+	// form={formId}. The form must have a matching id={formId} on the <form>
+	// element. Removes the need for an internal submit button.
+	formId: string;
 	defaultValues?: Partial<InviteFormValues>;
 	onSubmit: (values: InviteFormValues) => void;
 	isSubmitting?: boolean;
-	submitLabel?: string;
 }
 
 export function InviteForm({
+	formId,
 	defaultValues,
 	onSubmit,
 	isSubmitting,
-	submitLabel = "Save Tenant",
 }: InviteFormProps) {
 	const {
 		register,
@@ -38,23 +40,24 @@ export function InviteForm({
 	} = useForm<InviteFormValues>({
 		resolver: zodResolver(CreateInviteSchema),
 		defaultValues: {
-			notes: "", // Private Note for owner
+			notes: "",
 			...defaultValues,
 		},
 	});
 
 	return (
-		<form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+		// WHY id={formId}: connects this form to the FormDialog footer button via
+		// the HTML `form` attribute — no prop drilling needed.
+		<form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 			<FieldSet>
 				<FieldLegend>Tenant Details</FieldLegend>
 
 				<FieldGroup className="flex flex-col gap-4">
-					{/* Name */}
 					<Field data-invalid={!!errors.name}>
 						<FieldLabel htmlFor="name">Tenant Name</FieldLabel>
 						<Input
 							id="name"
-							placeholder="e.g. Green Valley Apartments"
+							placeholder="e.g. Rajesh Kumar"
 							disabled={isSubmitting}
 							{...register("name")}
 							aria-invalid={!!errors.name}
@@ -62,13 +65,12 @@ export function InviteForm({
 						<FieldError errors={[errors.name]} />
 					</Field>
 
-					{/* email */}
 					<Field data-invalid={!!errors.email}>
 						<FieldLabel htmlFor="email">Email</FieldLabel>
 						<Input
 							id="email"
 							type="email"
-							placeholder="info@example.com"
+							placeholder="rajesh@example.com"
 							disabled={isSubmitting}
 							{...register("email")}
 							aria-invalid={!!errors.email}
@@ -76,13 +78,12 @@ export function InviteForm({
 						<FieldError errors={[errors.email]} />
 					</Field>
 
-					{/* phone */}
 					<Field data-invalid={!!errors.phone}>
 						<FieldLabel htmlFor="phone">Phone</FieldLabel>
 						<Input
 							id="phone"
 							type="tel"
-							placeholder="1231-123-123"
+							placeholder="98765 43210"
 							disabled={isSubmitting}
 							{...register("phone")}
 							aria-invalid={!!errors.phone}
@@ -90,7 +91,6 @@ export function InviteForm({
 						<FieldError errors={[errors.phone]} />
 					</Field>
 
-					{/* emergencyContact */}
 					<Field data-invalid={!!errors.emergencyContact}>
 						<FieldLabel htmlFor="emergencyContact">
 							Emergency Contact
@@ -98,7 +98,7 @@ export function InviteForm({
 						<Input
 							id="emergencyContact"
 							type="tel"
-							placeholder="1231-123-123"
+							placeholder="98765 00000"
 							disabled={isSubmitting}
 							{...register("emergencyContact")}
 							aria-invalid={!!errors.emergencyContact}
@@ -106,12 +106,11 @@ export function InviteForm({
 						<FieldError errors={[errors.emergencyContact]} />
 					</Field>
 
-					{/* private note for owner */}
 					<Field data-invalid={!!errors.notes}>
-						<FieldLabel htmlFor="notes">Notes</FieldLabel>
+						<FieldLabel htmlFor="notes">Private Notes</FieldLabel>
 						<Textarea
 							id="notes"
-							placeholder="Private Note for Owner"
+							placeholder="Notes visible only to you"
 							disabled={isSubmitting}
 							{...register("notes")}
 							aria-invalid={!!errors.notes}
@@ -120,10 +119,6 @@ export function InviteForm({
 					</Field>
 				</FieldGroup>
 			</FieldSet>
-
-			<Button type="submit" disabled={isSubmitting} className="w-full">
-				{isSubmitting ? "Saving..." : submitLabel}
-			</Button>
 		</form>
 	);
 }

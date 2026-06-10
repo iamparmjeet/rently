@@ -1,4 +1,3 @@
-// apps/web/src/components/features/tenants/tenant-card-actions.tsx
 "use client";
 import { zodResolver } from "@hookform/resolvers/zod";
 import { useSendEmailToTenant } from "@rently/hooks";
@@ -59,7 +58,7 @@ import z from "zod";
 import { useRemoveTenant, useUpdateTenant } from "@/hooks/tenants";
 import { TenantCard } from "./tenant-card";
 
-// ─── Edit form schema ─────────────────────────────────────────────────────────
+//  Edit form schema ***********
 const editTenantFormSchema = z.object({
 	phone: z.string().optional(),
 	address: z.string().optional(),
@@ -71,7 +70,7 @@ const editTenantFormSchema = z.object({
 });
 type EditTenantForm = z.infer<typeof editTenantFormSchema>;
 
-// ─── Email form schema ────────────────────────────────────────────────────────
+//  Email form schema *************
 const sendEmailFormSchema = z.object({
 	subject: z.string().min(1, { error: "Subject is required" }),
 	message: z
@@ -80,7 +79,7 @@ const sendEmailFormSchema = z.object({
 });
 type SendEmailForm = z.infer<typeof sendEmailFormSchema>;
 
-// ─── Props ────────────────────────────────────────────────────────────────────
+// ─── Props ***************
 interface TenantCardActionsProps {
 	tenant: TenantListItem;
 }

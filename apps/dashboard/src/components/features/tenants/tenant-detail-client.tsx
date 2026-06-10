@@ -1,0 +1,391 @@
+"use client";
+
+import { Button } from "@rently/ui/components/button";
+import { formatRupees } from "@rently/ui/lib/currency";
+import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
+import type {
+	PaymentListItem,
+	TenantDetail,
+	UtilityListItem,
+} from "@rently/validators";
+import {
+	IconBrandWhatsapp,
+	IconPencil,
+	IconUserMinus,
+} from "@tabler/icons-react";
+import Link from "next/link";
+import { useRouter, useSearchParams } from "next/navigation";
+import { useMemo, useState } from "react";
+import { useLease } from "@/hooks/leases";
+import { usePayments } from "@/hooks/payments";
+import { useRemoveTenant, useTenant } from "@/hooks/tenants";
+import { useLeaseUtilities } from "@/hooks/utilities";
+import { DocumentsTab } from "./documents-tab";
+import { EditTenantDialog } from "./edit-tenant-dialog";
+import { OverviewTab } from "./overview-tab";
+import { PaymentsTab } from "./payments-tab";
+import { TenantDetailSkeleton } from "./tenant-detail-skelton";
+import { UtilitiesTab } from "./utilities-tab";
+
+// ***** Tab definitions ***************
+const TABS = ["overview", "utilities", "payments", "documents"] as const;
+type TabId = (typeof TABS)[number];
+
+const TAB_LABELS: Record<TabId, string> = {
+	overview: "Overview",
+	utilities: "Utilities",
+	payments: "Payments & Dues",
+	documents: "Documents",
+};
+
+// *********** Stats computation **************
+
+interface TenantStats {
+	monthlyRent: number;
+	thisMonthBill: number;
+	totalPaidYTD: number;
+	overdueAmount: number;
+}
+
+// WHY a pure function, not useMemo: computeStats has no side effects and
+// doesn't need memoization itself — it's just a calculation. The memoization
+// belongs at the *call site* inside the component (where the deps are known),
+// not inside the function. Pure functions are easier to test and reason about.
+function computeStats(
+	tenant: TenantDetail,
+	paymentsData: { payments: PaymentListItem[] } | undefined,
+	utilitiesData: { utilities: UtilityListItem[] } | undefined,
+): TenantStats {
+	const monthlyRent = tenant.currentLease?.rent ?? 0;
+	const leaseId = tenant.currentLease?.id;
+	const now = new Date();
+	const year = now.getFullYear();
+	const month = now.getMonth();
+
+	const leasePayments = (paymentsData?.payments ?? []).filter(
+		(p) => p.leaseId === leaseId,
+	);
+
+	const totalPaidYTD = leasePayments
+		.filter(
+			(p) => p.amount > 0 && new Date(p.paymentDate).getFullYear() === year,
+		)
+		.reduce((sum, p) => sum + p.amount, 0);
+
+	const allUtils = utilitiesData?.utilities ?? [];
+	const thisMonthBill =
+		monthlyRent +
+		allUtils
+			.filter((u) => {
+				const d = new Date(u.currentReadingDate);
+				return d.getMonth() === month && d.getFullYear() === year;
+			})
+			.reduce((sum, u) => sum + u.totalAmount, 0);
+
+	const periodStart = new Date(year, month, 1);
+	const overdueAmount = allUtils
+		.filter((u) => !u.isPaid && new Date(u.currentReadingDate) < periodStart)
+		.reduce((sum, u) => sum + u.totalAmount, 0);
+
+	return { monthlyRent, thisMonthBill, totalPaidYTD, overdueAmount };
+}
+
+// ******** Stat card ***********
+
+function StatCard({
+	label,
+	value,
+	variant = "default",
+}: {
+	label: string;
+	value: string;
+	variant?: "primary" | "default";
+}) {
+	return (
+		<div
+			className={`rounded-xl p-5 ${
+				variant === "primary"
+					? "bg-primary text-primary-foreground"
+					: "border bg-card"
+			}`}
+		>
+			<p
+				className={`text-xs ${variant === "primary" ? "text-primary-foreground/70" : "text-muted-foreground"}`}
+			>
+				{label}
+			</p>
+			<p className="mt-1 font-bold text-2xl tracking-tight">{value}</p>
+		</div>
+	);
+}
+
+// ***** Tab nav ************
+
+function TabNav({
+	activeTab,
+	onTabChange,
+}: {
+	activeTab: TabId;
+	onTabChange: (tab: TabId) => void;
+}) {
+	return (
+		<div className="flex border-b">
+			{TABS.map((tab) => (
+				<button
+					key={tab}
+					type="button"
+					onClick={() => onTabChange(tab)}
+					className={`px-4 py-3 font-medium text-sm transition-colors ${
+						activeTab === tab
+							? "border-primary border-b-2 text-primary"
+							: "text-muted-foreground hover:text-foreground"
+					}`}
+				>
+					{TAB_LABELS[tab]}
+				</button>
+			))}
+		</div>
+	);
+}
+
+//  Main component ****************
+
+export default function TenantDetailClient({ id }: { id: string }) {
+	const router = useRouter();
+	const searchParams = useSearchParams();
+	const [editOpen, setEditOpen] = useState(false);
+
+	//  Parse + validate tab from URL search param
+	// WHY validate: users can type any value in the URL — guard against it here
+	// rather than letting every tab component handle bad input.
+	const rawTab = searchParams.get("tab") ?? "overview";
+	const activeTab: TabId = (TABS as readonly string[]).includes(rawTab)
+		? (rawTab as TabId)
+		: "overview";
+
+	function setTab(tab: TabId) {
+		// WHY replace not push: tab switches are not navigation history — pressing
+		// back should go to /tenants, not cycle through previous tabs.
+		router.replace(`/tenants/${id}?tab=${tab}`, { scroll: false });
+	}
+
+	//  Data fetching ─ ***********
+	const { data, isLoading, isError, error } = useTenant(id);
+	const tenant = data?.tenant;
+
+	// WHY leaseId default "": useLeaseUtilities has `enabled: !!leaseId`,
+	// so an empty string safely disables the fetch until tenant data loads.
+	const leaseId = tenant?.currentLease?.id ?? "";
+
+	// Secondary fetch: full lease details (startDate, deposit) not in TenantDetailSchema.
+	// Only fires when leaseId is known. Typically already warm from the leases page cache.
+	const { data: leaseData } = useLease(leaseId);
+
+	// Utilities for this specific lease
+	const { data: utilitiesData } = useLeaseUtilities(leaseId);
+
+	// All owner payments — we filter by leaseId client-side (see computeStats + PaymentsTab)
+	const { data: paymentsData } = usePayments();
+
+	// Derived: only payments for this tenant's lease
+	const leasePayments = useMemo(
+		() => (paymentsData?.payments ?? []).filter((p) => p.leaseId === leaseId),
+		[paymentsData?.payments, leaseId],
+	);
+
+	// Computed stats
+	const stats = useMemo(
+		() =>
+			tenant
+				? computeStats(tenant, paymentsData, utilitiesData)
+				: {
+						monthlyRent: 0,
+						thisMonthBill: 0,
+						totalPaidYTD: 0,
+						overdueAmount: 0,
+					},
+		[tenant, paymentsData, utilitiesData],
+	);
+
+	const removeTenant = useRemoveTenant();
+
+	// ── Loading / error states **********
+	if (isLoading) return <TenantDetailSkeleton />;
+	if (isError || !tenant) {
+		return (
+			<div className="col-span-12 flex flex-col items-center justify-center py-20 text-center">
+				<p className="text-muted-foreground">
+					{isError ? error.message : "Tenant not found."}
+				</p>
+				<Button
+					variant="outline"
+					className="mt-4"
+					nativeButton={false}
+					render={<Link href="/tenants" />}
+				>
+					Back to Tenants
+				</Button>
+			</div>
+		);
+	}
+
+	//  Initials for avatar **********
+	const initials = tenant.name
+		.split(" ")
+		.slice(0, 2)
+		.map((w) => w[0] ?? "")
+		.join("")
+		.toUpperCase();
+
+	//  WhatsApp link **************
+	const waPhone = tenant.phone?.replace(/\D/g, "");
+
+	function handleRemove() {
+		removeTenant.mutate(
+			{ tenantId: id },
+			{ onSuccess: () => router.push("/tenants") },
+		);
+	}
+
+	return (
+		<div className="col-span-12 space-y-6">
+			{/* ── Breadcrumb ************ */}
+			<nav className="flex items-center gap-1.5 text-sm">
+				<Link href="/tenants" className="text-primary hover:underline">
+					Tenants
+				</Link>
+				<span className="text-muted-foreground">/</span>
+				<span className="text-muted-foreground">{tenant.name}</span>
+			</nav>
+
+			{/* ── Hero header *********** */}
+			<div className="flex items-center gap-4 rounded-xl border bg-card p-5">
+				{/* Avatar */}
+				<div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-muted font-semibold text-lg text-muted-foreground">
+					{initials}
+				</div>
+
+				{/* Identity */}
+				<div className="min-w-0 flex-1">
+					<div className="flex flex-wrap items-center gap-2">
+						<h1 className="font-semibold text-xl">{tenant.name}</h1>
+						<span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700 text-xs dark:bg-emerald-950 dark:text-emerald-400">
+							<span className="size-1.5 rounded-full bg-current" />
+							Active
+						</span>
+					</div>
+					{tenant.currentLease && (
+						<p className="mt-0.5 text-muted-foreground text-sm">
+							{tenant.currentLease.propertyName} · Unit{" "}
+							{tenant.currentLease.unitNumber} ·{" "}
+							{formatRupees(tenant.currentLease.rent)}/mo
+						</p>
+					)}
+				</div>
+
+				{/* Actions */}
+				<div className="flex shrink-0 items-center gap-2">
+					{waPhone && (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() => window.open(`https://wa.me/${waPhone}`, "_blank")}
+						>
+							<IconBrandWhatsapp className="mr-1.5 size-4 text-emerald-600" />
+							WhatsApp
+						</Button>
+					)}
+					<Button size="sm" onClick={() => setEditOpen(true)}>
+						<IconPencil className="mr-1.5 size-4" />
+						Edit Tenant
+					</Button>
+				</div>
+			</div>
+
+			{/* ── Stats row ********** */}
+			<div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+				<StatCard
+					label="Monthly Rent"
+					value={formatRupees(stats.monthlyRent)}
+					variant="primary"
+				/>
+				<StatCard
+					label="This Month Bill"
+					value={formatRupees(stats.thisMonthBill)}
+				/>
+				<StatCard
+					label="Total Paid (YTD)"
+					value={formatRupees(stats.totalPaidYTD)}
+				/>
+				<StatCard
+					label="Overdue Amount"
+					value={formatRupees(stats.overdueAmount)}
+				/>
+			</div>
+
+			{/* ── Tab navigation ************* */}
+			<div className="rounded-xl border bg-card">
+				<TabNav activeTab={activeTab} onTabChange={setTab} />
+
+				<div className="p-6">
+					{activeTab === "overview" && (
+						<OverviewTab tenant={tenant} lease={leaseData?.lease} />
+					)}
+					{activeTab === "utilities" && (
+						<UtilitiesTab
+							tenant={tenant}
+							utilities={utilitiesData?.utilities ?? []}
+							leaseId={leaseId}
+						/>
+					)}
+					{activeTab === "payments" && (
+						<PaymentsTab
+							tenant={tenant}
+							payments={leasePayments}
+							stats={stats}
+						/>
+					)}
+					{activeTab === "documents" && <DocumentsTab tenant={tenant} />}
+				</div>
+			</div>
+
+			{/* ── Danger zone ************ */}
+			<div className="rounded-xl border border-destructive/30 bg-card p-5">
+				<div className="flex items-center justify-between">
+					<div>
+						<p className="font-medium text-sm">Remove Tenant</p>
+						<p className="mt-0.5 text-muted-foreground text-xs">
+							Terminates all active leases. The tenant's account is not deleted.
+						</p>
+					</div>
+					<ConfirmDialog
+						title="Remove Tenant"
+						description={`Remove ${tenant.name}? All active leases will be terminated and units freed.`}
+						confirmLabel="Remove Tenant"
+						destructive
+						onConfirm={handleRemove}
+						isLoading={removeTenant.isPending}
+						trigger={
+							<Button
+								variant="destructive"
+								size="sm"
+								disabled={removeTenant.isPending}
+							>
+								<IconUserMinus className="mr-1.5 size-4" />
+								Remove
+							</Button>
+						}
+					/>
+				</div>
+			</div>
+
+			{/* ── Edit dialog ************ */}
+			<EditTenantDialog
+				open={editOpen}
+				onOpenChange={setEditOpen}
+				tenant={tenant}
+				lease={leaseData?.lease}
+			/>
+		</div>
+	);
+}

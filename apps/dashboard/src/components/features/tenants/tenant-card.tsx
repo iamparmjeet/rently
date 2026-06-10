@@ -1,4 +1,3 @@
-// apps/web/src/components/features/tenants/tenant-card.tsx
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
 import { Card, CardContent, CardHeader } from "@rently/ui/components/card";

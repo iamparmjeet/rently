@@ -1,4 +1,5 @@
 import { betterFetch } from "@better-fetch/fetch";
+import { hasSessionCookie } from "@rently/auth/cookies";
 import { USER_ROLES } from "@rently/db/constants/user-roles";
 import { env } from "@rently/env/web";
 import { evlogMiddleware } from "evlog/next";
@@ -30,10 +31,7 @@ export default async function proxy(request: NextRequest) {
 	if (!isProtectedRoute) return NextResponse.next();
 
 	// Fast-path: no cookie → redirect to web login immediately.
-	const sessionCookie = request.cookies.get("rently.session_token");
-	const hasSession = !!sessionCookie?.value;
-
-	if (!hasSession) {
+	if (!hasSessionCookie(request)) {
 		return NextResponse.redirect(getWebLoginUrl(request));
 	}
 

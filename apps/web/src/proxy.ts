@@ -1,4 +1,5 @@
 import { betterFetch } from "@better-fetch/fetch";
+import { hasSessionCookie } from "@rently/auth/cookies";
 import { USER_ROLES } from "@rently/db/constants/user-roles";
 import { env } from "@rently/env/web";
 import { evlogMiddleware } from "evlog/next";
@@ -22,9 +23,7 @@ export default async function proxy(request: NextRequest) {
 	if (!isAuthRoute) return NextResponse.next();
 
 	// Fast-path: no cookie → unauthenticated user on login/register → let them through.
-	const sessionCookie = request.cookies.get("rently.session_token");
-	if (!sessionCookie?.value) return NextResponse.next();
-
+	if (!hasSessionCookie(request)) return NextResponse.next();
 	// Cookie exists — verify with the server and redirect based on role.
 	// WHY: We must server-verify here because:
 	//   1. The cookie might be stale (expired session) → show the page, don't redirect

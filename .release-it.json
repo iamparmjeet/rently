@@ -1,0 +1,48 @@
+{
+	"git": {
+		"commitMessage": "chore(release): v${version}",
+		"tagName": "v${version}",
+		"tagAnnotation": "RentWise v${version}",
+		"requireCleanWorkingDir": true,
+		"requireUpstream": true
+	},
+	"github": {
+		"release": true,
+		"releaseName": "RentWise v${version}",
+		"preRelease": true
+	},
+	"npm": {
+		"publish": false
+	},
+	"plugins": {
+		"@release-it/conventional-changelog": {
+			"preset": {
+				"name": "conventionalcommits",
+				"types": [
+					{
+						"type": "feat",
+						"section": "✨ Features"
+					},
+					{
+						"type": "fix",
+						"section": "🐛 Bug Fixes"
+					},
+					{
+						"type": "refactor",
+						"section": "♻️ Refactoring"
+					},
+					{
+						"type": "chore",
+						"section": "🔧 Maintenance"
+					},
+					{
+						"type": "build",
+						"section": "🏗️ Build"
+					}
+				]
+			},
+			"infile": "CHANGELOG.md",
+			"header": "# RentWise Changelog\n\n"
+		}
+	}
+}

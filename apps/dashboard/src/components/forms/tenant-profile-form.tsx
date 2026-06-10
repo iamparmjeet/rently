@@ -1,8 +1,7 @@
-// apps/web/src/components/forms/tenant-profile-form.tsx
+// apps/dashboard/src/components/forms/tenant-profile-form.tsx
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
-import { Button } from "@rently/ui/components/button";
 import {
 	Field,
 	FieldError,
@@ -15,28 +14,43 @@ import { Input } from "@rently/ui/components/input";
 import { UpdateTenantProfileSchema } from "@rently/validators";
 import { IconLock } from "@tabler/icons-react";
 import { useForm } from "react-hook-form";
-import type { z } from "zod";
+import z from "zod";
 
-// The form values are exactly UpdateTenantProfileSchema
-// We don't add name/email here — those are Better Auth identity fields
-// and changing them requires a separate secure flow (future scope)
-export type TenantProfileFormValues = z.infer<typeof UpdateTenantProfileSchema>;
+// WHY: We extend the base profile schema locally to include Better Auth
+// user fields (name, email). These are NOT part of UpdateTenantProfileSchema
+// because they live in the `user` table (owned by Better Auth), not
+// `tenantProfiles`. The parent component is responsible for splitting
+// onSubmit into two mutations:
+//   1. profile fields (phone, address, emergency contact) → updateTenant procedure
+//   2. name/email → auth.api.updateUser (Better Auth admin call)
+// The form is "dumb" — it validates and returns all values, stays unaware
+// of the two-mutation split.
+const TenantProfileFormSchema = UpdateTenantProfileSchema.extend({
+	name: z.string().min(1, { error: "Name is required" }),
+	email: z.email("Invalid email"),
+});
 
+export type TenantProfileFormValues = z.infer<typeof TenantProfileFormSchema>;
+
+// BREAKING CHANGE from previous version:
+// `tenantName` and `tenantEmail` props are removed. They now come in
+// via `defaultValues.name` and `defaultValues.email` since they're
+// editable form fields, not display-only values.
 interface TenantProfileFormProps {
+	formId: string;
 	defaultValues?: Partial<TenantProfileFormValues>;
-	// Read-only identity fields shown for context (from user table)
-	tenantName: string;
-	tenantEmail: string;
-	// Locked KYC fields — shown as read-only with badge
+	// Pass undefined to hide KYC section entirely.
+	// Pass null to show it with "Not set" state.
 	uidNumber?: string | null;
 	panNumber?: string | null;
 	onSubmit: (values: TenantProfileFormValues) => void;
 	isSubmitting?: boolean;
-	submitLabel?: string;
 }
 
-// A small display-only field with a "locked" visual indicator
-function LockedInfoField({
+// KYC-only locked field — requires document update request workflow.
+// Kept separate from editable Better Auth fields on purpose: different
+// unlock mechanism, different visual language.
+function LockedField({
 	label,
 	value,
 	note,
@@ -64,22 +78,22 @@ function LockedInfoField({
 }
 
 export function TenantProfileForm({
+	formId,
 	defaultValues,
-	tenantName,
-	tenantEmail,
 	uidNumber,
 	panNumber,
 	onSubmit,
 	isSubmitting,
-	submitLabel = "Save Changes",
 }: TenantProfileFormProps) {
 	const {
 		register,
 		handleSubmit,
 		formState: { errors },
 	} = useForm<TenantProfileFormValues>({
-		resolver: zodResolver(UpdateTenantProfileSchema),
+		resolver: zodResolver(TenantProfileFormSchema),
 		defaultValues: {
+			name: defaultValues?.name ?? "",
+			email: defaultValues?.email ?? "",
 			phone: defaultValues?.phone ?? undefined,
 			address: defaultValues?.address ?? undefined,
 			emergencyContact: defaultValues?.emergencyContact ?? undefined,
@@ -90,28 +104,41 @@ export function TenantProfileForm({
 	});
 
 	return (
-		<form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
-			{/* ── Identity (read-only) ────────────────────────────────── */}
+		<form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+			{/*  Identity (Better Auth user table — editable)  */}
 			<FieldSet>
-				<FieldLegend>Identity</FieldLegend>
-				<FieldGroup className="flex flex-col gap-4">
-					<LockedInfoField
-						label="Full Name"
-						value={tenantName}
-						note="Set by Better Auth"
-					/>
-					<LockedInfoField
-						label="Email"
-						value={tenantEmail}
-						note="Set by Better Auth"
-					/>
+				<FieldLegend className="flex items-center gap-2">Identity</FieldLegend>
+				<FieldGroup className="grid grid-cols-2 gap-4">
+					<Field data-invalid={!!errors.name}>
+						<FieldLabel htmlFor="name">Full Name</FieldLabel>
+						<Input
+							id="name"
+							placeholder="Ravi Kumar"
+							disabled={isSubmitting}
+							{...register("name")}
+						/>
+						<FieldError errors={[errors.name]} />
+					</Field>
+
+					<Field data-invalid={!!errors.email}>
+						<FieldLabel htmlFor="email">Email</FieldLabel>
+						<Input
+							id="email"
+							type="email"
+							placeholder="ravi@example.com"
+							disabled={isSubmitting}
+							{...register("email")}
+						/>
+						<FieldError errors={[errors.email]} />
+					</Field>
 				</FieldGroup>
 			</FieldSet>
 
-			{/* ── Contact Info (editable) ─────────────────────────────── */}
+			{/*  Contact Information  */}
 			<FieldSet>
 				<FieldLegend>Contact Information</FieldLegend>
-				<FieldGroup className="flex flex-col gap-4">
+
+				<FieldGroup className="grid grid-cols-2 gap-4">
 					<Field data-invalid={!!errors.phone}>
 						<FieldLabel htmlFor="phone">Phone</FieldLabel>
 						<Input
@@ -124,7 +151,7 @@ export function TenantProfileForm({
 						<FieldError errors={[errors.phone]} />
 					</Field>
 
-					<Field data-invalid={!!errors.address}>
+					<Field data-invalid={!!errors.address} className="col-span-2">
 						<FieldLabel htmlFor="address">Address</FieldLabel>
 						<Input
 							id="address"
@@ -137,10 +164,10 @@ export function TenantProfileForm({
 				</FieldGroup>
 			</FieldSet>
 
-			{/* ── Emergency Contact (editable) ────────────────────────── */}
+			{/*  Emergency Contact  */}
 			<FieldSet>
 				<FieldLegend>Emergency Contact</FieldLegend>
-				<FieldGroup className="flex flex-col gap-4">
+				<FieldGroup className="grid grid-cols-2 gap-4">
 					<Field data-invalid={!!errors.emergencyContactName}>
 						<FieldLabel htmlFor="emergencyContactName">Contact Name</FieldLabel>
 						<Input
@@ -164,7 +191,10 @@ export function TenantProfileForm({
 						<FieldError errors={[errors.emergencyContact]} />
 					</Field>
 
-					<Field data-invalid={!!errors.emergencyContactLocation}>
+					<Field
+						data-invalid={!!errors.emergencyContactLocation}
+						className="col-span-2"
+					>
 						<FieldLabel htmlFor="emergencyContactLocation">
 							Contact Location
 						</FieldLabel>
@@ -179,7 +209,7 @@ export function TenantProfileForm({
 				</FieldGroup>
 			</FieldSet>
 
-			{/* ── KYC Documents (locked — document request flow) ─────── */}
+			{/* ── KYC Documents (still locked — document request workflow) ── */}
 			{(uidNumber !== undefined || panNumber !== undefined) && (
 				<FieldSet>
 					<FieldLegend>KYC Documents</FieldLegend>
@@ -187,16 +217,16 @@ export function TenantProfileForm({
 						To change these fields, raise a document update request from the
 						tenant detail page.
 					</p>
-					<FieldGroup className="flex flex-col gap-4">
+					<FieldGroup className="grid grid-cols-2 gap-4">
 						{uidNumber !== undefined && (
-							<LockedInfoField
+							<LockedField
 								label="Aadhaar / UID Number"
 								value={uidNumber ?? ""}
 								note="Requires document request"
 							/>
 						)}
 						{panNumber !== undefined && (
-							<LockedInfoField
+							<LockedField
 								label="PAN Number"
 								value={panNumber ?? ""}
 								note="Requires document request"
@@ -205,10 +235,6 @@ export function TenantProfileForm({
 					</FieldGroup>
 				</FieldSet>
 			)}
-
-			<Button type="submit" disabled={isSubmitting} className="w-full">
-				{isSubmitting ? "Saving..." : submitLabel}
-			</Button>
 		</form>
 	);
 }

@@ -1,3 +1,4 @@
+// apps/dashboard/src/components/forms/tenant-create-form.tsx
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -17,42 +18,42 @@ import type { z } from "zod";
 
 export type TenantCreateFormValues = z.infer<typeof CreateTenantSchema>;
 
-interface InviteFormProps {
+interface TenantCreateFormProps {
 	defaultValues?: Partial<TenantCreateFormValues>;
 	onSubmit: (values: TenantCreateFormValues) => void;
 	isSubmitting?: boolean;
 	submitLabel?: string;
+	formId: string;
 }
 
 export function TenantCreateForm({
 	defaultValues,
 	onSubmit,
 	isSubmitting,
+	formId,
 	submitLabel = "Save Tenant",
-}: InviteFormProps) {
+}: TenantCreateFormProps) {
 	const {
 		register,
 		handleSubmit,
 		formState: { errors },
 	} = useForm<TenantCreateFormValues>({
 		resolver: zodResolver(CreateTenantSchema),
-		defaultValues: {
-			...defaultValues,
-		},
+		defaultValues: { ...defaultValues },
 	});
 
 	return (
-		<form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+		<form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-6">
 			<FieldSet>
 				<FieldLegend>Tenant Details</FieldLegend>
 
 				<FieldGroup className="flex flex-col gap-4">
-					{/* Name */}
+					{/* Full width — primary identifier */}
 					<Field data-invalid={!!errors.name}>
-						<FieldLabel htmlFor="name">Tenant Name</FieldLabel>
+						<FieldLabel htmlFor="name">Full Name</FieldLabel>
 						<Input
 							id="name"
-							placeholder="e.g. Green Valley Apartments"
+							placeholder="e.g. Rajesh Kumar"
 							disabled={isSubmitting}
 							{...register("name")}
 							aria-invalid={!!errors.name}
@@ -60,27 +61,41 @@ export function TenantCreateForm({
 						<FieldError errors={[errors.name]} />
 					</Field>
 
-					{/* email */}
-					<Field data-invalid={!!errors.email}>
-						<FieldLabel htmlFor="email">Email</FieldLabel>
-						<Input
-							id="email"
-							type="email"
-							placeholder="info@example.com"
-							disabled={isSubmitting}
-							{...register("email")}
-							aria-invalid={!!errors.email}
-						/>
-						<FieldError errors={[errors.email]} />
-					</Field>
+					{/* Row: contact methods */}
+					<div className="grid grid-cols-2 gap-4">
+						<Field data-invalid={!!errors.email}>
+							<FieldLabel htmlFor="email">Email</FieldLabel>
+							<Input
+								id="email"
+								type="email"
+								placeholder="rajesh@example.com"
+								disabled={isSubmitting}
+								{...register("email")}
+								aria-invalid={!!errors.email}
+							/>
+							<FieldError errors={[errors.email]} />
+						</Field>
 
-					{/* Address */}
+						<Field data-invalid={!!errors.phone}>
+							<FieldLabel htmlFor="phone">Phone</FieldLabel>
+							<Input
+								id="phone"
+								type="tel"
+								placeholder="98765 43210"
+								disabled={isSubmitting}
+								{...register("phone")}
+								aria-invalid={!!errors.phone}
+							/>
+							<FieldError errors={[errors.phone]} />
+						</Field>
+					</div>
+
+					{/* Full width — needs room for full address */}
 					<Field data-invalid={!!errors.address}>
 						<FieldLabel htmlFor="address">Address</FieldLabel>
 						<Input
 							id="address"
-							type="text"
-							placeholder="221B - Baker Street"
+							placeholder="221B Baker Street"
 							disabled={isSubmitting}
 							{...register("address")}
 							aria-invalid={!!errors.address}
@@ -88,61 +103,46 @@ export function TenantCreateForm({
 						<FieldError errors={[errors.address]} />
 					</Field>
 
-					{/* phone */}
-					<Field data-invalid={!!errors.phone}>
-						<FieldLabel htmlFor="phone">Phone</FieldLabel>
-						<Input
-							id="phone"
-							type="tel"
-							placeholder="1231-123-123"
-							disabled={isSubmitting}
-							{...register("phone")}
-							aria-invalid={!!errors.phone}
-						/>
-						<FieldError errors={[errors.phone]} />
-					</Field>
+					{/* Row: emergency contact name + phone */}
+					<div className="grid grid-cols-2 gap-4">
+						<Field data-invalid={!!errors.emergencyContactName}>
+							<FieldLabel htmlFor="emergencyContactName">
+								Emergency Contact Name
+							</FieldLabel>
+							<Input
+								id="emergencyContactName"
+								placeholder="e.g. Suresh Kumar"
+								disabled={isSubmitting}
+								{...register("emergencyContactName")}
+								aria-invalid={!!errors.emergencyContactName}
+							/>
+							<FieldError errors={[errors.emergencyContactName]} />
+						</Field>
 
-					{/* emergencyContactName */}
-					<Field data-invalid={!!errors.emergencyContactName}>
-						<FieldLabel htmlFor="emergencyContactName">
-							Emergency Contact Name
-						</FieldLabel>
-						<Input
-							id="emergencyContactName"
-							type="text"
-							placeholder="Mr Ajay is buddy"
-							disabled={isSubmitting}
-							{...register("emergencyContactName")}
-							aria-invalid={!!errors.emergencyContactName}
-						/>
-						<FieldError errors={[errors.emergencyContactName]} />
-					</Field>
+						<Field data-invalid={!!errors.emergencyContact}>
+							<FieldLabel htmlFor="emergencyContact">
+								Emergency Contact Phone
+							</FieldLabel>
+							<Input
+								id="emergencyContact"
+								type="tel"
+								placeholder="98765 00000"
+								disabled={isSubmitting}
+								{...register("emergencyContact")}
+								aria-invalid={!!errors.emergencyContact}
+							/>
+							<FieldError errors={[errors.emergencyContact]} />
+						</Field>
+					</div>
 
-					{/* emergencyContact */}
-					<Field data-invalid={!!errors.emergencyContact}>
-						<FieldLabel htmlFor="emergencyContact">
-							Emergency Contact
-						</FieldLabel>
-						<Input
-							id="emergencyContact"
-							type="tel"
-							placeholder="1231-123-123"
-							disabled={isSubmitting}
-							{...register("emergencyContact")}
-							aria-invalid={!!errors.emergencyContact}
-						/>
-						<FieldError errors={[errors.emergencyContact]} />
-					</Field>
-
-					{/* emergencyContactLocation */}
+					{/* Full width — free-form location/relation text */}
 					<Field data-invalid={!!errors.emergencyContactLocation}>
 						<FieldLabel htmlFor="emergencyContactLocation">
 							Emergency Contact Location
 						</FieldLabel>
 						<Input
 							id="emergencyContactLocation"
-							type="text"
-							placeholder="Location and Relation with emergency contact"
+							placeholder="Relation and address"
 							disabled={isSubmitting}
 							{...register("emergencyContactLocation")}
 							aria-invalid={!!errors.emergencyContactLocation}
@@ -150,33 +150,32 @@ export function TenantCreateForm({
 						<FieldError errors={[errors.emergencyContactLocation]} />
 					</Field>
 
-					{/* panNumber */}
-					<Field data-invalid={!!errors.panNumber}>
-						<FieldLabel htmlFor="panNumber">PAN Number</FieldLabel>
-						<Input
-							id="panNumber"
-							type="text"
-							placeholder="PAN Number"
-							disabled={isSubmitting}
-							{...register("panNumber")}
-							aria-invalid={!!errors.panNumber}
-						/>
-						<FieldError errors={[errors.panNumber]} />
-					</Field>
+					{/* Row: identity documents */}
+					<div className="grid grid-cols-2 gap-4">
+						<Field data-invalid={!!errors.panNumber}>
+							<FieldLabel htmlFor="panNumber">PAN Number</FieldLabel>
+							<Input
+								id="panNumber"
+								placeholder="ABCDE1234F"
+								disabled={isSubmitting}
+								{...register("panNumber")}
+								aria-invalid={!!errors.panNumber}
+							/>
+							<FieldError errors={[errors.panNumber]} />
+						</Field>
 
-					{/* uid */}
-					<Field data-invalid={!!errors.uidNumber}>
-						<FieldLabel htmlFor="uidNumber">UID/Aadhar Number</FieldLabel>
-						<Input
-							id="uidNumber"
-							type="text"
-							placeholder="UID / Aadhar Number"
-							disabled={isSubmitting}
-							{...register("uidNumber")}
-							aria-invalid={!!errors.uidNumber}
-						/>
-						<FieldError errors={[errors.uidNumber]} />
-					</Field>
+						<Field data-invalid={!!errors.uidNumber}>
+							<FieldLabel htmlFor="uidNumber">UID / Aadhar Number</FieldLabel>
+							<Input
+								id="uidNumber"
+								placeholder="1234 5678 9012"
+								disabled={isSubmitting}
+								{...register("uidNumber")}
+								aria-invalid={!!errors.uidNumber}
+							/>
+							<FieldError errors={[errors.uidNumber]} />
+						</Field>
+					</div>
 				</FieldGroup>
 			</FieldSet>
 

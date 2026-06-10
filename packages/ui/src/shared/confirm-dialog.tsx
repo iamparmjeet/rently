@@ -17,7 +17,7 @@ interface ConfirmDialogProps {
 	// The button/element that opens the dialog
 	open?: boolean;
 	onOpenChange?: (open: boolean) => void;
-	trigger?: React.ReactNode;
+	trigger?: React.ReactElement;
 	title: string;
 	description: string;
 	confirmLabel?: string;
@@ -42,7 +42,7 @@ export function ConfirmDialog({
 }: ConfirmDialogProps) {
 	return (
 		<AlertDialog open={open} onOpenChange={onOpenChange}>
-			{trigger && <AlertDialogTrigger>{trigger}</AlertDialogTrigger>}
+			{trigger && <AlertDialogTrigger render={trigger} />}
 
 			<AlertDialogContent>
 				<AlertDialogHeader>

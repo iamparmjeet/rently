@@ -1,10 +1,10 @@
 import "@rently/env/web";
 import type { NextConfig } from "next";
 
-const allowedDashboardOrigins = [
-	"https://dashboard-rentwise.parmjeetmishra.com",
-	"https://tenant-rentwise.parmjeetmishra.com",
-];
+// const allowedDashboardOrigins = [
+// 	"https://dashboard-rentwise.parmjeetmishra.com",
+// 	"https://tenant-rentwise.parmjeetmishra.com",
+// ];
 
 const nextConfig: NextConfig = {
 	typedRoutes: true,

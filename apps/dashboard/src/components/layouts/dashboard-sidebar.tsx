@@ -4,7 +4,6 @@ import { Separator } from "@rently/ui/components/separator";
 import {
 	Sidebar,
 	SidebarContent,
-	SidebarFooter,
 	SidebarGroup,
 	SidebarGroupContent,
 	SidebarGroupLabel,
@@ -106,15 +105,6 @@ export function DashbaordSidebar() {
 					</SidebarGroupContent>
 				</SidebarGroup>
 			</SidebarContent>
-
-			<SidebarFooter className="p-3">
-				<div className="rounded-md border bg-muted/50 p-3">
-					<p className="text-muted-foreground text-xs">Need help?</p>
-					<p className="mt-1 font-medium text-foreground text-sm">
-						Check documentation
-					</p>
-				</div>
-			</SidebarFooter>
 
 			<SidebarRail />
 		</Sidebar>

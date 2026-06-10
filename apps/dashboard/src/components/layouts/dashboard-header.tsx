@@ -10,15 +10,15 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@rently/ui/components/dropdown-menu";
-import { Sheet, SheetContent, SheetTrigger } from "@rently/ui/components/sheet";
-import { SidebarTrigger, useSidebar } from "@rently/ui/components/sidebar";
+
+import { SidebarTrigger } from "@rently/ui/components/sidebar";
 import { IconLogout, IconSearch } from "@tabler/icons-react";
 import Image from "next/image";
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useLogout } from "@/hooks/auth";
 import { useSession } from "@/lib/auth-client";
-import { DashbaordSidebar } from "./dashboard-sidebar";
+
 import { NotificationButton } from "./notification-button";
 
 export default function DashboardHeader() {
@@ -26,7 +26,6 @@ export default function DashboardHeader() {
 		<header className="flex h-20 items-center justify-between border-b bg-background px-6 backdrop-blur-xl">
 			{/* Mobile Menu Trigger */}
 			<div className="flex items-center gap-4">
-				<MobileMenuTrigger />
 				<SidebarTrigger size="lg" className="-ml-2" />
 				{/* Desktop Search */}
 				<div className="group relative hidden lg:block">
@@ -50,27 +49,6 @@ export default function DashboardHeader() {
 				<UserButton />
 			</div>
 		</header>
-	);
-}
-
-function MobileMenuTrigger() {
-	const { isMobile } = useSidebar();
-
-	if (!isMobile) return null;
-
-	return (
-		<Sheet>
-			<SheetTrigger
-				render={
-					<Button variant="outline" size="icon" className="h-12 w-12">
-						<IconSearch className="h-5 w-5 text-muted-foreground" />
-					</Button>
-				}
-			/>
-			<SheetContent side="left" className="w-72 p-0">
-				<DashbaordSidebar />
-			</SheetContent>
-		</Sheet>
 	);
 }
 

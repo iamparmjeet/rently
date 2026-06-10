@@ -29,12 +29,9 @@ const allowedOrigins = env.CORS_ORIGINS;
 
 const app = new Hono<EvlogVariables>();
 
-app.use(evlog());
-app.use("*", async (c, next) => {
-	await identifyUser(c.get("log"), c.req.raw.headers, c.req.path);
-	await next();
-});
-
+// WHY: CORS must be the outermost middleware — even error responses from
+// logging/auth middleware below must carry ACAO headers, otherwise real
+// server errors show up in the browser as misleading CORS errors
 app.use(
 	"/*",
 	cors({
@@ -44,6 +41,15 @@ app.use(
 		credentials: true,
 	}),
 );
+
+// TODO: remove before next release — debug only
+app.get("/debug-cors", (c) => c.json({ origins: allowedOrigins }));
+
+app.use(evlog());
+app.use("*", async (c, next) => {
+	await identifyUser(c.get("log"), c.req.raw.headers, c.req.path);
+	await next();
+});
 
 app.on(["POST", "GET"], "/api/auth/*", (c) => auth.handler(c.req.raw));
 

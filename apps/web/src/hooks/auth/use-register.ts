@@ -18,7 +18,7 @@ export const useRegister = () => {
 				password: data.password,
 				name: data.name,
 				phone: data.phone,
-				callbackURL: `${env.NEXT_PUBLIC_APP_URL}/${NavigationLinkMap.Dashboard.href}`,
+				callbackURL: `${env.NEXT_PUBLIC_DASHBOARD_URL}/${NavigationLinkMap.Dashboard.href}`,
 			});
 			if (result.error) throw new Error(result.error.message);
 

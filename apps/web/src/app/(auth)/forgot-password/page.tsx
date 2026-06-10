@@ -84,7 +84,7 @@ export default function ForgotPasswordPage() {
 	async function onSubmit(values: ForgotPasswordValues) {
 		const { error } = await authClient.requestPasswordReset({
 			email: values.email,
-			redirectTo: `${env.NEXT_PUBLIC_APP_URL}/set-password`,
+			redirectTo: `${env.NEXT_PUBLIC_WEB_URL}/set-password`,
 		});
 
 		if (error) {

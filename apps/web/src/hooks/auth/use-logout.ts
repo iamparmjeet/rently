@@ -26,7 +26,7 @@ export const useLogout = () => {
 			// future: resetTenantStore()
 			toast.success("Signed Out", { id: context.toastId });
 			// redirect
-			window.location.href = `${env.NEXT_PUBLIC_APP_URL}/dashboard`;
+			window.location.href = `${env.NEXT_PUBLIC_WEB_URL}/dashboard`;
 		},
 		onError: (err, _, context) => {
 			toast.error("Error while signing out", { id: context?.toastId });

@@ -1,7 +1,7 @@
 import { env } from "@rently/env/web";
 
 function getBaseDomain(): string {
-	const hostname = new URL(env.NEXT_PUBLIC_APP_URL).hostname;
+	const hostname = new URL(env.NEXT_PUBLIC_WEB_URL).hostname;
 	return hostname.split(".").slice(-2).join(".");
 }
 

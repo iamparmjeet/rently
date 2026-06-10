@@ -3,16 +3,14 @@ import { z } from "zod";
 
 export const env = createEnv({
 	client: {
-		NEXT_PUBLIC_APP_URL: z.url(),
 		NEXT_PUBLIC_SERVER_URL: z.url(),
-		NEXT_PUBLIC_WEB_URL: z.url().optional(),
+		NEXT_PUBLIC_WEB_URL: z.url(),
 		NEXT_PUBLIC_TENANT_URL: z.url(),
 		NEXT_PUBLIC_DASHBOARD_URL: z.url(),
 		NEXT_PUBLIC_UPI_ID: z.string().min(5).optional(),
 		NEXT_PUBLIC_SUPPORT_EMAIL: z.email().optional(),
 	},
 	runtimeEnv: {
-		NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
 		NEXT_PUBLIC_SERVER_URL: process.env.NEXT_PUBLIC_SERVER_URL,
 		NEXT_PUBLIC_WEB_URL: process.env.NEXT_PUBLIC_WEB_URL,
 		NEXT_PUBLIC_DASHBOARD_URL: process.env.NEXT_PUBLIC_DASHBOARD_URL,

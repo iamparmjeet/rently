@@ -43,9 +43,6 @@ app.use(
 	}),
 );
 
-// TODO: remove before next release — debug only
-app.get("/debug-cors", (c) => c.json({ origins: allowedOrigins }));
-
 app.use(evlog());
 app.use("*", async (c, next) => {
 	await identifyUser(c.get("log"), c.req.raw.headers, c.req.path);

@@ -30,7 +30,7 @@ export const useSocialLogin = () => {
 		setLoadingProvider(provider);
 		const toastId = toast.loading(`Connecting with ${provider}...`);
 		// OAuth redirect takes user away — onError is the only local callback
-		const callbackPage = new URL(`${env.NEXT_PUBLIC_APP_URL}/callback`);
+		const callbackPage = new URL(`${env.NEXT_PUBLIC_WEB_URL}/callback`);
 
 		const existingCallbackUrl = searchParams.get("callbackUrl");
 		if (existingCallbackUrl) {

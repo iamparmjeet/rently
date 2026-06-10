@@ -10,14 +10,14 @@ const footerLinks = {
 		{ label: "How It Works", href: "#how-it-works" },
 	],
 	company: [
-		{ label: "About", href: "/about" },
-		{ label: "Blog", href: "/blog" },
-		{ label: "Careers", href: "/careers" },
+		{ label: "About", href: "/" },
+		{ label: "Blog", href: "/" },
+		{ label: "Careers", href: "/" },
 	],
 	legal: [
 		{ label: "Privacy Policy", href: "/privacy" },
 		{ label: "Terms of Service", href: "/terms" },
-		{ label: "Cookie Policy", href: "/cookie" },
+		{ label: "Cookie Policy", href: "/" },
 	],
 };
 

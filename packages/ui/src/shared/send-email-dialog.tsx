@@ -25,7 +25,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import z from "zod";
 
-// ── Schema ───────────────────────────────────────────────────────────────────
+//  Schema
 const SendEmailSchema = z.object({
 	subject: z.string().min(1, { error: "Subject is required" }),
 	message: z
@@ -35,11 +35,11 @@ const SendEmailSchema = z.object({
 
 type SendEmailFormValues = z.infer<typeof SendEmailSchema>;
 
-// ── Props ────────────────────────────────────────────────────────────────────
+//  Props
 interface SendEmailDialogProps {
 	tenantId: string;
 	tenantName: string;
-	trigger: React.ReactNode;
+	trigger: React.ReactElement;
 }
 
 export function SendEmailDialog({
@@ -77,7 +77,7 @@ export function SendEmailDialog({
 
 	return (
 		<Dialog open={open} onOpenChange={setOpen}>
-			<DialogTrigger>{trigger}</DialogTrigger>
+			<DialogTrigger render={trigger} />
 			<DialogContent className="sm:max-w-md">
 				<DialogHeader>
 					<DialogTitle>Send Email to {tenantName}</DialogTitle>

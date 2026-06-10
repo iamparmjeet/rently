@@ -23,7 +23,7 @@ function MeterDisplay({ value }: { value: string }) {
 
 export function ReadingTab() {
 	const { data, isLoading } = useTenantUtilities();
-	const { mutate: submitReading, isPending } = useSubmitReading();
+	const { mutate: submitReading, isPending, error } = useSubmitReading();
 
 	const [currentInput, setCurrentInput] = useState("");
 	const [readingDate, setReadingDate] = useState(() =>
@@ -106,6 +106,17 @@ export function ReadingTab() {
 				<p className="text-center text-muted-foreground text-xs">
 					Display updates as you type
 				</p>
+				{error?.cause === "CONFLICT" && (
+					<div className="rounded-lg border border-amber-500/30 bg-amber-500/8 px-3.5 py-3 text-amber-600 text-sm">
+						{error.message}
+					</div>
+				)}
+
+				{error?.cause === "TOO_MANY_REQUESTS" && (
+					<div className="rounded-lg border border-destructive/30 bg-destructive/8 px-3.5 py-3 text-destructive text-sm">
+						{error.message}
+					</div>
+				)}
 
 				{/* Reading input */}
 				<div>

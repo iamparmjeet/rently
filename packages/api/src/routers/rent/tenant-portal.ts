@@ -1,5 +1,3 @@
-// packages/api/src/routers/rent/tenant-portal.ts
-
 import { ORPCError } from "@orpc/server";
 import { protectedProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
@@ -18,9 +16,14 @@ import {
 	units,
 	utilities,
 } from "@rently/db/schema/schema";
-import { and, desc, eq } from "drizzle-orm";
+import { and, count, desc, eq, gte, lt } from "drizzle-orm";
 import z from "zod";
 
+// **************
+const READING_RATE_LIMIT_MAX = 5; // max submissions
+const READING_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // per 1 hour
+
+// ********************
 //  1. Get My Active Lease
 // WHY: Tenant needs to see their unit/property context in every tab — this is
 //      the "anchor" query. No active lease = no meaningful portal to show.
@@ -275,6 +278,31 @@ export const getMyProfile = protectedProcedure
 //      utility record scoped to their active lease, using the owner's configured
 //      rate (from the last reading). The owner sees it as a new unpaid utility.
 export const submitMyReading = protectedProcedure
+	.use(async ({ context, next }) => {
+		const { db, user } = context;
+		const windowStart = new Date(Date.now() - READING_RATE_LIMIT_WINDOW_MS);
+
+		const [result] = await db
+			.select({ submissionCount: count() })
+			.from(utilities)
+			.innerJoin(leases, eq(utilities.leaseId, leases.id))
+			.where(
+				and(
+					eq(leases.tenantId, user.id),
+					gte(utilities.createdAt, windowStart),
+				),
+			);
+
+		const submissionCount = Number(result?.submissionCount ?? 0);
+		if (submissionCount >= READING_RATE_LIMIT_MAX) {
+			throw new ORPCError("TOO_MANY_REQUESTS", {
+				message:
+					`You've submitted ${READING_RATE_LIMIT_MAX} readings in the last hour. ` +
+					"Please wait before submitting again.",
+			});
+		}
+		return next();
+	})
 	.route({
 		method: "POST",
 		path: "/rent/tenant-portal/submit-reading",
@@ -282,8 +310,20 @@ export const submitMyReading = protectedProcedure
 	})
 	.input(
 		z.object({
-			currentReading: z.number().int().min(0, { error: "Reading must be ≥ 0" }),
-			readingDate: z.string().min(1, { error: "Date is required" }),
+			currentReading: z
+				.number()
+				.int()
+				.min(0, { error: "Reading must be ≥ 0" })
+				.max(500, { error: "Reading seems too high - please double-check" }),
+			readingDate: z
+				.string()
+				.min(1, { error: "Date is required" })
+				.refine((s) => !Number.isNaN(Date.parse(s)), {
+					error: "Invalid date format",
+				})
+				.refine((s) => new Date(s) <= new Date(), {
+					error: "Reading date cannot be in the future",
+				}),
 			notes: z.string().max(200).optional(),
 		}),
 	)
@@ -304,7 +344,45 @@ export const submitMyReading = protectedProcedure
 			});
 		}
 
-		// STEP 2: Get the previous electricity reading for this lease
+		// Step2- Duplicate Monthly submission guard
+		const readingDate = new Date(input.readingDate);
+		const monthStart = new Date(
+			readingDate.getFullYear(),
+			readingDate.getMonth(),
+			1,
+		);
+		const monthEnd = new Date(
+			readingDate.getFullYear(),
+			readingDate.getMonth() + 1,
+			1,
+		);
+
+		const [existingThisMonth] = await db
+			.select({ id: utilities.id, currentReading: utilities.currentReading })
+			.from(utilities)
+			.where(
+				and(
+					eq(utilities.leaseId, activeLease.id),
+					// WHY filter by utilityType: a maintenance charge for this month
+					// should NOT block a meter reading. They're different types.
+					eq(utilities.utilityType, "electricity"),
+					gte(utilities.currentReadingDate, monthStart),
+					// WHY lt not lte: monthEnd is the FIRST of next month.
+					// lt correctly captures everything before midnight of that day.
+					lt(utilities.currentReadingDate, monthEnd),
+				),
+			)
+			.limit(1);
+
+		if (existingThisMonth) {
+			throw new ORPCError("CONFLICT", {
+				message:
+					`A reading of ${existingThisMonth.currentReading} kWh was already ` +
+					"submitted for this month. Contact your landlord to correct it.",
+			});
+		}
+
+		// STEP 3: Get the previous electricity reading for this lease
 		// WHY: We look up the most recent electricity reading to compute unitsUsed
 		// and carry forward the rate the owner configured.
 		const [lastReading] = await db

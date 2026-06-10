@@ -14,7 +14,7 @@ type SessionResponse = {
 // WHY: Login lives on apps/web — all unauthenticated redirects from the dashboard
 // must go there, not to a local /login route.
 function getWebLoginUrl(request: NextRequest): URL {
-	const webBaseUrl = env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3001";
+	const webBaseUrl = env.NEXT_PUBLIC_WEB_URL;
 	const loginUrl = new URL("/login", webBaseUrl);
 	// Pass the full URL as callbackUrl so the user lands back here after login.
 	loginUrl.searchParams.set("callbackUrl", request.url);
@@ -71,9 +71,7 @@ export default async function proxy(request: NextRequest) {
 
 	// Owner passes through. Unknown role → back to web home.
 	if (role !== USER_ROLES.OWNER) {
-		return NextResponse.redirect(
-			new URL("/", env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3001"),
-		);
+		return NextResponse.redirect(new URL("/", env.NEXT_PUBLIC_WEB_URL));
 	}
 
 	return NextResponse.next();

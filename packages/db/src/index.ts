@@ -1,13 +1,11 @@
-// packages/db/src/index.ts
-
-import { neonConfig, Pool } from "@neondatabase/serverless"; // ✅ Pool, not neon
+import { neon } from "@neondatabase/serverless";
 import { env } from "@rently/env/server";
-import { drizzle as drizzleNeon } from "drizzle-orm/neon-serverless"; // ✅ neon-serverless, not neon-http
+import { drizzle as drizzleNeonHttp } from "drizzle-orm/neon-http";
 import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
 import { Pool as PgPool } from "pg";
 import * as schema from "./schema";
 
-type NeonDatabase = ReturnType<typeof drizzleNeon>;
+type NeonDatabase = ReturnType<typeof drizzleNeonHttp>;
 type PgDatabase = ReturnType<typeof drizzlePg>;
 export type Database = NeonDatabase | PgDatabase;
 
@@ -15,12 +13,13 @@ export function createDb(): Database {
 	const url = env.DATABASE_URL;
 
 	if (isNeonUrl(url) || env.USE_NEON === "true") {
-		// Bun has global WebSocket — set it so the Neon driver can use it
-		// In Node.js you'd need: import ws from "ws"; neonConfig.webSocketConstructor = ws
-		neonConfig.webSocketConstructor = WebSocket;
-
-		const pool = new Pool({ connectionString: url });
-		return drizzleNeon(pool, { schema, casing: "snake_case" });
+		// WHY neon-http not neon-serverless/Pool:
+		// CF Workers is stateless. The WebSocket Pool creates persistent connections
+		// that span request lifecycles, triggering CF's cross-request promise warning
+		// and causing cold-start crashes. HTTP mode is one request per query — no
+		// persistent connection to manage, no race conditions.
+		const sql = neon(url);
+		return drizzleNeonHttp(sql, { schema, casing: "snake_case" });
 	}
 
 	// Local Docker Postgres — no change needed

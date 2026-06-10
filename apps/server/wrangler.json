@@ -2,7 +2,22 @@
 	"name": "rently",
 	"main": "src/index.ts",
 	"compatibility_date": "2026-06-01",
-	"compatibility_flags": ["nodejs_compat"],
+	"compatibility_flags": [
+		"nodejs_compat",
+		"no_handle_cross_request_promise_resolution"
+	],
+	"vars": {
+		"NODE_ENV": "production",
+		"LOG_LEVEL": "info",
+		"COOKIE_DOMAIN": ".parmjeetmishra.com",
+		"CORS_ORIGINS": "https://rentwise.parmjeetmishra.com,https://dashboard-rentwise.parmjeetmishra.com,https://tenant-rentwise.parmjeetmishra.com",
+		"WEB_APP_URL": "https://rentwise.parmjeetmishra.com",
+		"BETTER_AUTH_URL": "https://rentwise-api.parmjeetmishra.com",
+		"EMAIL_FROM": "info@parmjeetmishra.com",
+		"R2_BUCKET_NAME": "rentwise",
+		"R2_PUBLIC_URL": "https://rentwise-media.parmjeetmishra.com",
+		"USE_NEON": "true"
+	},
 	"observability": {
 		"enabled": false,
 		"head_sampling_rate": 1,

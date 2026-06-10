@@ -3,7 +3,7 @@ import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { signOut } from "@/lib/auth-client";
 
-const WEB_URL = env.NEXT_PUBLIC_WEB_URL ?? "http://localhost:3001";
+const WEB_URL = env.NEXT_PUBLIC_WEB_URL;
 
 export const useLogout = () => {
 	const queryClient = useQueryClient();

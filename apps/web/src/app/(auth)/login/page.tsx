@@ -76,10 +76,6 @@ export default function LoginPage() {
 
 			<div className="flex items-center justify-center bg-white">
 				<div className="w-full max-w-100">
-					{/* Mobile logo */}
-					<div className="max-lg:8.5 hidden size-2.5 items-center justify-center rounded-md bg-primary max-lg:flex">
-						<Logo />
-					</div>
 					<h1 className="font-extrabold text-[27px] tracking-[-0.6px]">
 						Welcome back
 					</h1>

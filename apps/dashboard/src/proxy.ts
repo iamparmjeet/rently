@@ -30,6 +30,11 @@ export default async function proxy(request: NextRequest) {
 	);
 	if (!isProtectedRoute) return NextResponse.next();
 
+	const isPrefetch = request.headers.get("Next-Router-Prefetch") === "1";
+	if (isPrefetch && !hasSessionCookie(request)) {
+		return NextResponse.next();
+	}
+
 	// Fast-path: no cookie → redirect to web login immediately.
 	if (!hasSessionCookie(request)) {
 		return NextResponse.redirect(getWebLoginUrl(request));

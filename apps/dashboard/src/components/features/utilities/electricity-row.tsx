@@ -162,7 +162,11 @@ export function ElectricityRow({
 				title="Delete reading?"
 				description="This meter reading and its bill will be permanently deleted."
 				onConfirm={onDelete}
-				trigger={<IconTrash className="size-4 text-destructive" />}
+				trigger={
+					<Button size="icon" variant="ghost" className="size-8">
+						<IconTrash className="size-4 text-destructive" />
+					</Button>
+				}
 			/>
 		</div>
 	);

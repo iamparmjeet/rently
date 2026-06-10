@@ -37,6 +37,7 @@ export default function TenantsIdPage() {
 				</CardHeader>
 				<CardContent>
 					<TenantCreateForm
+						formId="create-tenant"
 						onSubmit={handleSubmit}
 						isSubmitting={createTenant.isPending}
 						submitLabel="Create Tenant"

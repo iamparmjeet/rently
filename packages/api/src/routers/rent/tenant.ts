@@ -399,12 +399,14 @@ export const updateTenant = ownerProcedure
 	.input(
 		UpdateTenantProfileSchema.extend({
 			tenantId: z.string().min(1),
+			name: z.string().min(1).optional(),
+			email: z.email().optional(),
 		}),
 	)
 	.output(z.object({ success: z.boolean() }))
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
-		const { tenantId, ...profileFields } = input;
+		const { tenantId, name, email, phone, ...profileFields } = input;
 
 		// Authorization: verify this tenant has a lease on one of the owner's properties
 		const [lease] = await db
@@ -438,8 +440,20 @@ export const updateTenant = ownerProcedure
 
 		await db
 			.update(tenantProfiles)
-			.set(profileFields)
+			.set({ ...profileFields, updatedAt: new Date() })
 			.where(eq(tenantProfiles.userId, tenantId));
+
+		if (name !== undefined || email !== undefined || phone !== undefined) {
+			await db
+				.update(user)
+				.set({
+					...(name !== undefined && { name }),
+					...(email !== undefined && { email }),
+					...(phone !== undefined && { phone }),
+					updatedAt: new Date(),
+				})
+				.where(eq(user.id, tenantId));
+		}
 
 		return { success: true };
 	});

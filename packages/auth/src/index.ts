@@ -20,7 +20,11 @@ const cookieDomain = isProduction
 	? `.${authHostname.split(".").slice(-2).join(".")}`
 	: undefined;
 
-const trustedOrigins = env.CORS_ORIGINS;
+const trustedOrigins = Array.isArray(env.CORS_ORIGINS)
+	? env.CORS_ORIGINS
+	: String(env.CORS_ORIGINS)
+			.split(",")
+			.map((o) => o.trim());
 
 export function createAuth() {
 	const db = createDb();

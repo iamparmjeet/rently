@@ -247,12 +247,14 @@ export default function UnitDetailPage({
 
 								<div className="flex gap-2">
 									<Button variant="outline" size="sm" className="flex-1">
-										<Link href={`/leases/${data.unit.activeLease.id}`}>
+										<Link href={`/leases/${data.unit.activeLease.id}` as Route}>
 											View Full Lease
 										</Link>
 									</Button>
 									<Button variant="outline" size="sm" className="flex-1">
-										<Link href={`/leases/${data.unit.activeLease.id}/edit`}>
+										<Link
+											href={`/leases/${data.unit.activeLease.id}/edit` as Route}
+										>
 											Edit Lease
 										</Link>
 									</Button>

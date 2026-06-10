@@ -51,3 +51,4 @@ tmp
 temp
 .next
 *.next
+*.env.prod

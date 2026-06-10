@@ -1,6 +1,7 @@
 import { Year } from "@rently/ui/lib/date";
 import Logo from "@rently/ui/shared/logo";
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { LoginForm } from "@/components/forms/login-form";
 
 export const metadata: Metadata = {
@@ -85,7 +86,9 @@ export default function LoginPage() {
 					<p className="my-1.25 mb-4 text-[14.5px] text-muted-foreground">
 						Sign in to your RentWise account to continue
 					</p>
-					<LoginForm />
+					<Suspense fallback={null}>
+						<LoginForm />
+					</Suspense>
 				</div>
 			</div>
 		</div>

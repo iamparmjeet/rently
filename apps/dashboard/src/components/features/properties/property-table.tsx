@@ -11,6 +11,7 @@ import {
 	IconPencil,
 	IconTrash,
 } from "@tabler/icons-react";
+import type { Route } from "next";
 import Link from "next/link";
 
 interface PropertyTableProps {
@@ -91,7 +92,7 @@ function PropertyRow({ property, onDelete, isDeleting }: PropertyRowProps) {
 			{/* Property name + address */}
 			<td className="px-4 py-4">
 				<Link
-					href={`/properties/${property.id}`}
+					href={`/properties/${property.id}` as Route}
 					className="group flex items-center gap-3"
 				>
 					<div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-muted">
@@ -127,7 +128,7 @@ function PropertyRow({ property, onDelete, isDeleting }: PropertyRowProps) {
 						variant="ghost"
 						size="icon"
 						className="h-8 w-8"
-						render={<Link href={`/properties/${property.id}/edit`} />}
+						render={<Link href={`/properties/${property.id}/edit` as Route} />}
 					>
 						<IconPencil className="h-4 w-4" />
 						<span className="sr-only">Edit {property.name}</span>

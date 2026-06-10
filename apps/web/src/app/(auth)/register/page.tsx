@@ -1,6 +1,6 @@
 import { Year } from "@rently/ui/lib/date";
 import type { Metadata } from "next";
-
+import { Suspense } from "react";
 import { RegisterForm } from "@/components/forms/register-form";
 
 export const metadata: Metadata = {
@@ -58,8 +58,9 @@ export default function RegisterPage() {
 					<p className="mt-1.25 mb-4 text-[14.5px] text-muted-foreground">
 						Start your free 14-day trial — no credit card needed
 					</p>
-
-					<RegisterForm />
+					<Suspense fallback={null}>
+						<RegisterForm />
+					</Suspense>
 				</div>
 			</div>
 		</div>

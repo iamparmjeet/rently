@@ -22,6 +22,7 @@ import {
 	IconTrash,
 	IconUser,
 } from "@tabler/icons-react";
+import type { Route } from "next";
 import Link from "next/link";
 import LeaseStatusBadge from "./lease-status-badge";
 
@@ -89,7 +90,7 @@ export function LeaseCard({
 						<DropdownMenuContent align="end">
 							<DropdownMenuItem>
 								<Link
-									href={`/leases/${lease.leaseId}`}
+									href={`/leases/${lease.leaseId}` as Route}
 									className="flex items-center"
 								>
 									View Details
@@ -106,7 +107,7 @@ export function LeaseCard({
 									</>
 								) : (
 									<Link
-										href={`/leases/${lease.leaseId}/edit`}
+										href={`/leases/${lease.leaseId}/edit` as Route}
 										className="flex items-center"
 									>
 										<IconPencil className="mr-2 size-4" />

@@ -1,5 +1,6 @@
 import type { Icon } from "@tabler/icons-react";
 import { IconArrowUpRight } from "@tabler/icons-react";
+import type { Route } from "next";
 import Link from "next/link";
 import { StatNumber } from "./stat-number";
 
@@ -59,7 +60,7 @@ export function StatCard({
 					/>
 				</div>
 				<Link
-					href={href}
+					href={href as Route}
 					className={`flex items-center gap-1 text-xs transition-colors ${
 						isAccent
 							? "text-primary-foreground/70 hover:text-primary-foreground"

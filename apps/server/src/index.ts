@@ -29,9 +29,6 @@ const allowedOrigins = env.CORS_ORIGINS;
 
 const app = new Hono<EvlogVariables>();
 
-// WHY: CORS must be the outermost middleware — even error responses from
-// logging/auth middleware below must carry ACAO headers, otherwise real
-// server errors show up in the browser as misleading CORS errors
 app.use(
 	"/*",
 	cors({

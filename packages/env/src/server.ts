@@ -3,6 +3,7 @@ import { createEnv } from "@t3-oss/env-core";
 import { z } from "zod";
 
 export const env = createEnv({
+	skipValidation: !!process.env.SKIP_ENV_VALIDATION,
 	server: {
 		USE_NEON: z.enum(["true", "false"]).default("false"),
 		DATABASE_URL: z.string().min(1),

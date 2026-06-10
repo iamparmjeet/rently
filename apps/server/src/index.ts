@@ -26,6 +26,8 @@ const identifyUser = createAuthMiddleware(auth as BetterAuthInstance, {
 });
 
 const allowedOrigins = env.CORS_ORIGINS;
+// in apps/server/src/index.ts, right after the const
+console.log("CORS_ORIGINS", allowedOrigins, Array.isArray(allowedOrigins));
 
 const app = new Hono<EvlogVariables>();
 
@@ -34,8 +36,18 @@ app.use(
 	cors({
 		origin: allowedOrigins,
 		allowMethods: ["GET", "POST", "OPTIONS", "PATCH", "DELETE"],
-		allowHeaders: ["Content-Type", "Authorization"],
+		allowHeaders: [
+			"Content-Type",
+			"Authorization",
+			"Accept",
+			"Cache-Control",
+			"X-Requested-With",
+		],
+
+		exposeHeaders: ["Set-Cookie"],
 		credentials: true,
+
+		maxAge: 86400, // 24 Hours
 	}),
 );
 
@@ -77,7 +89,11 @@ app.use("/*", async (c, next) => {
 	});
 
 	if (rpcResult.matched) {
-		return c.newResponse(rpcResult.response.body, rpcResult.response);
+		return new Response(rpcResult.response.body, {
+			status: rpcResult.response.status,
+			statusText: rpcResult.response.statusText,
+			headers: rpcResult.response.headers,
+		});
 	}
 
 	const apiResult = await apiHandler.handle(c.req.raw, {
@@ -86,7 +102,12 @@ app.use("/*", async (c, next) => {
 	});
 
 	if (apiResult.matched) {
-		return c.newResponse(apiResult.response.body, apiResult.response);
+		// WHY: same reasoning as rpcResult above
+		return new Response(apiResult.response.body, {
+			status: apiResult.response.status,
+			statusText: apiResult.response.statusText,
+			headers: apiResult.response.headers,
+		});
 	}
 
 	await next();

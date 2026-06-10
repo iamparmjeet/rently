@@ -1,8 +1,8 @@
 // server components
 
 import { Suspense } from "react";
-import TenantsClientPage from "./_components/tenants-client";
-import { TenantsPageSkeleton } from "./_components/tenants-page-skelton";
+import TenantsClientPage from "@/components/features/tenants/tenants-client";
+import { TenantsPageSkeleton } from "@/components/features/tenants/tenants-page-skelton";
 
 export default function TenantsPage() {
 	return (

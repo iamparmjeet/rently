@@ -26,8 +26,6 @@ const identifyUser = createAuthMiddleware(auth as BetterAuthInstance, {
 });
 
 const allowedOrigins = env.CORS_ORIGINS;
-// in apps/server/src/index.ts, right after the const
-console.log("CORS_ORIGINS", allowedOrigins, Array.isArray(allowedOrigins));
 
 const app = new Hono<EvlogVariables>();
 

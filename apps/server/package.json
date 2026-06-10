@@ -22,6 +22,7 @@
 		"drizzle-orm": "^0.45.2",
 		"evlog": "catalog:",
 		"hono": "catalog:",
+		"wrangler": "^4.99.0",
 		"zod": "catalog:"
 	},
 	"devDependencies": {

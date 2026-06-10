@@ -10,7 +10,9 @@ import { client, orpc } from "@/utils/orpc";
 type UtilityListCache = { utilities: UtilityListItem[] };
 type LeaseListCache = { leases: LeaseWithDetails[] };
 
-// Create
+//  Non-optimistic mutations
+// Used on pages that don't need instant UI feedback (e.g. detail page edits).
+
 export function useCreateUtility() {
 	const queryClient = useQueryClient();
 
@@ -28,15 +30,16 @@ export function useCreateUtility() {
 			});
 		},
 		onSuccess: (_, __, context) => {
+			toast.success("Reading recorded", { id: context.toastId });
+		},
+		onSettled: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
-			toast.success("Reading recorded", { id: context.toastId });
 		},
 	});
 }
 
-// Update
 export function useUpdateUtility() {
 	const queryClient = useQueryClient();
 
@@ -52,9 +55,11 @@ export function useUpdateUtility() {
 			toast.error(`Failed to update utility: ${error.message}`, {
 				id: context?.toastId,
 			});
-			console.error(`Failed to update utility: ${error}`);
 		},
-		onSuccess: (_, variables, context) => {
+		onSuccess: (_, __, context) => {
+			toast.success("Utility Updated", { id: context.toastId });
+		},
+		onSettled: (_, __, variables) => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
@@ -63,11 +68,10 @@ export function useUpdateUtility() {
 					input: { id: variables.id },
 				}),
 			});
-			toast.success("Utility Updated", { id: context.toastId });
 		},
 	});
 }
-// Remove
+
 export function useRemoveUtility() {
 	const queryClient = useQueryClient();
 
@@ -80,21 +84,26 @@ export function useRemoveUtility() {
 			input: Parameters<typeof client.rent.utility.removeUtility>[0],
 		) => client.rent.utility.removeUtility(input),
 		onError: (error, _, context) => {
-			console.error(`Failed to Delete: ${error}`);
 			toast.error(`Failed to Delete: ${error.message}`, {
 				id: context?.toastId,
 			});
 		},
 		onSuccess: (_, variables, context) => {
+			// WHY removeQueries in onSuccess, not onSettled: we only want to purge
+			// the detail cache when the delete actually succeeded. onSettled fires
+			// on both success and error — we don't want to nuke a cache entry if
+			// the delete failed.
 			queryClient.removeQueries({
 				queryKey: orpc.rent.utility.getUtilityById.key({
 					input: { id: variables.id },
 				}),
 			});
+			toast.success("Utility Deleted successfully.", { id: context.toastId });
+		},
+		onSettled: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
-			toast.success("Utility Deleted successfully.", { id: context.toastId });
 		},
 	});
 }
@@ -111,22 +120,35 @@ export function useCreateUtilityBatch() {
 			input: Parameters<typeof client.rent.utility.createUtilityBatch>[0],
 		) => client.rent.utility.createUtilityBatch(input),
 		onSuccess: (_, __, context) => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.rent.utility.listUtilities.key(),
-			});
 			toast.success("Utility bill recorded", { id: context.toastId });
 		},
 		onError: (error, _, context) => {
-			console.error("Failed to create utility batch:", error.message);
 			toast.error(`Failed to record bill: ${error.message}`, {
 				id: context?.toastId,
+			});
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
 		},
 	});
 }
 
-// ** Suspense
-// Create
+//  Optimistic mutations
+// Used on the main utilities list page where instant feedback matters.
+//
+// Pattern for all three:
+//   onMutate  → snapshot + optimistic apply  (BEGIN TRANSACTION)
+//   onError   → restore snapshot             (ROLLBACK)
+//   onSuccess → toast only                   (no cache work — onSettled covers it)
+//   onSettled → invalidateQueries            (always refetch, success or error)
+//
+// WHY onSettled for invalidation and not onSuccess:
+// onSettled fires on BOTH success and error paths. Putting invalidation there
+// means the server is always the source of truth after the mutation resolves,
+// regardless of outcome. Duplicating it in onSuccess just fires it twice.
+
 export function useOptimisticCreateUtility() {
 	const queryClient = useQueryClient();
 
@@ -134,20 +156,23 @@ export function useOptimisticCreateUtility() {
 		onMutate: async (variables) => {
 			const toastId = toast.loading("Recording utility reading...");
 
-			// Cancel
 			await queryClient.cancelQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
-			// Snapshot
-			const prevList = queryClient.getQueryData<UtilityListItem>(
+
+			// FIX: generic must match the cache SHAPE — { utilities: UtilityListItem[] }
+			// not the item type UtilityListItem. Wrong generic → getQueryData returns
+			// undefined silently → rollback in onError never fires.
+			const prevList = queryClient.getQueryData<UtilityListCache>(
 				orpc.rent.utility.listUtilities.key(),
 			);
-			// Optimistic create
+
 			const unitsUsed = variables.currentReading - variables.previousReading;
 			const totalAmount =
 				(variables.currentReading - variables.previousReading) *
 					(variables.ratePerUnit ?? RATEPERUNIT) +
 				(variables.fixedCharge ?? FIXEDCHARGE);
+
 			const optimisticRow: UtilityListItem = {
 				id: `optimistic-${Date.now()}`,
 				leaseId: variables.leaseId,
@@ -176,10 +201,7 @@ export function useOptimisticCreateUtility() {
 				orpc.rent.utility.listUtilities.key(),
 				(old) => {
 					if (!old) return old;
-					return {
-						...old,
-						utilities: [optimisticRow, ...old.utilities],
-					};
+					return { ...old, utilities: [optimisticRow, ...old.utilities] };
 				},
 			);
 
@@ -200,9 +222,7 @@ export function useOptimisticCreateUtility() {
 			});
 		},
 		onSuccess: (_, __, context) => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.rent.utility.listUtilities.key(),
-			});
+			// WHY: toast only — onSettled handles invalidation on both paths
 			toast.success("Reading recorded", { id: context.toastId });
 		},
 		onSettled: () => {
@@ -212,14 +232,14 @@ export function useOptimisticCreateUtility() {
 		},
 	});
 }
-// Update
+
 export function useOptimisticUpdateUtility() {
 	const queryClient = useQueryClient();
 
 	return useMutation({
 		onMutate: async (variables) => {
 			const toastId = toast.loading("Updating utility...");
-			// cancel both queries,
+
 			await queryClient.cancelQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
@@ -228,7 +248,7 @@ export function useOptimisticUpdateUtility() {
 					input: { id: variables.id },
 				}),
 			});
-			// Snapshot
+
 			const prevList = queryClient.getQueryData<UtilityListCache>(
 				orpc.rent.utility.listUtilities.key(),
 			);
@@ -237,26 +257,28 @@ export function useOptimisticUpdateUtility() {
 					input: { id: variables.id },
 				}),
 			);
-			// Optimistic update
+
 			queryClient.setQueryData<UtilityListCache>(
 				orpc.rent.utility.listUtilities.key(),
 				(old) => {
 					if (!old) return old;
 					return {
 						...old,
+						// FIX: was `{ ...u, variables }` which nested variables as a
+						// property instead of spreading its fields onto the row object.
 						utilities: old.utilities.map((u) =>
-							u.id === variables.id ? { ...u, variables } : u,
+							u.id === variables.id ? { ...u, ...variables } : u,
 						),
 					};
 				},
 			);
+
 			return { toastId, prevDetail, prevList, id: variables.id };
 		},
 		mutationFn: (
 			input: Parameters<typeof client.rent.utility.updateUtility>[0],
 		) => client.rent.utility.updateUtility(input),
 		onError: (error, _, context) => {
-			// Rollabck both caches
 			if (context?.prevList !== undefined) {
 				queryClient.setQueryData(
 					orpc.rent.utility.listUtilities.key(),
@@ -274,17 +296,9 @@ export function useOptimisticUpdateUtility() {
 			toast.error(`Failed to update utility: ${error.message}`, {
 				id: context?.toastId,
 			});
-			console.error(`Failed to update utility: ${error}`);
 		},
-		onSuccess: (_, variables, context) => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.rent.utility.listUtilities.key(),
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.rent.utility.getUtilityById.key({
-					input: { id: variables.id },
-				}),
-			});
+		onSuccess: (_, __, context) => {
+			// WHY: toast only — onSettled handles invalidation on both paths
 			toast.success("Utility Updated", { id: context.toastId });
 		},
 		onSettled: (_, __, variables) => {
@@ -299,7 +313,7 @@ export function useOptimisticUpdateUtility() {
 		},
 	});
 }
-// Remove
+
 export function useOptimisticRemoveUtility() {
 	const queryClient = useQueryClient();
 
@@ -307,15 +321,14 @@ export function useOptimisticRemoveUtility() {
 		onMutate: async (variables) => {
 			const toastId = toast.loading("Deleting utility...");
 
-			// Cancel
 			await queryClient.cancelQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
-			// Snapshot
+
 			const prevList = queryClient.getQueryData<UtilityListCache>(
 				orpc.rent.utility.listUtilities.key(),
 			);
-			// Optimistic remove
+
 			queryClient.setQueryData<UtilityListCache>(
 				orpc.rent.utility.listUtilities.key(),
 				(old) => {
@@ -326,33 +339,31 @@ export function useOptimisticRemoveUtility() {
 					};
 				},
 			);
+
 			return { toastId, prevList, id: variables.id };
 		},
 		mutationFn: (
 			input: Parameters<typeof client.rent.utility.removeUtility>[0],
 		) => client.rent.utility.removeUtility(input),
 		onError: (error, _, context) => {
-			// Rollback the list
 			if (context?.prevList !== undefined) {
 				queryClient.setQueryData(
 					orpc.rent.utility.listUtilities.key(),
 					context.prevList,
 				);
 			}
-
-			console.error(`Failed to Delete: ${error}`);
 			toast.error(`Failed to Delete: ${error.message}`, {
 				id: context?.toastId,
 			});
 		},
 		onSuccess: (_, __, context) => {
+			// WHY removeQueries in onSuccess only: purge the detail cache only on
+			// confirmed delete. onSettled (which fires on error too) would
+			// incorrectly nuke the cache even if the delete failed.
 			queryClient.removeQueries({
 				queryKey: orpc.rent.utility.getUtilityById.key({
 					input: { id: context.id },
 				}),
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
 			toast.success("Utility Deleted successfully.", { id: context.toastId });
 		},
@@ -371,22 +382,21 @@ export function useOptimisticCreateBatchUtility() {
 		onMutate: async (variables) => {
 			const toastId = toast.loading("Recording utility reading...");
 
-			// Cancel
 			await queryClient.cancelQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
-			// Snapshot
+
 			const prevList = queryClient.getQueryData<UtilityListCache>(
 				orpc.rent.utility.listUtilities.key(),
 			);
-			// Build Rich list
+
 			const leasesCache = queryClient.getQueryData<LeaseListCache>(
 				orpc.rent.lease.listLeases.key(),
 			);
 			const lease = leasesCache?.leases.find(
 				(l) => l.leaseId === variables.leaseId,
 			);
-			// Optimistic create
+
 			const optimisticItems: UtilityListItem[] = variables.items.map((item) => {
 				const unitsUsed = Math.max(
 					0,
@@ -414,7 +424,6 @@ export function useOptimisticCreateBatchUtility() {
 					description: item.description ?? null,
 					createdAt: new Date(),
 					updatedAt: new Date(),
-
 					// Enriched from lease cache — graceful fallback if cache is cold
 					unitNumber: lease?.unitNumber ?? "—",
 					propertyName: lease?.propertyName ?? "—",
@@ -452,9 +461,7 @@ export function useOptimisticCreateBatchUtility() {
 			});
 		},
 		onSuccess: (_, __, context) => {
-			queryClient.invalidateQueries({
-				queryKey: orpc.rent.utility.listUtilities.key(),
-			});
+			// WHY: toast only — onSettled handles invalidation on both paths
 			toast.success("Utility reading recorded", { id: context.toastId });
 		},
 		onSettled: () => {
@@ -467,6 +474,7 @@ export function useOptimisticCreateBatchUtility() {
 
 export function useRecordUtilityPayment() {
 	const queryClient = useQueryClient();
+
 	return useMutation({
 		onMutate: () => {
 			const toastId = toast.loading("Recording payment...");
@@ -475,20 +483,19 @@ export function useRecordUtilityPayment() {
 		mutationFn: (
 			input: Parameters<typeof client.rent.utility.recordUtilityPayment>[0],
 		) => client.rent.utility.recordUtilityPayment(input),
-		// onError
 		onError: (error, __, context) => {
 			toast.error(`Failed to record payment: ${error.message}`, {
 				id: context?.toastId,
 			});
-			console.error(`Failed to record payment: ${error}`);
 		},
-		// onSuccess
 		onSuccess: (_, __, context) => {
-			// WHY invalidate both: the utility's isPaid flips, and a new payment row exists
+			toast.success("Payment recorded", { id: context.toastId });
+		},
+		onSettled: () => {
+			// WHY invalidate both: utility's isPaid flips AND a new payment row exists
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
-			toast.success("Payment recorded", { id: context.toastId });
 		},
 	});
 }

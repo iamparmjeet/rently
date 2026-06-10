@@ -29,7 +29,7 @@ const statusVariants = {
 
 export function TenantCard({ tenant, actionsSlot }: TenantCardProps) {
 	return (
-		<Card className="flex flex-col">
+		<Card className="flex flex-col pb-0">
 			<CardHeader className="flex justify-between gap-4 space-y-0 pb-2">
 				<div className="flex items-center gap-2">
 					<div className="flex size-12 shrink-0 items-center justify-center rounded-full bg-muted">
@@ -95,7 +95,7 @@ export function TenantCard({ tenant, actionsSlot }: TenantCardProps) {
 				)}
 				{/* View CTA */}
 
-				<Button variant="outline" size="sm" className="mt-2 w-full">
+				<Button variant="outline" size="lg" className="my-2 w-full">
 					<Link href={`/tenants/${tenant.id}` as Route}>View Details</Link>
 				</Button>
 				<DateRecordMeta

@@ -10,7 +10,7 @@ const PLANS = [
 	{
 		slug: "free",
 		name: "Starter",
-		description: "Free forever · Up to 10 tenants",
+		description: "Free · Up to 10 tenants",
 		tenantLimit: 10,
 		priceMonthly: 0,
 		priceQuarterly: 0,
@@ -21,7 +21,7 @@ const PLANS = [
 	{
 		slug: "pro",
 		name: "Pro",
-		description: "Unlimited tenants · Priority support",
+		description: "Up to 500 active tenants · Priority support",
 		tenantLimit: 500,
 		// All prices in paise: ₹499/mo base
 		priceMonthly: 49900,
@@ -33,7 +33,7 @@ const PLANS = [
 	{
 		slug: "enterprise",
 		name: "Enterprise",
-		description: "Everything in Pro · Custom reports · API access",
+		description: "Not available during beta",
 		tenantLimit: 9999,
 		// ₹1,499/mo base
 		priceMonthly: 149900,

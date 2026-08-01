@@ -2,13 +2,13 @@
 	"git": {
 		"commitMessage": "chore(release): v${version}",
 		"tagName": "v${version}",
-		"tagAnnotation": "RentWise v${version}",
+		"tagAnnotation": "KeyHQ v${version}",
 		"requireCleanWorkingDir": true,
 		"requireUpstream": true
 	},
 	"github": {
 		"release": true,
-		"releaseName": "RentWise v${version}",
+		"releaseName": "KeyHQ v${version}",
 		"preRelease": true
 	},
 	"npm": {
@@ -42,7 +42,7 @@
 				]
 			},
 			"infile": "CHANGELOG.md",
-			"header": "# RentWise Changelog\n\n"
+			"header": "# KeyHQ Changelog\n\n"
 		}
 	}
 }

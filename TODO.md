@@ -1,4 +1,4 @@
-# RentWise — TODO
+# KeyHQ — TODO
 
 > Single source of truth for build progress.
 > Update this file as items are completed or priorities shift.

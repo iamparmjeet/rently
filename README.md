@@ -1,4 +1,4 @@
-# RentWise
+# KeyHQ
 
 > **Property management SaaS built for Indian landlords.**
 > Manage properties, units, tenants, leases, utility billing, and rent payments — all from one dashboard.
@@ -9,13 +9,13 @@
 [![Turborepo](https://img.shields.io/badge/Turborepo-2.x-EF4444?style=flat-square&logo=turborepo&logoColor=white)](https://turbo.build/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](./LICENSE)
 
-**Live:** [RentWise.parmjeetmishra.com](https://RentWise.parmjeetmishra.com)
+**Live:** [KeyHQ.parmjeetmishra.com](https://KeyHQ.parmjeetmishra.com)
 
 ---
 
-## What is RentWise?
+## What is KeyHQ?
 
-RentWise is a multi-tenant SaaS for property owners who rent residential or commercial spaces. It handles the full lifecycle of a rental:
+KeyHQ is a multi-tenant SaaS for property owners who rent residential or commercial spaces. It handles the full lifecycle of a rental:
 
 - An **owner** registers, adds their properties and units, creates leases, and tracks payments.
 - A **tenant** receives an invite email, sets a password, and lands in a dedicated portal where they see their lease, dues, and utility readings — and can submit meter readings themselves.
@@ -26,7 +26,7 @@ RentWise is a multi-tenant SaaS for property owners who rent residential or comm
 ## Monorepo Structure
 
 ```
-RentWise/                          ← Turborepo root
+KeyHQ/                          ← Turborepo root
 ├── apps/
 │   ├── web/                     ← Marketing site + auth flows (port 3001)
 │   ├── dashboard/               ← Owner portal (port 3000)

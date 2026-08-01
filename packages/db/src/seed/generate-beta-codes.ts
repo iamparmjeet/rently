@@ -25,7 +25,7 @@ async function main() {
 	const db = createDb();
 
 	console.log("─────────────────────────────────────────");
-	console.log("  RentWise Beta Code Generator");
+	console.log("  KeyHQ Beta Code Generator");
 	console.log("─────────────────────────────────────────");
 	console.log(`  Plan      : ${planSlug}`);
 	console.log(`  Period    : ${days} days`);

@@ -10,7 +10,7 @@ const PLANS = [
 	{
 		slug: "free",
 		name: "Starter",
-		description: "Free · Up to 10 tenants",
+		description: "Free · Up to 10 active tenants",
 		tenantLimit: 10,
 		priceMonthly: 0,
 		priceQuarterly: 0,

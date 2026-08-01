@@ -327,7 +327,7 @@ const STATIC_PLANS: PlanSelect[] = [
 		slug: "enterprise",
 		name: "Enterprise",
 		description: "Not available during beta",
-		tenantLimit: 0,
+		tenantLimit: 9999,
 		priceMonthly: 149900,
 		priceQuarterly: 427215,
 		priceHalfYearly: 809460,

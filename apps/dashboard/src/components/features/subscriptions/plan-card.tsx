@@ -16,26 +16,20 @@ import { IconCheck, IconCrown } from "@tabler/icons-react";
 const PLAN_FEATURES: Record<string, readonly string[]> = {
 	free: [
 		"Up to 10 active tenants",
-		"Unlimited properties & units",
+		"Properties & units",
 		"Lease & payment tracking",
 		"Utility billing",
 		"Tenant portal",
-		"Email notifications",
+		"In-app notifications",
 	],
 	pro: [
 		"Up to 500 active tenants",
-		"Everything in Free",
+		"Everything in Starter",
 		"Priority support",
-		"Bulk billing operations",
-		"Early access to new features",
+		"Flexible billing periods",
+		"UPI payment support",
 	],
-	enterprise: [
-		"Unlimited tenants",
-		"Everything in Pro",
-		"Custom reports",
-		"API access",
-		"Dedicated support & SLA",
-	],
+	enterprise: [],
 } as const;
 
 interface PlanCardProps {
@@ -97,7 +91,7 @@ export function PlanCard({
 					{isFree ? (
 						<p className="font-bold text-2xl">₹0</p>
 					) : isEnterprise ? (
-						<p className="font-bold text-2xl">Custom</p>
+						<p className="font-bold text-2xl">Coming soon</p>
 					) : (
 						<div className="flex items-baseline gap-1">
 							<p className="font-bold text-2xl">
@@ -109,6 +103,7 @@ export function PlanCard({
 
 					{/* Yearly savings */}
 					{!isFree &&
+						!isEnterprise &&
 						plan.priceYearly > 0 &&
 						(() => {
 							const yearlySavings = plan.priceMonthly * 12 - plan.priceYearly;
@@ -145,23 +140,8 @@ export function PlanCard({
 						Current Plan
 					</Button>
 				) : isEnterprise ? (
-					<Button
-						nativeButton={false}
-						variant="outline"
-						size="lg"
-						className="w-full"
-						render={
-							<a
-								href="mailto:support@keyhq.app"
-								target="_blank"
-								rel="noreferrer"
-								aria-label="Contact Sales via email"
-							>
-								<p className="sr-only">Contact Sales</p>
-							</a>
-						}
-					>
-						Contact Sales
+					<Button variant="outline" size="lg" className="w-full" disabled>
+						Not available during beta
 					</Button>
 				) : (
 					// downgrade label: free plan sits below any paid plan.

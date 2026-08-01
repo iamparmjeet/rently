@@ -9,7 +9,7 @@
 [![Turborepo](https://img.shields.io/badge/Turborepo-2.x-EF4444?style=flat-square&logo=turborepo&logoColor=white)](https://turbo.build/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](./LICENSE)
 
-**Live:** [KeyHQ.parmjeetmishra.com](https://KeyHQ.parmjeetmishra.com)
+**Live:** [KeyHQ.parmjeetmishra.com](https://Keyhq.parmjeetmishra.com)
 
 ---
 

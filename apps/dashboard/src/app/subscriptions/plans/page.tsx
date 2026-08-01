@@ -240,7 +240,7 @@ function UpgradeDialog({ plan, open, onClose }: UpgradeDialogProps) {
 						<Input
 							value={code}
 							onChange={(e) => setCode(e.target.value.toUpperCase())}
-							placeholder="KeyHQ-XXXX-YYYY"
+							placeholder="KEYHQ-XXXX-YYYY"
 							className="h-8 font-mono text-xs"
 							disabled={redeem.isPending}
 							onKeyDown={(e) => {

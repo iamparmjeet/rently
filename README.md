@@ -26,7 +26,7 @@ KeyHQ is a multi-tenant SaaS for property owners who rent residential or commerc
 ## Monorepo Structure
 
 ```
-KeyHQ/                          ← Turborepo root
+Rently/                          ← Turborepo root
 ├── apps/
 │   ├── web/                     ← Marketing site + auth flows (port 3001)
 │   ├── dashboard/               ← Owner portal (port 3000)

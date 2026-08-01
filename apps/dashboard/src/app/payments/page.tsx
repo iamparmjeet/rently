@@ -154,7 +154,7 @@ function buildWhatsAppMessage(payment: PaymentListItem): string {
 		`• Ref #  : ${ref}`,
 		"",
 		"Thank you for your payment.",
-		"– RentWise",
+		"– KeyHQ",
 	].join("\n");
 }
 

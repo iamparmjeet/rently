@@ -152,7 +152,7 @@ export function PlanCard({
 						className="w-full"
 						render={
 							<a
-								href="mailto:support@rentwise.app"
+								href="mailto:support@KeyHQ.app"
 								target="_blank"
 								rel="noreferrer"
 								aria-label="Contact Sales via email"

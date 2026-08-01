@@ -46,10 +46,10 @@ function buildUpiUrl(
 	plan: PlanSelect,
 	period: BillingPeriod,
 ): string {
-	const note = encodeURIComponent(`RentWise ${plan.name} ${period}`);
+	const note = encodeURIComponent(`KeyHQ ${plan.name} ${period}`);
 	// WHY /100: UPI deep links use rupees, not paise
 	const rupees = (amount / 100).toFixed(2);
-	return `upi://pay?pa=${upiId}&pn=RentWise&am=${rupees}&cu=INR&tn=${note}`;
+	return `upi://pay?pa=${upiId}&pn=KeyHQ&am=${rupees}&cu=INR&tn=${note}`;
 }
 
 // ── UpgradeDialog ─
@@ -66,7 +66,7 @@ function UpgradeDialog({ plan, open, onClose }: UpgradeDialogProps) {
 	const redeem = useRedeemBetaCode();
 
 	const upiId = env.NEXT_PUBLIC_UPI_ID;
-	const supportEmail = env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@rentwise.app";
+	const supportEmail = env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@KeyHQ.app";
 
 	const amount = period === "monthly" ? plan.priceMonthly : plan.priceYearly;
 	const upiUrl = upiId ? buildUpiUrl(upiId, amount, plan, period) : null;
@@ -240,7 +240,7 @@ function UpgradeDialog({ plan, open, onClose }: UpgradeDialogProps) {
 						<Input
 							value={code}
 							onChange={(e) => setCode(e.target.value.toUpperCase())}
-							placeholder="RENTWISE-XXXX-YYYY"
+							placeholder="KeyHQ-XXXX-YYYY"
 							className="h-8 font-mono text-xs"
 							disabled={redeem.isPending}
 							onKeyDown={(e) => {

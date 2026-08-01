@@ -313,7 +313,7 @@ function buildReceiptMessage({
 		`• Ref #   : ${ref}`,
 		"",
 		"Thank you for your timely payment.",
-		"– RentWise",
+		"– KeyHQ",
 	].join("\n");
 }
 

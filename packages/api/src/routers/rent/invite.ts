@@ -297,7 +297,7 @@ export const acceptInvite = publicProcedure
 				userId: invite.invitedById,
 				type: NOTIFICATION_TYPES.INVITE_ACCEPTED,
 				title: "Tenant joined",
-				message: `${invite.name} accepted your invite and joined RentWise`,
+				message: `${invite.name} accepted your invite and joined KeyHQ`,
 				entityId: invite.id,
 				entityType: "invite",
 			});

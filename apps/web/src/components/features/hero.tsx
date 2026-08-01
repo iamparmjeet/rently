@@ -22,7 +22,7 @@ function DashboardMockup() {
 					</div>
 					<div className="flex flex-1 items-center gap-1.25 rounded-[5px] border border-border bg-white px-2.5 py-1 text-[11px] text-muted-foreground">
 						<span className="text-[9px]">🔒</span>
-						app.keyhq.app/dashboard
+						keyhq.parmjeetmishra.com/dashboard
 					</div>
 				</div>
 

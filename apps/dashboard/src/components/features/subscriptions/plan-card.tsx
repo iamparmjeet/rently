@@ -152,7 +152,7 @@ export function PlanCard({
 						className="w-full"
 						render={
 							<a
-								href="mailto:support@KeyHQ.app"
+								href="mailto:support@keyhq.app"
 								target="_blank"
 								rel="noreferrer"
 								aria-label="Contact Sales via email"

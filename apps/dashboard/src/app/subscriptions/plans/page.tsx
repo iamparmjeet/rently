@@ -66,7 +66,7 @@ function UpgradeDialog({ plan, open, onClose }: UpgradeDialogProps) {
 	const redeem = useRedeemBetaCode();
 
 	const upiId = env.NEXT_PUBLIC_UPI_ID;
-	const supportEmail = env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@KeyHQ.app";
+	const supportEmail = env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@keyhq.app";
 
 	const amount = period === "monthly" ? plan.priceMonthly : plan.priceYearly;
 	const upiUrl = upiId ? buildUpiUrl(upiId, amount, plan, period) : null;

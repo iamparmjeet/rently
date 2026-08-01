@@ -9,7 +9,7 @@
 [![Turborepo](https://img.shields.io/badge/Turborepo-2.x-EF4444?style=flat-square&logo=turborepo&logoColor=white)](https://turbo.build/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg?style=flat-square)](./LICENSE)
 
-**Live:** [KeyHQ.parmjeetmishra.com](https://Keyhq.parmjeetmishra.com)
+**Live:** [KeyHQ.parmjeetmishra.com](https://keyhq.parmjeetmishra.com)
 
 ---
 
@@ -298,10 +298,9 @@ NODE_ENV=development
 
 ```env
 NEXT_PUBLIC_SERVER_URL=http://localhost:8787
-NEXT_PUBLIC_APP_URL=http://localhost:3001
 NEXT_PUBLIC_WEB_URL=http://localhost:3001
-NEXT_PUBLIC_DASHBOARD_URL=http://localhost:3000
-NEXT_PUBLIC_TENANT_URL=http://localhost:3002
+NEXT_PUBLIC_DASHBOARD_URL=http://localhost:3002
+NEXT_PUBLIC_TENANT_URL=http://localhost:3003
 ```
 
 ---

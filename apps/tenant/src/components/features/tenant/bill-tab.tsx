@@ -113,7 +113,7 @@ export function BillTab() {
 					type="button"
 					onClick={() => {
 						const msg = encodeURIComponent(
-							`RentWise Bill — ${currentMonth}\n\n${lineItems
+							`KeyHQ Bill — ${currentMonth}\n\n${lineItems
 								.map((i) => `${i.emoji} ${i.label}: ${rupeesCompact(i.amount)}`)
 								.join("\n")}\n\n💰 Total Due: ${rupeesCompact(totalDue)}`,
 						);

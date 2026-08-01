@@ -10,12 +10,12 @@
 		"NODE_ENV": "production",
 		"LOG_LEVEL": "info",
 		"COOKIE_DOMAIN": ".parmjeetmishra.com",
-		"CORS_ORIGINS": "https://rentwise.parmjeetmishra.com,https://dashboard-rentwise.parmjeetmishra.com,https://tenant-rentwise.parmjeetmishra.com",
-		"WEB_APP_URL": "https://rentwise.parmjeetmishra.com",
-		"BETTER_AUTH_URL": "https://rentwise-api.parmjeetmishra.com",
+		"CORS_ORIGINS": "https://keyhq.parmjeetmishra.com,https://dashboard-keyhq.parmjeetmishra.com,https://tenant-keyhq.parmjeetmishra.com",
+		"WEB_APP_URL": "https://keyhq.parmjeetmishra.com",
+		"BETTER_AUTH_URL": "https://keyhq-api.parmjeetmishra.com",
 		"EMAIL_FROM": "info@parmjeetmishra.com",
-		"R2_BUCKET_NAME": "rentwise",
-		"R2_PUBLIC_URL": "https://rentwise-media.parmjeetmishra.com",
+		"R2_BUCKET_NAME": "keyhq",
+		"R2_PUBLIC_URL": "https://keyhq-media.parmjeetmishra.com",
 		"USE_NEON": "true"
 	},
 	"observability": {

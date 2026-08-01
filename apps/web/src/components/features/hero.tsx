@@ -22,7 +22,7 @@ function DashboardMockup() {
 					</div>
 					<div className="flex flex-1 items-center gap-1.25 rounded-[5px] border border-border bg-white px-2.5 py-1 text-[11px] text-muted-foreground">
 						<span className="text-[9px]">🔒</span>
-						app.rentwise.io/dashboard
+						app.keyhq.app/dashboard
 					</div>
 				</div>
 
@@ -33,7 +33,7 @@ function DashboardMockup() {
 						<div className="mb-2 flex items-center gap-1.5 px-2 py-1.5">
 							<div className="h-4.75 w-4.75 shrink-0 rounded-lg bg-primary" />
 							<span className="font-extrabold text-[11.5px] tracking-[-0.2px]">
-								RentWise
+								KeyHQ
 							</span>
 						</div>
 						<div className="px-2 py-[10px_8px_4px] font-bold text-[8.5px] text-muted-foreground uppercase tracking-[0.6px]">
@@ -313,7 +313,7 @@ export function Hero() {
 						</h1>
 
 						<p className="mt-5 max-w-112.5 text-pretty text-[17px] text-muted-foreground leading-[1.68]">
-							RentWise helps landlords and property managers track tenants,
+							KeyHQ helps landlords and property managers track tenants,
 							automate rent collection, and manage utilities — all in one place.
 						</p>
 

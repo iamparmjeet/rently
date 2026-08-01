@@ -14,8 +14,8 @@ export function CtaBand() {
 						Ready to Simplify Your Property Management?
 					</h2>
 					<p className="relative z-1 mx-auto mt-2.5 max-w-120 text-[16px] text-white/72">
-						Join thousands of landlords who trust RentWise to manage their
-						rental properties efficiently.
+						Join thousands of landlords who trust KeyHQ to manage their rental
+						properties efficiently.
 					</p>
 
 					<div className="relative z-1 mt-7.5 flex flex-wrap justify-center gap-3">

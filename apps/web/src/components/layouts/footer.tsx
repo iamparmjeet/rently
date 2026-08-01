@@ -87,7 +87,7 @@ export function Footer() {
 
 				<div className="mt-12 border-t pt-8 text-center text-muted-foreground text-sm">
 					<p>
-						&copy; {Year()} RentWise. All rights reserved. | Made with ♡ by{" "}
+						&copy; {Year()} KeyHQ. All rights reserved. | Made with ♡ by{" "}
 						<Link target="_blank" href={"https://parmjeetmishra.com"}>
 							Parm
 						</Link>

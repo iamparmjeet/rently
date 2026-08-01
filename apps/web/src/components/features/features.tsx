@@ -77,8 +77,8 @@ export function Features() {
 						Everything You Need to Manage Rentals
 					</h2>
 					<p className="mx-auto mt-2.75 max-w-140 text-pretty text-[16px] text-muted-foreground leading-[1.65]">
-						From property listings to payment tracking, RentWise covers the
-						entire rental lifecycle.
+						From property listings to payment tracking, KeyHQ covers the entire
+						rental lifecycle.
 					</p>
 				</div>
 

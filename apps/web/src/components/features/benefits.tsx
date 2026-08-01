@@ -21,7 +21,7 @@ export function Benefits() {
 					{/* Left: checklist */}
 					<div>
 						<span className="mb-3.5 inline-block rounded-full bg-primary/10 px-2.75 py-0.75 font-semibold text-[12px] text-primary tracking-[0.1px]">
-							Why RentWise
+							Why KeyHQ
 						</span>
 						<h2 className="text-balance font-extrabold text-[clamp(27px,3vw,40px)] leading-[1.1] tracking-[-1.1px]">
 							Built for Indian Landlords

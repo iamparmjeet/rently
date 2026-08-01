@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { RegisterForm } from "@/components/forms/register-form";
 
 export const metadata: Metadata = {
-	title: "Create Account — RentWise",
+	title: "Create Account — KeyHQ",
 };
 
 export default function RegisterPage() {
@@ -45,12 +45,12 @@ export default function RegisterPage() {
 				</div>
 
 				<p className="relative z-1 text-[12px] text-white/42">
-					© {Year()} RentWise. All rights reserved.
+					© {Year()} KeyHQ. All rights reserved.
 				</p>
 			</div>
 
 			{/* Form panel */}
-			<div className="flex items-start justify-center overflow-y-auto bg-white px-7 py-11 lg:px-13">
+			<div className="flex items-start justify-center overflow-y-auto bg-white px-4 py-11 lg:px-13">
 				<div className="w-full max-w-100 py-0">
 					<h1 className="font-extrabold text-[27px] tracking-[-0.6px]">
 						Create your account

@@ -238,9 +238,7 @@ function DashboardMockup() {
 					</svg>
 				</div>
 				<div>
-					<div className="font-extrabold text-[15px] leading-[1.1]">
-						₹1.20L+
-					</div>
+					<div className="font-extrabold text-[15px] leading-[1.1]">₹1.20L</div>
 					<div className="text-[11px] text-muted-foreground">Monthly rent</div>
 				</div>
 			</div>

@@ -28,8 +28,8 @@ export default function RegisterPage() {
 					</p>
 					<div className="mt-9.5 flex flex-wrap gap-7.5">
 						{[
-							{ value: "Free", label: "Forever plan" },
-							{ value: "5 min", label: "Setup time" },
+							{ value: "Free", label: "Starter plan" },
+							{ value: "10", label: "Active tenants" },
 							{ value: "0", label: "Credit card required" },
 						].map((s) => (
 							<div key={s.label}>
@@ -56,7 +56,7 @@ export default function RegisterPage() {
 						Create your account
 					</h1>
 					<p className="mt-1.25 mb-4 text-[14.5px] text-muted-foreground">
-						Start your free 14-day trial — no credit card needed
+						Create your free starter account — no credit card needed
 					</p>
 					<Suspense fallback={null}>
 						<RegisterForm />

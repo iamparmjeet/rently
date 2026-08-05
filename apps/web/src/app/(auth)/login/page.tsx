@@ -21,43 +21,23 @@ function AuthBrand() {
 					Manage your properties smarter, not harder.
 				</h2>
 				<p className="text-[15px] text-white/72 leading-[1.65]">
-					Join thousands of Indian landlords who save hours every week with
-					KeyHQ's automated property management platform.
+					Manage properties, leases, tenants, utilities, and payments from one
+					organized workspace.
 				</p>
 
-				<div className="mt-9.5 flex flex-wrap gap-7.5">
+				<div className="mt-9.5 space-y-3">
 					{[
-						{ value: "150+", label: "Properties" },
-						{ value: "2,400+", label: "Tenants" },
-						{ value: "₹12Cr+", label: "Revenue" },
-					].map((s) => (
-						<div key={s.label}>
-							<div className="font-extrabold text-[27px] text-white leading-tight">
-								{s.value}
-							</div>
-							<div className="mt-0.5 text-[12px] text-white/62">{s.label}</div>
+						"Manage properties, units, and leases",
+						"Track rent, utilities, and payments",
+						"Give tenants access through a dedicated portal",
+					].map((feature) => (
+						<div
+							key={feature}
+							className="rounded-lg bg-white/10 px-4 py-3 text-[14px] text-white/87"
+						>
+							{feature}
 						</div>
 					))}
-				</div>
-
-				<div className="mt-9 rounded-xl bg-white/11 p-[20px_22px]">
-					<p className="text-[14px] text-white/87 italic leading-[1.62]">
-						"KeyHQ completely transformed how I manage my 8 properties. I spend
-						70% less time on admin work now."
-					</p>
-					<div className="mt-3.5 flex items-center gap-2.5">
-						<div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-white/27 font-bold text-[11px] text-white">
-							RK
-						</div>
-						<div>
-							<div className="font-semibold text-[13px] text-white">
-								Rahul Kumar
-							</div>
-							<div className="text-[11.5px] text-white/60">
-								Property owner, Bangalore
-							</div>
-						</div>
-					</div>
 				</div>
 			</div>
 

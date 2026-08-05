@@ -7,8 +7,6 @@ import {
 	Dialog,
 	DialogClose,
 	DialogContent,
-	// WHY DialogContent not DialogTrigger: DialogContent = Portal + Backdrop + Popup.
-	// DialogTrigger is the button that *opens* the dialog — not the popup itself.
 	DialogDescription,
 	DialogTitle,
 } from "@rently/ui/components/dialog";
@@ -286,12 +284,6 @@ function PlansSkeleton() {
 }
 
 //  Plans grid — static layout matching seed data
-// WHY static: listPlans is a public procedure but we don't have a useListPlans
-// hook in the dashboard yet. These values mirror packages/db/src/seed/plans.ts
-// exactly. When a listPlans hook is added, replace STATIC_PLANS with that.
-//
-// GOTCHA: prices are integers in paise. ₹499 = 49900, ₹5,099 = 509898.
-
 function PlansGrid({
 	currentPlanSlug,
 	onUpgrade,

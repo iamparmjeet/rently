@@ -1,7 +1,7 @@
 // bun packages/db/src/seed/plans.ts
 // Run once after migration to populate the plans table.
-// Safe to re-run: onConflictDoNothing() skips existing slugs.
-import { eq } from "drizzle-orm";
+// Safe to re-run: inserts missing plans and synchronizes existing plan configuration.
+
 import { createDb } from "../index";
 import { plans } from "../schema/subscription";
 import { generatedId } from "../utils/id";
@@ -50,19 +50,28 @@ async function seed() {
 	console.log("Seeding plans...");
 
 	for (const plan of PLANS) {
-		const existing = await db
-			.select({ id: plans.id })
-			.from(plans)
-			.where(eq(plans.slug, plan.slug))
-			.limit(1);
+		await db
+			.insert(plans)
+			.values({
+				id: generatedId(),
+				...plan,
+			})
+			.onConflictDoUpdate({
+				target: plans.slug,
+				set: {
+					name: plan.name,
+					description: plan.description,
+					tenantLimit: plan.tenantLimit,
+					priceMonthly: plan.priceMonthly,
+					priceQuarterly: plan.priceQuarterly,
+					priceHalfYearly: plan.priceHalfYearly,
+					priceYearly: plan.priceYearly,
+					priceTwoYear: plan.priceTwoYear,
+					updatedAt: new Date(),
+				},
+			});
 
-		if (existing.length > 0) {
-			console.log(`  ⏭  ${plan.slug} already exists — skipping`);
-			continue;
-		}
-
-		await db.insert(plans).values({ id: generatedId(), ...plan });
-		console.log(`  ✓  ${plan.slug} inserted`);
+		console.log(`  ✓ ${plan.slug} synchronized`);
 	}
 
 	console.log("Done.");

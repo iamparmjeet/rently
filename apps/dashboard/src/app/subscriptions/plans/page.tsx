@@ -31,6 +31,9 @@ import { PlanCard } from "@/components/features/subscriptions/plan-card";
 import { Container } from "@/components/shared/container";
 import { useMySubscription, useRedeemBetaCode } from "@/hooks/subscriptions";
 
+const SUPPORT_EMAIL =
+	env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "info@parmjeetmishra.com";
+
 // ── Types ──
 
 type BillingPeriod = "monthly" | "yearly";
@@ -66,7 +69,6 @@ function UpgradeDialog({ plan, open, onClose }: UpgradeDialogProps) {
 	const redeem = useRedeemBetaCode();
 
 	const upiId = env.NEXT_PUBLIC_UPI_ID;
-	const supportEmail = env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@keyhq.app";
 
 	const amount = period === "monthly" ? plan.priceMonthly : plan.priceYearly;
 	const upiUrl = upiId ? buildUpiUrl(upiId, amount, plan, period) : null;
@@ -195,10 +197,10 @@ function UpgradeDialog({ plan, open, onClose }: UpgradeDialogProps) {
 									<>
 										Email your <strong>UTR number</strong> to{" "}
 										<a
-											href={`mailto:${supportEmail}`}
+											href={`mailto:${SUPPORT_EMAIL}`}
 											className="text-primary underline"
 										>
-											{supportEmail}
+											{SUPPORT_EMAIL}
 										</a>
 									</>,
 									<>
@@ -223,10 +225,10 @@ function UpgradeDialog({ plan, open, onClose }: UpgradeDialogProps) {
 							<p className="text-muted-foreground text-xs">
 								To upgrade, contact us at{" "}
 								<a
-									href={`mailto:${supportEmail}`}
+									href={`mailto:${SUPPORT_EMAIL}`}
 									className="text-primary underline"
 								>
-									{supportEmail}
+									{SUPPORT_EMAIL}
 								</a>
 							</p>
 						</div>
@@ -364,7 +366,7 @@ function PlansGrid({
 			<p className="col-span-12 text-center text-muted-foreground text-xs">
 				All plans include all core features. Upgrade or downgrade at any time.{" "}
 				<a
-					href="mailto:support@rently.app"
+					href={`mailto:${SUPPORT_EMAIL}`}
 					className="text-primary underline underline-offset-2"
 				>
 					Questions? Contact us.

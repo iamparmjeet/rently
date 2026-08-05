@@ -1,4 +1,18 @@
+import { config } from "dotenv";
 import { defineConfig } from "vitest/config";
+
+config({
+	path: "apps/server/.env.test",
+	override: true,
+});
+
+const databaseUrl = new URL(process.env.DATABASE_URL ?? "");
+
+if (databaseUrl.pathname !== "/rently_test") {
+	throw new Error(
+		"Tests may run only against the rently_test database. Check apps/server/.env.test.",
+	);
+}
 
 export default defineConfig({
 	test: {

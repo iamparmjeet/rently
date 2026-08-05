@@ -62,7 +62,7 @@ export function Pricing() {
 						Simple, Transparent Pricing
 					</h2>
 					<p className="mx-auto mt-2.75 max-w-140 text-pretty text-[16px] text-muted-foreground leading-[1.65]">
-						Start free, scale as you grow. No hidden fees, no surprises — ever.
+						Choose a plan based on the number of active tenants you manage.
 					</p>
 				</div>
 

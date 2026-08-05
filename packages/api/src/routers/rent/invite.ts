@@ -52,7 +52,12 @@ export const createInvite = ownerProcedure
 		successStatus: StatusCode.CREATED,
 	})
 	.input(CreateInviteSchema)
-	.output(z.object({ invite: InvitePublicSchema }))
+	.output(
+		z.object({
+			invite: InvitePublicSchema,
+			deliveryStatus: z.enum(["sent", "failed"]),
+		}),
+	)
 	.handler(async ({ context, input }) => {
 		const { db, user } = context;
 
@@ -94,13 +99,25 @@ export const createInvite = ownerProcedure
 		}
 
 		// Fire email — non-blocking (see email utility for why we don't throw)
-		sendInviteEmail({
-			to: input.email,
-			tenantName: input.name,
-			ownerName: user.name,
-			token,
-		}).catch(console.error);
-		return { invite };
+		let deliveryStatus: "sent" | "failed" = "sent";
+
+		try {
+			await sendInviteEmail({
+				to: input.email,
+				tenantName: input.name,
+				ownerName: user.name,
+				token,
+			});
+		} catch (error) {
+			deliveryStatus = "failed";
+			console.error("[createInvite] Invite saved but email delivery failed", {
+				inviteId: invite.id,
+				code:
+					error instanceof Error ? error.message : "UNKNOWN_INVITE_EMAIL_ERROR",
+			});
+		}
+
+		return { invite, deliveryStatus };
 	});
 
 // 2) List Invites

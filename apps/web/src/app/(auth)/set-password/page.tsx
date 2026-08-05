@@ -47,7 +47,7 @@ export default async function SetPasswordPage({ searchParams }: PageProps) {
 					<div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
 						<IconBuilding className="h-6 w-6 text-primary" />
 					</div>
-					<span className="font-semibold text-xl tracking-tight">RentWise</span>
+					<span className="font-semibold text-xl tracking-tight">KeyHQ</span>
 				</div>
 
 				<Card>
@@ -64,7 +64,7 @@ export default async function SetPasswordPage({ searchParams }: PageProps) {
 						)}
 						{token && (
 							<p className="mt-2 text-slate-500 text-sm">
-								Choose a strong password to secure your RentWise account.
+								Choose a strong password to secure your KeyHQ account.
 							</p>
 						)}
 					</CardContent>

@@ -21,7 +21,7 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-	title: "RentWise",
+	title: "KeyHQ",
 	description: "Managing Tenant at your fingertips",
 };
 

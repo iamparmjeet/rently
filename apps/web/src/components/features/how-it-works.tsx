@@ -3,19 +3,19 @@ const steps = [
 		number: "01",
 		title: "Add Your Properties",
 		description:
-			"Register residential or commercial properties and define units with base rent and details.",
+			"Register residential or commercial properties and define their units, rent, and details.",
 	},
 	{
 		number: "02",
 		title: "Invite Your Tenants",
 		description:
-			"Send email invites — tenants complete their own profiles securely in minutes.",
+			"Send email invitations so tenants can review their details and access the tenant portal.",
 	},
 	{
 		number: "03",
-		title: "Track Everything",
+		title: "Track Rent and Utilities",
 		description:
-			"Monitor rent, utilities, and maintenance with automatic calculations and real-time status.",
+			"Record rent payments, manage utility bills, and review current lease information.",
 	},
 ];
 
@@ -28,11 +28,11 @@ export function HowItWorks() {
 						How It Works
 					</span>
 					<h2 className="text-balance font-extrabold text-[clamp(27px,3vw,40px)] leading-[1.1] tracking-[-1.1px]">
-						Up and Running in Minutes
+						Set Up Your Rental Workflow
 					</h2>
 					<p className="mx-auto mt-2.75 max-w-140 text-pretty text-[16px] text-muted-foreground leading-[1.65]">
-						Get started and take full control of your properties — no training
-						required.
+						Add your portfolio records, invite tenants, and keep rent and
+						utilities organized.
 					</p>
 				</div>
 

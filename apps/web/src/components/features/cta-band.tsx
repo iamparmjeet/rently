@@ -14,8 +14,8 @@ export function CtaBand() {
 						Ready to Simplify Your Property Management?
 					</h2>
 					<p className="relative z-1 mx-auto mt-2.5 max-w-120 text-[16px] text-white/72">
-						Join thousands of landlords who trust RentWise to manage their
-						rental properties efficiently.
+						Create your Starter account and organize your rental workflow with
+						KeyHQ.
 					</p>
 
 					<div className="relative z-1 mt-7.5 flex flex-wrap justify-center gap-3">
@@ -23,7 +23,7 @@ export function CtaBand() {
 							href="/register"
 							className="inline-flex h-13.5 items-center gap-2 rounded-lg bg-white px-9 font-semibold text-[16px] text-primary no-underline transition-all hover:bg-white/90"
 						>
-							Start Free Trial
+							Create Free Account
 							<ArrowRight className="h-4 w-4" />
 						</Link>
 						<Link
@@ -35,7 +35,7 @@ export function CtaBand() {
 					</div>
 
 					<p className="relative z-1 mt-2.5 text-[12.5px] text-white/48">
-						No credit card required · 14-day free trial · Cancel anytime
+						No credit card required to create a Starter account
 					</p>
 				</div>
 			</div>

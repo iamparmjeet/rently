@@ -4,50 +4,49 @@ const plans = [
 	{
 		name: "Starter",
 		price: "₹0",
-		period: "Forever free · Up to 2 properties",
+		period: "Free · Up to 10 active tenants",
 		cta: "Get Started",
 		ctaStyle: "border",
 		featured: false,
+		available: true,
+		betaMessage: null,
 		features: [
-			{ label: "Up to 2 properties", included: true },
-			{ label: "10 tenants max", included: true },
-			{ label: "Basic payment tracking", included: true },
-			{ label: "Automated reminders", included: false },
-			{ label: "Utility management", included: false },
+			{ label: "Up to 10 active tenants", included: true },
+			{ label: "Properties and units", included: true },
+			{ label: "Payment tracking", included: true },
+			{ label: "Utility management", included: true },
+			{ label: "In-app notifications", included: true },
 		],
 	},
 	{
 		name: "Pro",
 		price: "₹499",
 		priceSuffix: "/mo",
-		period: "Billed monthly · Unlimited properties",
-		cta: "Start 14-Day Trial",
+		period: "Billed monthly · Up to 500 active tenants",
+		cta: "Choose Pro",
 		ctaStyle: "primary",
 		featured: true,
 		badge: "Most Popular",
+		available: true,
+		betaMessage: null,
 		features: [
-			{ label: "Unlimited properties", included: true },
-			{ label: "Unlimited tenants", included: true },
-			{ label: "Automated reminders", included: true },
-			{ label: "Utility management", included: true },
+			{ label: "Up to 500 active tenants", included: true },
+			{ label: "Everything in Starter", included: true },
+			{ label: "Flexible billing periods", included: true },
+			{ label: "UPI payment support", included: true },
 			{ label: "Priority support", included: true },
 		],
 	},
 	{
 		name: "Enterprise",
-		price: "₹1,499",
-		priceSuffix: "/mo",
-		period: "Billed monthly · Large portfolios",
-		cta: "Contact Sales",
+		price: "Coming soon",
+		period: "Not available during beta",
+		cta: "Waitlist coming soon",
 		ctaStyle: "border",
 		featured: false,
-		features: [
-			{ label: "Everything in Pro", included: true },
-			{ label: "Custom reports & exports", included: true },
-			{ label: "API access", included: true },
-			{ label: "Dedicated support", included: true },
-			{ label: "White-label option", included: true },
-		],
+		available: false,
+		betaMessage: "Enterprise access is planned for a later release.",
+		features: [],
 	},
 ];
 
@@ -63,7 +62,7 @@ export function Pricing() {
 						Simple, Transparent Pricing
 					</h2>
 					<p className="mx-auto mt-2.75 max-w-140 text-pretty text-[16px] text-muted-foreground leading-[1.65]">
-						Start free, scale as you grow. No hidden fees, no surprises — ever.
+						Choose a plan based on the number of active tenants you manage.
 					</p>
 				</div>
 
@@ -91,18 +90,34 @@ export function Pricing() {
 								{plan.period}
 							</div>
 
-							<Link
-								href="/register"
-								className={`inline-flex h-11 w-full items-center justify-center rounded-lg font-semibold text-[15px] no-underline transition-all ${
-									plan.ctaStyle === "primary"
-										? "bg-primary text-primary-foreground hover:bg-primary-hover"
-										: "border border-border bg-transparent text-foreground hover:bg-muted"
-								}`}
-							>
-								{plan.cta}
-							</Link>
+							{plan.available ? (
+								<Link
+									href="/register"
+									className={`inline-flex h-11 w-full items-center justify-center rounded-lg font-semibold text-[15px] no-underline transition-all ${
+										plan.ctaStyle === "primary"
+											? "bg-primary text-primary-foreground hover:bg-primary-hover"
+											: "border border-border bg-transparent text-foreground hover:bg-muted"
+									}`}
+								>
+									{plan.cta}
+								</Link>
+							) : (
+								<button
+									type="button"
+									disabled
+									className="inline-flex h-11 w-full cursor-not-allowed items-center justify-center rounded-lg border border-border bg-muted font-semibold text-[15px] text-muted-foreground"
+								>
+									{plan.cta}
+								</button>
+							)}
 
-							<ul className="mt-5.5 mb-6.5 flex list-none flex-col gap-2.25">
+							{plan.betaMessage && (
+								<p className="mt-5.5 text-[13.5px] text-muted-foreground leading-relaxed">
+									{plan.betaMessage}
+								</p>
+							)}
+
+							<ul className="mt-5.5 mb-6.5 flex list-none flex-col gap-2.25 empty:hidden">
 								{plan.features.map((feature) => (
 									<li
 										key={feature.label}

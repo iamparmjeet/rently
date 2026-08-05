@@ -54,7 +54,7 @@ export function CombinedBillRow({
 					? `• Maintenance: ${formatRupees(maintenanceTotal)}`
 					: null,
 				`Total: ${formatRupees(grandTotal)}`,
-				"Please pay at your earliest convenience. - RentWise",
+				"Please pay at your earliest convenience. - KeyHQ",
 			]
 				.filter(Boolean)
 				.join("\n"),

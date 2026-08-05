@@ -67,18 +67,15 @@ export const getMySubscription = ownerProcedure
 				.limit(1);
 
 			if (freePlan) {
-				const trialEnd = new Date();
-				trialEnd.setDate(trialEnd.getDate() + 15);
-
 				await db.insert(subscriptions).values({
 					id: generatedId(),
 					userId: user.id,
 					planId: freePlan.id,
-					status: PLAN_STATUS.TRIAL,
+					status: PLAN_STATUS.ACTIVE,
 					billingInterval: BILLING_INTERVAL.MONTHLY,
 					currentPeriodStart: new Date(),
-					currentPeriodEnd: trialEnd,
-					trialEndsAt: trialEnd,
+					currentPeriodEnd: null,
+					trialEndsAt: null,
 					expired: false,
 				});
 				// Re-fetch so the return shape is consistent

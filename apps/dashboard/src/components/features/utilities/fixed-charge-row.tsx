@@ -45,7 +45,7 @@ export function FixedChargeRow({
 		if (!u.tenantPhone) return;
 		const typeLabel = isWater ? "water charges" : "maintenance charge";
 		const msg = encodeURIComponent(
-			`Dear ${u.tenantName ?? "Tenant"}, your ${typeLabel} for ${dateDisplay} is ${formatFormRupees(u.totalAmount)}. Please pay at your earliest convenience. - RentWise`,
+			`Dear ${u.tenantName ?? "Tenant"}, your ${typeLabel} for ${dateDisplay} is ${formatFormRupees(u.totalAmount)}. Please pay at your earliest convenience. - KeyHQ`,
 		);
 		window.open(
 			`https://wa.me/${u.tenantPhone.replace(/\D/g, "")}?text=${msg}`,

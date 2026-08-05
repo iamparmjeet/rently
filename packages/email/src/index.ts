@@ -15,7 +15,7 @@ function emailWrapper(body: string): string {
     ${body}
     <hr style="border:none;border-top:1px solid #eee;margin:24px 0;" />
     <p style="color:#bbb;font-size:12px;margin:0;">
-      RentWise · Property Management Simplified
+      KeyHQ · Property Management Simplified
     </p>
   </body>
 </html>`;
@@ -51,17 +51,20 @@ export async function sendInviteEmail({
 	to,
 	token,
 }: InviteEmailParams): Promise<void> {
-	const inviteUrl = `${env.CORS_ORIGINS}/invite/${token}`;
+	const inviteUrl = new URL(
+		`/invite/${encodeURIComponent(token)}`,
+		env.WEB_APP_URL,
+	).toString();
 
 	const { error } = await resend.emails.send({
 		from: env.EMAIL_FROM,
 		to,
-		subject: `${ownerName} invited you to RentWise`,
+		subject: `${ownerName} invited you to KeyHQ`,
 		html: emailWrapper(`
       <h2 style="margin-bottom:8px;">Hello ${tenantName},</h2>
       <p style="color:#555;line-height:1.6;margin-bottom:24px;">
         <strong>${ownerName}</strong> has invited you to join
-        <strong>RentWise</strong> — a platform to manage your rental
+        <strong>KeyHQ</strong> — a platform to manage your rental
         agreement and track payments digitally.
       </p>
       ${ctaButton(inviteUrl, "Accept Invitation →")}
@@ -73,10 +76,11 @@ export async function sendInviteEmail({
 	});
 
 	if (error) {
-		// Design decision - log but don't throw
-		// Invite is created in DB - owner can ersend from invite page
-		// TODO: Retry queue when email infra matures
-		console.log("[Resend] Invite email failed", error);
+		console.error("[Resend] Invite email delivery failed", {
+			name: error.name,
+			message: error.message,
+		});
+		throw new Error("INVITE_EMAIL_DELIVERY_FAILED");
 	}
 }
 
@@ -97,12 +101,12 @@ export async function sendTenantSetupEmail({
 	const { error } = await resend.emails.send({
 		from: env.EMAIL_FROM,
 		to,
-		subject: `${ownerName} added you to RentWise — set up your account`,
+		subject: `${ownerName} added you to KeyHQ — set up your account`,
 		html: emailWrapper(`
       <h2 style="margin-bottom:8px;">Hello ${tenantName},</h2>
       <p style="color:#555;line-height:1.6;margin-bottom:24px;">
         <strong>${ownerName}</strong> has added you as a tenant on
-        <strong>RentWise</strong>. Click below to set your password
+        <strong>KeyHQ</strong>. Click below to set your password
         and complete your profile.
       </p>
       ${ctaButton(setupUrl, "Set Up Your Account →")}
@@ -169,11 +173,11 @@ export async function sendPasswordResetEmail({
 	const { error } = await resend.emails.send({
 		from: env.EMAIL_FROM,
 		to,
-		subject: "Reset your RentWise password",
+		subject: "Reset your KeyHQ password",
 		html: emailWrapper(`
       <h2 style="margin-bottom:8px;">Hello ${name},</h2>
       <p style="color:#555;line-height:1.6;margin-bottom:24px;">
-        We received a request to reset the password for your RentWise account.
+        We received a request to reset the password for your KeyHQ account.
         Click the button below to choose a new password.
       </p>
       ${ctaButton(resetUrl, "Reset My Password →")}

@@ -7,8 +7,6 @@ import {
 	Dialog,
 	DialogClose,
 	DialogContent,
-	// WHY DialogContent not DialogTrigger: DialogContent = Portal + Backdrop + Popup.
-	// DialogTrigger is the button that *opens* the dialog — not the popup itself.
 	DialogDescription,
 	DialogTitle,
 } from "@rently/ui/components/dialog";
@@ -29,7 +27,14 @@ import { useState } from "react";
 import QRCode from "react-qr-code";
 import { PlanCard } from "@/components/features/subscriptions/plan-card";
 import { Container } from "@/components/shared/container";
-import { useMySubscription, useRedeemBetaCode } from "@/hooks/subscriptions";
+import {
+	useListPlans,
+	useMySubscription,
+	useRedeemBetaCode,
+} from "@/hooks/subscriptions";
+
+const SUPPORT_EMAIL =
+	env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "info@parmjeetmishra.com";
 
 // ── Types ──
 
@@ -46,10 +51,10 @@ function buildUpiUrl(
 	plan: PlanSelect,
 	period: BillingPeriod,
 ): string {
-	const note = encodeURIComponent(`RentWise ${plan.name} ${period}`);
+	const note = encodeURIComponent(`KeyHQ ${plan.name} ${period}`);
 	// WHY /100: UPI deep links use rupees, not paise
 	const rupees = (amount / 100).toFixed(2);
-	return `upi://pay?pa=${upiId}&pn=RentWise&am=${rupees}&cu=INR&tn=${note}`;
+	return `upi://pay?pa=${upiId}&pn=KeyHQ&am=${rupees}&cu=INR&tn=${note}`;
 }
 
 // ── UpgradeDialog ─
@@ -66,7 +71,6 @@ function UpgradeDialog({ plan, open, onClose }: UpgradeDialogProps) {
 	const redeem = useRedeemBetaCode();
 
 	const upiId = env.NEXT_PUBLIC_UPI_ID;
-	const supportEmail = env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "support@rentwise.app";
 
 	const amount = period === "monthly" ? plan.priceMonthly : plan.priceYearly;
 	const upiUrl = upiId ? buildUpiUrl(upiId, amount, plan, period) : null;
@@ -98,7 +102,7 @@ function UpgradeDialog({ plan, open, onClose }: UpgradeDialogProps) {
 							Upgrade to {plan.name}
 						</DialogTitle>
 						<DialogDescription className="mt-0.5 text-muted-foreground text-xs">
-							Pay via UPI · Receive activation code within 2 hours
+							Pay via UPI · Activate after payment review
 						</DialogDescription>
 					</div>
 					<DialogClose
@@ -195,15 +199,15 @@ function UpgradeDialog({ plan, open, onClose }: UpgradeDialogProps) {
 									<>
 										Email your <strong>UTR number</strong> to{" "}
 										<a
-											href={`mailto:${supportEmail}`}
+											href={`mailto:${SUPPORT_EMAIL}`}
 											className="text-primary underline"
 										>
-											{supportEmail}
+											{SUPPORT_EMAIL}
 										</a>
 									</>,
 									<>
-										You'll receive your <strong>activation code</strong> within
-										2 hours
+										After the payment is reviewed, you'll receive an{" "}
+										<strong>activation code</strong> by email
 									</>,
 									<>Enter your code below and click Activate</>,
 								].map((step, i) => (
@@ -223,10 +227,10 @@ function UpgradeDialog({ plan, open, onClose }: UpgradeDialogProps) {
 							<p className="text-muted-foreground text-xs">
 								To upgrade, contact us at{" "}
 								<a
-									href={`mailto:${supportEmail}`}
+									href={`mailto:${SUPPORT_EMAIL}`}
 									className="text-primary underline"
 								>
-									{supportEmail}
+									{SUPPORT_EMAIL}
 								</a>
 							</p>
 						</div>
@@ -240,7 +244,7 @@ function UpgradeDialog({ plan, open, onClose }: UpgradeDialogProps) {
 						<Input
 							value={code}
 							onChange={(e) => setCode(e.target.value.toUpperCase())}
-							placeholder="RENTWISE-XXXX-YYYY"
+							placeholder="KEYHQ-XXXX-YYYY"
 							className="h-8 font-mono text-xs"
 							disabled={redeem.isPending}
 							onKeyDown={(e) => {
@@ -279,80 +283,20 @@ function PlansSkeleton() {
 	);
 }
 
-//  Plans grid — static layout matching seed data
-// WHY static: listPlans is a public procedure but we don't have a useListPlans
-// hook in the dashboard yet. These values mirror packages/db/src/seed/plans.ts
-// exactly. When a listPlans hook is added, replace STATIC_PLANS with that.
-//
-// GOTCHA: prices are integers in paise. ₹499 = 49900, ₹5,099 = 509898.
-const STATIC_PLANS: PlanSelect[] = [
-	{
-		id: "free",
-		slug: "free",
-		name: "Starter",
-		description: "Free forever · Up to 10 tenants",
-		tenantLimit: 10,
-		priceMonthly: 0,
-		priceQuarterly: 0,
-		priceHalfYearly: 0,
-		priceYearly: 0,
-		priceTwoYear: 0,
-		discountQuarterly: 500,
-		discountHalfYearly: 100,
-		discountYearly: 150,
-		discountTwoYear: 200,
-		createdAt: new Date(),
-		updatedAt: new Date(),
-	},
-	{
-		id: "pro",
-		slug: "pro",
-		name: "Pro",
-		description: "Unlimited tenants · Priority support",
-		tenantLimit: 500,
-		priceMonthly: 49900,
-		priceQuarterly: 142320,
-		priceHalfYearly: 269460,
-		priceYearly: 509898,
-		priceTwoYear: 958080,
-		discountQuarterly: 500,
-		discountHalfYearly: 100,
-		discountYearly: 150,
-		discountTwoYear: 200,
-		createdAt: new Date(),
-		updatedAt: new Date(),
-	},
-	{
-		id: "enterprise",
-		slug: "enterprise",
-		name: "Enterprise",
-		description: "Everything in Pro · Custom reports · API access",
-		tenantLimit: 9999,
-		priceMonthly: 149900,
-		priceQuarterly: 427215,
-		priceHalfYearly: 809460,
-		priceYearly: 1529298,
-		priceTwoYear: 2877120,
-		discountQuarterly: 500,
-		discountHalfYearly: 100,
-		discountYearly: 150,
-		discountTwoYear: 200,
-		createdAt: new Date(),
-		updatedAt: new Date(),
-	},
-];
-
+//  Plans grid
 function PlansGrid({
 	currentPlanSlug,
 	onUpgrade,
+	plans,
 }: {
+	plans: PlanSelect[];
 	currentPlanSlug: string;
 	onUpgrade: (plan: PlanSelect) => void;
 }) {
 	return (
 		<>
 			<div className="col-span-12 grid grid-cols-1 gap-4 pt-4 sm:grid-cols-3">
-				{STATIC_PLANS.map((plan) => (
+				{plans.map((plan) => (
 					<PlanCard
 						key={plan.slug}
 						plan={plan}
@@ -364,7 +308,7 @@ function PlansGrid({
 			<p className="col-span-12 text-center text-muted-foreground text-xs">
 				All plans include all core features. Upgrade or downgrade at any time.{" "}
 				<a
-					href="mailto:support@rently.app"
+					href={`mailto:${SUPPORT_EMAIL}`}
 					className="text-primary underline underline-offset-2"
 				>
 					Questions? Contact us.
@@ -377,10 +321,15 @@ function PlansGrid({
 //  Main page
 
 export default function PlansPage() {
-	const { data, isLoading } = useMySubscription();
+	const { data: subscriptionData, isLoading: isSubscriptionLoading } =
+		useMySubscription();
 	const [upgradePlan, setUpgradePlan] = useState<PlanSelect | null>(null);
+	const { data: plansData, isLoading: isPlansLoading } = useListPlans();
 
-	const currentPlanSlug = data?.subscription?.plan.slug ?? "free";
+	const currentPlanSlug = subscriptionData?.subscription?.plan.slug ?? "free";
+
+	const availablePlans = plansData?.plans ?? [];
+	const isLoading = isSubscriptionLoading || isPlansLoading;
 
 	return (
 		<Container>
@@ -401,8 +350,13 @@ export default function PlansPage() {
 
 				{isLoading ? (
 					<PlansSkeleton />
+				) : availablePlans.length === 0 ? (
+					<p className="py-12 text-center text-muted-foreground text-sm">
+						Plans are temporarily unavailable.
+					</p>
 				) : (
 					<PlansGrid
+						plans={availablePlans}
 						currentPlanSlug={currentPlanSlug}
 						onUpgrade={setUpgradePlan}
 					/>

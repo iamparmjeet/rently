@@ -52,7 +52,12 @@ export const createInvite = ownerProcedure
 		successStatus: StatusCode.CREATED,
 	})
 	.input(CreateInviteSchema)
-	.output(z.object({ invite: InvitePublicSchema }))
+	.output(
+		z.object({
+			invite: InvitePublicSchema,
+			deliveryStatus: z.enum(["sent", "failed"]),
+		}),
+	)
 	.handler(async ({ context, input }) => {
 		const { db, user } = context;
 
@@ -93,17 +98,123 @@ export const createInvite = ownerProcedure
 			});
 		}
 
-		// Fire email — non-blocking (see email utility for why we don't throw)
-		sendInviteEmail({
-			to: input.email,
-			tenantName: input.name,
-			ownerName: user.name,
-			token,
-		}).catch(console.error);
-		return { invite };
+		// Attempt delivery after persistence so an email failure does not delete the invite.
+		let deliveryStatus: "sent" | "failed" = "sent";
+
+		try {
+			await sendInviteEmail({
+				to: input.email,
+				tenantName: input.name,
+				ownerName: user.name,
+				token,
+			});
+		} catch (error) {
+			deliveryStatus = "failed";
+			console.error("[createInvite] Invite saved but email delivery failed", {
+				inviteId: invite.id,
+				code:
+					error instanceof Error ? error.message : "UNKNOWN_INVITE_EMAIL_ERROR",
+			});
+		}
+
+		return { invite, deliveryStatus };
 	});
 
-// 2) List Invites
+// 2) ResendInvite
+export const resendInvite = ownerProcedure
+	.route({
+		method: "POST",
+		path: "/rent/invite/resend",
+	})
+	.input(
+		z.object({
+			inviteId: z.uuid(),
+		}),
+	)
+	.output(
+		z.object({
+			deliveryStatus: z.literal("sent"),
+		}),
+	)
+	.handler(async ({ context, input }) => {
+		const { db, user } = context;
+
+		const [invite] = await db
+			.select({
+				id: tenantInvites.id,
+				email: tenantInvites.email,
+				name: tenantInvites.name,
+				token: tenantInvites.token,
+				status: tenantInvites.status,
+				expiresAt: tenantInvites.expiresAt,
+			})
+			.from(tenantInvites)
+			.where(
+				and(
+					eq(tenantInvites.id, input.inviteId),
+					eq(tenantInvites.invitedById, user.id),
+					isNull(tenantInvites.deletedAt),
+				),
+			)
+			.limit(1);
+
+		// Return NOT_FOUND for both missing and cross-owner invites.
+		if (!invite) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "Invitation not found.",
+			});
+		}
+
+		if (invite.status !== "pending") {
+			throw new ORPCError("CONFLICT", {
+				message: "Only pending invitations can be resent.",
+			});
+		}
+
+		if (invite.expiresAt && invite.expiresAt <= new Date()) {
+			await db
+				.update(tenantInvites)
+				.set({
+					status: "expired",
+					updatedAt: new Date(),
+				})
+				.where(
+					and(
+						eq(tenantInvites.id, invite.id),
+						eq(tenantInvites.invitedById, user.id),
+					),
+				);
+
+			throw new ORPCError("GONE", {
+				message: "This invitation has expired. Create a new invitation.",
+			});
+		}
+
+		try {
+			await sendInviteEmail({
+				to: invite.email,
+				tenantName: invite.name,
+				ownerName: user.name,
+				token: invite.token,
+			});
+		} catch (error) {
+			console.error("[resendInvite] Email delivery failed", {
+				inviteId: invite.id,
+				code:
+					error instanceof Error ? error.message : "UNKNOWN_INVITE_EMAIL_ERROR",
+			});
+
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
+				message: "Email delivery failed. Please try again.",
+			});
+		}
+
+		return {
+			deliveryStatus: "sent" as const,
+		};
+	});
+
+// 3) List Invites
 export const listInvites = ownerProcedure
 	.route({ method: "GET", path: "/rent/invite/list" })
 	.output(z.object({ invites: z.array(InviteListItemSchema) }))
@@ -125,7 +236,7 @@ export const listInvites = ownerProcedure
 		return { invites };
 	});
 
-// 3) Get Invites by token
+// 4) Get Invites by token
 export const getInviteByToken = publicProcedure
 	.route({ method: "GET", path: "/rent/invite/verify" })
 	.input(z.object({ token: z.uuid("Invalid Invite Link") }))
@@ -209,7 +320,7 @@ export const getInviteByToken = publicProcedure
 		};
 	});
 
-// 4) Accept Invite
+// 5) Accept Invite
 export const acceptInvite = publicProcedure
 	.route({
 		method: "POST",
@@ -297,7 +408,7 @@ export const acceptInvite = publicProcedure
 				userId: invite.invitedById,
 				type: NOTIFICATION_TYPES.INVITE_ACCEPTED,
 				title: "Tenant joined",
-				message: `${invite.name} accepted your invite and joined RentWise`,
+				message: `${invite.name} accepted your invite and joined KeyHQ`,
 				entityId: invite.id,
 				entityType: "invite",
 			});

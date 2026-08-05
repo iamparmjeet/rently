@@ -38,9 +38,8 @@ export function createAuth() {
 		emailAndPassword: {
 			enabled: true,
 			sendResetPassword: async ({ user, url }) => {
-				// / Role guard — this callback fires for ALL password resets
-				// Owners requesting a reset would hit this too in future
-				// TODO: add owner reset email branch when owner auth page is built
+				// This callback handles every password-reset request.
+				// Tenants receive a setup email; owners receive the standard reset email.
 				const typeUser = user as typeof user & { role?: string };
 				if (typeUser.role === USER_ROLES.TENANT) {
 					const urlObj = new URL(url);
@@ -58,7 +57,7 @@ export function createAuth() {
 					});
 					return;
 				}
-				// owner Flow
+				// Owner flow
 				await sendPasswordResetEmail({
 					to: user.email,
 					name: user.name ?? "User",

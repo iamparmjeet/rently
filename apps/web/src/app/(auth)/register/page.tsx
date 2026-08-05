@@ -4,7 +4,7 @@ import { Suspense } from "react";
 import { RegisterForm } from "@/components/forms/register-form";
 
 export const metadata: Metadata = {
-	title: "Create Account — RentWise",
+	title: "Create Account — KeyHQ",
 };
 
 export default function RegisterPage() {
@@ -22,14 +22,10 @@ export default function RegisterPage() {
 					<h2 className="mb-3 font-extrabold text-[30px] text-white leading-[1.2] tracking-[-0.8px]">
 						Start managing properties the smart way.
 					</h2>
-					<p className="text-[15px] text-white/72 leading-[1.65]">
-						Create your free account and get set up in minutes. No credit card
-						required.
-					</p>
 					<div className="mt-9.5 flex flex-wrap gap-7.5">
 						{[
-							{ value: "Free", label: "Forever plan" },
-							{ value: "5 min", label: "Setup time" },
+							{ value: "Free", label: "Starter plan" },
+							{ value: "10", label: "Active tenants" },
 							{ value: "0", label: "Credit card required" },
 						].map((s) => (
 							<div key={s.label}>
@@ -45,18 +41,18 @@ export default function RegisterPage() {
 				</div>
 
 				<p className="relative z-1 text-[12px] text-white/42">
-					© {Year()} RentWise. All rights reserved.
+					© {Year()} KeyHQ. All rights reserved.
 				</p>
 			</div>
 
 			{/* Form panel */}
-			<div className="flex items-start justify-center overflow-y-auto bg-white px-7 py-11 lg:px-13">
+			<div className="flex items-start justify-center overflow-y-auto bg-white px-4 py-11 lg:px-13">
 				<div className="w-full max-w-100 py-0">
 					<h1 className="font-extrabold text-[27px] tracking-[-0.6px]">
 						Create your account
 					</h1>
 					<p className="mt-1.25 mb-4 text-[14.5px] text-muted-foreground">
-						Start your free 14-day trial — no credit card needed
+						Create your free Starter account — no credit card needed
 					</p>
 					<Suspense fallback={null}>
 						<RegisterForm />

@@ -1,9 +1,10 @@
-# RentWise — TODO
+# KeyHQ — TODO
 
 > Single source of truth for build progress.
 > Update this file as items are completed or priorities shift.
 > Tiers: **P0** = must ship before public launch · **P1** = core product gaps · **P2** = growth features · **P3** = post-launch backlog
-> Last audited: 2026-06-10 (verified against live codebase)
+> Last audited: 2026-08-05 (verified against the KeyHQ beta branch)
+> Cost policy: prefer services with a suitable free tier. Move to a paid tier only when measured usage or a required capability exceeds its documented free limits.
 
 ---
 
@@ -25,7 +26,7 @@
 - [x] **Beta code redemption** — `redeemBetaCode` procedure (transactional, atomic increment) wired in BillingTab, `/subscriptions` page, and register flow. Codes generated via `db:beta-code` seed script (admin panel is the P3 replacement).
 - [x] **In-app notifications** — `notifications` table + router (list with lazy lease-expiry creation, unread count, mark read/all) + header bell with polling. Cron-free by design.
 - [x] **R2 owner avatar upload** — presigned URL flow with key-scoping guard, `useUploadAvatar`/`useDeleteAvatar`, wired in ProfileTab.
-- [x] **Mobile sidebar (Sheet variant)** — shared `Sidebar` renders a `Sheet` on mobile via `useIsMobile()`; `MobileMenuTrigger` in header. ⚠️ Needs a device QA pass — see Beta Gate.
+- [x] **Mobile sidebar (Sheet variant)** — shared `Sidebar` renders a `Sheet` on mobile via `useIsMobile()`; `SidebarTrigger` in the header opens it.
 
 ---
 
@@ -33,45 +34,45 @@
 
 > Gate test: "Can a stranger sign up, use the product, pay me, and recover their account without manual intervention?"
 
-- [ ] **Plans page** — verify/build `/subscriptions/plans` ("View Plans" CTA already links to it). Plan cards with feature comparison.
-- [ ] **`UpgradeDialog` — UPI QR display** (`react-qr-code` + owner UPI flow) alongside the existing beta code form.
 - [ ] **Email verification for owners** — no `emailVerification` config in Better Auth yet; register hook's `callbackURL` assumes it exists. Wire `sendVerificationEmail` via `@rently/email`. Decide: `requireEmailVerification` on (blocks login until verified) vs. soft banner.
-- [ ] **Mobile QA pass** — test dashboard + tenant portal on a real phone. Known bug: `MobileMenuTrigger` renders `IconSearch` instead of a menu icon.
-- [ ] **Decide: `referrers` table — build-later or drop** — decision only. Dropping after real users exist = riskier migration.
+- [ ] **Mobile QA pass** — test the dashboard and tenant portal on a real Android phone and a narrow iPhone viewport. `SidebarTrigger` is already the mobile menu control.
+- [x] **`referrers` table decision** — leave it dormant during beta; no procedures or UI yet.
 
 ### Fast-follow (beta week 1–2, not gating)
 
 - [ ] PDF rent receipts — design complete; key differentiator (tenant HRA claims). See P1 for sub-tasks.
 - [ ] Subscription status badge in sidebar
-- [ ] Clean stale comments: `// TODO: add owner reset email branch` in `packages/auth` (branch exists now)
 
 ---
 
 ## In Progress 🚧
 
-### Notification Preferences + Email Triggers
+### Notification Preferences + Email Triggers _(Milestone 6)_
 
 > In-app notifications are DONE. This section is only the preference-driven email layer.
 
-- [ ] Migrate preferences from `localStorage` to `ownerProfiles` column (or separate `notificationPrefs` table)
-- [ ] Add DB migration for notification preference fields
+- [ ] Create one owner-scoped `notificationPreferences` row with `paymentReceived`, `utilityBillGenerated`, `leaseExpiryAlert`, `rentDueReminder`, `overdueAlert`, and `updatedAt`.
+- [ ] Replace `localStorage` with owner-scoped query and mutation hooks.
 - [ ] Wire `paymentReceived` toggle → send email on `createPayment` success
-- [ ] Wire `utilityBillGenerated` toggle → send email on utility batch insert
-- [ ] Wire `leaseExpiryAlert` / `rentDueReminder` toggles → Resend triggers (needs scheduled job — see P1)
+- [ ] Wire `utilityBillGenerated` toggle → send email when a utility bill is approved/generated.
+- [ ] Convert `buildReceiptMessage()` to the shared KeyHQ HTML email wrapper.
+- [ ] Scheduled preference-driven email reminders follow in Milestone 7.
 
-### R2 File Uploads — remaining
+### Private Tenant Documents _(Milestone 2 — Tenant Trust Workflows)_
 
-- [ ] Tenant KYC document upload (UID / PAN image → R2) — currently a "coming soon" toast
-- [ ] Add URL columns to `tenantProfiles` (`aadhaarDocUrl`, `panDocUrl`, …)
-- [ ] `getPresignedTenantDocumentUrl` procedure (key pattern: `tenants/${tenantId}/documents/${docType}`)
-- [ ] Display uploaded documents in tenant portal Docs tab
+- [ ] Create `tenantDocuments`; store a private R2 key, document type/version, masked identifier, consent, status, submitter/reviewer metadata, notes, and audit timestamps.
+- [ ] Never add public document URL columns to `tenantProfiles` or return permanent public URLs. Provide short-lived, owner/tenant-authorized signed download URLs only.
+- [ ] Store only Aadhaar last four digits in PostgreSQL; require masked Aadhaar uploads and label reviews as “owner reviewed,” never UIDAI verified.
+- [ ] Keep Aadhaar uploads behind a production compliance feature flag.
+- [ ] Implement `submitInitialDocument`, `reviewTenantDocument`, and `getPrivateDocumentDownloadUrl` with owner/tenant authorization tests.
+- [ ] Add tenant upload and owner review UI in the portal/dashboard Docs experiences.
 
-### Document Update Request Workflow _(defer past beta — low-frequency)_
+### Document Update Lifecycle _(Milestone 2 — Tenant Trust Workflows)_
 
-- [ ] `DocumentUpdateRequestDialog` in tenant portal — tenant raises a request
-- [ ] Owner review UI in dashboard (approve / reject with notes)
-- [ ] `approveDocumentRequest` + `rejectDocumentRequest` oRPC procedures
-- [ ] Status badge on tenant card (pending doc request indicator)
+- [ ] Initial submission: `pending → verified | rejected`.
+- [ ] Later changes: `pending request → approved → submitted → completed`, with terminal `rejected | expired` states.
+- [ ] An approved update request opens a 48-hour submission window; the prior verified document remains active until final approval.
+- [ ] Implement `createDocumentUpdateRequest`, `reviewDocumentUpdateRequest`, and `submitApprovedDocumentUpdate` with authorization and expiry tests.
 
 ---
 
@@ -85,13 +86,18 @@
 
 ## P1 — Core Product Gaps
 
-### Scheduled Jobs (lease + rent reminders)
+### Rent Cycle + Cloudflare Cron _(Milestone 7)_
 
-- [ ] Choose a job scheduler — Vercel Cron (simplest, already on Vercel) or Upstash QStash (more reliable, retries)
-- [ ] `GET /jobs/lease-expiry-check` endpoint — query leases expiring in 30 / 7 / 1 days, send Resend email per owner preference
-- [ ] `GET /jobs/rent-due-reminder` endpoint — query leases where `rentDueDate` is N days away, notify owner + tenant
-- [ ] Wire both endpoints to cron schedule (daily at 08:00 IST)
-- [ ] Note: in-app lease-expiry notifications already exist via lazy creation in `listNotifications` — these jobs add the _email_ channel
+- [ ] Create `queryRentCycleRows`, `computeRentCycleItem`, period-key generation, and configurable owner grace days (default: zero).
+- [ ] Create a scheduled-email delivery deduplication table with a unique owner/lease/type/period/threshold key. Cloudflare Cron delivery is at-least-once, so this database constraint—not an in-memory lock—prevents duplicate emails.
+- [ ] Export both `fetch` and `scheduled` handlers from the Worker entry point.
+- [ ] Configure the Worker with `"triggers": { "crons": ["30 2 * * *"] }`; Cloudflare cron uses UTC, so this runs at 08:00 IST.
+- [ ] Start with this single Cloudflare Free-plan trigger. Reassess only if the job cannot stay within its 10 ms CPU / 50 external-subrequest limits, or if more than five account-level Cron Triggers are needed.
+- [ ] In `scheduled()`, await the reminder job; reserve `ctx.waitUntil()` for separately tracked concurrent work.
+- [ ] Send lease-expiry reminders at 30, 7, and 1 days; rent-due reminders on each owner’s configured lead day; and period-aware overdue reminders after the owner grace period.
+- [ ] Respect notification preferences and use the deduplication record before every email attempt.
+- [ ] Keep total transactional email volume within the active email provider’s free quota; currently, Resend Free permits 3,000 emails/month and 100/day. Reassess paid email only when observed beta volume requires it.
+- [ ] Test repeated scheduled executions, Asia/Kolkata date boundaries, and notification-preference enforcement. During local development, trigger the handler through Wrangler’s `/__scheduled` endpoint.
 
 ### PDF Rent Receipts
 
@@ -120,9 +126,7 @@
 
 ### Referral System
 
-- [ ] Decision pending (see Beta Gate): build or drop `referrers` table
-- [ ] If building: `createReferral` procedure, referral link generation, referral tracking on subscription redemption
-- [ ] Referral status in Settings → Billing tab
+- [ ] Intentionally dormant for beta. Revisit only when referrals become a planned feature.
 
 ---
 
@@ -160,7 +164,6 @@
 - [ ] **Admin panel** — manage users, plans, beta codes, subscriptions without CLI (replaces `db:beta-code` script). Separate `apps/admin` or a protected `/admin` route in `apps/dashboard`
 - [ ] **Two-factor authentication** — Better Auth supports TOTP; SecurityTab already has disabled placeholder buttons
 - [ ] **Audit log** — track all mutations (who changed what, when) for tenant disputes. New `auditLogs` table + `auditMiddleware` on ownerProcedure
-- [ ] **Social login UI** — Google / GitHub. Hooks (`useSocialLogin`) already exist; needs buttons wired in login page
 - [ ] **Tenant communication history** — store sent emails in a `tenantMessages` table so owners can see past correspondence
 - [ ] **Multi-property analytics** — per-property revenue breakdown, occupancy rate over time, vacancy duration tracking
 - [ ] **`@react-pdf/renderer` upgrade** — replace `window.print()` receipt approach with a proper PDF blob for email attachments via Resend
@@ -172,9 +175,7 @@
 
 - [ ] `notifications-tab.tsx` — `// TODO: migrate from localStorage` comment. Preferences need DB storage before any email trigger can read them
 - [ ] `buildReceiptMessage()` in `payment.ts` — plain text email body. Replace with HTML template consistent with `@rently/email`
-- [ ] `packages/auth/src/index.ts` — stale `// TODO: add owner reset email branch` comment (branch exists; delete comment)
-- [ ] `MobileMenuTrigger` in dashboard header renders `IconSearch` instead of a menu/hamburger icon
-- [ ] `referrers` table — exists in schema, no procedures, no UI. Decision in Beta Gate
+- [ ] `referrers` table is intentionally dormant for beta; revisit only when referrals become a planned feature.
 - [ ] `evlog` console.log calls — several `// TODO: remove before prod` comments across API handlers
 - [ ] Notification preference fields not declared in `turbo.json` env vars yet — add when migrated from localStorage
 - [ ] README.md Project Status table is stale (says rate limiting "Planned", payments oRPC pending — both done)

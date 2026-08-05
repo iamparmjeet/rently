@@ -51,7 +51,7 @@ function SuccessState() {
 			<div>
 				<h3 className="font-semibold text-lg">Account Created</h3>
 				<p className="mt-1 text-muted-foreground text-sm">
-					Your Rentwise account is ready. Please log in to continue.
+					Your KeyHQ account is ready. Please log in to continue.
 				</p>
 			</div>
 			<Button className={"mt-2 w-full"}>
@@ -125,7 +125,7 @@ export function AcceptInviteForm({
 			<div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
 				<p className="text-blue-800 text-sm">
 					<strong>{ownerName}</strong> has invited you to manage your rental
-					agreement on RentWise.
+					agreement on KeyHQ.
 				</p>
 			</div>
 

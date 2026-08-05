@@ -93,26 +93,26 @@ function DashboardMockup() {
 								{[
 									{
 										label: "Properties",
-										value: "12",
-										badge: "+2 new",
+										value: "4",
+										badge: "Active",
 										color: "text-primary bg-primary/10",
 									},
 									{
 										label: "Tenants",
-										value: "48",
+										value: "8",
 										badge: "Active",
 										color: "text-success bg-success-bg",
 									},
 									{
-										label: "Revenue",
-										value: "₹2.4L",
-										badge: "↑ 12%",
+										label: "Rent tracked",
+										value: "₹1.20L",
+										badge: "Monthly",
 										color: "text-success bg-success-bg",
 									},
 									{
 										label: "Occupancy",
-										value: "87%",
-										badge: "3 vacant",
+										value: "80%",
+										badge: "2 vacant",
 										color: "text-warning bg-warning-bg",
 									},
 								].map((s) => (
@@ -178,7 +178,7 @@ function DashboardMockup() {
 								</div>
 								<div className="rounded-md border border-border bg-white p-[9px_10px]">
 									<div className="mb-1.75 font-bold text-[9.5px]">
-										Monthly Revenue
+										Monthly Rent
 									</div>
 									<div className="flex h-17 items-end gap-0.75">
 										{[
@@ -233,15 +233,15 @@ function DashboardMockup() {
 						style={{ stroke: "oklch(0.48 0.15 145)" }}
 						strokeWidth={2}
 					>
-						<title>Revenue collected</title>
+						<title>Monthly rent</title>
 						<polyline points="20 6 9 17 4 12" />
 					</svg>
 				</div>
 				<div>
-					<div className="font-extrabold text-[15px] leading-[1.1]">₹12Cr+</div>
-					<div className="text-[11px] text-muted-foreground">
-						Revenue collected
+					<div className="font-extrabold text-[15px] leading-[1.1]">
+						₹1.20L+
 					</div>
+					<div className="text-[11px] text-muted-foreground">Monthly rent</div>
 				</div>
 			</div>
 
@@ -262,7 +262,7 @@ function DashboardMockup() {
 					</svg>
 				</div>
 				<div>
-					<div className="font-extrabold text-[15px] leading-[1.1]">2,400+</div>
+					<div className="font-extrabold text-[15px] leading-[1.1]">8</div>
 					<div className="text-[11px] text-muted-foreground">
 						Active tenants
 					</div>
@@ -313,8 +313,8 @@ export function Hero() {
 						</h1>
 
 						<p className="mt-5 max-w-112.5 text-pretty text-[17px] text-muted-foreground leading-[1.68]">
-							KeyHQ helps landlords and property managers track tenants,
-							automate rent collection, and manage utilities — all in one place.
+							KeyHQ helps landlords and property managers manage tenants, track
+							rent payments, and handle utilities — all in one place.
 						</p>
 
 						<div className="mt-8.5 flex flex-wrap gap-3">
@@ -331,55 +331,6 @@ export function Hero() {
 							>
 								See How It Works
 							</a>
-						</div>
-
-						<div className="mt-9.5 flex items-center gap-3.5">
-							<div className="flex">
-								{[
-									{
-										initials: "RK",
-										style: {
-											background: "oklch(0.488 0.243 264.376 / 0.2)",
-											color: "oklch(0.488 0.243 264.376)",
-										},
-									},
-									{
-										initials: "PM",
-										style: {
-											background: "oklch(0.72 0.12 210 / 0.25)",
-											color: "oklch(0.42 0.12 210)",
-										},
-									},
-									{
-										initials: "AS",
-										style: {
-											background: "oklch(0.72 0.12 145 / 0.25)",
-											color: "oklch(0.42 0.12 145)",
-										},
-									},
-									{
-										initials: "VN",
-										style: {
-											background: "oklch(0.72 0.12 30 / 0.25)",
-											color: "oklch(0.52 0.12 30)",
-										},
-									},
-								].map((av, i) => (
-									<div
-										key={i}
-										className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border-2 border-white font-bold text-[10px]"
-										style={{ ...av.style, marginRight: i < 3 ? "-9px" : "0" }}
-									>
-										{av.initials}
-									</div>
-								))}
-							</div>
-							<p className="ml-2.25 text-[13px] text-muted-foreground">
-								<strong className="font-semibold text-foreground">
-									2,400+ tenants
-								</strong>{" "}
-								actively managed across India
-							</p>
 						</div>
 					</div>
 

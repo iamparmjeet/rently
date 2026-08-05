@@ -3,7 +3,7 @@
 > Single source of truth for build progress.
 > Update this file as items are completed or priorities shift.
 > Tiers: **P0** = must ship before public launch · **P1** = core product gaps · **P2** = growth features · **P3** = post-launch backlog
-> Last audited: 2026-08-05 (verified against the KeyHQ beta branch)
+> Last audited: 2026-08-06 (verified against the KeyHQ beta integration branch)
 > Cost policy: prefer services with a suitable free tier. Move to a paid tier only when measured usage or a required capability exceeds its documented free limits.
 
 ---
@@ -27,6 +27,36 @@
 - [x] **In-app notifications** — `notifications` table + router (list with lazy lease-expiry creation, unread count, mark read/all) + header bell with polling. Cron-free by design.
 - [x] **R2 owner avatar upload** — presigned URL flow with key-scoping guard, `useUploadAvatar`/`useDeleteAvatar`, wired in ProfileTab.
 - [x] **Mobile sidebar (Sheet variant)** — shared `Sidebar` renders a `Sheet` on mobile via `useIsMobile()`; `SidebarTrigger` in the header opens it.
+- [x] **Milestone 0 — Product Truth and Immediate Defects** — public KeyHQ branding, truthful pricing/copy, legal support contact, corrected local/production URL documentation, invite URLs built from `WEB_APP_URL`, invite delivery feedback and resend action, and stale TODO cleanup.
+- [x] **M0 validation** — Vitest invite suite covers cross-owner resend denial, valid resend, expiry, and preserved invites after email delivery failure; typecheck and production build pass.
+
+---
+
+## Current Milestone — M1: Hard Email Verification and Unified Onboarding
+
+### M1a — Hard email verification
+
+- [ ] Configure Better Auth to send verification email on signup and on unverified password sign-in.
+- [ ] Require verified email for password login; existing unverified accounts must verify at their next login.
+- [ ] Add a dedicated verification-required screen with resend feedback and a safe return path.
+- [ ] Automatically establish the session after a successful verification.
+- [ ] Test signup delivery, unverified-login blocking, successful verification, resend state, and redirect behavior.
+
+### M1b — Unified tenant onboarding
+
+- [ ] Add `TenantOnboardingMode`: `owner_prepared` and `tenant_completed`.
+- [ ] Extend invitations with `onboardingMode`, `deliveryStatus`, `lastSentAt`, and a safe delivery error code.
+- [ ] Replace direct tenant account creation: both onboarding modes create an invitation first; Better Auth user creation occurs only during acceptance.
+- [ ] Owner-prepared acceptance: tenant reviews prefilled details, consents, sets password, and atomically creates account/profile/accepted invite.
+- [ ] Tenant-completed acceptance: owner provides name/email; tenant completes contact/address/emergency details, consents, and sets password.
+- [ ] Mark accepted system-delivered invitations as email verified.
+- [ ] Add `createTenantDraft`, extended `createInvite`, `resendInvite`, and extended `acceptInvite` procedures with atomicity and cross-owner tests.
+
+### M1 exit criteria
+
+- [ ] A new owner verifies their email and signs in without manual intervention.
+- [ ] One tenant completes each onboarding mode without direct database intervention.
+- [ ] Failed delivery is visible, resend works, expired invites are rejected, and no orphaned user is created after a failed acceptance.
 
 ---
 
@@ -34,7 +64,7 @@
 
 > Gate test: "Can a stranger sign up, use the product, pay me, and recover their account without manual intervention?"
 
-- [ ] **Email verification for owners** — no `emailVerification` config in Better Auth yet; register hook's `callbackURL` assumes it exists. Wire `sendVerificationEmail` via `@rently/email`. Decide: `requireEmailVerification` on (blocks login until verified) vs. soft banner.
+- [ ] **Hard email verification and unified onboarding** — complete Milestone 1 above.
 - [ ] **Mobile QA pass** — test the dashboard and tenant portal on a real Android phone and a narrow iPhone viewport. `SidebarTrigger` is already the mobile menu control.
 - [x] **`referrers` table decision** — leave it dormant during beta; no procedures or UI yet.
 
@@ -78,7 +108,7 @@
 
 ## P0 — Must Fix Before Public Launch
 
-- [ ] **Email verification for owners** — _pulled into Beta Gate above._ The only remaining P0.
+- [ ] **Hard email verification and unified onboarding** — _pulled into the M1 section above._
 
 ~~Password reset flow~~ — ✅ done. ~~Mobile-responsive sidebar~~ — ✅ done (QA pass in Beta Gate).
 
@@ -178,7 +208,7 @@
 - [ ] `referrers` table is intentionally dormant for beta; revisit only when referrals become a planned feature.
 - [ ] `evlog` console.log calls — several `// TODO: remove before prod` comments across API handlers
 - [ ] Notification preference fields not declared in `turbo.json` env vars yet — add when migrated from localStorage
-- [ ] README.md Project Status table is stale (says rate limiting "Planned", payments oRPC pending — both done)
+- [ ] **Fresh Drizzle migration bootstrap** — repair and verify migrations from an empty database before the final `integration/keyhq-beta` → `main` merge. Current local test schema was created with `db:push`; this is a release blocker, not work for M1.
 
 ---
 

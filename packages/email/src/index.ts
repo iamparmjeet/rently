@@ -76,10 +76,11 @@ export async function sendInviteEmail({
 	});
 
 	if (error) {
-		// Design decision - log but don't throw
-		// Invite is created in DB - owner can ersend from invite page
-		// TODO: Retry queue when email infra matures
-		console.log("[Resend] Invite email failed", error);
+		console.error("[Resend] Invite email delivery failed", {
+			name: error.name,
+			message: error.message,
+		});
+		throw new Error("INVITE_EMAIL_DELIVERY_FAILED");
 	}
 }
 

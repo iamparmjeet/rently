@@ -29,7 +29,11 @@ import { useState } from "react";
 import QRCode from "react-qr-code";
 import { PlanCard } from "@/components/features/subscriptions/plan-card";
 import { Container } from "@/components/shared/container";
-import { useMySubscription, useRedeemBetaCode } from "@/hooks/subscriptions";
+import {
+	useListPlans,
+	useMySubscription,
+	useRedeemBetaCode,
+} from "@/hooks/subscriptions";
 
 const SUPPORT_EMAIL =
 	env.NEXT_PUBLIC_SUPPORT_EMAIL ?? "info@parmjeetmishra.com";
@@ -100,7 +104,7 @@ function UpgradeDialog({ plan, open, onClose }: UpgradeDialogProps) {
 							Upgrade to {plan.name}
 						</DialogTitle>
 						<DialogDescription className="mt-0.5 text-muted-foreground text-xs">
-							Pay via UPI · Receive activation code within 2 hours
+							Pay via UPI · Activate after payment review
 						</DialogDescription>
 					</div>
 					<DialogClose
@@ -287,74 +291,20 @@ function PlansSkeleton() {
 // exactly. When a listPlans hook is added, replace STATIC_PLANS with that.
 //
 // GOTCHA: prices are integers in paise. ₹499 = 49900, ₹5,099 = 509898.
-const STATIC_PLANS: PlanSelect[] = [
-	{
-		id: "free",
-		slug: "free",
-		name: "Starter",
-		description: "Free · Up to 10 active tenants",
-		tenantLimit: 10,
-		priceMonthly: 0,
-		priceQuarterly: 0,
-		priceHalfYearly: 0,
-		priceYearly: 0,
-		priceTwoYear: 0,
-		discountQuarterly: 500,
-		discountHalfYearly: 100,
-		discountYearly: 150,
-		discountTwoYear: 200,
-		createdAt: new Date(),
-		updatedAt: new Date(),
-	},
-	{
-		id: "pro",
-		slug: "pro",
-		name: "Pro",
-		description: "Up to 500 active tenants · Priority support",
-		tenantLimit: 500,
-		priceMonthly: 49900,
-		priceQuarterly: 142320,
-		priceHalfYearly: 269460,
-		priceYearly: 509898,
-		priceTwoYear: 958080,
-		discountQuarterly: 500,
-		discountHalfYearly: 100,
-		discountYearly: 150,
-		discountTwoYear: 200,
-		createdAt: new Date(),
-		updatedAt: new Date(),
-	},
-	{
-		id: "enterprise",
-		slug: "enterprise",
-		name: "Enterprise",
-		description: "Not available during beta",
-		tenantLimit: 9999,
-		priceMonthly: 149900,
-		priceQuarterly: 427215,
-		priceHalfYearly: 809460,
-		priceYearly: 1529298,
-		priceTwoYear: 2877120,
-		discountQuarterly: 500,
-		discountHalfYearly: 100,
-		discountYearly: 150,
-		discountTwoYear: 200,
-		createdAt: new Date(),
-		updatedAt: new Date(),
-	},
-];
 
 function PlansGrid({
 	currentPlanSlug,
 	onUpgrade,
+	plans,
 }: {
+	plans: PlanSelect[];
 	currentPlanSlug: string;
 	onUpgrade: (plan: PlanSelect) => void;
 }) {
 	return (
 		<>
 			<div className="col-span-12 grid grid-cols-1 gap-4 pt-4 sm:grid-cols-3">
-				{STATIC_PLANS.map((plan) => (
+				{plans.map((plan) => (
 					<PlanCard
 						key={plan.slug}
 						plan={plan}
@@ -379,10 +329,15 @@ function PlansGrid({
 //  Main page
 
 export default function PlansPage() {
-	const { data, isLoading } = useMySubscription();
+	const { data: subscriptionData, isLoading: isSubscriptionLoading } =
+		useMySubscription();
 	const [upgradePlan, setUpgradePlan] = useState<PlanSelect | null>(null);
+	const { data: plansData, isLoading: isPlansLoading } = useListPlans();
 
-	const currentPlanSlug = data?.subscription?.plan.slug ?? "free";
+	const currentPlanSlug = subscriptionData?.subscription?.plan.slug ?? "free";
+
+	const availablePlans = plansData?.plans ?? [];
+	const isLoading = isSubscriptionLoading || isPlansLoading;
 
 	return (
 		<Container>
@@ -403,8 +358,13 @@ export default function PlansPage() {
 
 				{isLoading ? (
 					<PlansSkeleton />
+				) : availablePlans.length === 0 ? (
+					<p className="py-12 text-center text-muted-foreground text-sm">
+						Plans are temporarily unavailable.
+					</p>
 				) : (
 					<PlansGrid
+						plans={availablePlans}
 						currentPlanSlug={currentPlanSlug}
 						onUpgrade={setUpgradePlan}
 					/>

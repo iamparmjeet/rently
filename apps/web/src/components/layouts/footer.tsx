@@ -9,15 +9,10 @@ const footerLinks = {
 		{ label: "Pricing", href: "#pricing" },
 		{ label: "How It Works", href: "#how-it-works" },
 	],
-	company: [
-		{ label: "About", href: "/" },
-		{ label: "Blog", href: "/" },
-		{ label: "Careers", href: "/" },
-	],
 	legal: [
 		{ label: "Privacy Policy", href: "/privacy" },
 		{ label: "Terms of Service", href: "/terms" },
-		{ label: "Cookie Policy", href: "/" },
+		{ label: "Cookie Policy", href: "/cookie" },
 	],
 };
 
@@ -25,7 +20,7 @@ export function Footer() {
 	return (
 		<footer className="mt-auto border-t bg-muted/50">
 			<div className="container mx-auto px-4 py-12">
-				<div className="grid gap-8 md:grid-cols-4">
+				<div className="grid gap-8 md:grid-cols-3">
 					{/* Brand */}
 					<div className="flex flex-col gap-4">
 						<Logo />
@@ -40,22 +35,6 @@ export function Footer() {
 						<h3 className="mb-4 font-semibold text-sm">Product</h3>
 						<ul className="space-y-2">
 							{footerLinks.product.map((link) => (
-								<li key={link.href}>
-									<Link
-										href={link.href as Route}
-										className="text-muted-foreground text-sm transition-colors hover:text-foreground"
-									>
-										{link.label}
-									</Link>
-								</li>
-							))}
-						</ul>
-					</div>
-
-					<div>
-						<h3 className="mb-4 font-semibold text-sm">Company</h3>
-						<ul className="space-y-2">
-							{footerLinks.company.map((link) => (
 								<li key={link.href}>
 									<Link
 										href={link.href as Route}

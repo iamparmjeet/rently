@@ -1,5 +1,5 @@
 // bun packages/db/src/seed/plans.ts
-// Run once after migration to populate the plans table.
+// Run after migrations to synchronize the canonical plans.
 // Safe to re-run: inserts missing plans and synchronizes existing plan configuration.
 
 import { createDb } from "../index";

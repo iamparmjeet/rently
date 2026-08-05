@@ -283,7 +283,7 @@ function PlansSkeleton() {
 	);
 }
 
-//  Plans grid — static layout matching seed data
+//  Plans grid
 function PlansGrid({
 	currentPlanSlug,
 	onUpgrade,

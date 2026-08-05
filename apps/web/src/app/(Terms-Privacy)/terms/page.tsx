@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { SUPPORT_EMAIL } from "@/constants/support";
 
 export const metadata: Metadata = {
 	title: "Terms of Service | KeyHQ",
@@ -167,8 +168,14 @@ export default function TermsPage() {
 							Contact us
 						</h2>
 						<p className="mt-3 text-muted-foreground">
-							If you have questions about these terms, please contact us through
-							the support options provided on the KeyHQ website.
+							For questions about these terms, email{" "}
+							<a
+								href={`mailto:${SUPPORT_EMAIL}`}
+								className="font-medium text-primary underline underline-offset-2"
+							>
+								{SUPPORT_EMAIL}
+							</a>
+							.
 						</p>
 					</section>
 				</div>

@@ -7,7 +7,11 @@ import { USER_ROLES } from "@rently/db/constants/user-roles";
 import * as schema from "@rently/db/schema/auth";
 import { plans, subscriptions } from "@rently/db/schema/subscription";
 import { generatedId } from "@rently/db/utils/id";
-import { sendPasswordResetEmail, sendTenantSetupEmail } from "@rently/email";
+import {
+	sendPasswordResetEmail,
+	sendTenantSetupEmail,
+	sendVerificationEmail,
+} from "@rently/email";
 import { env } from "@rently/env/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
@@ -37,6 +41,7 @@ export function createAuth() {
 		trustedOrigins,
 		emailAndPassword: {
 			enabled: true,
+			requireEmailVerification: true,
 			sendResetPassword: async ({ user, url }) => {
 				// This callback handles every password-reset request.
 				// Tenants receive a setup email; owners receive the standard reset email.
@@ -64,6 +69,18 @@ export function createAuth() {
 					resetUrl: url,
 				});
 			},
+		},
+		emailVerification: {
+			sendVerificationEmail: async ({ user, url }) => {
+				await sendVerificationEmail({
+					to: user.email,
+					name: user.name ?? user.email,
+					verificationUrl: url,
+				});
+			},
+			sendOnSignIn: true,
+			sendOnSignUp: true,
+			autoSignInAfterVerification: true,
 		},
 		socialProviders: {
 			google: {

@@ -194,3 +194,38 @@ export async function sendPasswordResetEmail({
 		console.error("[Resend] Owner password reset email failed", error);
 	}
 }
+
+interface VerificationEmailParams {
+	to: string;
+	name: string;
+	verificationUrl: string;
+}
+
+export async function sendVerificationEmail({
+	to,
+	name,
+	verificationUrl,
+}: VerificationEmailParams): Promise<void> {
+	const { error } = await resend.emails.send({
+		from: env.EMAIL_FROM,
+		to,
+		subject: "Verify your KeyHQ email address",
+		html: emailWrapper(`
+					<h2 style="margin-bottom:8px;">Hello ${name},</h2>
+					<p style="color:#555;line-height:1.6;margin-bottom:24px;">
+						Verify your email address to securely access your KeyHQ account.
+					</p>
+					${ctaButton(verificationUrl, "Verify Email Address")}
+					<p style="color:#999;font-size:13px;margin-top:24px;">
+						If you did not create or sign in to a KeyHQ account, you can safely ignore this email.
+					</p>
+				`),
+	});
+	if (error) {
+		console.error("[Resend] Verification email failed", {
+			name: error.name,
+			message: error.message,
+		});
+		throw new Error("VERIFICATION_EMAIL_DELIVERY_FAILED");
+	}
+}

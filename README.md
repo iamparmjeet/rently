@@ -26,11 +26,11 @@ KeyHQ is a multi-tenant SaaS for property owners who rent residential or commerc
 ## Monorepo Structure
 
 ```
-Rently/                          ← Turborepo root
+rently/                          ← Turborepo root
 ├── apps/
 │   ├── web/                     ← Marketing site + auth flows (port 3001)
-│   ├── dashboard/               ← Owner portal (port 3000)
-│   ├── tenant/                  ← Tenant portal (port 3002)
+│   ├── dashboard/               ← Owner portal (port 3002)
+│   ├── tenant/                  ← Tenant portal (port 3003)
 │   └── server/                  ← Hono API server / Cloudflare Workers entry
 └── packages/
     ├── api/                     ← oRPC routers + all business logic
@@ -49,8 +49,8 @@ Rently/                          ← Turborepo root
 | App              | Port | Who uses it | What it does                                           |
 | ---------------- | ---- | ----------- | ------------------------------------------------------ |
 | `apps/web`       | 3001 | Everyone    | Landing page, `/login`, `/register`, invite acceptance |
-| `apps/dashboard` | 3000 | Owners      | Full property management UI                            |
-| `apps/tenant`    | 3002 | Tenants     | Lease overview, bills, payments, meter readings        |
+| `apps/dashboard` | 3002 | Owners      | Full property management UI                            |
+| `apps/tenant`    | 3003 | Tenants     | Lease overview, bills, payments, meter readings        |
 | `apps/server`    | 8787 | Internal    | Hono + oRPC API, auth handler, OpenAPI docs            |
 
 ---
@@ -259,8 +259,8 @@ bun run dev
 # Or individually
 bun run dev:server     # API server — port 8787
 bun run dev:web        # Marketing + auth — port 3001
-bun run dev:dashboard  # Owner portal — port 3000
-bun run dev:tenant     # Tenant portal — port 3002
+bun run dev:dashboard  # Owner portal — port 3002
+bun run dev:tenant     # Tenant portal — port 3003
 ```
 
 ---
@@ -277,7 +277,7 @@ USE_NEON=false                  # set to "true" in production to use Neon server
 # Auth
 BETTER_AUTH_SECRET=             # min 32 chars — generate with: openssl rand -base64 32
 BETTER_AUTH_URL=http://localhost:8787
-CORS_ORIGINS=http://localhost:3000,http://localhost:3001,http://localhost:3002
+CORS_ORIGINS=http://localhost:3001,http://localhost:3002,http://localhost:3003
 COOKIE_DOMAIN=localhost
 WEB_APP_URL=http://localhost:3001
 
@@ -352,27 +352,29 @@ chore(deps): bump drizzle-orm to 0.45.2
 
 ## Project Status
 
-| Area                                                               | Status         |
-| ------------------------------------------------------------------ | -------------- |
-| Database schema + constants                                        | ✅ Complete    |
-| Zod validators (all domains)                                       | ✅ Complete    |
-| oRPC API (property, unit, lease, tenant, invite, payment, utility) | ✅ Complete    |
-| Auth configuration (Better Auth)                                   | ✅ Complete    |
-| Hono server + oRPC wiring                                          | ✅ Complete    |
-| Owner dashboard — Properties, Units, Tenants, Leases, Utilities    | ✅ Complete    |
-| Owner dashboard — Payments                                         | ✅ Complete    |
-| Owner dashboard — Settings (profile, security, currency)           | ✅ Complete    |
-| Owner dashboard — Revenue dashboard                                | ✅ Complete    |
-| Tenant portal (overview, bills, payments, readings, docs)          | ✅ Complete    |
-| Invite-based tenant onboarding flow                                | ✅ Complete    |
-| Role-based cross-app routing                                       | ✅ Complete    |
-| Subscriptions / billing UI                                         | 🚧 In progress |
-| R2 file uploads (profile photo, documents)                         | 🚧 In progress |
-| Document update request workflow UI                                | 🚧 In progress |
-| Rate limiting (tenant meter submissions)                           | 📋 Planned     |
-| Admin panel                                                        | 📋 Planned     |
-| Email verification + password reset                                | 📋 Planned     |
-| Mobile-responsive sidebar                                          | 📋 Planned     |
+| Area                                                                  | Status                         |
+| --------------------------------------------------------------------- | ------------------------------ |
+| Database schema + constants                                           | ✅ Complete                    |
+| Zod validators (current domains)                                     | ✅ Complete                    |
+| oRPC API (property, unit, lease, tenant, invite, payment, utility)   | ✅ Complete                    |
+| Better Auth configuration and password recovery                      | ✅ Complete                    |
+| Hono server + oRPC wiring                                             | ✅ Complete                    |
+| Owner dashboard — Properties, Units, Tenants, Leases, Utilities      | ✅ Complete                    |
+| Owner dashboard — Payments, settings, and revenue dashboard          | ✅ Complete                    |
+| Tenant portal — overview, bills, payments, readings, and docs tabs   | ✅ Complete                    |
+| Invite-based onboarding, delivery-failure feedback, and resend action | ✅ Complete                    |
+| Role-based cross-app routing                                          | ✅ Complete                    |
+| Subscriptions, plans, beta-code redemption, and UPI QR               | ✅ Complete                    |
+| R2 owner-avatar upload                                                | ✅ Complete                    |
+| Tenant meter-submission rate limiting                                 | ✅ Complete                    |
+| Mobile sidebar                                                        | ✅ Complete — device QA pending |
+| Hard email verification and unified tenant onboarding                 | 📋 Milestone 1                 |
+| Private KYC documents and document-update lifecycle                   | 📋 Milestone 2                 |
+| Mobile device and journey QA                                          | 📋 Milestone 3                 |
+| Instant dashboard bootstrap                                           | 📋 Milestone 4                 |
+| Print-optimized rent receipts                                         | 📋 Milestone 5                 |
+| Notification preferences and scheduled reminders                      | 📋 Milestones 6–7              |
+| Admin panel                                                           | 📋 Post-beta                   |
 
 ---
 

@@ -20,25 +20,56 @@ export const useLogin = () => {
 				email: data.email,
 				password: data.password,
 			});
-			// Errors by Better auth is going through useMutation
+
 			if (result.error) {
+				if (result.error.status === 403) {
+					return {
+						kind: "verification-required" as const,
+						email: data.email,
+					};
+				}
+
 				throw new Error(result.error.message);
 			}
 
-			return result;
+			return {
+				kind: "signed-in" as const,
+				user: result.data.user,
+			};
 		},
+
 		onSuccess: (result, __, context) => {
-			toast.success("Welcome back", { id: context.toastId });
 			const callbackUrl = searchParams.get("callbackUrl");
+			const safeCallbackUrl =
+				callbackUrl && isTrustedCallbackUrl(callbackUrl)
+					? callbackUrl
+					: undefined;
+
+			if (result.kind === "verification-required") {
+				const verificationUrl = new URL(
+					"/verify-email",
+					env.NEXT_PUBLIC_WEB_URL,
+				);
+
+				verificationUrl.searchParams.set("email", result.email);
+
+				if (safeCallbackUrl) {
+					verificationUrl.searchParams.set("callbackUrl", safeCallbackUrl);
+				}
+				window.location.href = verificationUrl.toString();
+				return;
+			}
+
+			toast.success("Welcome back", { id: context.toastId });
 
 			// redirect
-			if (callbackUrl && isTrustedCallbackUrl(callbackUrl)) {
-				window.location.href = callbackUrl;
+			if (safeCallbackUrl) {
+				window.location.href = safeCallbackUrl;
 				return;
 			}
 
 			// role
-			const role = result.data.user.role;
+			const role = result.user.role;
 
 			if (role === USER_ROLES.TENANT) {
 				window.location.href = env.NEXT_PUBLIC_TENANT_URL;

@@ -23,7 +23,7 @@
 - [x] Role-based cross-app routing (owner → dashboard, tenant → tenant portal)
 - [x] Rate limiting — tenant meter submissions (monthly duplicate guard + burst protection via oRPC middleware)
 - [x] **Password reset flow (owners)** — `/forgot-password` → `requestPasswordReset` → role-branched `sendResetPassword` → `sendPasswordResetEmail`. Verified end-to-end.
-- [x] **Beta code redemption** — `redeemBetaCode` procedure (transactional, atomic increment) wired in BillingTab, `/subscriptions` page, and register flow. Codes generated via `db:beta-code` seed script (admin panel is the P3 replacement).
+- [x] **Beta code redemption** — `redeemBetaCode` procedure (transactional, atomic increment) wired in BillingTab and `/subscriptions`. Codes generated via `db:beta-code` seed script (admin panel is the P3 replacement).
 - [x] **In-app notifications** — `notifications` table + router (list with lazy lease-expiry creation, unread count, mark read/all) + header bell with polling. Cron-free by design.
 - [x] **R2 owner avatar upload** — presigned URL flow with key-scoping guard, `useUploadAvatar`/`useDeleteAvatar`, wired in ProfileTab.
 - [x] **Mobile sidebar (Sheet variant)** — shared `Sidebar` renders a `Sheet` on mobile via `useIsMobile()`; `SidebarTrigger` in the header opens it.
@@ -40,6 +40,7 @@
 - [ ] Require verified email for password login; existing unverified accounts must verify at their next login.
 - [ ] Add a dedicated verification-required screen with resend feedback and a safe return path.
 - [ ] Automatically establish the session after a successful verification.
+- [ ] Defer beta-code redemption until a verified session exists; beta-code signups land on `/subscriptions` after verification, with no code persisted in URLs or browser storage.
 - [ ] Test signup delivery, unverified-login blocking, successful verification, resend state, and redirect behavior.
 
 ### M1b — Unified tenant onboarding

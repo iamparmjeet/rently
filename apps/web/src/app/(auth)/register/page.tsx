@@ -22,10 +22,6 @@ export default function RegisterPage() {
 					<h2 className="mb-3 font-extrabold text-[30px] text-white leading-[1.2] tracking-[-0.8px]">
 						Start managing properties the smart way.
 					</h2>
-					<p className="text-[15px] text-white/72 leading-[1.65]">
-						Create your free account and get set up in minutes. No credit card
-						required.
-					</p>
 					<div className="mt-9.5 flex flex-wrap gap-7.5">
 						{[
 							{ value: "Free", label: "Starter plan" },
@@ -56,7 +52,7 @@ export default function RegisterPage() {
 						Create your account
 					</h1>
 					<p className="mt-1.25 mb-4 text-[14.5px] text-muted-foreground">
-						Create your free starter account — no credit card needed
+						Create your free Starter account — no credit card needed
 					</p>
 					<Suspense fallback={null}>
 						<RegisterForm />

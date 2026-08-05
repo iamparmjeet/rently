@@ -25,8 +25,8 @@ export function Footer() {
 					<div className="flex flex-col gap-4">
 						<Logo />
 						<p className="text-muted-foreground text-sm">
-							Simplify your property management with smart tenant tracking,
-							automated rent collection, and comprehensive utilities management.
+							Property, tenant, payment, and utility management for Indian
+							landlords.
 						</p>
 					</div>
 

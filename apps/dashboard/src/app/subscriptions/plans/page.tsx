@@ -204,8 +204,8 @@ function UpgradeDialog({ plan, open, onClose }: UpgradeDialogProps) {
 										</a>
 									</>,
 									<>
-										You'll receive your <strong>activation code</strong> within
-										2 hours
+										After the payment is reviewed, you'll receive an{" "}
+										<strong>activation code</strong> by email
 									</>,
 									<>Enter your code below and click Activate</>,
 								].map((step, i) => (

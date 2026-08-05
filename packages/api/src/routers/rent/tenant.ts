@@ -554,7 +554,7 @@ export const sendPasswordReset = ownerProcedure
 			await auth.api.requestPasswordReset({
 				body: {
 					email: result.tenantEmail,
-					redirectTo: `${env.CORS_ORIGINS}/set-password`,
+					redirectTo: new URL("/set-password", env.WEB_APP_URL).toString(),
 				},
 			});
 		} catch (err) {

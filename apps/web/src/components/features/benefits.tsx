@@ -28,7 +28,7 @@ export function Benefits() {
 						</h2>
 						<p className="mt-2.75 max-w-140 text-pretty text-[16px] text-muted-foreground leading-[1.65]">
 							Purpose-built for the Indian rental market — from independent
-							landlords to large property managers.
+							landlords to growing rental portfolios.
 						</p>
 						<ul className="mt-7.5 flex list-none flex-col gap-3.75">
 							{benefits.map((benefit) => (

@@ -1,7 +1,13 @@
 import { createRouterClient } from "@orpc/server";
 import { createDb } from "@rently/db";
 import { account, user } from "@rently/db/schema/auth";
-import { tenantInvites, tenantProfiles } from "@rently/db/schema/schema";
+import {
+	leases,
+	properties,
+	tenantInvites,
+	tenantProfiles,
+	units,
+} from "@rently/db/schema/schema";
 import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -34,11 +40,15 @@ import {
 	getInviteByToken,
 	resendInvite,
 } from "../rent/invite";
-import { createTenant } from "../rent/tenant";
+import { createLease } from "../rent/lease";
+import { createTenant, listTenants } from "../rent/tenant";
 
 const db = createDb();
 const createdUserIds: string[] = [];
 const createdInviteIds: string[] = [];
+const createdLeaseIds: string[] = [];
+const createdUnitIds: string[] = [];
+const createdPropertyIds: string[] = [];
 
 async function createOwner(name: string) {
 	const id = crypto.randomUUID();
@@ -116,6 +126,8 @@ function clientFor(owner: Awaited<ReturnType<typeof createOwner>>) {
 			getInviteByToken,
 			acceptInvite,
 			createTenant,
+			listTenants,
+			createLease,
 		},
 		{
 			context: {
@@ -131,6 +143,10 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+	if (createdLeaseIds.length > 0) {
+		await db.delete(leases).where(inArray(leases.id, createdLeaseIds));
+	}
+
 	if (createdUserIds.length > 0) {
 		await db
 			.delete(tenantProfiles)
@@ -143,12 +159,25 @@ afterEach(async () => {
 			.where(inArray(tenantInvites.id, createdInviteIds));
 	}
 
+	if (createdUnitIds.length > 0) {
+		await db.delete(units).where(inArray(units.id, createdUnitIds));
+	}
+
+	if (createdPropertyIds.length > 0) {
+		await db
+			.delete(properties)
+			.where(inArray(properties.id, createdPropertyIds));
+	}
+
 	if (createdUserIds.length > 0) {
 		await db.delete(user).where(inArray(user.id, createdUserIds));
 	}
 
 	createdInviteIds.length = 0;
 	createdUserIds.length = 0;
+	createdLeaseIds.length = 0;
+	createdUnitIds.length = 0;
+	createdPropertyIds.length = 0;
 	mocks.getSession.mockReset();
 	mocks.passwordHash.mockReset();
 	mocks.sendInviteEmail.mockReset();
@@ -244,6 +273,93 @@ describe("createTenant", () => {
 			.where(eq(user.email, email));
 
 		expect(tenantUser).toBeUndefined();
+	});
+
+	it("lists a newly created invitation as an unverified pending tenant", async () => {
+		const owner = await createOwner("Owner A");
+		const email = `${crypto.randomUUID()}@test.keyhq.invalid`;
+
+		const { invite } = await clientFor(owner).createTenant({
+			name: "Prepared Tenant",
+			email,
+		});
+		createdInviteIds.push(invite.id);
+
+		const { tenants } = await clientFor(owner).listTenants();
+
+		expect(tenants).toContainEqual(
+			expect.objectContaining({
+				id: invite.id,
+				inviteId: invite.id,
+				email,
+				status: "pending",
+				emailVerified: false,
+			}),
+		);
+	});
+
+	it("allows an owner to create a lease for an unverified owner-prepared tenant", async () => {
+		const owner = await createOwner("Owner A");
+		const email = `${crypto.randomUUID()}@test.keyhq.invalid`;
+		const { invite } = await clientFor(owner).createTenant({
+			name: "Prepared Tenant",
+			email,
+			phone: "9123456789",
+		});
+		createdInviteIds.push(invite.id);
+
+		const [property] = await db
+			.insert(properties)
+			.values({
+				ownerId: owner.id,
+				name: "Test Property",
+				address: "1 Test Road",
+				type: "residential",
+			})
+			.returning();
+		if (!property) throw new Error("Failed to create property fixture");
+		createdPropertyIds.push(property.id);
+
+		const [unit] = await db
+			.insert(units)
+			.values({
+				propertyId: property.id,
+				unitNumber: "A-1",
+				type: "1BHK",
+				baseRent: 1500,
+				status: "available",
+			})
+			.returning();
+		if (!unit) throw new Error("Failed to create unit fixture");
+		createdUnitIds.push(unit.id);
+
+		const { lease } = await clientFor(owner).createLease({
+			unitId: unit.id,
+			tenantId: invite.id,
+			startDate: new Date("2026-08-07T00:00:00.000Z"),
+			endDate: new Date("2027-08-07T00:00:00.000Z"),
+			rent: 1500,
+			deposit: 100,
+		});
+		createdLeaseIds.push(lease.id);
+		createdUserIds.push(invite.id);
+
+		expect(lease.tenantId).toBe(invite.id);
+
+		const [provisionalUser] = await db
+			.select({
+				id: user.id,
+				emailVerified: user.emailVerified,
+				role: user.role,
+			})
+			.from(user)
+			.where(eq(user.id, invite.id));
+
+		expect(provisionalUser).toEqual({
+			id: invite.id,
+			emailVerified: false,
+			role: "tenant",
+		});
 	});
 });
 

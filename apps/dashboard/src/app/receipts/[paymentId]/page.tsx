@@ -39,7 +39,7 @@ export default function PaymentReceiptPage({
 			<style>{`
 				@media print {
 					body:has(.rent-receipt-page) [data-sidebar="sidebar"],
-					body:has(.rent-receipt-page) header,
+					body:has(.rent-receipt-page) [data-dashboard-header],
 					body:has(.rent-receipt-page) .receipt-screen-only {
 						display: none !important;
 					}

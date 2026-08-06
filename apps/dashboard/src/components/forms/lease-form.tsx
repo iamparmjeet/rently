@@ -62,14 +62,23 @@ type TenantOption = {
 // ── Form schema ──────────────
 // WHY: String dates — <input type="date"> produces "YYYY-MM-DD" strings.
 // The conversion to Date happens at the mutation call site (the handler), not here.
-export const LeaseFormSchema = z.object({
-	unitId: z.string().min(1, "Select a unit"),
-	tenantId: z.string().min(1, "Select a tenant"),
-	startDate: z.string().min(1, "Start date is required"),
-	endDate: z.string().optional(),
-	rent: z.number().min(1, "Rent must be > 0"),
-	deposit: z.number().optional(),
-});
+export const LeaseFormSchema = z
+	.object({
+		unitId: z.string().min(1, "Select a unit"),
+		tenantId: z.string().min(1, "Select a tenant"),
+		startDate: z.string().min(1, "Start date is required"),
+		endDate: z.string().optional(),
+		rent: z.number().min(1, "Rent must be > 0"),
+		deposit: z.number().optional(),
+	})
+	.refine(
+		({ startDate, endDate }) =>
+			!endDate || !startDate || new Date(endDate) > new Date(startDate),
+		{
+			message: "End date must be after start date",
+			path: ["endDate"],
+		},
+	);
 
 export type LeaseFormValues = z.infer<typeof LeaseFormSchema>;
 

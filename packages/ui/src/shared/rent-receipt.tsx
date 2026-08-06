@@ -1,5 +1,6 @@
 import { formatRupees, rupeesToWords } from "@rently/ui/lib/currency";
 import type { PaymentReceiptData } from "@rently/validators";
+import { LogoIcon } from "./logo";
 
 function formatDate(value: Date): string {
 	return new Intl.DateTimeFormat("en-IN", {
@@ -58,6 +59,11 @@ export function RentReceipt({ receipt }: { receipt: PaymentReceiptData }) {
 						box-shadow: none !important;
 					}
 
+					.rent-receipt .keyhq-logo-piece {
+						animation: none !important;
+						transform: none !important;
+					}
+
 					.receipt-screen-only {
 						display: none !important;
 					}
@@ -66,7 +72,10 @@ export function RentReceipt({ receipt }: { receipt: PaymentReceiptData }) {
 
 			<header className="flex items-start justify-between gap-6 border-slate-900 border-b-2 pb-6">
 				<div>
-					<p className="font-bold text-xl tracking-tight">KeyHQ</p>
+					<div className="flex items-center gap-2">
+						<LogoIcon aria-hidden="true" className="size-8.5 shrink-0" />
+						<p className="font-bold text-xl tracking-tight">KeyHQ</p>
+					</div>
 					<p className="mt-1 text-slate-500 text-sm">
 						Property Management Simplified
 					</p>

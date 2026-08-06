@@ -44,9 +44,19 @@ const receipt: PaymentReceiptData = {
 };
 
 describe("RentReceipt", () => {
+	it("renders the completed logo state when printing", () => {
+		const { container } = render(<RentReceipt receipt={receipt} />);
+		const printStyles = container.querySelector("style")?.textContent;
+
+		expect(printStyles).toContain(".keyhq-logo-piece");
+		expect(printStyles).toContain("animation: none !important");
+		expect(printStyles).toContain("transform: none !important");
+	});
+
 	it("renders the receipt and its statutory payment details", () => {
 		render(<RentReceipt receipt={receipt} />);
 
+		expect(screen.getByTitle("KeyHQ icon")).toBeTruthy();
 		expect(screen.getByText("RENT RECEIPT")).toBeTruthy();
 		expect(screen.getByText(receipt.receiptNumber)).toBeTruthy();
 		expect(screen.getByText("Tenant A")).toBeTruthy();

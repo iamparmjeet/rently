@@ -94,12 +94,13 @@ export function TenantCard({ tenant, actionsSlot }: TenantCardProps) {
 				)}
 				{/* View CTA */}
 
-				<Button variant="outline" size="lg" className="my-2 w-full">
+				<Button variant="outline" size="lg" className="mt-2 w-full">
 					<Link href={`/tenants/${tenant.id}` as Route}>View Details</Link>
 				</Button>
 				<DateRecordMeta
 					createdAt={tenant.createdAt}
 					updatedAt={tenant.updatedAt}
+					className="pt-3"
 				/>
 			</CardContent>
 		</Card>

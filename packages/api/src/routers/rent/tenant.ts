@@ -40,8 +40,11 @@ export const listTenants = ownerProcedure
 				tenantId: user.id,
 				name: user.name,
 				email: user.email,
+				emailVerified: user.emailVerified,
 				phone: user.phone,
 				avatarUrl: user.image,
+				inviteId: tenantProfiles.invitedId,
+				inviteStatus: tenantInvites.status,
 				leaseId: leases.id, // nullable — no lease = null
 				propertyName: properties.name, // nullable — no lease = null
 				unitNumber: units.unitNumber, // nullable — no lease = null
@@ -53,6 +56,7 @@ export const listTenants = ownerProcedure
 			})
 			.from(tenantProfiles)
 			.innerJoin(user, eq(tenantProfiles.userId, user.id))
+			.leftJoin(tenantInvites, eq(tenantProfiles.invitedId, tenantInvites.id))
 			// LEFT JOIN: keep the tenant row even if no matching lease exists
 			.leftJoin(
 				leases,
@@ -71,16 +75,15 @@ export const listTenants = ownerProcedure
 			if (!tenantMap.has(row.tenantId)) {
 				tenantMap.set(row.tenantId, {
 					id: row.tenantId,
+					inviteId: row.inviteStatus === "pending" ? row.inviteId : null,
 					name: row.name,
 					email: row.email,
+					emailVerified: row.emailVerified,
 					phone: row.phone,
 					avatarUrl: row.avatarUrl,
 					createdAt: row.createdAt,
 					updatedAt: row.updatedAt,
-					status:
-						row.leaseStatus === "active"
-							? ("accepted" as const)
-							: ("pending" as const),
+					status: row.inviteStatus ?? ("accepted" as const),
 					currentLease: row.leaseId
 						? {
 								id: row.leaseId,
@@ -92,6 +95,41 @@ export const listTenants = ownerProcedure
 						: null,
 				});
 			}
+		}
+
+		// A tenant has no user/profile until they accept the invitation. Include
+		// those owner-created records here too, otherwise a newly added tenant
+		// disappears from the dashboard until they finish onboarding.
+		const pendingInvites = await db
+			.select({
+				id: tenantInvites.id,
+				name: tenantInvites.name,
+				email: tenantInvites.email,
+				phone: tenantInvites.phone,
+				status: tenantInvites.status,
+				createdAt: tenantInvites.createdAt,
+				updatedAt: tenantInvites.updatedAt,
+			})
+			.from(tenantInvites)
+			.where(eq(tenantInvites.invitedById, authUser.id))
+			.orderBy(desc(tenantInvites.createdAt));
+
+		for (const invite of pendingInvites) {
+			if (invite.status === "accepted" || tenantMap.has(invite.id)) continue;
+
+			tenantMap.set(invite.id, {
+				id: invite.id,
+				inviteId: invite.id,
+				name: invite.name,
+				email: invite.email,
+				emailVerified: false,
+				phone: invite.phone,
+				avatarUrl: null,
+				status: invite.status,
+				createdAt: invite.createdAt,
+				updatedAt: invite.updatedAt,
+				currentLease: null,
+			});
 		}
 
 		const tenants = Array.from(tenantMap.values());
@@ -113,6 +151,7 @@ export const getTenantById = ownerProcedure
 				tenantId: user.id,
 				name: user.name,
 				email: user.email,
+				emailVerified: user.emailVerified,
 				userPhone: user.phone,
 				avatarUrl: user.image,
 				// TenantProfile fields (all nullable if no profile row — shouldn't
@@ -180,8 +219,10 @@ export const getTenantById = ownerProcedure
 		return {
 			tenant: {
 				id: result.tenantId,
+				inviteId: null,
 				name: result.name,
 				email: result.email,
+				emailVerified: result.emailVerified,
 				phone: result.userPhone,
 				avatarUrl: result.avatarUrl,
 				status: "accepted" as const,

@@ -19,4 +19,4 @@ pre-push:
     - name: typecheck-affected
       run: bun run check-types -- --affected
     - name: biome-changed # WHY: mirrors CI exactly — catches repo-wide violations before push
-      run: bunx biome check --changed
+      run: bunx biome check --changed --no-errors-on-unmatched

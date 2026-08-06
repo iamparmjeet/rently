@@ -22,6 +22,7 @@ vi.mock("evlog/next", () => ({
 
 describe("web proxy", () => {
 	beforeEach(() => {
+		vi.clearAllMocks();
 		vi.mocked(betterFetch).mockResolvedValue({
 			data: {
 				session: { id: "session-1", expiresAt: "2099-01-01" },
@@ -33,6 +34,7 @@ describe("web proxy", () => {
 
 	it.each([
 		["Next-Router-Prefetch", "1"],
+		["Next-Router-Prefetch", "2"],
 		["Purpose", "prefetch"],
 	])("does not redirect an authenticated prefetch marked by %s", async (header, value) => {
 		const request = new NextRequest("https://keyhq.test/login", {

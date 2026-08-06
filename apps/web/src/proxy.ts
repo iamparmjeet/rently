@@ -26,7 +26,7 @@ export default async function proxy(request: NextRequest) {
 	// fetches to another app origin makes the browser enforce CORS on the 307.
 	// Let the real document navigation perform the role-aware redirect instead.
 	const isPrefetch =
-		request.headers.get("Next-Router-Prefetch") === "1" ||
+		request.headers.has("Next-Router-Prefetch") ||
 		request.headers.get("Purpose") === "prefetch";
 	if (isPrefetch) return NextResponse.next();
 

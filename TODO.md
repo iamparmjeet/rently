@@ -210,6 +210,7 @@
 - [ ] `evlog` console.log calls — several `// TODO: remove before prod` comments across API handlers
 - [ ] Notification preference fields not declared in `turbo.json` env vars yet — add when migrated from localStorage
 - [ ] **Fresh Drizzle migration bootstrap** — repair and verify migrations from an empty database before the final `integration/keyhq-beta` → `main` merge. Current local test schema was created with `db:push`; this is a release blocker, not work for M1.
+- [ ] **M1b test-database migration diagnosis** — `0007_unique_the_hand` is generated but does not currently apply to `rently_test`. Defer diagnosing and verifying that migration path until after the KeyHQ beta release; M1b database integration tests remain unavailable locally until then.
 
 ---
 

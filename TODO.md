@@ -3,7 +3,7 @@
 > Single source of truth for build progress.
 > Update this file as items are completed or priorities shift.
 > Tiers: **P0** = must ship before public launch · **P1** = core product gaps · **P2** = growth features · **P3** = post-launch backlog
-> Last audited: 2026-08-06 (verified against the KeyHQ beta integration branch)
+> Last audited: 2026-08-07 (verified against the KeyHQ beta integration branch)
 > Cost policy: prefer services with a suitable free tier. Move to a paid tier only when measured usage or a required capability exceeds its documented free limits.
 
 ---
@@ -29,6 +29,7 @@
 - [x] **Mobile sidebar (Sheet variant)** — shared `Sidebar` renders a `Sheet` on mobile via `useIsMobile()`; `SidebarTrigger` in the header opens it.
 - [x] **Milestone 0 — Product Truth and Immediate Defects** — public KeyHQ branding, truthful pricing/copy, legal support contact, corrected local/production URL documentation, invite URLs built from `WEB_APP_URL`, invite delivery feedback and resend action, and stale TODO cleanup.
 - [x] **M0 validation** — Vitest invite suite covers cross-owner resend denial, valid resend, expiry, and preserved invites after email delivery failure; typecheck and production build pass.
+- [x] **PDF rent receipts + manual payment audit** — owner and tenant receipt flows, deterministic receipt numbers, Indian currency words, printable routes, payment controls, authorization coverage, and integration validation are complete.
 
 ---
 
@@ -73,7 +74,7 @@
 
 ### Fast-follow (beta week 1–2, not gating)
 
-- [ ] PDF rent receipts — design complete; key differentiator (tenant HRA claims). See P1 for sub-tasks.
+- [x] PDF rent receipts — implemented and validated for owner and tenant flows.
 - [ ] Subscription status badge in sidebar
 
 ---
@@ -134,14 +135,14 @@
 
 ### PDF Rent Receipts
 
-- [ ] `getPaymentReceiptData` oRPC procedure — enriched JOIN (payment + owner profile + property + unit + tenant)
-- [ ] `generateReceiptNumber(paymentId)` utility in `@rently/db/utils/receipt.ts` (deterministic from UUIDv7)
-- [ ] `rupeesToWords(paise)` utility in `@rently/ui/lib/currency.ts` (Indian numbering — lakh/crore)
-- [ ] `/receipts/[paymentId]` route in `apps/dashboard` — print-optimised HTML + `window.print()`
-- [ ] `getMyPaymentReceiptData` oRPC procedure (tenant-scoped, `protectedProcedure`)
-- [ ] `/receipts/[paymentId]` route in `apps/tenant`
-- [ ] "Download" button in `PaymentDetailDialog` → `window.open('/receipts/[id]?print=true')`
-- [ ] "Download" button in tenant portal payment history
+- [x] `getPaymentReceiptData` oRPC procedure — enriched JOIN (payment + owner profile + property + unit + tenant)
+- [x] `generateReceiptNumber(paymentId)` utility in `@rently/db/utils/receipt.ts` (deterministic from UUIDv7)
+- [x] `rupeesToWords(paise)` utility in `@rently/ui/lib/currency.ts` (Indian numbering — lakh/crore)
+- [x] `/receipts/[paymentId]` route in `apps/dashboard` — print-optimised HTML + `window.print()`
+- [x] `getMyPaymentReceiptData` oRPC procedure (tenant-scoped, `protectedProcedure`)
+- [x] `/receipts/[paymentId]` route in `apps/tenant`
+- [x] "Download" button in `PaymentDetailDialog` → `window.open('/receipts/[id]?print=true')`
+- [x] "Download" button in tenant portal payment history
 
 ### Late Payment / Overdue Tracking
 

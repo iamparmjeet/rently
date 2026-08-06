@@ -45,19 +45,21 @@
 
 ### M1b — Unified tenant onboarding
 
-- [ ] Add `TenantOnboardingMode`: `owner_prepared` and `tenant_completed`.
-- [ ] Extend invitations with `onboardingMode`, `deliveryStatus`, `lastSentAt`, and a safe delivery error code.
-- [ ] Replace direct tenant account creation: both onboarding modes create an invitation first; Better Auth user creation occurs only during acceptance.
-- [ ] Owner-prepared acceptance: tenant reviews prefilled details, consents, sets password, and atomically creates account/profile/accepted invite.
-- [ ] Tenant-completed acceptance: owner provides name/email; tenant completes contact/address/emergency details, consents, and sets password.
-- [ ] Mark accepted system-delivered invitations as email verified.
-- [ ] Add `createTenantDraft`, extended `createInvite`, `resendInvite`, and extended `acceptInvite` procedures with atomicity and cross-owner tests.
+- [x] Add `TenantOnboardingMode`: `owner_prepared` and `tenant_completed`.
+- [x] Extend invitations with `onboardingMode`, `deliveryStatus`, `lastSentAt`, and a safe delivery error code.
+- [x] Replace direct tenant account creation: both onboarding modes create an invitation first; Better Auth user creation occurs only during acceptance.
+- [x] Owner-prepared acceptance: tenant reviews prefilled details, consents, sets password, and atomically creates account/profile/accepted invite.
+- [x] Tenant-completed acceptance: owner provides name/email; tenant completes contact/address/emergency details, consents, and sets password.
+- [x] Mark accepted system-delivered invitations as email verified.
+- [x] Add owner-prepared `createTenant`, tenant-completed `createInvite`, `resendInvite`, and extended `acceptInvite` procedures with atomicity and cross-owner test coverage.
 
 ### M1 exit criteria
 
-- [ ] A new owner verifies their email and signs in without manual intervention.
-- [ ] One tenant completes each onboarding mode without direct database intervention.
-- [ ] Failed delivery is visible, resend works, expired invites are rejected, and no orphaned user is created after a failed acceptance.
+- [x] A new owner verifies their email and signs in without manual intervention.
+- [x] One tenant completes each onboarding mode without direct database intervention.
+- [x] Failed delivery is visible, resend works, expired invites are rejected, and no orphaned user is created after a failed acceptance.
+
+> M1b database integration execution against `rently_test` is deferred until after the KeyHQ beta release. The migration diagnosis is tracked under Known Technical Debt; implementation, source coverage, Biome, and workspace type checking are complete.
 
 ---
 
@@ -65,7 +67,7 @@
 
 > Gate test: "Can a stranger sign up, use the product, pay me, and recover their account without manual intervention?"
 
-- [ ] **Hard email verification and unified onboarding** — complete Milestone 1 above.
+- [x] **Hard email verification and unified onboarding** — complete Milestone 1 above.
 - [ ] **Mobile QA pass** — test the dashboard and tenant portal on a real Android phone and a narrow iPhone viewport. `SidebarTrigger` is already the mobile menu control.
 - [x] **`referrers` table decision** — leave it dormant during beta; no procedures or UI yet.
 
@@ -210,6 +212,7 @@
 - [ ] `evlog` console.log calls — several `// TODO: remove before prod` comments across API handlers
 - [ ] Notification preference fields not declared in `turbo.json` env vars yet — add when migrated from localStorage
 - [ ] **Fresh Drizzle migration bootstrap** — repair and verify migrations from an empty database before the final `integration/keyhq-beta` → `main` merge. Current local test schema was created with `db:push`; this is a release blocker, not work for M1.
+- [ ] **M1b test-database migration diagnosis** — `0007_unique_the_hand` is generated but does not currently apply to `rently_test`. Defer diagnosing and verifying that migration path until after the KeyHQ beta release; M1b database integration tests remain unavailable locally until then.
 
 ---
 

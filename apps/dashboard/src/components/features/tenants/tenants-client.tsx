@@ -70,7 +70,7 @@ export default function TenantsClientPage() {
 					</Button>
 					<Button size="lg" onClick={addDialog.openDialog}>
 						<IconPlus className="mr-2 size-4" />
-						Add Manually
+						Prepare Invitation
 					</Button>
 				</PageHeader>
 
@@ -112,7 +112,7 @@ export default function TenantsClientPage() {
 								</Button>
 								<Button onClick={addDialog.openDialog}>
 									<IconPlus className="mr-1.5 size-4" />
-									Add Manually
+									Prepare Invitation
 								</Button>
 							</div>
 						)}
@@ -142,15 +142,15 @@ export default function TenantsClientPage() {
 					/>
 				</FormDialog>
 
-				{/*  Add Manually dialog ─ */}
+				{/* Owner-prepared invitation dialog */}
 				<FormDialog
 					open={addDialog.open}
 					onOpenChange={addDialog.onOpenChange}
-					title="Add Tenant Manually"
-					description="Create a tenant account directly. You can assign them to a lease immediately after."
+					title="Prepare Tenant Invitation"
+					description="Save the tenant's details and send an invitation. The tenant sets their password and accepts the invitation before an account is created."
 					formId="add-tenant-form"
 					isSubmitting={createTenant.isPending}
-					submitLabel="Create Tenant"
+					submitLabel="Send Tenant Invitation"
 				>
 					<TenantCreateForm
 						formId="add-tenant-form"

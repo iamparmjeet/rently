@@ -13,7 +13,17 @@ export function useResendInvite() {
 			input: Parameters<typeof client.rent.invite.resendInvite>[0],
 		) => client.rent.invite.resendInvite(input),
 
-		onSuccess: (_, __, context) => {
+		onSuccess: (result, _, context) => {
+			if (result.deliveryStatus === "failed") {
+				toast.warning(
+					"Invitation is still pending, but the email was not delivered.",
+					{
+						id: context.toastId,
+					},
+				);
+				return;
+			}
+
 			toast.success("Invitation email sent", {
 				id: context.toastId,
 			});

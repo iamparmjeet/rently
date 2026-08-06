@@ -116,7 +116,7 @@ export const getTenantById = ownerProcedure
 				userPhone: user.phone,
 				avatarUrl: user.image,
 				// TenantProfile fields (all nullable if no profile row — shouldn't
-				// happen since createTenant always inserts one, but LEFT JOIN is safer)
+				// happen before an invitation is accepted, but LEFT JOIN is safer)
 				profileAddress: tenantProfiles.address,
 				emergencyContact: tenantProfiles.emergencyContact,
 				emergencyContactName: tenantProfiles.emergencyContactName,
@@ -162,7 +162,7 @@ export const getTenantById = ownerProcedure
 		}
 
 		// Build profile — null if verificationStatus is null (no profile row)
-		// In practice this won't happen since createTenant always inserts a profile,
+		// In practice this won't happen once a tenant invitation is accepted,
 		// but LEFT JOIN means TypeScript sees it as nullable, and we handle it safely.
 		const profile =
 			result.verificationStatus !== null
@@ -202,7 +202,7 @@ export const getTenantById = ownerProcedure
 		};
 	});
 
-// 3) Owner Creates tenant directly
+// 3) Owner creates an owner-prepared tenant invitation
 export const createTenant = ownerProcedure
 	.route({
 		method: "POST",

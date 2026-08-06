@@ -36,12 +36,12 @@
 
 ### M1a — Hard email verification
 
-- [ ] Configure Better Auth to send verification email on signup and on unverified password sign-in.
-- [ ] Require verified email for password login; existing unverified accounts must verify at their next login.
-- [ ] Add a dedicated verification-required screen with resend feedback and a safe return path.
-- [ ] Automatically establish the session after a successful verification.
-- [ ] Defer beta-code redemption until a verified session exists; beta-code signups land on `/subscriptions` after verification, with no code persisted in URLs or browser storage.
-- [ ] Test signup delivery, unverified-login blocking, successful verification, resend state, and redirect behavior.
+- [x] Configure Better Auth to send verification email on signup and on unverified password sign-in.
+- [x] Require verified email for password login; existing unverified accounts must verify at their next login.
+- [x] Add a dedicated verification-required screen with resend feedback and a safe return path.
+- [x] Automatically establish the session after a successful verification.
+- [x] Defer beta-code redemption until a verified session exists; beta-code signups land on `/subscriptions` after verification, with no code persisted in URLs or browser storage.
+- [x] Test signup delivery, unverified-login blocking, successful verification, resend state, and redirect behavior.
 
 ### M1b — Unified tenant onboarding
 

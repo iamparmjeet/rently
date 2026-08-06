@@ -22,6 +22,14 @@ export default async function proxy(request: NextRequest) {
 	const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route));
 	if (!isAuthRoute) return NextResponse.next();
 
+	// Next.js prefetches auth links in the background. Redirecting one of those
+	// fetches to another app origin makes the browser enforce CORS on the 307.
+	// Let the real document navigation perform the role-aware redirect instead.
+	const isPrefetch =
+		request.headers.get("Next-Router-Prefetch") === "1" ||
+		request.headers.get("Purpose") === "prefetch";
+	if (isPrefetch) return NextResponse.next();
+
 	// Fast-path: no cookie → unauthenticated user on login/register → let them through.
 	if (!hasSessionCookie(request)) return NextResponse.next();
 	// Cookie exists — verify with the server and redirect based on role.

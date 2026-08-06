@@ -37,11 +37,15 @@ interface AcceptInviteFormProps {
 	token: string;
 	name: string;
 	email: string;
-	phone: string;
 	ownerName: string;
+	onboardingMode: "owner_prepared" | "tenant_completed";
+	phone: string | null;
+	address: string | null;
+	emergencyContact: string | null;
+	emergencyContactName: string | null;
+	emergencyContactLocation: string | null;
 }
 
-// Success State
 function SuccessState() {
 	return (
 		<div className="flex flex-col items-center gap-4 py-8 text-center">
@@ -51,17 +55,16 @@ function SuccessState() {
 			<div>
 				<h3 className="font-semibold text-lg">Account Created</h3>
 				<p className="mt-1 text-muted-foreground text-sm">
-					Your Rentwise account is ready. Please log in to continue.
+					Your KeyHQ account is ready. Please log in to continue.
 				</p>
 			</div>
-			<Button className={"mt-2 w-full"}>
+			<Button className="mt-2 w-full">
 				<Link href={"/login" as Route}>Go to Login</Link>
 			</Button>
 		</div>
 	);
 }
 
-// Locked Field
 function LockedField({ label, value }: { label: string; value: string }) {
 	return (
 		<Field>
@@ -86,7 +89,12 @@ export function AcceptInviteForm({
 	name,
 	email,
 	ownerName,
+	onboardingMode,
 	phone,
+	address,
+	emergencyContact,
+	emergencyContactName,
+	emergencyContactLocation,
 }: AcceptInviteFormProps) {
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirm, setShowConfirm] = useState(false);
@@ -100,17 +108,15 @@ export function AcceptInviteForm({
 		formState: { errors },
 	} = useForm<AcceptFormValues>({
 		resolver: zodResolver(acceptFormSchema),
-		defaultValues: {
-			phone: phone || "",
-		},
 	});
 
 	function onSubmit(values: AcceptFormValues) {
+		const { confirmPassword: _, ...acceptanceInput } = values;
+
 		acceptInvite.mutate(
 			{
-				token, // from URL (server -> props)
-				password: values.password,
-				phone: values.phone || undefined,
+				token,
+				...acceptanceInput,
 			},
 			{
 				onSuccess: () => setIsSuccess(true),
@@ -119,49 +125,145 @@ export function AcceptInviteForm({
 	}
 
 	if (isSuccess) return <SuccessState />;
+
 	return (
 		<form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
-			{/* Header Context - who invited them*/}
 			<div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3">
 				<p className="text-blue-800 text-sm">
 					<strong>{ownerName}</strong> has invited you to manage your rental
-					agreement on RentWise.
+					agreement on KeyHQ.
 				</p>
 			</div>
 
-			{/* Locked fields — owner-entered, shown for confirmation only */}
 			<LockedField label="Full Name" value={name} />
 			<LockedField label="Email Address" value={email} />
 
-			{/* Phone — editable even if pre-filled */}
-			<Field>
-				<Label htmlFor="phone">Phone Number</Label>
+			{onboardingMode === "owner_prepared" ? (
+				<>
+					{phone && <LockedField label="Phone Number" value={phone} />}
+					{address && <LockedField label="Address" value={address} />}
+					{emergencyContactName && (
+						<LockedField
+							label="Emergency Contact Name"
+							value={emergencyContactName}
+						/>
+					)}
+					{emergencyContact && (
+						<LockedField
+							label="Emergency Contact Phone"
+							value={emergencyContact}
+						/>
+					)}
+					{emergencyContactLocation && (
+						<LockedField
+							label="Emergency Contact Location"
+							value={emergencyContactLocation}
+						/>
+					)}
+				</>
+			) : (
+				<>
+					<Field data-invalid={!!errors.phone}>
+						<Label htmlFor="phone">Phone Number</Label>
+						<Input
+							id="phone"
+							type="tel"
+							placeholder="+91 98989 98989"
+							{...register("phone")}
+							disabled={acceptInvite.isPending}
+						/>
+						<FieldError errors={[errors.phone]} />
+					</Field>
+
+					<Field data-invalid={!!errors.address}>
+						<Label htmlFor="address">Address</Label>
+						<Input
+							id="address"
+							placeholder="Your current address"
+							{...register("address")}
+							disabled={acceptInvite.isPending}
+						/>
+						<FieldError errors={[errors.address]} />
+					</Field>
+
+					<Field data-invalid={!!errors.emergencyContactName}>
+						<Label htmlFor="emergencyContactName">Emergency Contact Name</Label>
+						<Input
+							id="emergencyContactName"
+							placeholder="Full name"
+							{...register("emergencyContactName")}
+							disabled={acceptInvite.isPending}
+						/>
+						<FieldError errors={[errors.emergencyContactName]} />
+					</Field>
+
+					<Field data-invalid={!!errors.emergencyContact}>
+						<Label htmlFor="emergencyContact">Emergency Contact Phone</Label>
+						<Input
+							id="emergencyContact"
+							type="tel"
+							placeholder="+91 98989 98989"
+							{...register("emergencyContact")}
+							disabled={acceptInvite.isPending}
+						/>
+						<FieldError errors={[errors.emergencyContact]} />
+					</Field>
+
+					<Field data-invalid={!!errors.emergencyContactLocation}>
+						<Label htmlFor="emergencyContactLocation">
+							Emergency Contact Location
+						</Label>
+						<Input
+							id="emergencyContactLocation"
+							placeholder="Relation and address"
+							{...register("emergencyContactLocation")}
+							disabled={acceptInvite.isPending}
+						/>
+						<FieldError errors={[errors.emergencyContactLocation]} />
+					</Field>
+				</>
+			)}
+
+			<Field data-invalid={!!errors.uidNumber}>
+				<Label htmlFor="uidNumber">UID / Aadhaar Number</Label>
 				<Input
-					id="phone"
-					type="tel"
-					placeholder="+91 98989 98989"
-					{...register("phone")}
+					id="uidNumber"
+					placeholder="1234 5678 9012"
+					{...register("uidNumber")}
 					disabled={acceptInvite.isPending}
 				/>
-				{errors.phone && <FieldError>{errors.phone.message}</FieldError>}
+				<p className="text-muted-foreground text-xs">
+					Entered only by you and used for identity verification.
+				</p>
+				<FieldError errors={[errors.uidNumber]} />
 			</Field>
 
-			{/* password*/}
-			<Field>
+			<Field data-invalid={!!errors.panNumber}>
+				<Label htmlFor="panNumber">PAN Number</Label>
+				<Input
+					id="panNumber"
+					placeholder="ABCDE1234F"
+					{...register("panNumber")}
+					disabled={acceptInvite.isPending}
+				/>
+				<FieldError errors={[errors.panNumber]} />
+			</Field>
+
+			<Field data-invalid={!!errors.password}>
 				<Label htmlFor="password">Password</Label>
 				<div className="relative">
 					<Input
 						id="password"
 						type={showPassword ? "text" : "password"}
-						placeholder="Enter your strong password"
+						placeholder="Enter a strong password"
 						{...register("password")}
 						disabled={acceptInvite.isPending}
 						className="pr-10"
 					/>
 					<button
 						type="button"
-						onClick={() => setShowPassword(!showPassword)}
-						className="-trnslate-y-1/2 absolute top-1/2 right-3 cursor-pointer text-muted-foreground hover:text-foreground"
+						onClick={() => setShowPassword((visible) => !visible)}
+						className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
 					>
 						{showPassword ? (
 							<IconEyeOff className="size-4" />
@@ -173,25 +275,24 @@ export function AcceptInviteForm({
 				<p className="text-muted-foreground text-xs">
 					8+ characters with uppercase, lowercase, and a number
 				</p>
-				{errors.password && <FieldError>{errors.password.message}</FieldError>}
+				<FieldError errors={[errors.password]} />
 			</Field>
 
-			{/* confirm password*/}
-			<Field>
+			<Field data-invalid={!!errors.confirmPassword}>
 				<Label htmlFor="confirmPassword">Confirm Password</Label>
 				<div className="relative">
 					<Input
 						id="confirmPassword"
-						type={showPassword ? "text" : "password"}
-						placeholder="Enter your strong password"
+						type={showConfirm ? "text" : "password"}
+						placeholder="Confirm your password"
 						{...register("confirmPassword")}
 						disabled={acceptInvite.isPending}
 						className="pr-10"
 					/>
 					<button
 						type="button"
-						onClick={() => setShowConfirm(!showConfirm)}
-						className="-trnslate-y-1/2 absolute top-1/2 right-3 cursor-pointer text-muted-foreground hover:text-foreground"
+						onClick={() => setShowConfirm((visible) => !visible)}
+						className="absolute top-1/2 right-3 -translate-y-1/2 cursor-pointer text-muted-foreground hover:text-foreground"
 					>
 						{showConfirm ? (
 							<IconEyeOff className="size-4" />
@@ -200,13 +301,49 @@ export function AcceptInviteForm({
 						)}
 					</button>
 				</div>
-				<p className="text-muted-foreground text-xs">
-					8+ characters with uppercase, lowercase, and a number
-				</p>
-				{errors.confirmPassword && (
-					<FieldError>{errors.confirmPassword.message}</FieldError>
-				)}
+				<FieldError errors={[errors.confirmPassword]} />
 			</Field>
+
+			<Field data-invalid={!!errors.termsAccepted}>
+				<div className="flex items-start gap-2">
+					<input
+						id="termsAccepted"
+						type="checkbox"
+						className="mt-1 size-4"
+						{...register("termsAccepted")}
+						disabled={acceptInvite.isPending}
+					/>
+					<Label htmlFor="termsAccepted" className="font-normal text-sm">
+						I agree to the{" "}
+						<Link href="/terms" className="text-primary hover:underline">
+							Terms of Service
+						</Link>
+						.
+					</Label>
+				</div>
+				<FieldError errors={[errors.termsAccepted]} />
+			</Field>
+
+			<Field data-invalid={!!errors.privacyAcknowledged}>
+				<div className="flex items-start gap-2">
+					<input
+						id="privacyAcknowledged"
+						type="checkbox"
+						className="mt-1 size-4"
+						{...register("privacyAcknowledged")}
+						disabled={acceptInvite.isPending}
+					/>
+					<Label htmlFor="privacyAcknowledged" className="font-normal text-sm">
+						I acknowledge the{" "}
+						<Link href="/privacy" className="text-primary hover:underline">
+							Privacy Policy
+						</Link>
+						.
+					</Label>
+				</div>
+				<FieldError errors={[errors.privacyAcknowledged]} />
+			</Field>
+
 			<Button
 				type="submit"
 				className="w-full"

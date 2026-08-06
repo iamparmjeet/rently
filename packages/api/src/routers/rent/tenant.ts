@@ -2,7 +2,7 @@ import { ORPCError } from "@orpc/server";
 import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
 import { auth } from "@rently/auth";
-import { USER_ROLES } from "@rently/db/constants/user-roles";
+
 import { user } from "@rently/db/schema/auth";
 import {
 	leases,
@@ -11,11 +11,11 @@ import {
 	tenantProfiles,
 	units,
 } from "@rently/db/schema/schema";
-import { generatedId } from "@rently/db/utils/id";
 import { sendCustomEmailToTenant } from "@rently/email";
 import { env } from "@rently/env/server";
 import {
 	CreateTenantSchema,
+	InvitePublicSchema,
 	RemoveTenantSchema,
 	TenantDetailSchema,
 	TenantListItemSchema,
@@ -23,7 +23,7 @@ import {
 } from "@rently/validators";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import z from "zod";
-import { enforceSubscriptionLimit } from "../helpers";
+import { createPendingTenantInvite } from "./invite-service";
 
 // List tenants for this owner
 export const listTenants = ownerProcedure
@@ -116,7 +116,7 @@ export const getTenantById = ownerProcedure
 				userPhone: user.phone,
 				avatarUrl: user.image,
 				// TenantProfile fields (all nullable if no profile row — shouldn't
-				// happen since createTenant always inserts one, but LEFT JOIN is safer)
+				// happen before an invitation is accepted, but LEFT JOIN is safer)
 				profileAddress: tenantProfiles.address,
 				emergencyContact: tenantProfiles.emergencyContact,
 				emergencyContactName: tenantProfiles.emergencyContactName,
@@ -162,7 +162,7 @@ export const getTenantById = ownerProcedure
 		}
 
 		// Build profile — null if verificationStatus is null (no profile row)
-		// In practice this won't happen since createTenant always inserts a profile,
+		// In practice this won't happen once a tenant invitation is accepted,
 		// but LEFT JOIN means TypeScript sees it as nullable, and we handle it safely.
 		const profile =
 			result.verificationStatus !== null
@@ -202,7 +202,7 @@ export const getTenantById = ownerProcedure
 		};
 	});
 
-// 3) Owner Creates tenant directly
+// 3) Owner creates an owner-prepared tenant invitation
 export const createTenant = ownerProcedure
 	.route({
 		method: "POST",
@@ -210,113 +210,23 @@ export const createTenant = ownerProcedure
 		successStatus: StatusCode.CREATED,
 	})
 	.input(CreateTenantSchema)
-	.output(z.object({ tenantId: z.string() }))
+	.output(
+		z.object({
+			invite: InvitePublicSchema,
+			deliveryStatus: z.enum(["sent", "failed"]),
+		}),
+	)
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
-		// Reject before any expensive auth calls if over limit
-		await enforceSubscriptionLimit(db, authUser.id);
-
-		// Check does a user with this email already exists
-		const [existingUser] = await db
-			.select({ id: user.id })
-			.from(user)
-			.where(eq(user.email, input.email))
-			.limit(1);
-
-		if (existingUser) {
-			throw new ORPCError("CONFLICT", {
-				message: "A user with this email already exists",
-			});
-		}
-
-		// 1) Create user via better-auth
-		const tempPassword = crypto.randomUUID();
-
-		const signupResult = await auth.api.signUpEmail({
-			body: {
-				email: input.email,
-				name: input.name,
-				password: tempPassword,
-				phone: input.phone,
-				// role: USER_ROLES.TENANT,
+		return createPendingTenantInvite(db, {
+			ownerId: authUser.id,
+			ownerName: authUser.name,
+			input: {
+				...input,
+				onboardingMode: "owner_prepared",
 			},
 		});
-
-		const newUserId = signupResult.user.id;
-		const token = crypto.randomUUID();
-
-		// Step2 - Create Tenant Profile + pseudo invite in a transaction
-		// // If this fails, we have an orphaned user — log it for manual cleanup
-		// TODO: implement compensating delete via auth.api.deleteUser when better-auth exposes it
-		try {
-			await db.transaction(async (tx) => {
-				await tx
-					.update(user)
-					.set({ role: USER_ROLES.TENANT })
-					.where(eq(user.id, newUserId));
-
-				await tx.insert(tenantProfiles).values({
-					id: generatedId(),
-					userId: newUserId,
-					phone: input.phone ?? null,
-					address: input.address ?? null,
-					emergencyContact: input.emergencyContact ?? null,
-					emergencyContactName: input.emergencyContactName ?? null,
-					emergencyContactLocation: input.emergencyContactLocation ?? null,
-					uidNumber: input.uidNumber ?? null,
-					panNumber: input.panNumber ?? null,
-					createdById: authUser.id,
-				});
-
-				// Record this as an accepted invite so the tenant appears in listTenants
-				await tx.insert(tenantInvites).values({
-					id: generatedId(),
-					email: input.email,
-					name: input.name,
-					phone: input.phone,
-					token,
-					invitedById: authUser.id,
-					status: "accepted",
-				});
-			});
-		} catch (txError) {
-			// Orphaned user warning — user row exists but no profile
-			console.error(
-				`[createTenant] Transaction failed for userId ${newUserId}. User row orphaned. Manual cleanup needed.`,
-				txError,
-			);
-			throw new ORPCError("INTERNAL_SERVER_ERROR", {
-				message: "Failed to complete tenant setup. Please contact support.",
-			});
-		}
-
-		// Step 3: Trigger password reset — this generates the setup link
-		// better-auth's forgetPassword sends an email internally OR returns a token
-		// depending on your config. We call it and send our own email.
-
-		try {
-			await auth.api.requestPasswordReset({
-				body: {
-					email: input.email,
-					redirectTo: `${env.WEB_APP_URL}/set-password/${token}`,
-				},
-			});
-		} catch (emailError) {
-			// Non-fatal: tenant exists, they can request a reset themselves
-			console.error("[createTenant] forgetPassword call failed", emailError);
-		}
-
-		// sendTenantSetupEmail({
-		// 	to: signupResult.user.email,
-		// 	tenantName: signupResult.user.name,
-		// 	ownerName: authUser.name,
-		// 	setupUrl: "",
-		// }).catch(console.error);
-
-		return {
-			tenantId: newUserId,
-		};
 	});
 
 // 4) Remove
@@ -554,7 +464,7 @@ export const sendPasswordReset = ownerProcedure
 			await auth.api.requestPasswordReset({
 				body: {
 					email: result.tenantEmail,
-					redirectTo: `${env.CORS_ORIGINS}/set-password`,
+					redirectTo: new URL("/set-password", env.WEB_APP_URL).toString(),
 				},
 			});
 		} catch (err) {

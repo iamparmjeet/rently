@@ -16,8 +16,8 @@ ALTER TABLE "invoices" DROP CONSTRAINT "invoices_subscription_id_subscriptions_i
 --> statement-breakpoint
 ALTER TABLE "invoices" DROP CONSTRAINT "invoices_user_id_user_id_fk";
 --> statement-breakpoint
-ALTER TABLE "invoices" ALTER COLUMN "period_start" SET DATA TYPE timestamp;--> statement-breakpoint
-ALTER TABLE "invoices" ALTER COLUMN "period_end" SET DATA TYPE timestamp;--> statement-breakpoint
+ALTER TABLE "invoices" ALTER COLUMN "period_start" SET DATA TYPE timestamp USING "period_start"::timestamp;--> statement-breakpoint
+ALTER TABLE "invoices" ALTER COLUMN "period_end" SET DATA TYPE timestamp USING "period_end"::timestamp;--> statement-breakpoint
 ALTER TABLE "plans" ALTER COLUMN "tenant_limit" SET DEFAULT 50;--> statement-breakpoint
 ALTER TABLE "subscriptions" ALTER COLUMN "status" SET DEFAULT 'active';--> statement-breakpoint
 ALTER TABLE "plans" ADD COLUMN "slug" text;--> statement-breakpoint

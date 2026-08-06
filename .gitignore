@@ -52,3 +52,5 @@ temp
 .next
 *.next
 *.env.prod
+corserro.txt
+env.txt

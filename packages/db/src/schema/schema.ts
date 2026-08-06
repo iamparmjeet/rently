@@ -1,14 +1,20 @@
 import {
+	INVITE_DELIVERY_ERROR_CODE_VALUES,
+	INVITE_DELIVERY_STATUS_VALUES,
+	INVITE_DELIVERY_STATUSES,
 	INVITE_STATUS_VALUES,
 	INVITE_STATUSES,
 	LEASE_STATUS_VALUES,
 	PAYMENT_TYPE_VALUES,
 	PROPERTY_TYPES_VALUES,
+	TENANT_ONBOARDING_MODE_VALUES,
+	TENANT_ONBOARDING_MODES,
 	UNIT_FURNISHING_VALUES,
 	UNIT_STATUS_VALUES,
 	UNIT_TYPES_VALUES,
 	UTILITY_TYPE_VALUES,
 } from "@rently/db/constants/rent-constants";
+
 import {
 	boolean,
 	integer,
@@ -140,11 +146,22 @@ export const payments = pgTable("payments", {
 
 export const tenantInvites = pgTable("tenant_invites", {
 	...idColumn(),
+	// Owner controlled invitation identity
 	name: text("name").notNull(),
-	phone: text("phone"),
 	email: text("email").notNull(), // to invite
-	emergencyContact: text("emergency_contact"),
 	notes: text("notes"), // Owner-private, never shown to tenant
+	onboardingMode: text("onboarding_mode", {
+		enum: TENANT_ONBOARDING_MODE_VALUES,
+	})
+		.default(TENANT_ONBOARDING_MODES.TENANT_COMPLETED)
+		.notNull(),
+	//owner prepared profile draft
+	phone: text("phone"),
+	address: text("address"),
+	emergencyContact: text("emergency_contact"),
+	emergencyContactName: text("emergency_contact_name"),
+	emergencyContactLocation: text("emergency_contact_location"),
+	//Invitation lifecycle
 	token: text("token").unique().notNull(), // secret to validate user
 	expiresAt: timestamp("expires_at"),
 	invitedById: uuid("invited_by")
@@ -152,7 +169,24 @@ export const tenantInvites = pgTable("tenant_invites", {
 		.references(() => user.id),
 	status: text("status", {
 		enum: INVITE_STATUS_VALUES,
-	}).default(INVITE_STATUSES.PENDING),
+	})
+		.default(INVITE_STATUSES.PENDING)
+		.notNull(),
+	// Latest email delivery result, independent of invitation lifecycle
+	deliveryStatus: text("delivery_status", {
+		enum: INVITE_DELIVERY_STATUS_VALUES,
+	})
+		.default(INVITE_DELIVERY_STATUSES.NOT_ATTEMPTED)
+		.notNull(),
+	lastSentAt: timestamp("last_sent_at"),
+	deliveryErrorCode: text("delivery_error_code", {
+		enum: INVITE_DELIVERY_ERROR_CODE_VALUES,
+	}),
+	// Tenant consent evidence, populated only during acceptance
+	termsAcceptedAt: timestamp("terms_accepted_at"),
+	termsVersion: text("terms_version"),
+	privacyAcknowledgedAt: timestamp("privacy_acknowledged_at"),
+	privacyVersion: text("privacy_version"),
 	...auditColumns(),
 	...softDeleteColumn(),
 });

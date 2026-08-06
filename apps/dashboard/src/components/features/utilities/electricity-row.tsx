@@ -55,7 +55,7 @@ export function ElectricityRow({
 	function handleWhatsApp() {
 		if (!u.tenantPhone) return;
 		const msg = encodeURIComponent(
-			`Dear ${u.tenantName ?? "Tenant"}, your electricity bill for ${currDate} is ${formatRupees(u.totalAmount)} (${consumed.toFixed(1)} kWh × ${rateDisplay}/unit). Please pay at your earliest convenience. - RentWise`,
+			`Dear ${u.tenantName ?? "Tenant"}, your electricity bill for ${currDate} is ${formatRupees(u.totalAmount)} (${consumed.toFixed(1)} kWh × ${rateDisplay}/unit). Please pay at your earliest convenience. - KeyHQ`,
 		);
 		window.open(
 			`https://wa.me/${u.tenantPhone.replace(/\D/g, "")}?text=${msg}`,

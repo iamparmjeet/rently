@@ -16,7 +16,7 @@ commit-msg:
 pre-push:
   parallel: true # WHY: typecheck and lint are independent — run both simultaneously
   jobs:
-    - name: typecheck
-      run: bun run check-types
-    - name: biome-full # WHY: mirrors CI exactly — catches repo-wide violations before push
-      run: bunx biome check .
+    - name: typecheck-affected
+      run: bun run check-types -- --affected
+    - name: biome-changed # WHY: mirrors CI exactly — catches repo-wide violations before push
+      run: bunx biome check --changed

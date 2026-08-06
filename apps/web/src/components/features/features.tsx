@@ -22,14 +22,14 @@ const features = [
 				className="size-5.5 fill-none stroke-primary"
 				strokeWidth={2}
 			>
-				<title>automated rent collection</title>
+				<title>Payment tracking</title>
 				<rect x="1" y="4" width="22" height="16" rx="2" />
 				<line x1="1" y1="10" x2="23" y2="10" />
 			</svg>
 		),
-		title: "Automated Rent Collection",
+		title: "Payment Tracking",
 		description:
-			"Track payments effortlessly with automated reminders and full payment history.",
+			"Record rent payments, payment methods, references, and payment history.",
 	},
 	{
 		icon: (
@@ -61,7 +61,7 @@ const features = [
 		),
 		title: "Utility Tracking",
 		description:
-			"Monitor electricity, water, and maintenance with automatic calculations.",
+			"Set up electricity, water, and fixed charges with calculated consumption and billing.",
 	},
 ];
 
@@ -77,8 +77,8 @@ export function Features() {
 						Everything You Need to Manage Rentals
 					</h2>
 					<p className="mx-auto mt-2.75 max-w-140 text-pretty text-[16px] text-muted-foreground leading-[1.65]">
-						From property listings to payment tracking, RentWise covers the
-						entire rental lifecycle.
+						From property listings to payment tracking, KeyHQ covers the entire
+						rental lifecycle.
 					</p>
 				</div>
 

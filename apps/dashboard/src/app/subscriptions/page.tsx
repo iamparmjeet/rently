@@ -47,7 +47,7 @@ function BetaCodeRedeemer() {
 			<Input
 				value={code}
 				onChange={(e) => setCode(e.target.value.toUpperCase())}
-				placeholder="RENTLY-XXXX-YYYY"
+				placeholder="KEYHQ-XXXX-YYYY"
 				className="h-8 max-w-52 font-mono text-xs"
 				disabled={redeem.isPending}
 				onKeyDown={(e) => {

@@ -2,16 +2,15 @@ import { ORPCError } from "@orpc/server";
 import { ownerProcedure, publicProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
 import { auth } from "@rently/auth";
-import type { Database } from "@rently/db";
 import { NOTIFICATION_TYPES } from "@rently/db/constants/notification-constants";
-import { user } from "@rently/db/schema/auth";
+import { USER_ROLES } from "@rently/db/constants/user-roles";
+import { account, user } from "@rently/db/schema/auth";
 import {
 	notifications,
 	tenantInvites,
 	tenantProfiles,
 } from "@rently/db/schema/schema";
 import { generatedId } from "@rently/db/utils/id";
-import { sendInviteEmail } from "@rently/email";
 import {
 	AcceptInviteSchema,
 	CreateInviteSchema,
@@ -19,29 +18,13 @@ import {
 	InviteListItemSchema,
 	InvitePublicSchema,
 } from "@rently/validators";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 import z from "zod";
-import { enforceSubscriptionLimit } from "../helpers";
-
-// ********* Helper function **************
-async function findPendingInvite(
-	db: Database,
-	email: string,
-	invitedById: string,
-) {
-	const [existing] = await db
-		.select({ id: tenantInvites.id })
-		.from(tenantInvites)
-		.where(
-			and(
-				eq(tenantInvites.email, email),
-				eq(tenantInvites.invitedById, invitedById),
-				eq(tenantInvites.status, "pending"),
-			),
-		)
-		.limit(1);
-	return existing;
-}
+import { KEYHQ_PRIVACY_VERSION, KEYHQ_TERMS_VERSION } from "../../constants";
+import {
+	createPendingTenantInvite,
+	sendAndRecordInviteDelivery,
+} from "./invite-service";
 
 // ******** Router ****************
 // 1) Create Invite
@@ -52,58 +35,107 @@ export const createInvite = ownerProcedure
 		successStatus: StatusCode.CREATED,
 	})
 	.input(CreateInviteSchema)
-	.output(z.object({ invite: InvitePublicSchema }))
+	.output(
+		z.object({
+			invite: InvitePublicSchema,
+			deliveryStatus: z.enum(["sent", "failed"]),
+		}),
+	)
 	.handler(async ({ context, input }) => {
 		const { db, user } = context;
 
 		// Prevent duplicate pending invites for same email from same owner
-		const existing = await findPendingInvite(db, input.email, user.id);
-
-		if (existing) {
-			throw new ORPCError("CONFLICT", {
-				message: `A pending invite already exists for ${input.email}. Revoke it first.`,
-			});
-		}
-
-		// If this email already has a pending invite. we reject and only check the subscription limit after that.
-		await enforceSubscriptionLimit(db, user.id);
-
-		const token = crypto.randomUUID();
-		// Default 7 days expiry if owner doesn't specify
-		const expiresAt =
-			input.expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-		const [invite] = await db
-			.insert(tenantInvites)
-			.values({
-				...input,
-				phone: input.phone ?? null,
-				emergencyContact: input.emergencyContact ?? null,
-				notes: input.notes ?? null,
-				token,
-				expiresAt,
-				invitedById: user.id,
-				status: "pending",
-			})
-			.returning();
-
-		if (!invite) {
-			throw new ORPCError("INTERNAL_SERVER_ERROR", {
-				message: "Failed to create invite.",
-			});
-		}
-
-		// Fire email — non-blocking (see email utility for why we don't throw)
-		sendInviteEmail({
-			to: input.email,
-			tenantName: input.name,
+		return createPendingTenantInvite(db, {
+			ownerId: user.id,
 			ownerName: user.name,
-			token,
-		}).catch(console.error);
-		return { invite };
+			input: {
+				...input,
+				onboardingMode: "tenant_completed",
+			},
+		});
 	});
 
-// 2) List Invites
+// 2) ResendInvite
+export const resendInvite = ownerProcedure
+	.route({
+		method: "POST",
+		path: "/rent/invite/resend",
+	})
+	.input(
+		z.object({
+			inviteId: z.uuid(),
+		}),
+	)
+	.output(
+		z.object({
+			deliveryStatus: z.enum(["sent", "failed"]),
+		}),
+	)
+	.handler(async ({ context, input }) => {
+		const { db, user } = context;
+
+		const [invite] = await db
+			.select({
+				id: tenantInvites.id,
+				email: tenantInvites.email,
+				name: tenantInvites.name,
+				token: tenantInvites.token,
+				status: tenantInvites.status,
+				expiresAt: tenantInvites.expiresAt,
+			})
+			.from(tenantInvites)
+			.where(
+				and(
+					eq(tenantInvites.id, input.inviteId),
+					eq(tenantInvites.invitedById, user.id),
+					isNull(tenantInvites.deletedAt),
+				),
+			)
+			.limit(1);
+
+		// Return NOT_FOUND for both missing and cross-owner invites.
+		if (!invite) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "Invitation not found.",
+			});
+		}
+
+		if (invite.status !== "pending") {
+			throw new ORPCError("CONFLICT", {
+				message: "Only pending invitations can be resent.",
+			});
+		}
+
+		if (invite.expiresAt && invite.expiresAt <= new Date()) {
+			await db
+				.update(tenantInvites)
+				.set({
+					status: "expired",
+					updatedAt: new Date(),
+				})
+				.where(
+					and(
+						eq(tenantInvites.id, invite.id),
+						eq(tenantInvites.invitedById, user.id),
+					),
+				);
+
+			throw new ORPCError("GONE", {
+				message: "This invitation has expired. Create a new invitation.",
+			});
+		}
+
+		const deliveryStatus = await sendAndRecordInviteDelivery(db, {
+			invite,
+			ownerName: user.name,
+		});
+
+		return {
+			deliveryStatus,
+		};
+	});
+
+// 3) List Invites *******************
 export const listInvites = ownerProcedure
 	.route({ method: "GET", path: "/rent/invite/list" })
 	.output(z.object({ invites: z.array(InviteListItemSchema) }))
@@ -125,7 +157,7 @@ export const listInvites = ownerProcedure
 		return { invites };
 	});
 
-// 3) Get Invites by token
+// 4) Get Invites by token ***************
 export const getInviteByToken = publicProcedure
 	.route({ method: "GET", path: "/rent/invite/verify" })
 	.input(z.object({ token: z.uuid("Invalid Invite Link") }))
@@ -144,6 +176,10 @@ export const getInviteByToken = publicProcedure
 				deletedAt: tenantInvites.deletedAt,
 				emergencyContact: tenantInvites.emergencyContact,
 				invitedById: tenantInvites.invitedById,
+				onboardingMode: tenantInvites.onboardingMode,
+				address: tenantInvites.address,
+				emergencyContactName: tenantInvites.emergencyContactName,
+				emergencyContactLocation: tenantInvites.emergencyContactLocation,
 			})
 			.from(tenantInvites)
 			.where(
@@ -209,7 +245,7 @@ export const getInviteByToken = publicProcedure
 		};
 	});
 
-// 4) Accept Invite
+// 5) Accept Invite
 export const acceptInvite = publicProcedure
 	.route({
 		method: "POST",
@@ -225,89 +261,182 @@ export const acceptInvite = publicProcedure
 	)
 	.handler(async ({ context, input }) => {
 		const { db } = context;
+		const now = new Date();
 
-		// 1) Validate getInviteByToken
-		const [invite] = await db
-			.select({
-				id: tenantInvites.id,
-				name: tenantInvites.name,
-				email: tenantInvites.email,
-				phone: tenantInvites.phone,
-				status: tenantInvites.status,
-				expiresAt: tenantInvites.expiresAt,
-				emergencyContact: tenantInvites.emergencyContact,
-				invitedById: tenantInvites.invitedById,
-			})
-			.from(tenantInvites)
-			.where(eq(tenantInvites.token, input.token))
-			.limit(1);
+		// Hashing happens before the transaction. If this fails, no database state
+		// has been written.
+		const authContext = await auth.$context;
+		const passwordHash = await authContext.password.hash(input.password);
 
-		if (!invite) {
-			throw new ORPCError("NOT_FOUND", {
-				message: "Invalid invite link.",
+		const acceptedInvite = await db.transaction(async (tx) => {
+			const [invite] = await tx
+				.select({
+					id: tenantInvites.id,
+					name: tenantInvites.name,
+					email: tenantInvites.email,
+					onboardingMode: tenantInvites.onboardingMode,
+					phone: tenantInvites.phone,
+					address: tenantInvites.address,
+					emergencyContact: tenantInvites.emergencyContact,
+					emergencyContactName: tenantInvites.emergencyContactName,
+					emergencyContactLocation: tenantInvites.emergencyContactLocation,
+					status: tenantInvites.status,
+					expiresAt: tenantInvites.expiresAt,
+					invitedById: tenantInvites.invitedById,
+				})
+				.from(tenantInvites)
+				.where(
+					and(
+						eq(tenantInvites.token, input.token),
+						isNull(tenantInvites.deletedAt),
+					),
+				)
+				.limit(1);
+
+			if (!invite) {
+				throw new ORPCError("NOT_FOUND", {
+					message: "Invalid invite link.",
+				});
+			}
+
+			if (invite.status === "accepted") {
+				throw new ORPCError("CONFLICT", {
+					message: "This invitation has already been accepted. Please log in.",
+				});
+			}
+
+			if (
+				invite.status === "expired" ||
+				(invite.expiresAt !== null && invite.expiresAt <= now)
+			) {
+				throw new ORPCError("GONE", {
+					message:
+						"This invitation has expired. Ask your landlord to send a new one.",
+				});
+			}
+
+			if (invite.status !== "pending") {
+				throw new ORPCError("GONE", {
+					message: "This invitation is no longer available.",
+				});
+			}
+
+			const [existingUser] = await tx
+				.select({ id: user.id })
+				.from(user)
+				.where(eq(user.email, invite.email.toLowerCase()))
+				.limit(1);
+
+			if (existingUser) {
+				throw new ORPCError("CONFLICT", {
+					message: "An account with this email already exists. Please log in.",
+				});
+			}
+
+			const tenantCompletedFieldsWereSupplied = [
+				input.phone,
+				input.address,
+				input.emergencyContact,
+				input.emergencyContactName,
+				input.emergencyContactLocation,
+			].some((value) => value !== undefined && value !== "");
+
+			if (
+				invite.onboardingMode === "owner_prepared" &&
+				tenantCompletedFieldsWereSupplied
+			) {
+				throw new ORPCError("BAD_REQUEST", {
+					message:
+						"This invitation uses owner-prepared profile details. Contact your landlord to correct them.",
+				});
+			}
+
+			const profileSource =
+				invite.onboardingMode === "owner_prepared" ? invite : input;
+
+			const tenantUserId = generatedId();
+
+			await tx.insert(user).values({
+				id: tenantUserId,
+				name: invite.name,
+				email: invite.email.toLowerCase(),
+				emailVerified: true,
+				role: USER_ROLES.TENANT,
+				phone: profileSource.phone ?? null,
 			});
-		}
 
-		if (invite.status !== "pending") {
-			const msg =
-				invite.status === "accepted"
-					? "This Invite Link has already been used. Please log in."
-					: "Ths invite is no longer valid.";
-			throw new ORPCError("CONFLICT", {
-				message: msg,
+			await tx.insert(account).values({
+				id: generatedId(),
+				userId: tenantUserId,
+				accountId: tenantUserId,
+				providerId: "credential",
+				password: passwordHash,
 			});
-		}
 
-		// Step 2 - Create user via better-auth
-		const signupResult = await auth.api.signUpEmail({
-			body: {
-				email: invite.email,
-				name: invite.name ?? invite.email,
-				password: input.password,
-				phone: input.phone ?? invite.phone ?? "",
-				// role: USER_ROLES.TENANT,
-			},
-			headers: context.headers,
-		});
-
-		if (!signupResult.user) {
-			throw new ORPCError("CONFLICT", {
-				message: "An account with this email already exists. Please log in.",
-			});
-		}
-
-		const newUserId = signupResult.user.id;
-
-		// Step 3 -> Transaction - profile + invite status
-		await db.transaction(async (tx) => {
 			await tx.insert(tenantProfiles).values({
 				id: generatedId(),
-				userId: newUserId,
-				emergencyContact: invite.emergencyContact ?? null,
+				userId: tenantUserId,
+				email: invite.email.toLowerCase(),
+				phone: profileSource.phone ?? null,
+				address: profileSource.address ?? null,
+				emergencyContact: profileSource.emergencyContact ?? null,
+				emergencyContactName: profileSource.emergencyContactName ?? null,
+				emergencyContactLocation:
+					profileSource.emergencyContactLocation ?? null,
+				uidNumber: input.uidNumber ?? null,
+				panNumber: input.panNumber ?? null,
+				invitedId: invite.id,
+				createdById: invite.invitedById,
 			});
 
-			await tx
+			// Conditional transition protects against a concurrent acceptance or
+			// an invite expiring while this transaction is in progress. Throwing
+			// rolls back the user, credential account, and profile together.
+			const [updatedInvite] = await tx
 				.update(tenantInvites)
-				.set({ status: "accepted" })
-				.where(eq(tenantInvites.id, invite.id));
+				.set({
+					status: "accepted",
+					termsAcceptedAt: now,
+					termsVersion: KEYHQ_TERMS_VERSION,
+					privacyAcknowledgedAt: now,
+					privacyVersion: KEYHQ_PRIVACY_VERSION,
+				})
+				.where(
+					and(
+						eq(tenantInvites.id, invite.id),
+						eq(tenantInvites.status, "pending"),
+						isNull(tenantInvites.deletedAt),
+						or(
+							isNull(tenantInvites.expiresAt),
+							gt(tenantInvites.expiresAt, now),
+						),
+					),
+				)
+				.returning();
+
+			if (!updatedInvite) {
+				throw new ORPCError("CONFLICT", {
+					message:
+						"This invitation is no longer available. Refresh the page and try again.",
+				});
+			}
+
+			return updatedInvite;
 		});
 
 		try {
 			await db.insert(notifications).values({
-				userId: invite.invitedById,
+				userId: acceptedInvite.invitedById,
 				type: NOTIFICATION_TYPES.INVITE_ACCEPTED,
 				title: "Tenant joined",
-				message: `${invite.name} accepted your invite and joined RentWise`,
-				entityId: invite.id,
+				message: `${acceptedInvite.name} accepted your invite and joined KeyHQ`,
+				entityId: acceptedInvite.id,
 				entityType: "invite",
 			});
-		} catch (error) {
-			console.error(
-				"[invite:acceptInvite] failed to insert notification:",
-				error,
-			); // TODO: remove before prod
-			// WHY swallow: same pattern as submitMyReading — notification failure
-			// must not roll back a successful invite acceptance.
+		} catch {
+			console.error("[invite:acceptInvite] notification failed", {
+				inviteId: acceptedInvite.id,
+			});
 		}
 
 		return {

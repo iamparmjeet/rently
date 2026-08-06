@@ -78,34 +78,6 @@ export function InviteForm({
 						<FieldError errors={[errors.email]} />
 					</Field>
 
-					<Field data-invalid={!!errors.phone}>
-						<FieldLabel htmlFor="phone">Phone</FieldLabel>
-						<Input
-							id="phone"
-							type="tel"
-							placeholder="98765 43210"
-							disabled={isSubmitting}
-							{...register("phone")}
-							aria-invalid={!!errors.phone}
-						/>
-						<FieldError errors={[errors.phone]} />
-					</Field>
-
-					<Field data-invalid={!!errors.emergencyContact}>
-						<FieldLabel htmlFor="emergencyContact">
-							Emergency Contact
-						</FieldLabel>
-						<Input
-							id="emergencyContact"
-							type="tel"
-							placeholder="98765 00000"
-							disabled={isSubmitting}
-							{...register("emergencyContact")}
-							aria-invalid={!!errors.emergencyContact}
-						/>
-						<FieldError errors={[errors.emergencyContact]} />
-					</Field>
-
 					<Field data-invalid={!!errors.notes}>
 						<FieldLabel htmlFor="notes">Private Notes</FieldLabel>
 						<Textarea

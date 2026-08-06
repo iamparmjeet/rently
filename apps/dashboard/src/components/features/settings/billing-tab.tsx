@@ -56,7 +56,7 @@ function BetaCodeRedeemer() {
 				<Input
 					value={code}
 					onChange={(e) => setCode(e.target.value.toUpperCase())}
-					placeholder="BETA-XXXX"
+					placeholder="KEYHQ-XXXX-YYYY"
 					className="h-9 max-w-48 font-mono text-sm"
 					disabled={redeem.isPending}
 				/>

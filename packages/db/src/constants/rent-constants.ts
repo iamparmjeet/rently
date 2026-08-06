@@ -116,3 +116,47 @@ export const INVITE_STATUS_VALUES = Object.values(INVITE_STATUSES) as [
 	InviteStatus,
 	...InviteStatus[],
 ];
+
+// ********* Tenant Onboarding ******************
+
+export const TENANT_ONBOARDING_MODES = {
+	OWNER_PREPARED: "owner_prepared",
+	TENANT_COMPLETED: "tenant_completed",
+} as const;
+
+export type TenantOnboardingMode =
+	(typeof TENANT_ONBOARDING_MODES)[keyof typeof TENANT_ONBOARDING_MODES];
+
+export const TENANT_ONBOARDING_MODE_VALUES = Object.values(
+	TENANT_ONBOARDING_MODES,
+) as [TenantOnboardingMode, ...TenantOnboardingMode[]];
+
+// ********* Invitation email delivery state ******************
+
+export const INVITE_DELIVERY_STATUSES = {
+	NOT_ATTEMPTED: "not_attempted",
+	SENT: "sent",
+	FAILED: "failed",
+} as const;
+
+export type InviteDeliveryStatus =
+	(typeof INVITE_DELIVERY_STATUSES)[keyof typeof INVITE_DELIVERY_STATUSES];
+
+export const INVITE_DELIVERY_STATUS_VALUES = Object.values(
+	INVITE_DELIVERY_STATUSES,
+) as [InviteDeliveryStatus, ...InviteDeliveryStatus[]];
+
+// Safe classifications only. Never persist provider messages or exception text.
+export const INVITE_DELIVERY_ERROR_CODES = {
+	PROVIDER_REJECTED: "provider_rejected",
+	PROVIDER_UNAVAILABLE: "provider_unavailable",
+	RATE_LIMITED: "rate_limited",
+	UNKNOWN: "unknown",
+} as const;
+
+export type InviteDeliveryErrorCode =
+	(typeof INVITE_DELIVERY_ERROR_CODES)[keyof typeof INVITE_DELIVERY_ERROR_CODES];
+
+export const INVITE_DELIVERY_ERROR_CODE_VALUES = Object.values(
+	INVITE_DELIVERY_ERROR_CODES,
+) as [InviteDeliveryErrorCode, ...InviteDeliveryErrorCode[]];

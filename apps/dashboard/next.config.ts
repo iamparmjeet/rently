@@ -10,7 +10,7 @@ const nextConfig: NextConfig = {
 			{ protocol: "https", hostname: "lh3.googleusercontent.com" },
 			{ protocol: "https", hostname: "github.com" },
 			// WHY: owner avatars are stored in R2 and served via the public custom domain
-			{ protocol: "https", hostname: "rentwise-media.parmjeetmishra.com" },
+			{ protocol: "https", hostname: "keyhq-media.parmjeetmishra.com" },
 		],
 	},
 };

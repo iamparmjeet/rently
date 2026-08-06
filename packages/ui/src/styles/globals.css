@@ -137,3 +137,77 @@
 	--sidebar-accent: theme(--color-blue-600);
 	--sidebar-accent-foreground: theme(--color-slate-200);
 }
+
+/* Logo Animation */
+
+.keyhq-logo-piece-top-left {
+	--keyhq-piece-start: translate(-36%, -36%) rotate(-8deg);
+}
+
+@keyframes keyhq-assemble {
+	0% {
+		transform: var(--keyhq-piece-start);
+	}
+
+	100% {
+		transform: none;
+	}
+}
+
+@keyframes keyhq-remorph {
+	0% {
+		transform: none;
+	}
+
+	42% {
+		transform: var(--keyhq-piece-start);
+	}
+
+	100% {
+		transform: none;
+	}
+}
+
+.keyhq-logo-piece {
+	transform-box: fill-box;
+	transform-origin: center;
+	animation: keyhq-assemble 700ms cubic-bezier(0.22, 1, 0.36, 1) both;
+}
+
+.keyhq-logo-piece-bottom-left {
+	--keyhq-piece-start: translate(-36%, 36%) rotate(8deg);
+	animation-delay: 50ms;
+}
+
+.keyhq-logo-piece-upper-arm {
+	--keyhq-piece-start: translate(28%, -30%) rotate(7deg);
+	animation-delay: 100ms;
+}
+
+.keyhq-logo-piece-lower-arm {
+	--keyhq-piece-start: translate(28%, 30%) rotate(-7deg);
+	animation-delay: 150ms;
+}
+
+.keyhq-logo-piece-centre {
+	--keyhq-piece-start: scale(0.25) rotate(20deg);
+	animation-delay: 200ms;
+}
+
+.keyhq-logo-piece-top-left {
+	--keyhq-piece-start: translate(-36%, -36%) rotate(-8deg);
+}
+
+.keyhq-logo:hover .keyhq-logo-piece {
+	animation-name: keyhq-assemble, keyhq-remorph;
+	animation-duration: 700ms, 650ms;
+}
+
+@media (prefers-reduced-motion: reduce) {
+	.keyhq-logo-piece,
+	.keyhq-logo:hover .keyhq-logo-piece {
+		transform: none;
+		animation: none;
+		will-change: auto;
+	}
+}

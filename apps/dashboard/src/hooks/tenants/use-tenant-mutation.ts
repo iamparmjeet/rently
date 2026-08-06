@@ -1,10 +1,12 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { useResendInvite } from "@/hooks/invites";
 import { client, orpc } from "@/utils/orpc";
 
-// Create Tenant
+// Create an owner-prepared tenant invitation.
 export function useCreateTenant() {
 	const queryClient = useQueryClient();
+	const resendInvite = useResendInvite();
 
 	return useMutation({
 		onMutate: () => {
@@ -14,11 +16,28 @@ export function useCreateTenant() {
 		mutationFn: (
 			input: Parameters<typeof client.rent.tenant.createTenant>[0],
 		) => client.rent.tenant.createTenant(input),
-		onSuccess: (_, __, context) => {
+		onSuccess: (result, _, context) => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.tenant.listTenants.key(),
 			});
-			toast.success("Tenant Created Successfully", { id: context.toastId });
+
+			if (result.deliveryStatus === "failed") {
+				toast.warning("Invitation saved, but the email was not delivered.", {
+					id: context.toastId,
+					duration: 10_000,
+					action: {
+						label: "Resend",
+						onClick: () => {
+							resendInvite.mutate({
+								inviteId: result.invite.id,
+							});
+						},
+					},
+				});
+				return;
+			}
+
+			toast.success("Tenant invitation email sent", { id: context.toastId });
 		},
 		onError: (error, _, context) => {
 			console.error(`Failed to create Tenant: ${error}`);

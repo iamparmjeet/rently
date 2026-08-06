@@ -80,19 +80,16 @@ interface PageProps {
 	params: Promise<{ token: string }>;
 }
 
-// Determin which uI to show
+// Determin which ui to show
 // No Loading flash, no client side fetch waterfall
+type ValidInvite = Awaited<
+	ReturnType<typeof client.rent.invite.getInviteByToken>
+>["invite"];
+
 type InviteState =
 	| {
 			type: "valid";
-			data: {
-				name: string | null;
-				email: string;
-				phone: string | null;
-				invitedBy: {
-					ownerName: string;
-				};
-			};
+			data: ValidInvite;
 	  }
 	| { type: "not_found" }
 	| { type: "expired" }
@@ -125,7 +122,7 @@ export default async function InvitePage({ params }: PageProps) {
 					<div className="flex h-12 w-12 items-center justify-center rounded-xl bg-primary/10">
 						<IconBuilding className="h-6 w-6 text-primary" />
 					</div>
-					<span className="font-semibold text-xl tracking-tight">RentWise</span>
+					<span className="font-semibold text-xl tracking-tight">KeyHQ</span>
 				</div>
 
 				<Card>
@@ -147,6 +144,11 @@ export default async function InvitePage({ params }: PageProps) {
 								name={state.data.name ?? ""}
 								phone={state.data.phone ?? ""}
 								ownerName={state.data.invitedBy.ownerName}
+								address={state.data.address}
+								emergencyContact={state.data.emergencyContact}
+								emergencyContactName={state.data.emergencyContactName}
+								emergencyContactLocation={state.data.emergencyContactLocation}
+								onboardingMode={state.data.onboardingMode}
 							/>
 						)}
 					</CardContent>

@@ -149,33 +149,6 @@ export function TenantCreateForm({
 						/>
 						<FieldError errors={[errors.emergencyContactLocation]} />
 					</Field>
-
-					{/* Row: identity documents */}
-					<div className="grid grid-cols-2 gap-4">
-						<Field data-invalid={!!errors.panNumber}>
-							<FieldLabel htmlFor="panNumber">PAN Number</FieldLabel>
-							<Input
-								id="panNumber"
-								placeholder="ABCDE1234F"
-								disabled={isSubmitting}
-								{...register("panNumber")}
-								aria-invalid={!!errors.panNumber}
-							/>
-							<FieldError errors={[errors.panNumber]} />
-						</Field>
-
-						<Field data-invalid={!!errors.uidNumber}>
-							<FieldLabel htmlFor="uidNumber">UID / Aadhar Number</FieldLabel>
-							<Input
-								id="uidNumber"
-								placeholder="1234 5678 9012"
-								disabled={isSubmitting}
-								{...register("uidNumber")}
-								aria-invalid={!!errors.uidNumber}
-							/>
-							<FieldError errors={[errors.uidNumber]} />
-						</Field>
-					</div>
 				</FieldGroup>
 			</FieldSet>
 

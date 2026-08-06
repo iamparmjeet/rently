@@ -13,7 +13,7 @@ const count = Number.parseInt(getArg("--count", "5"), 10);
 const planSlug = getArg("--plan", "pro");
 const days = Number.parseInt(getArg("--days", "365"), 10);
 const maxUses = Number.parseInt(getArg("--max-uses", "1"), 10);
-const prefix = getArg("--prefix", "RENTLY");
+const prefix = getArg("--prefix", "KEYHQ");
 
 // Code Generator
 function makeCode(): string {
@@ -25,7 +25,7 @@ async function main() {
 	const db = createDb();
 
 	console.log("─────────────────────────────────────────");
-	console.log("  RentWise Beta Code Generator");
+	console.log("  KeyHQ Beta Code Generator");
 	console.log("─────────────────────────────────────────");
 	console.log(`  Plan      : ${planSlug}`);
 	console.log(`  Period    : ${days} days`);

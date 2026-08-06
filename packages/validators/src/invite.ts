@@ -1,3 +1,4 @@
+import { TENANT_ONBOARDING_MODES } from "@rently/db/constants/rent-constants";
 import { referrers, tenantInvites } from "@rently/db/schema/schema";
 import {
 	createInsertSchema,
@@ -5,6 +6,7 @@ import {
 	createUpdateSchema,
 } from "drizzle-zod";
 import z from "zod";
+import { TenantProfileDraftSchema } from "./tenant";
 
 // ******** Invite **********
 // ── Layer 1: DB-derived
@@ -17,30 +19,51 @@ export const ReferrerInsertSchema = createInsertSchema(referrers);
 
 // ── Layer 2: API input schemas
 // Business Logic Schemas (API Consumers)
-export const CreateInviteSchema = InviteInsertSchema.omit({
-	id: true,
-	createdAt: true,
-	updatedAt: true,
-	status: true,
-	token: true,
-	invitedById: true,
+const InviteIdentitySchema = z.object({
+	name: z.string().trim().min(1, "Tenant name is required"),
+	email: z.email("Invalid email"),
+	expiresAt: z.date().optional(),
+	notes: z.string().trim().optional(),
+});
+
+// The normal “Invite Tenant” path. The tenant completes their own profile.
+export const CreateInviteSchema = InviteIdentitySchema;
+
+// The “Add Manually” path. It creates an owner-prepared invitation,
+// never a Better Auth account.
+export const CreateOwnerPreparedInviteSchema = InviteIdentitySchema.extend({
+	onboardingMode: z.literal(TENANT_ONBOARDING_MODES.OWNER_PREPARED),
+}).extend(TenantProfileDraftSchema.shape);
+
+const TenantCompletedProfileSchema = TenantProfileDraftSchema;
+
+const TenantSensitiveIdentitySchema = z.object({
+	uidNumber: z.string().trim().min(1).optional(),
+	panNumber: z.string().trim().min(1).optional(),
 });
 
 export const UpdateInviteSchema = createUpdateSchema(tenantInvites).pick({
 	status: true,
 });
 
-export const AcceptInviteSchema = z.object({
-	token: z.uuid("Invalid invite link"),
-	password: z
-		.string()
-		.min(8, "Password must be at least 8 characters")
-		.regex(/[A-Z]/, "Must contain uppercase")
-		.regex(/[a-z]/, "Must contain lowercase")
-		.regex(/[0-9]/, "Must contain a number"),
-	// email: z.email(),
-	phone: z.string().optional(),
-});
+export const AcceptInviteSchema = z
+	.object({
+		token: z.uuid("Invalid invite link"),
+		password: z
+			.string()
+			.min(8, "Password must be at least 8 characters")
+			.regex(/[A-Z]/, "Must contain uppercase")
+			.regex(/[a-z]/, "Must contain lowercase")
+			.regex(/[0-9]/, "Must contain a number"),
+		termsAccepted: z.literal(true, {
+			error: "You must accept the Terms of Service",
+		}),
+		privacyAcknowledged: z.literal(true, {
+			error: "You must acknowledge the Privacy Policy",
+		}),
+	})
+	.extend(TenantSensitiveIdentitySchema.shape)
+	.extend(TenantCompletedProfileSchema.shape);
 
 export const CreateReferrerSchema = ReferrerInsertSchema.omit({
 	id: true,
@@ -55,12 +78,18 @@ export const UpdateReferrerSchema = createUpdateSchema(referrers).pick({
 
 // ── Layer 3: API output schemas
 // OutPUT Schemas (API Returns)
-export const InvitePublicSchema = InviteSelectSchema.omit({
-	token: true,
-	notes: true,
-	invitedById: true,
-	createdAt: true,
-	updatedAt: true,
+export const InvitePublicSchema = InviteSelectSchema.pick({
+	id: true,
+	name: true,
+	email: true,
+	onboardingMode: true,
+	phone: true,
+	address: true,
+	emergencyContact: true,
+	emergencyContactName: true,
+	emergencyContactLocation: true,
+	status: true,
+	expiresAt: true,
 });
 
 export const InviteListItemSchema = InviteSelectSchema.pick({

@@ -1,28 +1,79 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation } from "@tanstack/react-query";
 import { toast } from "sonner";
-import { client, orpc } from "@/utils/orpc";
+import { client } from "@/utils/orpc";
+
+export function useResendInvite() {
+	return useMutation({
+		onMutate: () => {
+			const toastId = toast.loading("Resending invitation...");
+			return { toastId };
+		},
+
+		mutationFn: (
+			input: Parameters<typeof client.rent.invite.resendInvite>[0],
+		) => client.rent.invite.resendInvite(input),
+
+		onSuccess: (result, _, context) => {
+			if (result.deliveryStatus === "failed") {
+				toast.warning(
+					"Invitation is still pending, but the email was not delivered.",
+					{
+						id: context.toastId,
+					},
+				);
+				return;
+			}
+
+			toast.success("Invitation email sent", {
+				id: context.toastId,
+			});
+		},
+
+		onError: (error, _, context) => {
+			toast.error(`Could not resend invitation: ${error.message}`, {
+				id: context?.toastId,
+			});
+		},
+	});
+}
 
 export function useCreateInvite() {
-	const queryClient = useQueryClient();
+	const resendInvite = useResendInvite();
 
 	return useMutation({
 		onMutate: () => {
-			const toastId = toast.loading("Sending invite...");
+			const toastId = toast.loading("Creating invitation...");
 			return { toastId };
 		},
+
 		mutationFn: (
 			input: Parameters<typeof client.rent.invite.createInvite>[0],
 		) => client.rent.invite.createInvite(input),
-		onSuccess: (_, __, context) => {
-			// WHY invalidate tenants: listTenants returns invite-based tenant
-			// records — a new pending invite shows up as a new card on the list.
-			queryClient.invalidateQueries({
-				queryKey: orpc.rent.tenant.listTenants.key(),
+
+		onSuccess: (result, _, context) => {
+			if (result.deliveryStatus === "failed") {
+				toast.warning("Invitation saved, but the email was not delivered.", {
+					id: context.toastId,
+					duration: 10_000,
+					action: {
+						label: "Resend",
+						onClick: () => {
+							resendInvite.mutate({
+								inviteId: result.invite.id,
+							});
+						},
+					},
+				});
+				return;
+			}
+
+			toast.success("Invitation email sent", {
+				id: context.toastId,
 			});
-			toast.success("Invite sent successfully", { id: context.toastId });
 		},
+
 		onError: (error, _, context) => {
-			toast.error(`Failed to send invite: ${error.message}`, {
+			toast.error(`Could not create invitation: ${error.message}`, {
 				id: context?.toastId,
 			});
 		},

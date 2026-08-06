@@ -1,7 +1,7 @@
 // bun packages/db/src/seed/plans.ts
-// Run once after migration to populate the plans table.
-// Safe to re-run: onConflictDoNothing() skips existing slugs.
-import { eq } from "drizzle-orm";
+// Run after migrations to synchronize the canonical plans.
+// Safe to re-run: inserts missing plans and synchronizes existing plan configuration.
+
 import { createDb } from "../index";
 import { plans } from "../schema/subscription";
 import { generatedId } from "../utils/id";
@@ -10,7 +10,7 @@ const PLANS = [
 	{
 		slug: "free",
 		name: "Starter",
-		description: "Free forever · Up to 10 tenants",
+		description: "Free · Up to 10 active tenants",
 		tenantLimit: 10,
 		priceMonthly: 0,
 		priceQuarterly: 0,
@@ -21,7 +21,7 @@ const PLANS = [
 	{
 		slug: "pro",
 		name: "Pro",
-		description: "Unlimited tenants · Priority support",
+		description: "Up to 500 active tenants · Priority support",
 		tenantLimit: 500,
 		// All prices in paise: ₹499/mo base
 		priceMonthly: 49900,
@@ -33,7 +33,7 @@ const PLANS = [
 	{
 		slug: "enterprise",
 		name: "Enterprise",
-		description: "Everything in Pro · Custom reports · API access",
+		description: "Not available during beta",
 		tenantLimit: 9999,
 		// ₹1,499/mo base
 		priceMonthly: 149900,
@@ -50,19 +50,28 @@ async function seed() {
 	console.log("Seeding plans...");
 
 	for (const plan of PLANS) {
-		const existing = await db
-			.select({ id: plans.id })
-			.from(plans)
-			.where(eq(plans.slug, plan.slug))
-			.limit(1);
+		await db
+			.insert(plans)
+			.values({
+				id: generatedId(),
+				...plan,
+			})
+			.onConflictDoUpdate({
+				target: plans.slug,
+				set: {
+					name: plan.name,
+					description: plan.description,
+					tenantLimit: plan.tenantLimit,
+					priceMonthly: plan.priceMonthly,
+					priceQuarterly: plan.priceQuarterly,
+					priceHalfYearly: plan.priceHalfYearly,
+					priceYearly: plan.priceYearly,
+					priceTwoYear: plan.priceTwoYear,
+					updatedAt: new Date(),
+				},
+			});
 
-		if (existing.length > 0) {
-			console.log(`  ⏭  ${plan.slug} already exists — skipping`);
-			continue;
-		}
-
-		await db.insert(plans).values({ id: generatedId(), ...plan });
-		console.log(`  ✓  ${plan.slug} inserted`);
+		console.log(`  ✓ ${plan.slug} synchronized`);
 	}
 
 	console.log("Done.");

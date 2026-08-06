@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@rently/ui/lib/utils";
+import { IconDownload } from "@tabler/icons-react";
 import { useTenantPayments } from "@/hooks/tenant-portal";
 import { fmtDate, rupeesCompact } from "@/utils/format";
 
@@ -25,6 +26,10 @@ export function PaymentsTab() {
 	const payments = data?.payments ?? [];
 	const paid = payments.filter((p) => p.amount > 0 && p.type !== "reversal");
 	const totalPaid = paid.reduce((s, p) => s + p.amount, 0);
+
+	function handleDownloadReceipt(paymentId: string) {
+		window.open(`/receipts/${paymentId}?print=true`, "_blank", "noopener");
+	}
 
 	if (isLoading) {
 		return (
@@ -105,33 +110,47 @@ export function PaymentsTab() {
 										)}
 									</div>
 
-									{/* Amount + badge */}
-									<div className="text-right">
-										<p
-											className={cn(
-												"font-bold",
-												isReversal ? "text-destructive" : "text-foreground",
-											)}
-										>
-											{isReversal ? "−" : ""}
-											{rupeesCompact(Math.abs(p.amount))}
-										</p>
-										<span
-											className={cn(
-												"mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold text-[10px]",
-												isReversal
-													? "bg-destructive/10 text-destructive"
-													: "bg-emerald-500/10 text-emerald-600",
-											)}
-										>
+									{/* Amount, status, and receipt action */}
+									<div className="flex items-center gap-1.5">
+										<div className="text-right">
+											<p
+												className={cn(
+													"font-bold",
+													isReversal ? "text-destructive" : "text-foreground",
+												)}
+											>
+												{isReversal ? "−" : ""}
+												{rupeesCompact(Math.abs(p.amount))}
+											</p>
 											<span
 												className={cn(
-													"h-1.5 w-1.5 rounded-full",
-													isReversal ? "bg-destructive" : "bg-emerald-500",
+													"mt-0.5 inline-flex items-center gap-1 rounded-full px-2 py-0.5 font-semibold text-[10px]",
+													isReversal
+														? "bg-destructive/10 text-destructive"
+														: "bg-emerald-500/10 text-emerald-600",
 												)}
-											/>
-											{isReversal ? "Reversed" : "Paid"}
-										</span>
+											>
+												<span
+													className={cn(
+														"h-1.5 w-1.5 rounded-full",
+														isReversal ? "bg-destructive" : "bg-emerald-500",
+													)}
+												/>
+												{isReversal ? "Reversed" : "Paid"}
+											</span>
+										</div>
+
+										{!isReversal && (
+											<button
+												type="button"
+												onClick={() => handleDownloadReceipt(p.id)}
+												className="inline-flex size-8 items-center justify-center rounded-md text-muted-foreground transition hover:bg-muted hover:text-foreground"
+												aria-label={`Download receipt for ${label}`}
+												title="Download receipt"
+											>
+												<IconDownload className="size-4" />
+											</button>
+										)}
 									</div>
 								</div>
 							);

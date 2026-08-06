@@ -22,13 +22,14 @@ export default async function proxy(request: NextRequest) {
 	const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route));
 	if (!isAuthRoute) return NextResponse.next();
 
-	// Next.js prefetches auth links in the background. Redirecting one of those
-	// fetches to another app origin makes the browser enforce CORS on the 307.
-	// Let the real document navigation perform the role-aware redirect instead.
-	const isPrefetch =
+	// Next.js loads and prefetches routes with RSC fetches. Redirecting one of
+	// those fetches to another app origin makes the browser enforce CORS on the
+	// 307. Let only a real document request perform the role-aware redirect.
+	const isNextClientRequest =
+		request.headers.get("RSC") === "1" ||
 		request.headers.has("Next-Router-Prefetch") ||
 		request.headers.get("Purpose") === "prefetch";
-	if (isPrefetch) return NextResponse.next();
+	if (isNextClientRequest) return NextResponse.next();
 
 	// Fast-path: no cookie → unauthenticated user on login/register → let them through.
 	if (!hasSessionCookie(request)) return NextResponse.next();

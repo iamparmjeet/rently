@@ -1,6 +1,4 @@
 import { env } from "@rently/env/web";
-import type { Route } from "next";
-import Link from "next/link";
 import { type ComponentProps, useId } from "react";
 
 export function LogoIcon({ className, ...props }: ComponentProps<"svg">) {
@@ -72,12 +70,12 @@ export function LogoIcon({ className, ...props }: ComponentProps<"svg">) {
 
 export default function Logo({ className }: { className?: string }) {
 	return (
-		<Link
-			href={env.NEXT_PUBLIC_WEB_URL as Route}
+		<a
+			href={env.NEXT_PUBLIC_WEB_URL}
 			className={`keyhq-logo flex items-center ${className ?? ""}`}
 		>
 			<LogoIcon aria-hidden="true" className="size-8.5 shrink-0" />
 			<span className="font-extrabold text-xl tracking-tight">KeyHQ</span>
-		</Link>
+		</a>
 	);
 }

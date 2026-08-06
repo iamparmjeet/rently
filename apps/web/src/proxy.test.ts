@@ -36,7 +36,8 @@ describe("web proxy", () => {
 		["Next-Router-Prefetch", "1"],
 		["Next-Router-Prefetch", "2"],
 		["Purpose", "prefetch"],
-	])("does not redirect an authenticated prefetch marked by %s", async (header, value) => {
+		["RSC", "1"],
+	])("does not redirect an authenticated Next client request marked by %s", async (header, value) => {
 		const request = new NextRequest("https://keyhq.test/login", {
 			headers: {
 				cookie: "__Secure-rently.session_token=test-session",

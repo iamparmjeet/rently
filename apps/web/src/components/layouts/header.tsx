@@ -6,6 +6,7 @@ import { IconMenu, IconX } from "@tabler/icons-react";
 import type { Route } from "next";
 import Link from "next/link";
 import { useState } from "react";
+import { AuthEntryLink } from "@/components/auth/auth-entry-link";
 
 const navLinks = [
 	{ href: "/#features", label: "Features" },
@@ -38,12 +39,12 @@ export function Header() {
 				{/* Desktop CTAs */}
 				<div className="hidden md:flex md:items-center md:gap-4">
 					<Button variant="ghost" className="text-base">
-						<Link href="/login">Log in</Link>
+						<AuthEntryLink href="/login">Log in</AuthEntryLink>
 					</Button>
 					<Button className="px-4 py-6 text-base">
-						<Link href="/register" className="">
+						<AuthEntryLink href="/register" className="">
 							Get Started
-						</Link>
+						</AuthEntryLink>
 					</Button>
 				</div>
 
@@ -81,10 +82,10 @@ export function Header() {
 					))}
 					<div className="flex flex-col gap-2 border-t pt-4">
 						<Button variant="ghost">
-							<Link href="/login">Log in</Link>
+							<AuthEntryLink href="/login">Log in</AuthEntryLink>
 						</Button>
 						<Button>
-							<Link href="/register">Get Started</Link>
+							<AuthEntryLink href="/register">Get Started</AuthEntryLink>
 						</Button>
 					</div>
 				</div>

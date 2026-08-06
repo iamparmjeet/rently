@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import Link from "next/link";
+import { AuthEntryLink } from "@/components/auth/auth-entry-link";
 
 function DashboardMockup() {
 	return (
@@ -316,13 +316,13 @@ export function Hero() {
 						</p>
 
 						<div className="mt-8.5 flex flex-wrap gap-3">
-							<Link
+							<AuthEntryLink
 								href="/register"
 								className="inline-flex h-13.5 items-center gap-2 rounded-lg bg-primary px-9 font-semibold text-[16px] text-primary-foreground no-underline transition-all hover:bg-primary-hover"
 							>
 								Get Started Free
 								<ArrowRight className="h-4 w-4" />
-							</Link>
+							</AuthEntryLink>
 							<a
 								href="#how-it-works"
 								className="inline-flex h-13.5 items-center gap-2 rounded-lg border border-border bg-transparent px-9 font-semibold text-[16px] text-foreground no-underline transition-all hover:bg-muted"

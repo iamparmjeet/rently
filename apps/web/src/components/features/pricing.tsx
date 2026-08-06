@@ -1,4 +1,4 @@
-import Link from "next/link";
+import { AuthEntryLink } from "@/components/auth/auth-entry-link";
 
 const plans = [
 	{
@@ -91,7 +91,7 @@ export function Pricing() {
 							</div>
 
 							{plan.available ? (
-								<Link
+								<AuthEntryLink
 									href="/register"
 									className={`inline-flex h-11 w-full items-center justify-center rounded-lg font-semibold text-[15px] no-underline transition-all ${
 										plan.ctaStyle === "primary"
@@ -100,7 +100,7 @@ export function Pricing() {
 									}`}
 								>
 									{plan.cta}
-								</Link>
+								</AuthEntryLink>
 							) : (
 								<button
 									type="button"

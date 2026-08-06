@@ -7,11 +7,11 @@ import { Input } from "@rently/ui/components/input";
 import { Label } from "@rently/ui/components/label";
 import Logo from "@rently/ui/shared/logo";
 import { IconLoader2, IconMailCheck } from "@tabler/icons-react";
-import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import { z } from "zod";
+import { AuthEntryLink } from "@/components/auth/auth-entry-link";
 import { authClient } from "@/lib/auth-client";
 
 // ─── Schema ───
@@ -54,12 +54,12 @@ function SubmittedView({ email }: { email: string }) {
 			{/* WHY: Plain Link styled as a button — this navigates to a new page,
 			    it's not a form action. Using the native <a> element (via Link)
 			    is semantically correct here. No Base UI Button needed. */}
-			<Link
+			<AuthEntryLink
 				href="/login"
 				className="mt-1 flex h-10.75 w-full items-center justify-center rounded-md border border-border font-medium text-[14px] transition-all hover:bg-muted"
 			>
 				Back to Sign In
-			</Link>
+			</AuthEntryLink>
 		</div>
 	);
 }
@@ -164,12 +164,12 @@ export default function ForgotPasswordPage() {
 				{/* ── Footer ────── */}
 				<p className="mt-6 text-center text-[13px] text-muted-foreground">
 					Remember your password?{" "}
-					<Link
+					<AuthEntryLink
 						href="/login"
 						className="font-medium text-primary no-underline hover:underline"
 					>
 						Back to Sign In
-					</Link>
+					</AuthEntryLink>
 				</p>
 			</div>
 		</div>

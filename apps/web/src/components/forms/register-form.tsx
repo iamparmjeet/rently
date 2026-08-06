@@ -10,6 +10,7 @@ import { IconEye, IconEyeOff, IconLoader2 } from "@tabler/icons-react";
 import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { AuthEntryLink } from "@/components/auth/auth-entry-link";
 import { useRegister, useSocialLogin } from "@/hooks/auth";
 
 export function RegisterForm() {
@@ -191,9 +192,9 @@ export function RegisterForm() {
 			{/* Sign In Link */}
 			<p className="text-center text-muted-foreground text-sm">
 				Already have an account?{" "}
-				<Link href="/login" className="text-primary hover:underline">
+				<AuthEntryLink href="/login" className="text-primary hover:underline">
 					Sign in
-				</Link>
+				</AuthEntryLink>
 			</p>
 		</CardContent>
 	);

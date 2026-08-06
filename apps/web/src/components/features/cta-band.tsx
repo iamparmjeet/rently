@@ -1,5 +1,5 @@
 import { ArrowRight } from "lucide-react";
-import Link from "next/link";
+import { AuthEntryLink } from "@/components/auth/auth-entry-link";
 
 export function CtaBand() {
 	return (
@@ -19,19 +19,19 @@ export function CtaBand() {
 					</p>
 
 					<div className="relative z-1 mt-7.5 flex flex-wrap justify-center gap-3">
-						<Link
+						<AuthEntryLink
 							href="/register"
 							className="inline-flex h-13.5 items-center gap-2 rounded-lg bg-white px-9 font-semibold text-[16px] text-primary no-underline transition-all hover:bg-white/90"
 						>
 							Create Free Account
 							<ArrowRight className="h-4 w-4" />
-						</Link>
-						<Link
+						</AuthEntryLink>
+						<AuthEntryLink
 							href="/login"
 							className="inline-flex h-13.5 items-center gap-2 rounded-lg border border-white/40 bg-transparent px-9 font-semibold text-[16px] text-white no-underline transition-all hover:bg-white/10"
 						>
 							Sign In
-						</Link>
+						</AuthEntryLink>
 					</div>
 
 					<p className="relative z-1 mt-2.5 text-[12.5px] text-white/48">

@@ -11,6 +11,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { AuthEntryLink } from "@/components/auth/auth-entry-link";
 import { AUTH_ROUTES } from "@/constants/navigation";
 import { useLogin, useSocialLogin } from "@/hooks/auth";
 
@@ -126,12 +127,12 @@ export function LoginForm() {
 
 			<p className="mt-4 text-center text-[13px] text-muted-foreground">
 				Don't have an account?{" "}
-				<Link
+				<AuthEntryLink
 					href="/register"
 					className="font-medium text-primary no-underline hover:underline"
 				>
 					Get started free
-				</Link>
+				</AuthEntryLink>
 			</p>
 		</CardContent>
 	);

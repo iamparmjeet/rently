@@ -2,6 +2,17 @@
 
 
 
+## [0.1.0-beta.2](https://github.com/iamparmjeet/rently/compare/v0.1.0-beta.1...v0.1.0-beta.2) (2026-08-06)
+
+### 🐛 Bug Fixes
+
+* **ci:** allow empty biome changed set on push ([583057b](https://github.com/iamparmjeet/rently/commit/583057b726805500cf42ff0b3f6ac3e80309c379))
+* cors error fixed because of proxy bypass ([a311867](https://github.com/iamparmjeet/rently/commit/a3118673073758a8a88a0aa2cff2f4d77677dbdc))
+* cors error fixed v2 ([a48759c](https://github.com/iamparmjeet/rently/commit/a48759c30c55f1d8f95ec09387dc63a5be13cb7f))
+* cors error fixed v2 ([25a82d8](https://github.com/iamparmjeet/rently/commit/25a82d8aeaaae06e4e9fb09845be55ffa4365c34))
+* cors error fixed v3 ([cdec5a7](https://github.com/iamparmjeet/rently/commit/cdec5a703f301aa2b94f267afa50701a049e6d1a))
+* cors related login/register fixed ([75e4d11](https://github.com/iamparmjeet/rently/commit/75e4d11b4d5b43769187381c574b473e6644dc1f))
+
 ## [0.1.0-beta.1](https://github.com/iamparmjeet/rently/compare/v0.1.0-beta.0...v0.1.0-beta.1) (2026-08-06)
 
 ### ✨ Features

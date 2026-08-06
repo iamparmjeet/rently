@@ -3,6 +3,7 @@ import * as leaseProcedures from "./lease";
 import * as ownerProfile from "./owner-profile";
 import * as paymentProcedures from "./payment";
 import * as propertyProcedures from "./property";
+import * as receiptProcedures from "./receipt";
 import * as statsProcedures from "./stats";
 import * as tenantProcedures from "./tenant";
 import * as tenantPortalProcedures from "./tenant-portal";
@@ -15,9 +16,15 @@ export const rentRouter = {
 	lease: leaseProcedures,
 	tenant: tenantProcedures,
 	invite: inviteProcedures,
-	payment: paymentProcedures,
+	payment: {
+		...paymentProcedures,
+		getPaymentReceiptData: receiptProcedures.getPaymentReceiptData,
+	},
 	utility: utilityProcedures,
 	stats: statsProcedures,
 	ownerProfile,
-	tenantPortal: tenantPortalProcedures,
+	tenantPortal: {
+		...tenantPortalProcedures,
+		getMyPaymentReceiptData: receiptProcedures.getMyPaymentReceiptData,
+	},
 };

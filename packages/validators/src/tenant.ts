@@ -77,8 +77,11 @@ export const TenantProfileDataSchema = z.object({
 
 export const TenantListItemSchema = z.object({
 	id: z.string(),
+	/** Present until the tenant accepts their invitation; used to resend it. */
+	inviteId: z.string().nullable(),
 	name: z.string(),
 	email: z.email(),
+	emailVerified: z.boolean(),
 	phone: z.string().nullable(),
 	avatarUrl: z.string().nullable(),
 	status: z.enum(INVITE_STATUS_VALUES).default("pending"),

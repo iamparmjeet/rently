@@ -58,6 +58,8 @@ export function AddLeaseButton({
 		id: p.id,
 		name: p.name,
 	}));
+	const cannotCreateLease =
+		tenantOptions.length === 0 || unitOptions.length === 0;
 
 	function handleSubmit(values: LeaseFormValues) {
 		createLease.mutate(
@@ -85,6 +87,7 @@ export function AddLeaseButton({
 				title="Add Lease"
 				formId="add-lease-form"
 				isSubmitting={createLease.isPending}
+				submitDisabled={cannotCreateLease}
 				submitLabel="Add Lease"
 			>
 				<LeaseForm

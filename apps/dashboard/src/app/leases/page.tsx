@@ -93,6 +93,7 @@ export default function LeasesPage() {
 			})),
 		[propertiesData?.properties],
 	);
+	const cannotCreateLease = tenants.length === 0 || availableUnits.length === 0;
 
 	// Filtered List
 	const filtered = useMemo(() => {
@@ -165,6 +166,7 @@ export default function LeasesPage() {
 						description="Create a rental agreement between a unit and a tenant."
 						formId="create-lease-form"
 						isSubmitting={createLease.isPending}
+						submitDisabled={cannotCreateLease}
 						submitLabel="Create Lease"
 					>
 						<LeaseForm

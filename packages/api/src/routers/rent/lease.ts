@@ -3,16 +3,33 @@ import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
 import type { Database } from "@rently/db";
 import { LEASE_STATUS_VALUES } from "@rently/db/constants/rent-constants";
+import { USER_ROLES } from "@rently/db/constants/user-roles";
 import { user } from "@rently/db/schema/auth";
-import { leases, properties, units } from "@rently/db/schema/schema";
+import {
+	leases,
+	properties,
+	tenantInvites,
+	tenantProfiles,
+	units,
+} from "@rently/db/schema/schema";
 import {
 	CreateLeaseSchema,
 	LeaseSelectSchema,
 	LeaseWithDetailsSchema,
 	UpdateLeaseSchema,
 } from "@rently/validators";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import z from "zod";
+
+type BatchCapableDatabase = Database & {
+	batch<T extends readonly unknown[]>(
+		queries: T,
+	): Promise<{ [K in keyof T]: Awaited<T[K]> }>;
+};
+
+function supportsBatch(db: Database): db is BatchCapableDatabase {
+	return typeof (db as { batch?: unknown }).batch === "function";
+}
 
 // Ownership helpers
 // Lease -> Unit -> property -> ownerId
@@ -71,30 +88,141 @@ export const createLease = ownerProcedure
 			});
 		}
 
-		// Transaction - Both ops succeed or both fail
-		const lease = await db.transaction(async (tx) => {
-			const [newLease] = await tx
-				.insert(leases)
-				.values({
-					...input,
-					status: "active",
-				})
-				.returning();
+		const [registeredTenant] = await db
+			.select({ id: user.id })
+			.from(user)
+			.innerJoin(tenantProfiles, eq(tenantProfiles.userId, user.id))
+			.where(
+				and(
+					eq(user.id, input.tenantId),
+					eq(tenantProfiles.createdById, authUser.id),
+				),
+			)
+			.limit(1);
 
-			if (!newLease) {
-				throw new ORPCError("INTERNAL_SERVER_ERROR", {
-					message: "Failed to create lease",
-				});
+		// Owner-prepared tenants are valid lease parties before accepting the invite.
+		// Their invite ID becomes a stable provisional user ID so the existing lease
+		// foreign key remains valid and acceptance can later claim the same identity.
+		const [pendingTenant] = registeredTenant
+			? []
+			: await db
+					.select({
+						id: tenantInvites.id,
+						name: tenantInvites.name,
+						email: tenantInvites.email,
+						phone: tenantInvites.phone,
+						address: tenantInvites.address,
+						emergencyContact: tenantInvites.emergencyContact,
+						emergencyContactName: tenantInvites.emergencyContactName,
+						emergencyContactLocation: tenantInvites.emergencyContactLocation,
+					})
+					.from(tenantInvites)
+					.where(
+						and(
+							eq(tenantInvites.id, input.tenantId),
+							eq(tenantInvites.invitedById, authUser.id),
+							eq(tenantInvites.onboardingMode, "owner_prepared"),
+							eq(tenantInvites.status, "pending"),
+							isNull(tenantInvites.deletedAt),
+						),
+					)
+					.limit(1);
+
+		if (!registeredTenant && !pendingTenant) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Tenant is not available for this lease",
+			});
+		}
+
+		const createLeaseQuery = db
+			.insert(leases)
+			.values({ ...input, status: "active" })
+			.returning();
+		const occupyUnitQuery = db
+			.update(units)
+			.set({ status: "occupied", updatedAt: new Date() })
+			.where(eq(units.id, input.unitId));
+
+		// Neon HTTP does not support callback transactions. Its batch API sends both
+		// statements as one database transaction; node-postgres retains its normal
+		// callback transaction path.
+		let lease: Awaited<typeof createLeaseQuery>[number] | undefined;
+		if (supportsBatch(db)) {
+			if (pendingTenant) {
+				const [, , createdLeases] = await db.batch([
+					db.insert(user).values({
+						id: pendingTenant.id,
+						name: pendingTenant.name,
+						email: pendingTenant.email.toLowerCase(),
+						emailVerified: false,
+						role: USER_ROLES.TENANT,
+						phone: pendingTenant.phone,
+					}),
+					db.insert(tenantProfiles).values({
+						userId: pendingTenant.id,
+						email: pendingTenant.email.toLowerCase(),
+						phone: pendingTenant.phone,
+						address: pendingTenant.address,
+						emergencyContact: pendingTenant.emergencyContact,
+						emergencyContactName: pendingTenant.emergencyContactName,
+						emergencyContactLocation: pendingTenant.emergencyContactLocation,
+						invitedId: pendingTenant.id,
+						createdById: authUser.id,
+					}),
+					createLeaseQuery,
+					occupyUnitQuery,
+				]);
+				lease = createdLeases[0];
+			} else {
+				const [createdLeases] = await db.batch([
+					createLeaseQuery,
+					occupyUnitQuery,
+				]);
+				lease = createdLeases[0];
 			}
+		} else {
+			lease = await db.transaction(async (tx) => {
+				if (pendingTenant) {
+					await tx.insert(user).values({
+						id: pendingTenant.id,
+						name: pendingTenant.name,
+						email: pendingTenant.email.toLowerCase(),
+						emailVerified: false,
+						role: USER_ROLES.TENANT,
+						phone: pendingTenant.phone,
+					});
+					await tx.insert(tenantProfiles).values({
+						userId: pendingTenant.id,
+						email: pendingTenant.email.toLowerCase(),
+						phone: pendingTenant.phone,
+						address: pendingTenant.address,
+						emergencyContact: pendingTenant.emergencyContact,
+						emergencyContactName: pendingTenant.emergencyContactName,
+						emergencyContactLocation: pendingTenant.emergencyContactLocation,
+						invitedId: pendingTenant.id,
+						createdById: authUser.id,
+					});
+				}
 
-			// update unit status to occupied
-			await tx
-				.update(units)
-				.set({ status: "occupied", updatedAt: new Date() })
-				.where(eq(units.id, input.unitId));
+				const [newLease] = await tx
+					.insert(leases)
+					.values({ ...input, status: "active" })
+					.returning();
 
-			return newLease;
-		});
+				await tx
+					.update(units)
+					.set({ status: "occupied", updatedAt: new Date() })
+					.where(eq(units.id, input.unitId));
+
+				return newLease;
+			});
+		}
+
+		if (!lease) {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
+				message: "Failed to create lease",
+			});
+		}
 
 		return { lease };
 	});

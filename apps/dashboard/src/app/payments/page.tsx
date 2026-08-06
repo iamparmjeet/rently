@@ -32,6 +32,7 @@ import {
 	IconCreditCard,
 	IconCurrencyRupee,
 	IconDots,
+	IconDownload,
 	IconMail,
 	IconReceipt,
 	IconRefreshAlert,
@@ -184,6 +185,7 @@ function PaymentDetailDialog({
 
 	if (!payment) return null;
 
+	const paymentId = payment.id;
 	const config = getTypeConfig(payment.type);
 	// reversals are system records — sending a receipt for a void/reversal
 	// would confuse the tenant ("you received ₹-20,000?"). Both action
@@ -202,6 +204,10 @@ function PaymentDetailDialog({
 	function handleSendEmail() {
 		if (!payment) return;
 		sendReceipt.mutate({ paymentId: payment.id });
+	}
+
+	function handleDownloadReceipt() {
+		window.open(`/receipts/${paymentId}?print=true`, "_blank", "noopener");
 	}
 
 	return (
@@ -306,7 +312,23 @@ function PaymentDetailDialog({
 						Close
 					</Button>
 
-					<div className="flex gap-2">
+					<div className="flex flex-wrap gap-2">
+						<Button
+							size="sm"
+							variant="outline"
+							className="gap-1.5"
+							disabled={isReversal}
+							onClick={handleDownloadReceipt}
+							title={
+								isReversal
+									? "Cannot download a receipt for a reversal"
+									: "Open a printable payment receipt"
+							}
+						>
+							<IconDownload className="size-4" />
+							Download
+						</Button>
+
 						{/* WhatsApp — client-side deep link, no server call */}
 						{/* WHY: disabled when no phone is on file (tenantProfiles.phone is nullable) or for reversals (a void is not a receipt). */}
 						<Button

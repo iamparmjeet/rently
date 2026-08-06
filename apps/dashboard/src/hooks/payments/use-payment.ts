@@ -13,3 +13,12 @@ export function useSuspensePayment(id: string) {
 		orpc.rent.payment.getPaymentById.queryOptions({ input: { id } }),
 	);
 }
+
+export function usePaymentReceipt(paymentId: string) {
+	return useQuery({
+		...orpc.rent.payment.getPaymentReceiptData.queryOptions({
+			input: { paymentId },
+		}),
+		enabled: !!paymentId,
+	});
+}

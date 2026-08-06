@@ -11,6 +11,8 @@
 
 **Live:** [KeyHQ.parmjeetmishra.com](https://keyhq.parmjeetmishra.com)
 
+**Release:** `v0.1.0-beta.2` — the public beta is live. See the [changelog](./CHANGELOG.md) for release notes.
+
 ---
 
 ## What is KeyHQ?
@@ -148,14 +150,14 @@ Every owner-scoped query is filtered by `ctx.user.id`. Ownership helpers (`Verif
 
 ### Owner dashboard (`apps/dashboard`)
 
-- **Properties** — CRUD with property type (residential/commercial), address, and photo (pending R2)
+- **Properties** — CRUD with property type (residential/commercial) and address
 - **Units** — per-property units with type, rent amount, status (vacant/occupied)
 - **Tenants** — invite-based onboarding; owner-gated KYC (UID/PAN)
 - **Leases** — link tenant ↔ unit with start/end date, rent amount, deposit
 - **Utilities** — electricity meter readings per unit; bill calculation
 - **Payments** — rent, utility, and deposit payment records
 - **Dashboard** — occupancy rate, revenue chart (12-month), recent transactions, upcoming dues
-- **Settings** — profile, security (password change), currency preference, notification toggles, billing
+- **Settings** — profile, owner-avatar upload, security (password change), currency preference, and billing
 
 ### Tenant portal (`apps/tenant`)
 
@@ -163,7 +165,7 @@ Every owner-scoped query is filtered by `ctx.user.id`. Ownership helpers (`Verif
 - **Bill tab** — current month rent + utility breakdown
 - **Payments tab** — payment history
 - **Readings tab** — submit electricity meter readings
-- **Documents tab** — view lease documents, request UID/PAN update (owner-gated)
+- **Documents tab** — view profile and KYC status; document uploads and change requests are planned
 
 ### Auth flows (`apps/web`)
 
@@ -291,6 +293,14 @@ GITHUB_CLIENT_SECRET=
 RESEND_API_KEY=
 EMAIL_FROM=noreply@yourdomain.com
 
+# Cloudflare R2 (required by environment validation; use development credentials locally)
+CLOUDFLARE_ACCOUNT_ID=
+R2_BUCKET_NAME=keyhq
+R2_ACCESS_KEY_ID=
+R2_SECRET_ACCESS_KEY=
+R2_PUBLIC_URL=https://keyhq-media.example.com
+R2_S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+
 NODE_ENV=development
 ```
 
@@ -356,12 +366,12 @@ chore(deps): bump drizzle-orm to 0.45.2
 | --------------------------------------------------------------------- | ------------------------------ |
 | Database schema + constants                                           | ✅ Complete                    |
 | Zod validators (current domains)                                     | ✅ Complete                    |
-| oRPC API (property, unit, lease, tenant, invite, payment, utility)   | ✅ Complete                    |
+| oRPC API (property, unit, lease, tenant, invite, payment, utility, notifications) | ✅ Complete                    |
 | Better Auth configuration and password recovery                      | ✅ Complete                    |
 | Hono server + oRPC wiring                                             | ✅ Complete                    |
 | Owner dashboard — Properties, Units, Tenants, Leases, Utilities      | ✅ Complete                    |
 | Owner dashboard — Payments, settings, and revenue dashboard          | ✅ Complete                    |
-| Tenant portal — overview, bills, payments, readings, and docs tabs   | ✅ Complete                    |
+| Tenant portal — overview, bills, payments, readings, and profile/KYC-status tabs | ✅ Complete                    |
 | Invite-based onboarding, delivery-failure feedback, and resend action | ✅ Complete                    |
 | Role-based cross-app routing                                          | ✅ Complete                    |
 | Subscriptions, plans, beta-code redemption, and UPI QR               | ✅ Complete                    |
@@ -369,11 +379,11 @@ chore(deps): bump drizzle-orm to 0.45.2
 | Tenant meter-submission rate limiting                                 | ✅ Complete                    |
 | Mobile sidebar                                                        | ✅ Complete — device QA pending |
 | Hard email verification and unified tenant onboarding                 | 📋 Milestone 1                 |
-| Private KYC documents and document-update lifecycle                   | 📋 Milestone 2                 |
+| KYC document-file uploads and persisted change-request lifecycle      | 📋 Milestone 2                 |
 | Mobile device and journey QA                                          | 📋 Milestone 3                 |
 | Instant dashboard bootstrap                                           | 📋 Milestone 4                 |
 | Print-optimized rent receipts                                         | 📋 Milestone 5                 |
-| Notification preferences and scheduled reminders                      | 📋 Milestones 6–7              |
+| Persisted notification preferences and scheduled reminders            | 📋 Milestones 6–7              |
 | Admin panel                                                           | 📋 Post-beta                   |
 
 ---

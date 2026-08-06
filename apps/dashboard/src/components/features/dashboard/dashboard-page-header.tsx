@@ -3,6 +3,7 @@
 import { IconPlus } from "@tabler/icons-react";
 import Link from "next/link";
 import { useSession } from "@/lib/auth-client";
+import { formatDashboardDate } from "./dashboard-date";
 
 interface DashboardHeaderProps {
 	className?: string;
@@ -11,12 +12,7 @@ interface DashboardHeaderProps {
 export function DashboardPageHeader({ className = "" }: DashboardHeaderProps) {
 	const { data: session } = useSession();
 
-	const today = new Date().toLocaleDateString("en-IN", {
-		weekday: "long",
-		day: "numeric",
-		month: "long",
-		year: "numeric",
-	});
+	const today = formatDashboardDate(new Date());
 
 	return (
 		<div className={`flex flex-row items-start justify-between ${className}`}>

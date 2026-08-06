@@ -52,10 +52,28 @@ describe("web proxy", () => {
 		expect(betterFetch).not.toHaveBeenCalled();
 	});
 
+	it("does not redirect an unmarked background fetch", async () => {
+		const request = new NextRequest("https://keyhq.test/login", {
+			headers: {
+				cookie: "__Secure-rently.session_token=test-session",
+				"Sec-Fetch-Dest": "empty",
+				"Sec-Fetch-Mode": "cors",
+			},
+		});
+
+		const response = await proxy(request);
+
+		expect(response.status).toBe(200);
+		expect(response.headers.get("x-middleware-next")).toBe("1");
+		expect(betterFetch).not.toHaveBeenCalled();
+	});
+
 	it("still redirects an authenticated document request by role", async () => {
 		const request = new NextRequest("https://keyhq.test/login", {
 			headers: {
 				cookie: "__Secure-rently.session_token=test-session",
+				"Sec-Fetch-Dest": "document",
+				"Sec-Fetch-Mode": "navigate",
 			},
 		});
 

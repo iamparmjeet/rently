@@ -22,14 +22,13 @@ export default async function proxy(request: NextRequest) {
 	const isAuthRoute = AUTH_ROUTES.some((route) => pathname.startsWith(route));
 	if (!isAuthRoute) return NextResponse.next();
 
-	// Next.js loads and prefetches routes with RSC fetches. Redirecting one of
-	// those fetches to another app origin makes the browser enforce CORS on the
-	// 307. Let only a real document request perform the role-aware redirect.
-	const isNextClientRequest =
-		request.headers.get("RSC") === "1" ||
-		request.headers.has("Next-Router-Prefetch") ||
-		request.headers.get("Purpose") === "prefetch";
-	if (isNextClientRequest) return NextResponse.next();
+	// Cross-app redirects are safe only for top-level document navigations.
+	// Next client requests and browser prefetches use fetch/CORS semantics, so a
+	// 307 to another origin would itself require CORS and fail before navigation.
+	const isDocumentNavigation =
+		request.headers.get("Sec-Fetch-Mode") === "navigate" &&
+		request.headers.get("Sec-Fetch-Dest") === "document";
+	if (!isDocumentNavigation) return NextResponse.next();
 
 	// Fast-path: no cookie → unauthenticated user on login/register → let them through.
 	if (!hasSessionCookie(request)) return NextResponse.next();

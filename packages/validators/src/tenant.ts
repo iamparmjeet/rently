@@ -24,19 +24,22 @@ export const TenantProfileInsertSchema = createInsertSchema(tenantProfiles);
 // ── Layer 2: API input schemas
 // 2. List item — what owner sees in the tenants grid
 //    Must match TenantCard's Tenant interface exactly
-export const CreateTenantSchema = z.object({
-	// Required identity
-	name: z.string().min(1, "Name is required"),
-	email: z.email("Invalid email"),
-	// Optional profile fields owner may know upfront
-	phone: z.string().optional(),
-	address: z.string().optional(),
-	emergencyContact: z.string().optional(),
-	emergencyContactName: z.string().optional(),
-	emergencyContactLocation: z.string().optional(),
-	uidNumber: z.string().optional(),
-	panNumber: z.string().optional(),
+export const TenantProfileDraftSchema = z.object({
+	phone: z.string().trim().optional(),
+	address: z.string().trim().optional(),
+	emergencyContact: z.string().trim().optional(),
+	emergencyContactName: z.string().trim().optional(),
+	emergencyContactLocation: z.string().trim().optional(),
 });
+
+export const CreateTenantSchema = z
+	.object({
+		name: z.string().trim().min(1, "Name is required"),
+		email: z.email("Invalid email"),
+		notes: z.string().trim().optional(),
+		expiresAt: z.date().optional(),
+	})
+	.extend(TenantProfileDraftSchema.shape);
 
 export const UpdateTenantVerificationSchema = z.object({
 	tenantId: z.string().min(1),
@@ -61,6 +64,7 @@ export const RemoveTenantSchema = z.object({
 });
 
 // ── Layer 3: API output schemas
+
 export const TenantProfileDataSchema = z.object({
 	address: z.string().nullable(),
 	emergencyContact: z.string().nullable(),

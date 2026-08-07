@@ -20,3 +20,26 @@ export const NotificationListItemSchema = z.object({
 });
 
 export type NotificationListItem = z.infer<typeof NotificationListItemSchema>;
+
+export const NotificationPreferencesSchema = z.object({
+	paymentReceived: z.boolean(),
+	utilityBillGenerated: z.boolean(),
+	leaseExpiryAlert: z.boolean(),
+	rentDueReminder: z.boolean(),
+	overdueAlert: z.boolean(),
+	updatedAt: z.date(),
+});
+
+export const UpdateNotificationPreferencesSchema = z
+	.object({
+		paymentReceived: z.boolean(),
+		utilityBillGenerated: z.boolean(),
+		leaseExpiryAlert: z.boolean(),
+		rentDueReminder: z.boolean(),
+		overdueAlert: z.boolean(),
+	})
+	.strict();
+
+export type NotificationPreferences = z.infer<
+	typeof NotificationPreferencesSchema
+>;

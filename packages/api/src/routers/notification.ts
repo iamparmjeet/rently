@@ -3,13 +3,87 @@ import type { NotificationType } from "@rently/db/constants/notification-constan
 import { NOTIFICATION_TYPES } from "@rently/db/constants/notification-constants";
 import {
 	leases,
+	notificationPreferences,
 	notifications,
 	properties,
 	units,
 } from "@rently/db/schema/schema";
-import { NotificationListItemSchema } from "@rently/validators";
+import {
+	NotificationListItemSchema,
+	NotificationPreferencesSchema,
+	UpdateNotificationPreferencesSchema,
+} from "@rently/validators";
 import { and, count, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import z from "zod";
+
+const notificationPreferencesOutput = z.object({
+	preferences: NotificationPreferencesSchema,
+});
+
+const preferenceValues = (
+	input: z.infer<typeof UpdateNotificationPreferencesSchema>,
+) => ({
+	paymentReceived: input.paymentReceived,
+	utilityBillGenerated: input.utilityBillGenerated,
+	leaseExpiryAlert: input.leaseExpiryAlert,
+	rentDueReminder: input.rentDueReminder,
+	overdueAlert: input.overdueAlert,
+});
+
+export const getPreferences = ownerProcedure
+	.route({ method: "GET", path: "/notification/preferences" })
+	.output(notificationPreferencesOutput)
+	.handler(async ({ context }) => {
+		const { db, user } = context;
+		await db
+			.insert(notificationPreferences)
+			.values({ ownerId: user.id })
+			.onConflictDoNothing({ target: notificationPreferences.ownerId });
+		const [preferences] = await db
+			.select({
+				paymentReceived: notificationPreferences.paymentReceived,
+				utilityBillGenerated: notificationPreferences.utilityBillGenerated,
+				leaseExpiryAlert: notificationPreferences.leaseExpiryAlert,
+				rentDueReminder: notificationPreferences.rentDueReminder,
+				overdueAlert: notificationPreferences.overdueAlert,
+				updatedAt: notificationPreferences.updatedAt,
+			})
+			.from(notificationPreferences)
+			.where(eq(notificationPreferences.ownerId, user.id));
+		if (!preferences)
+			throw new Error("Notification preferences could not be loaded");
+		return { preferences };
+	});
+
+export const updatePreferences = ownerProcedure
+	.route({ method: "PATCH", path: "/notification/preferences" })
+	.input(UpdateNotificationPreferencesSchema)
+	.output(notificationPreferencesOutput)
+	.handler(async ({ context, input }) => {
+		const { db, user } = context;
+		const values = preferenceValues(input);
+		await db
+			.insert(notificationPreferences)
+			.values({ ownerId: user.id, ...values })
+			.onConflictDoUpdate({
+				target: notificationPreferences.ownerId,
+				set: { ...values, updatedAt: new Date() },
+			});
+		const [preferences] = await db
+			.select({
+				paymentReceived: notificationPreferences.paymentReceived,
+				utilityBillGenerated: notificationPreferences.utilityBillGenerated,
+				leaseExpiryAlert: notificationPreferences.leaseExpiryAlert,
+				rentDueReminder: notificationPreferences.rentDueReminder,
+				overdueAlert: notificationPreferences.overdueAlert,
+				updatedAt: notificationPreferences.updatedAt,
+			})
+			.from(notificationPreferences)
+			.where(eq(notificationPreferences.ownerId, user.id));
+		if (!preferences)
+			throw new Error("Notification preferences could not be saved");
+		return { preferences };
+	});
 
 //  1. List notifications
 // WHY this procedure does writes on a GET: lease-expiry notifications are

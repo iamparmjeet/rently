@@ -383,7 +383,8 @@ chore(deps): bump drizzle-orm to 0.45.2
 | Mobile device and journey QA                                          | 📋 Milestone 3                 |
 | Instant dashboard bootstrap                                           | 📋 Milestone 4                 |
 | Print-optimized rent receipts                                         | 📋 Milestone 5                 |
-| Persisted notification preferences and scheduled reminders            | 📋 Milestones 6–7              |
+| Persisted notification preferences and automatic tenant emails        | ✅ Milestone 6                 |
+| Scheduled preference-driven email reminders                            | 📋 Milestone 7                 |
 | Admin panel                                                           | 📋 Post-beta                   |
 
 ---

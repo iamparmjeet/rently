@@ -85,11 +85,11 @@
 
 > In-app notifications are DONE. This section is only the preference-driven email layer.
 
-- [ ] Create one owner-scoped `notificationPreferences` row with `paymentReceived`, `utilityBillGenerated`, `leaseExpiryAlert`, `rentDueReminder`, `overdueAlert`, and `updatedAt`.
-- [ ] Replace `localStorage` with owner-scoped query and mutation hooks.
-- [ ] Wire `paymentReceived` toggle → send email on `createPayment` success
-- [ ] Wire `utilityBillGenerated` toggle → send email when a utility bill is approved/generated.
-- [ ] Convert `buildReceiptMessage()` to the shared KeyHQ HTML email wrapper.
+- [x] Create one owner-scoped `notificationPreferences` row with `paymentReceived`, `utilityBillGenerated`, `leaseExpiryAlert`, `rentDueReminder`, `overdueAlert`, and `updatedAt`.
+- [x] Replace `localStorage` with owner-scoped query and mutation hooks.
+- [x] Wire `paymentReceived` toggle → send email on `createPayment` success
+- [x] Wire `utilityBillGenerated` toggle → send email when a utility bill is approved/generated.
+- [x] Convert `buildReceiptMessage()` to the shared KeyHQ HTML email wrapper.
 - [ ] Scheduled preference-driven email reminders follow in Milestone 7.
 
 ### Private Tenant Documents _(Milestone 2 — Tenant Trust Workflows)_
@@ -207,12 +207,12 @@
 
 ## Known Technical Debt
 
-- [ ] `notifications-tab.tsx` — `// TODO: migrate from localStorage` comment. Preferences need DB storage before any email trigger can read them
-- [ ] `buildReceiptMessage()` in `payment.ts` — plain text email body. Replace with HTML template consistent with `@rently/email`
+- [x] `notifications-tab.tsx` — `// TODO: migrate from localStorage` comment. Preferences now use owner-scoped database storage.
+- [x] `buildReceiptMessage()` in `payment.ts` — replaced with shared KeyHQ HTML templates in `@rently/email`
 - [ ] `referrers` table is intentionally dormant for beta; revisit only when referrals become a planned feature.
 - [ ] `evlog` console.log calls — several `// TODO: remove before prod` comments across API handlers
-- [ ] Notification preference fields not declared in `turbo.json` env vars yet — add when migrated from localStorage
-- [x] **Fresh Drizzle migration bootstrap** — verified all eight migrations from an empty `rently_test` database before the final `integration/keyhq-beta` → `main` merge.
+- [x] Notification preference fields are database columns, not `turbo.json` environment variables.
+- [x] **Fresh Drizzle migration bootstrap** — verified the clean migration path before the final `integration/keyhq-beta` → `main` merge; the notification-preferences migration is included in the next bootstrap run.
 - [x] **M1b test-database migration diagnosis** — repaired the explicit text-to-timestamp casts in `0002_easy_iceman`; `0007_unique_the_hand` now applies as part of the clean migration path and the invite integration suite runs locally.
 
 ---

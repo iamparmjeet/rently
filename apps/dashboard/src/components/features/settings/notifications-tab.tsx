@@ -10,16 +10,12 @@ import {
 	useNotificationPreferences,
 	useUpdateNotificationPreferences,
 } from "@/hooks/notifications";
+import {
+	type EditableNotificationPreferences,
+	toEditableNotificationPreferences,
+} from "./notification-preferences";
 
-type Preferences = {
-	paymentReceived: boolean;
-	utilityBillGenerated: boolean;
-	leaseExpiryAlert: boolean;
-	rentDueReminder: boolean;
-	overdueAlert: boolean;
-	rentDueLeadDays: number;
-	overdueGraceDays: number;
-};
+type Preferences = EditableNotificationPreferences;
 
 type BooleanPreferenceKey =
 	| "paymentReceived"
@@ -73,7 +69,8 @@ export function NotificationsTab() {
 	const [draft, setDraft] = useState<Preferences | null>(null);
 
 	useEffect(() => {
-		if (data?.preferences) setDraft(data.preferences);
+		if (data?.preferences)
+			setDraft(toEditableNotificationPreferences(data.preferences));
 	}, [data]);
 
 	const changed = useMemo(() => {

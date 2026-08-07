@@ -90,6 +90,17 @@ describe("notification preferences", () => {
 		});
 	});
 
+	it("accepts the preferences snapshot returned to the settings form", async () => {
+		const owner = await createOwner();
+		const current = await clientFor(owner).getPreferences();
+		const { updatedAt: _updatedAt, ...editablePreferences } =
+			current.preferences;
+
+		await expect(
+			clientFor(owner).updatePreferences(editablePreferences),
+		).resolves.toMatchObject({ preferences: editablePreferences });
+	});
+
 	it("does not allow malformed snapshots", async () => {
 		const owner = await createOwner();
 		await expect(

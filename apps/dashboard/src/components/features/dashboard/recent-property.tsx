@@ -1,12 +1,9 @@
 "use client";
 
+import { formatFormRupees } from "@rently/ui/lib/currency";
 import { IconBuildingSkyscraper } from "@tabler/icons-react";
 import Link from "next/link";
 import { useProperties } from "@/hooks/properties";
-
-function formatCompactRupees(paise: number): string {
-	return `₹${(paise / 100).toLocaleString("en-IN")}`;
-}
 
 const PREVIEW_COUNT = 4;
 
@@ -124,7 +121,7 @@ export function RecentProperties({ className = "" }: RecentPropertiesProps) {
 							{/* Monthly revenue ────────────────────────────── */}
 
 							<span className="text-right font-semibold text-emerald-600 text-sm tabular-nums">
-								{formatCompactRupees(property.monthlyRevenue)}
+								{formatFormRupees(property.monthlyRevenue)}
 							</span>
 						</div>
 					))

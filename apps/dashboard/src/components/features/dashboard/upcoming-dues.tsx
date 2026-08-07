@@ -1,6 +1,6 @@
 import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import { Skeleton } from "@rently/ui/components/skeleton";
-import { formatRupees } from "@rently/ui/lib/currency";
+import { formatFormRupees } from "@rently/ui/lib/currency";
 import type { PaymentListItem } from "@rently/validators";
 import { IconArrowRight } from "@tabler/icons-react";
 import Link from "next/link";
@@ -15,7 +15,7 @@ interface DueEntry {
 	tenantName: string;
 	unitNumber: string;
 	propertyName: string;
-	amount: number; // paise — pass through formatRupees()
+	amount: number; // lease rent is stored in rupees
 	dueDate: Date;
 	daysUntil: number; // negative = overdue
 	urgency: DueUrgency;
@@ -53,21 +53,25 @@ function classifyUrgency(days: number): DueUrgency {
 
 function isRentPaidThisMonth(
 	leaseId: string,
+	rent: number,
 	payments: PaymentListItem[],
 ): boolean {
 	const now = new Date();
 	const thisMonth = now.getMonth();
 	const thisYear = now.getFullYear();
 
-	return payments.some((p) => {
-		if (p.leaseId !== leaseId) return false;
-
-		if (p.type !== PAYMENT_TYPES.RENT) return false;
-		if (p.amount <= 0) return false;
+	const paidThisMonth = payments.reduce((total, p) => {
+		if (p.leaseId !== leaseId || p.type !== PAYMENT_TYPES.RENT) return total;
 
 		const pd = new Date(p.paymentDate);
-		return pd.getMonth() === thisMonth && pd.getFullYear() === thisYear;
-	});
+		if (pd.getMonth() !== thisMonth || pd.getFullYear() !== thisYear) {
+			return total;
+		}
+
+		return total + Math.max(p.amount, 0);
+	}, 0);
+
+	return paidThisMonth >= rent * 100;
 }
 
 const URGENCY_CONFIG: Record<
@@ -115,7 +119,7 @@ export function UpcomingDues({ className = "" }) {
 		return (
 			activeLeases
 				// Filter out leases where rent is already paid this month
-				.filter((l) => !isRentPaidThisMonth(l.leaseId, allPayments))
+				.filter((l) => !isRentPaidThisMonth(l.leaseId, l.rent, allPayments))
 				.map((l): DueEntry => {
 					const dueDate = getNextDueDate(l.startDate, l.rentDueDate);
 					const daysUntil = getDaysUntil(dueDate);
@@ -125,7 +129,7 @@ export function UpcomingDues({ className = "" }) {
 						tenantName: l.tenantName ?? "Unknown Tenant",
 						unitNumber: l.unitNumber,
 						propertyName: l.propertyName,
-						amount: l.rent, // paise
+						amount: l.rent, // lease rent is stored in rupees
 						dueDate,
 						daysUntil,
 						urgency: classifyUrgency(daysUntil),
@@ -214,7 +218,7 @@ function DueRow({ entry }: { entry: DueEntry }) {
 			{/* Amount + urgency label */}
 			<div className="flex shrink-0 flex-col items-end gap-1">
 				<span className="font-semibold text-sm tabular-nums">
-					{formatRupees(entry.amount)}
+					{formatFormRupees(entry.amount)}
 				</span>
 				<span className={`flex items-center gap-1 text-xs ${config.textCls}`}>
 					<span

@@ -1,5 +1,11 @@
 import { describe, expect, it } from "vitest";
-import { rupeesToWords } from "./currency";
+import { formatFormRupees, rupeesToWords } from "./currency";
+
+describe("formatFormRupees", () => {
+	it("formats lease values as rupees without paise conversion", () => {
+		expect(formatFormRupees(1_500)).toBe("₹1,500.00");
+	});
+});
 
 describe("rupeesToWords", () => {
 	it("formats zero and whole rupees", () => {

@@ -3,6 +3,7 @@
 import { IconBuildingSkyscraper, IconFileText } from "@tabler/icons-react";
 import { DashboardPageHeader } from "@/components/features/dashboard/dashboard-page-header";
 import { OccupancyCard } from "@/components/features/dashboard/occupancy-card";
+import { OverdueSummaryCard } from "@/components/features/dashboard/overdue-summary-card";
 import { RecentProperties } from "@/components/features/dashboard/recent-property";
 import { RecentTenants } from "@/components/features/dashboard/recent-tenants";
 import { RecentTransactions } from "@/components/features/dashboard/recent-transactions";
@@ -20,7 +21,7 @@ export default function DashboardPage() {
 
 	return (
 		<Container>
-			<main className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:gap-6">
+			<main className="grid w-full grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:gap-6">
 				{/* ── Header ──────────── */}
 				<DashboardPageHeader className="col-span-full" />
 
@@ -66,15 +67,22 @@ export default function DashboardPage() {
 				{/* ── Sidebar ────── */}
 				<UpcomingDues className="col-span-full sm:col-span-1 lg:col-span-4" />
 
+				<OverdueSummaryCard
+					overdueCount={revenueData?.overdueCount ?? 0}
+					overdueAmount={revenueData?.overdueAmount ?? 0}
+					isLoading={revenueLoading}
+					className="col-span-full sm:col-span-1 lg:col-span-4"
+				/>
+
 				{/* Pair*/}
-				<RecentProperties className="col-span-full sm:col-span-1 lg:col-span-6 lg:row-span-10" />
-				<RecentTenants className="col-span-full sm:col-span-1 lg:col-span-6 lg:row-span-10" />
+				<RecentProperties className="col-span-full sm:col-span-1 lg:col-span-8" />
+				<RecentTenants className="col-span-full sm:col-span-1 lg:col-span-6" />
 
 				{/* ── Transactions ──────── */}
 				<RecentTransactions
 					transactions={revenueData?.recentTransactions ?? []}
 					isLoading={revenueLoading}
-					className="col-span-full"
+					className="col-span-full lg:col-span-6"
 				/>
 			</main>
 		</Container>

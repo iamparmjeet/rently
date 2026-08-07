@@ -23,6 +23,7 @@ import {
 } from "@rently/validators";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import z from "zod";
+import { queryOverdueLeases } from "../helpers/overdue-query";
 import { createPendingTenantInvite } from "./invite-service";
 
 // List tenants for this owner
@@ -91,6 +92,7 @@ export const listTenants = ownerProcedure
 								unitNumber: row.unitNumber ?? "",
 								rent: row.rent ?? 0,
 								endDate: row.endDate ? row.endDate.toISOString() : null,
+								overdue: null,
 							}
 						: null,
 				});
@@ -132,7 +134,33 @@ export const listTenants = ownerProcedure
 			});
 		}
 
-		const tenants = Array.from(tenantMap.values());
+		const overdueLeases = await queryOverdueLeases(db, new Date(), authUser.id);
+		const overdueByLeaseId = new Map(
+			overdueLeases.map((lease) => [lease.leaseId, lease]),
+		);
+
+		const tenants = Array.from(tenantMap.values()).map((tenant) => {
+			const overdue = tenant.currentLease
+				? overdueByLeaseId.get(tenant.currentLease.id)
+				: undefined;
+
+			return {
+				...tenant,
+				currentLease: tenant.currentLease
+					? {
+							...tenant.currentLease,
+							overdue: overdue
+								? {
+										paidAmount: overdue.paidAmount,
+										outstandingAmount: overdue.outstandingAmount,
+										dueDate: overdue.dueDate,
+										daysOverdue: overdue.daysOverdue,
+									}
+								: null,
+						}
+					: null,
+			};
+		});
 
 		return { tenants };
 	});
@@ -237,6 +265,7 @@ export const getTenantById = ownerProcedure
 							unitNumber: result.unitNumber ?? "",
 							rent: result.rent ?? 0,
 							endDate: result.endDate ? result.endDate.toISOString() : null,
+							overdue: null,
 						}
 					: null,
 			},

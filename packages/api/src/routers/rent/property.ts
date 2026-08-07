@@ -45,7 +45,10 @@ export const listProperties = ownerProcedure
 					description: properties.description,
 				})
 				.from(properties)
-				.leftJoin(units, eq(units.propertyId, properties.id))
+				.leftJoin(
+					units,
+					and(eq(units.propertyId, properties.id), isNull(units.deletedAt)),
+				)
 				.leftJoin(
 					leases,
 					and(eq(leases.unitId, units.id), eq(leases.status, "active")),

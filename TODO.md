@@ -146,11 +146,11 @@
 
 ### Late Payment / Overdue Tracking
 
-- [ ] Define "overdue" — payment not recorded by `lease.rentDueDate` of the current month
-- [ ] `getOverdueLeases` query — leases past due date with no rent payment this cycle
-- [ ] Overdue badge on tenant card in dashboard
-- [ ] Overdue summary card on revenue dashboard
-- [ ] `overdueAlert` notification trigger (in-app notification system already supports new types)
+- [x] Define "overdue" — after the current month's due date with rent still outstanding; partial payments remain overdue for the balance
+- [x] `getOverdueLeases` query — owner-scoped leases past due date with no full rent payment this cycle
+- [x] Overdue badge on tenant card in dashboard
+- [x] Overdue summary card on revenue dashboard
+- [x] `overdueAlert` notification trigger (period-deduplicated in-app notifications)
 
 ### Data Export
 

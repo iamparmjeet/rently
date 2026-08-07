@@ -15,6 +15,8 @@ import {
 } from "@rently/validators";
 import { and, count, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import z from "zod";
+import { queryOverdueLeases } from "./helpers/overdue-query";
+import { getLocalPeriodKey } from "./helpers/rent-cycle";
 
 const notificationPreferencesOutput = z.object({
 	preferences: NotificationPreferencesSchema,
@@ -168,6 +170,60 @@ export const listNotifications = ownerProcedure
 			}
 		}
 
+		// Lazy-create one overdue notification per lease and billing period.
+		// The period is encoded in entityType so a read notification does not
+		// reappear on every poll, while a new month's overdue state can notify.
+		const overdueLeases = await queryOverdueLeases(db, now, user.id);
+		const overduePeriodEntityType = `rent_overdue:${getLocalPeriodKey(now)}`;
+
+		if (overdueLeases.length > 0) {
+			const existingOverdue = await db
+				.select({ entityId: notifications.entityId })
+				.from(notifications)
+				.where(
+					and(
+						eq(notifications.userId, user.id),
+						eq(notifications.type, NOTIFICATION_TYPES.RENT_OVERDUE),
+						eq(notifications.entityType, overduePeriodEntityType),
+						inArray(
+							notifications.entityId,
+							overdueLeases.map((lease) => lease.leaseId),
+						),
+					),
+				);
+
+			const alreadyNotified = new Set(
+				existingOverdue
+					.map((notification) => notification.entityId)
+					.filter((entityId): entityId is string => entityId !== null),
+			);
+			const toInsert = overdueLeases.filter(
+				(lease) => !alreadyNotified.has(lease.leaseId),
+			);
+
+			if (toInsert.length > 0) {
+				await db.insert(notifications).values(
+					toInsert.map((lease) => ({
+						userId: user.id,
+						type: NOTIFICATION_TYPES.RENT_OVERDUE as NotificationType,
+						title: "Rent payment overdue",
+						message:
+							"Rent for Unit " +
+							lease.unitNumber +
+							" is " +
+							lease.daysOverdue +
+							" day" +
+							(lease.daysOverdue === 1 ? "" : "s") +
+							" overdue. " +
+							formatNotificationAmount(lease.outstandingAmount) +
+							" remains outstanding.",
+						entityId: lease.leaseId,
+						entityType: overduePeriodEntityType,
+					})),
+				);
+			}
+		}
+
 		//  Fetch all notifications, newest first
 		const results = await db
 			.select({
@@ -188,6 +244,16 @@ export const listNotifications = ownerProcedure
 
 		return { notifications: results };
 	});
+
+function formatNotificationAmount(paise: number): string {
+	return (
+		"₹" +
+		(paise / 100).toLocaleString("en-IN", {
+			minimumFractionDigits: 2,
+			maximumFractionDigits: 2,
+		})
+	);
+}
 
 //  2. Unread count
 // WHY separate procedure: the header bell badge polls this on a 30s interval.

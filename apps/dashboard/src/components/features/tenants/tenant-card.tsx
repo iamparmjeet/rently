@@ -86,6 +86,22 @@ export function TenantCard({ tenant, actionsSlot }: TenantCardProps) {
 								{new Date(tenant.currentLease.endDate).toLocaleDateString()}
 							</div>
 						)}
+						{tenant.currentLease.overdue && (
+							<div className="mt-2 flex items-center justify-between gap-2">
+								<Badge variant="destructive" className="text-xs">
+									{tenant.currentLease.overdue.daysOverdue}d overdue
+								</Badge>
+								<span className="font-medium text-destructive text-xs">
+									₹
+									{(
+										tenant.currentLease.overdue.outstandingAmount / 100
+									).toLocaleString("en-IN", {
+										minimumFractionDigits: 2,
+									})}{" "}
+									outstanding
+								</span>
+							</div>
+						)}
 					</div>
 				) : (
 					<div className="rounded-lg border border-dashed p-3 text-center text-muted-foreground text-sm">

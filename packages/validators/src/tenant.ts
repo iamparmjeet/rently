@@ -10,6 +10,7 @@ import {
 	createUpdateSchema,
 } from "drizzle-zod";
 import z from "zod";
+import { OverdueSummarySchema } from "./overdue";
 
 // Zod Values from array
 export const DocumentFieldSchema = z.enum(DOCUMENT_FIELDS_VALUES);
@@ -94,6 +95,7 @@ export const TenantListItemSchema = z.object({
 			unitNumber: z.string(),
 			rent: z.number(),
 			endDate: z.string().nullable(), // string, not Date (JSON transport)
+			overdue: OverdueSummarySchema.nullable(),
 		})
 		.nullable(),
 });

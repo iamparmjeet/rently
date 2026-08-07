@@ -40,6 +40,7 @@ function formatAmount(paise: number): string {
 
 function formatDate(value: Date | string): string {
 	return new Date(value).toLocaleDateString("en-IN", {
+		timeZone: "Asia/Kolkata",
 		day: "2-digit",
 		month: "long",
 		year: "numeric",
@@ -167,6 +168,90 @@ export async function sendUtilityBillEmail(
         <tbody>${rows}</tbody>
         <tfoot><tr><td colspan="2" style="padding:14px 0 0;font-weight:700;">Total</td><td style="padding:14px 0 0;text-align:right;font-weight:700;">${escapeHtml(formatAmount(total))}</td></tr></tfoot>
       </table>
+    `,
+	});
+}
+
+export interface ScheduledReminderEmailBaseParams {
+	to: string;
+	tenantName: string;
+	ownerName: string;
+	propertyName: string;
+	unitNumber: string;
+	rent: number;
+}
+
+export interface LeaseExpiryReminderEmailParams
+	extends ScheduledReminderEmailBaseParams {
+	endDate: Date | string;
+	daysUntilExpiry: number;
+}
+
+export async function sendLeaseExpiryReminderEmail(
+	params: LeaseExpiryReminderEmailParams,
+): Promise<void> {
+	await sendKeyHQEmail({
+		to: params.to,
+		subject: `Lease expiry reminder — ${params.daysUntilExpiry} days remaining`,
+		html: `
+      <h2 style="margin:0 0 8px;color:#0f172a;">Lease expiry reminder</h2>
+      <p style="color:#555;line-height:1.6;">Hello ${escapeHtml(params.tenantName)}, your lease managed by ${escapeHtml(params.ownerName)} is due to expire soon.</p>
+      <table role="presentation" style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px;">
+        <tr><td style="padding:8px 0;color:#64748b;">Property / unit</td><td style="padding:8px 0;text-align:right;font-weight:600;">${escapeHtml(params.propertyName)} / ${escapeHtml(params.unitNumber)}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Lease end date</td><td style="padding:8px 0;text-align:right;">${escapeHtml(formatDate(params.endDate))}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Time remaining</td><td style="padding:8px 0;text-align:right;font-weight:700;">${params.daysUntilExpiry} day${params.daysUntilExpiry === 1 ? "" : "s"}</td></tr>
+      </table>
+      <p style="color:#555;line-height:1.6;">Please contact ${escapeHtml(params.ownerName)} if you would like to discuss renewal or move-out arrangements.</p>
+    `,
+	});
+}
+
+export interface RentDueReminderEmailParams
+	extends ScheduledReminderEmailBaseParams {
+	dueDate: Date | string;
+	leadDays: number;
+}
+
+export async function sendRentDueReminderEmail(
+	params: RentDueReminderEmailParams,
+): Promise<void> {
+	await sendKeyHQEmail({
+		to: params.to,
+		subject: `Rent due reminder — ${formatAmount(params.rent)}`,
+		html: `
+      <h2 style="margin:0 0 8px;color:#0f172a;">Rent due reminder</h2>
+      <p style="color:#555;line-height:1.6;">Hello ${escapeHtml(params.tenantName)}, this is a friendly reminder from ${escapeHtml(params.ownerName)} about your upcoming rent payment.</p>
+      <table role="presentation" style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px;">
+        <tr><td style="padding:8px 0;color:#64748b;">Property / unit</td><td style="padding:8px 0;text-align:right;font-weight:600;">${escapeHtml(params.propertyName)} / ${escapeHtml(params.unitNumber)}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Rent amount</td><td style="padding:8px 0;text-align:right;font-weight:700;">${escapeHtml(formatAmount(params.rent))}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Due date</td><td style="padding:8px 0;text-align:right;">${escapeHtml(formatDate(params.dueDate))}</td></tr>
+      </table>
+      <p style="color:#555;line-height:1.6;">If you have already paid, please allow time for the payment to be recorded.</p>
+    `,
+	});
+}
+
+export interface OverdueRentReminderEmailParams
+	extends ScheduledReminderEmailBaseParams {
+	dueDate: Date | string;
+	graceDays: number;
+}
+
+export async function sendOverdueRentReminderEmail(
+	params: OverdueRentReminderEmailParams,
+): Promise<void> {
+	await sendKeyHQEmail({
+		to: params.to,
+		subject: `Rent payment overdue — ${formatAmount(params.rent)}`,
+		html: `
+      <h2 style="margin:0 0 8px;color:#0f172a;">Rent payment overdue</h2>
+      <p style="color:#555;line-height:1.6;">Hello ${escapeHtml(params.tenantName)}, our records show that the rent for your KeyHQ tenancy has not been fully recorded yet.</p>
+      <table role="presentation" style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px;">
+        <tr><td style="padding:8px 0;color:#64748b;">Property / unit</td><td style="padding:8px 0;text-align:right;font-weight:600;">${escapeHtml(params.propertyName)} / ${escapeHtml(params.unitNumber)}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Rent amount</td><td style="padding:8px 0;text-align:right;font-weight:700;">${escapeHtml(formatAmount(params.rent))}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Original due date</td><td style="padding:8px 0;text-align:right;">${escapeHtml(formatDate(params.dueDate))}</td></tr>
+      </table>
+      <p style="color:#555;line-height:1.6;">If you are facing difficulty, please contact ${escapeHtml(params.ownerName)} directly so you can discuss the next step.</p>
     `,
 	});
 }

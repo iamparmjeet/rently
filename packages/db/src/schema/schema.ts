@@ -14,15 +14,21 @@ import {
 	UNIT_TYPES_VALUES,
 	UTILITY_TYPE_VALUES,
 } from "@rently/db/constants/rent-constants";
-
+import {
+	SCHEDULED_EMAIL_DELIVERY_STATUS_VALUES,
+	SCHEDULED_EMAIL_TYPE_VALUES,
+} from "@rently/db/constants/scheduled-email-constants";
+import { sql } from "drizzle-orm";
 import {
 	boolean,
+	check,
 	integer,
 	numeric,
 	pgTable,
 	real,
 	text,
 	timestamp,
+	unique,
 	uuid,
 } from "drizzle-orm/pg-core";
 import { NOTIFICATION_TYPE_VALUES } from "../constants/notification-constants";
@@ -304,18 +310,88 @@ export const notifications = pgTable("notifications", {
 	// Keeping them in the table supports future "notification history" views.
 });
 
-export const notificationPreferences = pgTable("notification_preferences", {
-	...idColumn(),
-	ownerId: uuid("owner_id")
-		.notNull()
-		.references(() => user.id, { onDelete: "cascade" })
-		.unique(),
-	paymentReceived: boolean("payment_received").notNull().default(true),
-	utilityBillGenerated: boolean("utility_bill_generated")
-		.notNull()
-		.default(false),
-	leaseExpiryAlert: boolean("lease_expiry_alert").notNull().default(true),
-	rentDueReminder: boolean("rent_due_reminder").notNull().default(true),
-	overdueAlert: boolean("overdue_alert").notNull().default(true),
-	...auditColumns(),
-});
+export const notificationPreferences = pgTable(
+	"notification_preferences",
+	{
+		...idColumn(),
+		ownerId: uuid("owner_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" })
+			.unique(),
+		paymentReceived: boolean("payment_received").notNull().default(true),
+		utilityBillGenerated: boolean("utility_bill_generated")
+			.notNull()
+			.default(false),
+		leaseExpiryAlert: boolean("lease_expiry_alert").notNull().default(true),
+		rentDueReminder: boolean("rent_due_reminder").notNull().default(true),
+		overdueAlert: boolean("overdue_alert").notNull().default(true),
+		rentDueLeadDays: integer("rent_due_lead_days").notNull().default(3),
+		overdueGraceDays: integer("overdue_grace_days").notNull().default(2),
+		...auditColumns(),
+	},
+	(table) => [
+		check(
+			"notification_preferences_rent_due_lead_days_check",
+			sql`${table.rentDueLeadDays} >= 0 AND ${table.rentDueLeadDays} <= 14`,
+		),
+		check(
+			"notification_preferences_overdue_grace_days_check",
+			sql`${table.overdueGraceDays} >= 1 AND ${table.overdueGraceDays} <= 31`,
+		),
+	],
+);
+
+export const scheduledEmailDeliveries = pgTable(
+	"scheduled_email_deliveries",
+	{
+		...idColumn(),
+		ownerId: uuid("owner_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		leaseId: uuid("lease_id")
+			.notNull()
+			.references(() => leases.id, { onDelete: "cascade" }),
+		type: text("type", { enum: SCHEDULED_EMAIL_TYPE_VALUES }).notNull(),
+		periodKey: text("period_key").notNull(),
+		thresholdDays: integer("threshold_days").notNull(),
+		status: text("status", {
+			enum: SCHEDULED_EMAIL_DELIVERY_STATUS_VALUES,
+		})
+			.notNull()
+			.default("claimed"),
+		attemptedAt: timestamp("attempted_at").defaultNow().notNull(),
+		sentAt: timestamp("sent_at"),
+		...auditColumns(),
+	},
+	(table) => [
+		unique("scheduled_email_deliveries_dedupe_key").on(
+			table.ownerId,
+			table.leaseId,
+			table.type,
+			table.periodKey,
+			table.thresholdDays,
+		),
+	],
+);
+
+export const rentReminderSuppressions = pgTable(
+	"rent_reminder_suppressions",
+	{
+		...idColumn(),
+		ownerId: uuid("owner_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		leaseId: uuid("lease_id")
+			.notNull()
+			.references(() => leases.id, { onDelete: "cascade" }),
+		periodKey: text("period_key").notNull(),
+		...auditColumns(),
+	},
+	(table) => [
+		unique("rent_reminder_suppressions_dedupe_key").on(
+			table.ownerId,
+			table.leaseId,
+			table.periodKey,
+		),
+	],
+);

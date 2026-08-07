@@ -28,6 +28,8 @@ const preferenceValues = (
 	leaseExpiryAlert: input.leaseExpiryAlert,
 	rentDueReminder: input.rentDueReminder,
 	overdueAlert: input.overdueAlert,
+	rentDueLeadDays: input.rentDueLeadDays,
+	overdueGraceDays: input.overdueGraceDays,
 });
 
 export const getPreferences = ownerProcedure
@@ -46,6 +48,8 @@ export const getPreferences = ownerProcedure
 				leaseExpiryAlert: notificationPreferences.leaseExpiryAlert,
 				rentDueReminder: notificationPreferences.rentDueReminder,
 				overdueAlert: notificationPreferences.overdueAlert,
+				rentDueLeadDays: notificationPreferences.rentDueLeadDays,
+				overdueGraceDays: notificationPreferences.overdueGraceDays,
 				updatedAt: notificationPreferences.updatedAt,
 			})
 			.from(notificationPreferences)
@@ -76,6 +80,8 @@ export const updatePreferences = ownerProcedure
 				leaseExpiryAlert: notificationPreferences.leaseExpiryAlert,
 				rentDueReminder: notificationPreferences.rentDueReminder,
 				overdueAlert: notificationPreferences.overdueAlert,
+				rentDueLeadDays: notificationPreferences.rentDueLeadDays,
+				overdueGraceDays: notificationPreferences.overdueGraceDays,
 				updatedAt: notificationPreferences.updatedAt,
 			})
 			.from(notificationPreferences)

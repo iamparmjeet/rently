@@ -62,6 +62,8 @@ describe("notification preferences", () => {
 			leaseExpiryAlert: true,
 			rentDueReminder: true,
 			overdueAlert: true,
+			rentDueLeadDays: 3,
+			overdueGraceDays: 2,
 		});
 		expect(results[1]?.preferences).toEqual(results[0]?.preferences);
 	});
@@ -74,6 +76,8 @@ describe("notification preferences", () => {
 			leaseExpiryAlert: false,
 			rentDueReminder: false,
 			overdueAlert: true,
+			rentDueLeadDays: 3,
+			overdueGraceDays: 2,
 		});
 		expect(result.preferences).toMatchObject({
 			paymentReceived: false,
@@ -81,7 +85,20 @@ describe("notification preferences", () => {
 			leaseExpiryAlert: false,
 			rentDueReminder: false,
 			overdueAlert: true,
+			rentDueLeadDays: 3,
+			overdueGraceDays: 2,
 		});
+	});
+
+	it("accepts the preferences snapshot returned to the settings form", async () => {
+		const owner = await createOwner();
+		const current = await clientFor(owner).getPreferences();
+		const { updatedAt: _updatedAt, ...editablePreferences } =
+			current.preferences;
+
+		await expect(
+			clientFor(owner).updatePreferences(editablePreferences),
+		).resolves.toMatchObject({ preferences: editablePreferences });
 	});
 
 	it("does not allow malformed snapshots", async () => {
@@ -100,6 +117,8 @@ describe("notification preferences", () => {
 			leaseExpiryAlert: false,
 			rentDueReminder: false,
 			overdueAlert: false,
+			rentDueLeadDays: 3,
+			overdueGraceDays: 2,
 		});
 		const otherPreferences = await clientFor(other).getPreferences();
 		expect(otherPreferences.preferences.paymentReceived).toBe(true);

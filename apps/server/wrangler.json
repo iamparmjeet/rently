@@ -6,6 +6,9 @@
 		"nodejs_compat",
 		"no_handle_cross_request_promise_resolution"
 	],
+	"triggers": {
+		"crons": ["30 2 * * *"]
+	},
 	"vars": {
 		"NODE_ENV": "production",
 		"LOG_LEVEL": "info",

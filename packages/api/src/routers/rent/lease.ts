@@ -8,6 +8,7 @@ import { user } from "@rently/db/schema/auth";
 import {
 	leases,
 	properties,
+	rentReminderSuppressions,
 	tenantInvites,
 	tenantProfiles,
 	units,
@@ -20,6 +21,7 @@ import {
 } from "@rently/validators";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import z from "zod";
+import { getNextLocalPeriodKey } from "../helpers/rent-cycle";
 
 type BatchCapableDatabase = Database & {
 	batch<T extends readonly unknown[]>(
@@ -422,4 +424,105 @@ export const terminateLease = ownerProcedure
 				.where(eq(units.id, ownership.unitId));
 		});
 		return { success: true };
+	});
+
+async function assertOwnedLeaseForReminder(
+	db: Database,
+	ownerId: string,
+	leaseId: string,
+	activeOnly = true,
+) {
+	const [lease] = await db
+		.select({
+			id: leases.id,
+			status: leases.status,
+			ownerId: properties.ownerId,
+		})
+		.from(leases)
+		.innerJoin(units, eq(leases.unitId, units.id))
+		.innerJoin(properties, eq(units.propertyId, properties.id))
+		.where(eq(leases.id, leaseId))
+		.limit(1);
+
+	if (!lease) {
+		throw new ORPCError("NOT_FOUND", { message: "Lease not found" });
+	}
+	if (lease.ownerId !== ownerId) {
+		throw new ORPCError("FORBIDDEN", {
+			message: "You do not own this lease",
+		});
+	}
+	if (activeOnly && lease.status !== "active") {
+		throw new ORPCError("BAD_REQUEST", {
+			message: "Only active leases can have rent reminders",
+		});
+	}
+}
+
+export const suppressNextRentReminders = ownerProcedure
+	.route({ method: "POST", path: "/rent/lease/reminders/suppress" })
+	.input(z.object({ leaseId: z.string().min(1) }))
+	.output(z.object({ periodKey: z.string(), suppressed: z.boolean() }))
+	.handler(async ({ context, input }) => {
+		const { db, user: authUser } = context;
+		await assertOwnedLeaseForReminder(db, authUser.id, input.leaseId);
+		const periodKey = getNextLocalPeriodKey(new Date());
+
+		await db
+			.insert(rentReminderSuppressions)
+			.values({ ownerId: authUser.id, leaseId: input.leaseId, periodKey })
+			.onConflictDoNothing({
+				target: [
+					rentReminderSuppressions.ownerId,
+					rentReminderSuppressions.leaseId,
+					rentReminderSuppressions.periodKey,
+				],
+			});
+
+		return { periodKey, suppressed: true };
+	});
+
+export const getNextRentReminderSuppression = ownerProcedure
+	.route({ method: "GET", path: "/rent/lease/reminders/suppress" })
+	.input(z.object({ leaseId: z.string().min(1) }))
+	.output(z.object({ periodKey: z.string(), suppressed: z.boolean() }))
+	.handler(async ({ context, input }) => {
+		const { db, user: authUser } = context;
+		await assertOwnedLeaseForReminder(db, authUser.id, input.leaseId, false);
+		const periodKey = getNextLocalPeriodKey(new Date());
+		const [suppression] = await db
+			.select({ id: rentReminderSuppressions.id })
+			.from(rentReminderSuppressions)
+			.where(
+				and(
+					eq(rentReminderSuppressions.ownerId, authUser.id),
+					eq(rentReminderSuppressions.leaseId, input.leaseId),
+					eq(rentReminderSuppressions.periodKey, periodKey),
+				),
+			)
+			.limit(1);
+
+		return { periodKey, suppressed: Boolean(suppression) };
+	});
+
+export const resumeNextRentReminders = ownerProcedure
+	.route({ method: "DELETE", path: "/rent/lease/reminders/suppress" })
+	.input(z.object({ leaseId: z.string().min(1) }))
+	.output(z.object({ periodKey: z.string(), suppressed: z.boolean() }))
+	.handler(async ({ context, input }) => {
+		const { db, user: authUser } = context;
+		await assertOwnedLeaseForReminder(db, authUser.id, input.leaseId);
+		const periodKey = getNextLocalPeriodKey(new Date());
+
+		await db
+			.delete(rentReminderSuppressions)
+			.where(
+				and(
+					eq(rentReminderSuppressions.ownerId, authUser.id),
+					eq(rentReminderSuppressions.leaseId, input.leaseId),
+					eq(rentReminderSuppressions.periodKey, periodKey),
+				),
+			);
+
+		return { periodKey, suppressed: false };
 	});

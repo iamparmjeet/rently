@@ -8,7 +8,13 @@ vi.mock("resend", () => ({
 	},
 }));
 
-import { sendPaymentReceiptEmail, sendUtilityBillEmail } from "./index";
+import {
+	sendLeaseExpiryReminderEmail,
+	sendOverdueRentReminderEmail,
+	sendPaymentReceiptEmail,
+	sendRentDueReminderEmail,
+	sendUtilityBillEmail,
+} from "./index";
 
 describe("KeyHQ tenant email templates", () => {
 	beforeEach(() => mocks.send.mockReset());
@@ -57,5 +63,39 @@ describe("KeyHQ tenant email templates", () => {
 		expect(html).toContain("₹100");
 		expect(html).toContain("₹25");
 		expect(html).toContain("—");
+	});
+
+	it("renders scheduled reminder templates with escaped tenant data", async () => {
+		mocks.send.mockResolvedValue({ error: null });
+		const common = {
+			to: "tenant@example.com",
+			tenantName: "A <Tenant>",
+			ownerName: "O & Owner",
+			propertyName: "Palm Residency",
+			unitNumber: "A-1",
+			rent: 125_000,
+		};
+
+		await sendLeaseExpiryReminderEmail({
+			...common,
+			endDate: "2026-09-06",
+			daysUntilExpiry: 30,
+		});
+		await sendRentDueReminderEmail({
+			...common,
+			dueDate: "2026-08-10",
+			leadDays: 3,
+		});
+		await sendOverdueRentReminderEmail({
+			...common,
+			dueDate: "2026-08-10",
+			graceDays: 2,
+		});
+
+		expect(mocks.send).toHaveBeenCalledTimes(3);
+		const html = mocks.send.mock.calls[0]?.[0].html as string;
+		expect(html).toContain("A &lt;Tenant&gt;");
+		expect(html).toContain("O &amp; Owner");
+		expect(html).toContain("30 days");
 	});
 });

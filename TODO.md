@@ -212,7 +212,7 @@
 - [ ] `referrers` table is intentionally dormant for beta; revisit only when referrals become a planned feature.
 - [ ] `evlog` console.log calls — several `// TODO: remove before prod` comments across API handlers
 - [x] Notification preference fields are database columns, not `turbo.json` environment variables.
-- [x] **Fresh Drizzle migration bootstrap** — verified the clean migration path before the final `integration/keyhq-beta` → `main` merge; the notification-preferences migration is included in the next bootstrap run.
+- [x] **Fresh Drizzle migration bootstrap** — applied and verified all migrations, including `0008_productive_toad`, against the empty `rently_test` database.
 - [x] **M1b test-database migration diagnosis** — repaired the explicit text-to-timestamp casts in `0002_easy_iceman`; `0007_unique_the_hand` now applies as part of the clean migration path and the invite integration suite runs locally.
 
 ---

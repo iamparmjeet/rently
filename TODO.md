@@ -75,7 +75,7 @@
 ### Fast-follow (beta week 1–2, not gating)
 
 - [x] PDF rent receipts — implemented and validated for owner and tenant flows.
-- [ ] Subscription status badge in sidebar
+- [x] Subscription status badge in sidebar
 
 ---
 

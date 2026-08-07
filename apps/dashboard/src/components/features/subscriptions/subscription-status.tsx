@@ -9,6 +9,7 @@ import type { SubscriptionWithPlan } from "@rently/validators";
 interface SubscriptionStatusProps {
 	subscription: SubscriptionWithPlan | null;
 	showDetail?: boolean;
+	showPlan?: boolean;
 	className?: string;
 }
 
@@ -87,21 +88,25 @@ function getStatusConfig(sub: SubscriptionWithPlan): StatusConfig {
 export function SubscriptionStatus({
 	subscription,
 	showDetail = false,
+	showPlan = false,
 	className,
 }: SubscriptionStatusProps) {
 	if (!subscription) {
 		return (
 			<div className={cn("flex flex-col gap-0.5", className)}>
-				<Badge variant="secondary">Free</Badge>
+				<Badge variant="secondary">{showPlan ? "Free · Active" : "Free"}</Badge>
 			</div>
 		);
 	}
 
 	const config = getStatusConfig(subscription);
+	const label = showPlan
+		? `${subscription.plan.name} · ${config.label === "Free" ? "Active" : config.label}`
+		: config.label;
 
 	return (
 		<div className={cn("flex flex-col gap-0.5", className)}>
-			<Badge variant={config.variant}>{config.label}</Badge>
+			<Badge variant={config.variant}>{label}</Badge>
 			{showDetail && config.detail && (
 				<p className="text-[10px] text-muted-foreground">{config.detail}</p>
 			)}

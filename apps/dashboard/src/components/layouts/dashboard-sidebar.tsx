@@ -16,10 +16,14 @@ import {
 import Logo from "@rently/ui/shared/logo";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
+import { SubscriptionStatus } from "@/components/features/subscriptions/subscription-status";
 import { NavigationLinks } from "@/constants/navigation";
+import { useMySubscription } from "@/hooks/subscriptions";
 
 export function DashbaordSidebar() {
 	const pathname = usePathname();
+	const { data: subscriptionData, isError: subscriptionError } =
+		useMySubscription();
 
 	const overviewLinks = NavigationLinks.filter((link) =>
 		[
@@ -97,6 +101,18 @@ export function DashbaordSidebar() {
 										<Link href={item.href} className="flex items-center gap-2">
 											<item.icon className="`!size-5`" />
 											<span className="text-base">{item.name}</span>
+											{item.name === "Subscription" && subscriptionData && (
+												<SubscriptionStatus
+													subscription={subscriptionData.subscription}
+													showPlan
+													className="ml-auto shrink-0 group-data-[collapsible=icon]:hidden"
+												/>
+											)}
+											{item.name === "Subscription" && subscriptionError && (
+												<span className="ml-auto shrink-0 rounded-md border px-2 py-1 text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden">
+													Unavailable
+												</span>
+											)}
 										</Link>
 									</SidebarMenuButton>
 								</SidebarMenuItem>

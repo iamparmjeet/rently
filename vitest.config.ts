@@ -16,6 +16,11 @@ if (databaseUrl.pathname !== "/rently_test") {
 }
 
 export default defineConfig({
+	oxc: {
+		jsx: {
+			runtime: "automatic",
+		},
+	},
 	resolve: {
 		alias: {
 			"@": fileURLToPath(new URL("./apps/web/src", import.meta.url)),

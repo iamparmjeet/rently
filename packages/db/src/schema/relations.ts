@@ -3,6 +3,7 @@ import {
 	documentUpdateRequests,
 	invoices,
 	leases,
+	notificationPreferences,
 	ownerProfiles,
 	payments,
 	plans,
@@ -32,7 +33,21 @@ export const userRelations = relations(user, ({ one, many }) => ({
 		relationName: "invitedBy",
 	}),
 	subscriptions: many(subscriptions),
+	notificationPreferences: one(notificationPreferences, {
+		fields: [user.id],
+		references: [notificationPreferences.ownerId],
+	}),
 }));
+
+export const notificationPreferencesRelations = relations(
+	notificationPreferences,
+	({ one }) => ({
+		owner: one(user, {
+			fields: [notificationPreferences.ownerId],
+			references: [user.id],
+		}),
+	}),
+);
 
 export const propertyRelations = relations(properties, ({ one, many }) => ({
 	owner: one(user, {

@@ -303,3 +303,19 @@ export const notifications = pgTable("notifications", {
 	// WHY no softDeleteColumn: notifications are marked as read, not deleted.
 	// Keeping them in the table supports future "notification history" views.
 });
+
+export const notificationPreferences = pgTable("notification_preferences", {
+	...idColumn(),
+	ownerId: uuid("owner_id")
+		.notNull()
+		.references(() => user.id, { onDelete: "cascade" })
+		.unique(),
+	paymentReceived: boolean("payment_received").notNull().default(true),
+	utilityBillGenerated: boolean("utility_bill_generated")
+		.notNull()
+		.default(false),
+	leaseExpiryAlert: boolean("lease_expiry_alert").notNull().default(true),
+	rentDueReminder: boolean("rent_due_reminder").notNull().default(true),
+	overdueAlert: boolean("overdue_alert").notNull().default(true),
+	...auditColumns(),
+});

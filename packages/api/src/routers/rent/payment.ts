@@ -14,7 +14,7 @@ import {
 	units,
 	utilities,
 } from "@rently/db/schema/schema";
-import { sendCustomEmailToTenant } from "@rently/email";
+import { sendPaymentReceiptEmail } from "@rently/email";
 import {
 	CreatePaymentSchema,
 	PaymentListItemSchema,
@@ -24,6 +24,7 @@ import {
 import { and, eq } from "drizzle-orm";
 import z from "zod";
 import { isLeaseOwner } from "../helpers";
+import { sendAutomaticPaymentReceipt } from "../helpers/automatic-emails";
 
 type BatchCapableDatabase = Database & {
 	batch<T extends readonly unknown[]>(
@@ -173,6 +174,8 @@ export const createPayment = ownerProcedure
 				message: "Failed to record payment",
 			});
 		}
+
+		await sendAutomaticPaymentReceipt(db, authUser.id, payment.id);
 
 		return { payment };
 	});
@@ -332,55 +335,6 @@ export const voidPayment = ownerProcedure
 		return { reversal };
 	});
 
-function fmtPaise(paise: number): string {
-	return new Intl.NumberFormat("en-IN", {
-		style: "currency",
-		currency: "INR",
-		maximumFractionDigits: 0,
-	}).format(paise / 100);
-}
-
-function buildReceiptMessage({
-	tenantName,
-	type,
-	amount,
-	paymentDate,
-	paymentMethods,
-	referenceNumber,
-}: {
-	tenantName: string;
-	type: string;
-	amount: number;
-	paymentDate: Date;
-	paymentMethods: string | null;
-	referenceNumber: string | null;
-}): string {
-	const date = new Date(paymentDate).toLocaleDateString("en-IN", {
-		day: "2-digit",
-		month: "long",
-		year: "numeric",
-	});
-	const method = paymentMethods?.replace("_", " ") ?? "—";
-	const ref = referenceNumber ?? "—";
-	const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
-
-	return [
-		`Dear ${tenantName},`,
-		"",
-		"This is a confirmation that we have received your payment.",
-		"",
-		"Payment Details:",
-		`• Type    : ${typeLabel}`,
-		`• Amount  : ${fmtPaise(amount)}`,
-		`• Date    : ${date}`,
-		`• Method  : ${method}`,
-		`• Ref #   : ${ref}`,
-		"",
-		"Thank you for your timely payment.",
-		"– KeyHQ",
-	].join("\n");
-}
-
 export const sendPaymentReceipt = ownerProcedure
 	.route({ method: "POST", path: "/rent/payment/send-receipt" })
 	.input(z.object({ paymentId: z.string().min(1) }))
@@ -400,6 +354,8 @@ export const sendPaymentReceipt = ownerProcedure
 				referenceNumber: payments.referenceNumber,
 				tenantEmail: user.email,
 				tenantName: user.name,
+				propertyName: properties.name,
+				unitNumber: units.unitNumber,
 			})
 			.from(payments)
 			.innerJoin(leases, eq(payments.leaseId, leases.id))
@@ -420,16 +376,20 @@ export const sendPaymentReceipt = ownerProcedure
 			});
 		}
 
-		// consistent with the invite/sendEmailToTenant pattern — email
-		// failure is logged and surfaced as an error response but does not
-		//  corrupt the payment record. The payment already happened; the
-		//  receipt is a notification, not a side-effect of the transaction.
-		await sendCustomEmailToTenant({
+		// Manual delivery uses the same specialized HTML template as automatic
+		// receipts. The payment already happened; the receipt is independent of
+		// the persistence transaction.
+		await sendPaymentReceiptEmail({
 			to: result.tenantEmail,
 			tenantName: result.tenantName,
 			ownerName: authUser.name,
-			subject: `Payment Receipt — ${fmtPaise(result.amount)}`,
-			message: buildReceiptMessage(result),
+			propertyName: result.propertyName,
+			unitNumber: result.unitNumber,
+			amount: result.amount,
+			paymentDate: result.paymentDate,
+			paymentType: result.type,
+			paymentMethod: result.paymentMethods,
+			referenceNumber: result.referenceNumber,
 		});
 
 		return { sent: true };

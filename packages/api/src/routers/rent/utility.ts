@@ -25,6 +25,10 @@ import {
 import { and, eq } from "drizzle-orm";
 import z from "zod";
 import { isLeaseOwner, VerifyLeaseOwnership } from "../helpers";
+import {
+	sendAutomaticPaymentReceipt,
+	sendAutomaticUtilityBillEmail,
+} from "../helpers/automatic-emails";
 
 // ******** Shared Helper ************
 type ComputeTotalInput = {
@@ -163,6 +167,12 @@ export const createUtility = ownerProcedure
 				message: "Failed to create utility entry",
 			});
 		}
+
+		await sendAutomaticUtilityBillEmail({
+			db,
+			ownerId: authUser.id,
+			utilityIds: [utility.id],
+		});
 
 		return { utility };
 	});
@@ -370,6 +380,12 @@ export const createUtilityBatch = ownerProcedure
 			tx.insert(utilities).values(insertValues).returning(),
 		);
 
+		await sendAutomaticUtilityBillEmail({
+			db,
+			ownerId: authUser.id,
+			batchId: input.batchId,
+		});
+
 		return {
 			utilities: inserted,
 			batchId: input.batchId,
@@ -405,23 +421,31 @@ export const recordUtilityPayment = ownerProcedure
 		}
 
 		// transaction
-		await db.transaction(async (tx) => {
-			await tx.insert(payments).values({
-				leaseId: input.leaseId,
-				utilityId: input.utilityId,
-				amount: input.amount,
-				paymentDate: new Date(input.receivedAt),
-				paymentMethods: input.paymentMethod,
-				type: "utility",
-				description: input.notes ?? null,
-				referenceNumber: null,
-			});
+		const [payment] = await db.transaction(async (tx) => {
+			const inserted = await tx
+				.insert(payments)
+				.values({
+					leaseId: input.leaseId,
+					utilityId: input.utilityId,
+					amount: input.amount,
+					paymentDate: new Date(input.receivedAt),
+					paymentMethods: input.paymentMethod,
+					type: "utility",
+					description: input.notes ?? null,
+					referenceNumber: null,
+				})
+				.returning();
 
 			await tx
 				.update(utilities)
 				.set({ isPaid: true, updatedAt: new Date() })
 				.where(eq(utilities.id, input.utilityId));
+			return inserted;
 		});
+
+		if (payment) {
+			await sendAutomaticPaymentReceipt(db, user.id, payment.id);
+		}
 
 		return { success: true };
 	});

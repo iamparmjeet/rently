@@ -25,3 +25,7 @@ export function useUnreadCount() {
 		refetchIntervalInBackground: false,
 	});
 }
+
+export function useNotificationPreferences() {
+	return useQuery(orpc.notification.getPreferences.queryOptions());
+}

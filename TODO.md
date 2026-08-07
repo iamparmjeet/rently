@@ -3,7 +3,7 @@
 > Single source of truth for build progress.
 > Update this file as items are completed or priorities shift.
 > Tiers: **P0** = must ship before public launch · **P1** = core product gaps · **P2** = growth features · **P3** = post-launch backlog
-> Last audited: 2026-08-06 (verified against the KeyHQ beta integration branch)
+> Last audited: 2026-08-07 (verified against the KeyHQ beta integration branch)
 > Cost policy: prefer services with a suitable free tier. Move to a paid tier only when measured usage or a required capability exceeds its documented free limits.
 
 ---
@@ -29,6 +29,7 @@
 - [x] **Mobile sidebar (Sheet variant)** — shared `Sidebar` renders a `Sheet` on mobile via `useIsMobile()`; `SidebarTrigger` in the header opens it.
 - [x] **Milestone 0 — Product Truth and Immediate Defects** — public KeyHQ branding, truthful pricing/copy, legal support contact, corrected local/production URL documentation, invite URLs built from `WEB_APP_URL`, invite delivery feedback and resend action, and stale TODO cleanup.
 - [x] **M0 validation** — Vitest invite suite covers cross-owner resend denial, valid resend, expiry, and preserved invites after email delivery failure; typecheck and production build pass.
+- [x] **PDF rent receipts + manual payment audit** — owner and tenant receipt flows, deterministic receipt numbers, Indian currency words, printable routes, payment controls, authorization coverage, and integration validation are complete.
 
 ---
 
@@ -73,7 +74,7 @@
 
 ### Fast-follow (beta week 1–2, not gating)
 
-- [ ] PDF rent receipts — design complete; key differentiator (tenant HRA claims). See P1 for sub-tasks.
+- [x] PDF rent receipts — implemented and validated for owner and tenant flows.
 - [ ] Subscription status badge in sidebar
 
 ---
@@ -84,11 +85,11 @@
 
 > In-app notifications are DONE. This section is only the preference-driven email layer.
 
-- [ ] Create one owner-scoped `notificationPreferences` row with `paymentReceived`, `utilityBillGenerated`, `leaseExpiryAlert`, `rentDueReminder`, `overdueAlert`, and `updatedAt`.
-- [ ] Replace `localStorage` with owner-scoped query and mutation hooks.
-- [ ] Wire `paymentReceived` toggle → send email on `createPayment` success
-- [ ] Wire `utilityBillGenerated` toggle → send email when a utility bill is approved/generated.
-- [ ] Convert `buildReceiptMessage()` to the shared KeyHQ HTML email wrapper.
+- [x] Create one owner-scoped `notificationPreferences` row with `paymentReceived`, `utilityBillGenerated`, `leaseExpiryAlert`, `rentDueReminder`, `overdueAlert`, and `updatedAt`.
+- [x] Replace `localStorage` with owner-scoped query and mutation hooks.
+- [x] Wire `paymentReceived` toggle → send email on `createPayment` success
+- [x] Wire `utilityBillGenerated` toggle → send email when a utility bill is approved/generated.
+- [x] Convert `buildReceiptMessage()` to the shared KeyHQ HTML email wrapper.
 - [ ] Scheduled preference-driven email reminders follow in Milestone 7.
 
 ### Private Tenant Documents _(Milestone 2 — Tenant Trust Workflows)_
@@ -134,14 +135,14 @@
 
 ### PDF Rent Receipts
 
-- [ ] `getPaymentReceiptData` oRPC procedure — enriched JOIN (payment + owner profile + property + unit + tenant)
-- [ ] `generateReceiptNumber(paymentId)` utility in `@rently/db/utils/receipt.ts` (deterministic from UUIDv7)
-- [ ] `rupeesToWords(paise)` utility in `@rently/ui/lib/currency.ts` (Indian numbering — lakh/crore)
-- [ ] `/receipts/[paymentId]` route in `apps/dashboard` — print-optimised HTML + `window.print()`
-- [ ] `getMyPaymentReceiptData` oRPC procedure (tenant-scoped, `protectedProcedure`)
-- [ ] `/receipts/[paymentId]` route in `apps/tenant`
-- [ ] "Download" button in `PaymentDetailDialog` → `window.open('/receipts/[id]?print=true')`
-- [ ] "Download" button in tenant portal payment history
+- [x] `getPaymentReceiptData` oRPC procedure — enriched JOIN (payment + owner profile + property + unit + tenant)
+- [x] `generateReceiptNumber(paymentId)` utility in `@rently/db/utils/receipt.ts` (deterministic from UUIDv7)
+- [x] `rupeesToWords(paise)` utility in `@rently/ui/lib/currency.ts` (Indian numbering — lakh/crore)
+- [x] `/receipts/[paymentId]` route in `apps/dashboard` — print-optimised HTML + `window.print()`
+- [x] `getMyPaymentReceiptData` oRPC procedure (tenant-scoped, `protectedProcedure`)
+- [x] `/receipts/[paymentId]` route in `apps/tenant`
+- [x] "Download" button in `PaymentDetailDialog` → `window.open('/receipts/[id]?print=true')`
+- [x] "Download" button in tenant portal payment history
 
 ### Late Payment / Overdue Tracking
 
@@ -206,12 +207,12 @@
 
 ## Known Technical Debt
 
-- [ ] `notifications-tab.tsx` — `// TODO: migrate from localStorage` comment. Preferences need DB storage before any email trigger can read them
-- [ ] `buildReceiptMessage()` in `payment.ts` — plain text email body. Replace with HTML template consistent with `@rently/email`
+- [x] `notifications-tab.tsx` — `// TODO: migrate from localStorage` comment. Preferences now use owner-scoped database storage.
+- [x] `buildReceiptMessage()` in `payment.ts` — replaced with shared KeyHQ HTML templates in `@rently/email`
 - [ ] `referrers` table is intentionally dormant for beta; revisit only when referrals become a planned feature.
 - [ ] `evlog` console.log calls — several `// TODO: remove before prod` comments across API handlers
-- [ ] Notification preference fields not declared in `turbo.json` env vars yet — add when migrated from localStorage
-- [x] **Fresh Drizzle migration bootstrap** — verified all eight migrations from an empty `rently_test` database before the final `integration/keyhq-beta` → `main` merge.
+- [x] Notification preference fields are database columns, not `turbo.json` environment variables.
+- [x] **Fresh Drizzle migration bootstrap** — verified the clean migration path before the final `integration/keyhq-beta` → `main` merge; the notification-preferences migration is included in the next bootstrap run.
 - [x] **M1b test-database migration diagnosis** — repaired the explicit text-to-timestamp casts in `0002_easy_iceman`; `0007_unique_the_hand` now applies as part of the clean migration path and the invite integration suite runs locally.
 
 ---

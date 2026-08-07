@@ -20,6 +20,156 @@ function emailWrapper(body: string): string {
   </body>
 </html>`;
 }
+
+function escapeHtml(value: unknown): string {
+	return String(value ?? "")
+		.replaceAll("&", "&amp;")
+		.replaceAll("<", "&lt;")
+		.replaceAll(">", "&gt;")
+		.replaceAll('"', "&quot;")
+		.replaceAll("'", "&#39;");
+}
+
+function formatAmount(paise: number): string {
+	return new Intl.NumberFormat("en-IN", {
+		style: "currency",
+		currency: "INR",
+		maximumFractionDigits: 0,
+	}).format(paise / 100);
+}
+
+function formatDate(value: Date | string): string {
+	return new Date(value).toLocaleDateString("en-IN", {
+		day: "2-digit",
+		month: "long",
+		year: "numeric",
+	});
+}
+
+function formatLabel(value: string): string {
+	return value
+		.replaceAll("_", " ")
+		.replace(/\b\w/g, (character) => character.toUpperCase());
+}
+
+async function sendKeyHQEmail({
+	to,
+	subject,
+	html,
+}: {
+	to: string;
+	subject: string;
+	html: string;
+}): Promise<void> {
+	const { error } = await resend.emails.send({
+		from: env.EMAIL_FROM,
+		to,
+		subject,
+		html: emailWrapper(html),
+	});
+	if (error) {
+		console.error("[Resend] KeyHQ tenant email failed", {
+			name: error.name,
+			message: error.message,
+		});
+		throw new Error("TENANT_EMAIL_DELIVERY_FAILED");
+	}
+}
+
+export interface PaymentReceiptEmailParams {
+	to: string;
+	tenantName: string;
+	ownerName: string;
+	propertyName: string;
+	unitNumber: string;
+	amount: number;
+	paymentDate: Date | string;
+	paymentType: string;
+	paymentMethod?: string | null;
+	referenceNumber?: string | null;
+}
+
+export async function sendPaymentReceiptEmail(
+	params: PaymentReceiptEmailParams,
+): Promise<void> {
+	const method = params.paymentMethod
+		? formatLabel(params.paymentMethod)
+		: "Not provided";
+	await sendKeyHQEmail({
+		to: params.to,
+		subject: `Payment receipt — ${formatAmount(params.amount)}`,
+		html: `
+      <h2 style="margin:0 0 8px;color:#0f172a;">Payment received</h2>
+      <p style="color:#555;line-height:1.6;">Hello ${escapeHtml(params.tenantName)}, ${escapeHtml(params.ownerName)} has recorded your payment on KeyHQ.</p>
+      <table role="presentation" style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px;">
+        <tr><td style="padding:8px 0;color:#64748b;">Property / unit</td><td style="padding:8px 0;text-align:right;font-weight:600;">${escapeHtml(params.propertyName)} / ${escapeHtml(params.unitNumber)}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Payment type</td><td style="padding:8px 0;text-align:right;">${escapeHtml(formatLabel(params.paymentType))}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Amount</td><td style="padding:8px 0;text-align:right;font-weight:700;">${escapeHtml(formatAmount(params.amount))}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Payment date</td><td style="padding:8px 0;text-align:right;">${escapeHtml(formatDate(params.paymentDate))}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Method</td><td style="padding:8px 0;text-align:right;text-transform:capitalize;">${escapeHtml(method)}</td></tr>
+        <tr><td style="padding:8px 0;color:#64748b;">Reference number</td><td style="padding:8px 0;text-align:right;">${escapeHtml(params.referenceNumber ?? "Not provided")}</td></tr>
+      </table>
+      <p style="color:#555;line-height:1.6;">Keep this email for your records.</p>
+    `,
+	});
+}
+
+export interface UtilityBillLine {
+	utilityType: string;
+	totalAmount: number;
+	currentReading?: number | null;
+	previousReading?: number | null;
+	unitsUsed?: number | null;
+	currentReadingDate?: Date | string | null;
+	description?: string | null;
+}
+
+export interface UtilityBillEmailParams {
+	to: string;
+	tenantName: string;
+	ownerName: string;
+	propertyName: string;
+	unitNumber: string;
+	billingDate: Date | string;
+	periodLabel?: string | null;
+	utilities: UtilityBillLine[];
+}
+
+export async function sendUtilityBillEmail(
+	params: UtilityBillEmailParams,
+): Promise<void> {
+	const total = params.utilities.reduce(
+		(sum, item) => sum + item.totalAmount,
+		0,
+	);
+	const rows = params.utilities
+		.map((item) => {
+			const usage =
+				item.unitsUsed == null
+					? "—"
+					: `${item.previousReading ?? "—"} → ${item.currentReading ?? "—"} (${item.unitsUsed} units)`;
+			return `<tr>
+        <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;text-transform:capitalize;">${escapeHtml(item.utilityType)}</td>
+        <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;text-align:right;">${escapeHtml(formatAmount(item.totalAmount))}</td>
+					<td style="padding:8px 0;border-bottom:1px solid #f1f5f9;text-align:right;color:#64748b;">${escapeHtml(usage)}</td>
+				  </tr>`;
+		})
+		.join("");
+	await sendKeyHQEmail({
+		to: params.to,
+		subject: `Utility bill — ${formatAmount(total)}`,
+		html: `
+      <h2 style="margin:0 0 8px;color:#0f172a;">Utility bill generated</h2>
+      <p style="color:#555;line-height:1.6;">Hello ${escapeHtml(params.tenantName)}, ${escapeHtml(params.ownerName)} has generated a utility bill for your KeyHQ tenancy.</p>
+      <p style="color:#64748b;font-size:14px;">${escapeHtml(params.propertyName)} / ${escapeHtml(params.unitNumber)} · ${escapeHtml(params.periodLabel ?? formatDate(params.billingDate))}</p>
+      <table role="presentation" style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px;">
+        <thead><tr><th style="padding:8px 0;text-align:left;color:#64748b;font-weight:500;">Utility</th><th style="padding:8px 0;text-align:right;color:#64748b;font-weight:500;">Amount</th><th style="padding:8px 0;text-align:right;color:#64748b;font-weight:500;">Usage</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><td colspan="2" style="padding:14px 0 0;font-weight:700;">Total</td><td style="padding:14px 0 0;text-align:right;font-weight:700;">${escapeHtml(formatAmount(total))}</td></tr></tfoot>
+      </table>
+    `,
+	});
+}
 // / ── Shared CTA button
 function ctaButton(href: string, label: string): string {
 	return `<a

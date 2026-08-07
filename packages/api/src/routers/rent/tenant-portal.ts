@@ -18,6 +18,7 @@ import {
 } from "@rently/db/schema/schema";
 import { and, count, desc, eq, gte, lt } from "drizzle-orm";
 import z from "zod";
+import { sendAutomaticUtilityBillEmail } from "../helpers/automatic-emails";
 
 // **************
 const READING_RATE_LIMIT_MAX = 5; // max submissions
@@ -417,20 +418,23 @@ export const submitMyReading = protectedProcedure
 		const fixedCharge = lastReading?.fixedCharge ?? FIXEDCHARGE;
 		const totalAmount = Math.round(unitsUsed * ratePerUnit + fixedCharge);
 
-		await db.insert(utilities).values({
-			leaseId: activeLease.id,
-			utilityType: "electricity",
-			previousReading: previousReading ?? null,
-			currentReading: input.currentReading,
-			previousReadingDate,
-			currentReadingDate: new Date(input.readingDate),
-			unitsUsed,
-			ratePerUnit,
-			fixedCharge,
-			totalAmount,
-			description: input.notes ?? null,
-			isPaid: false,
-		});
+		const [utility] = await db
+			.insert(utilities)
+			.values({
+				leaseId: activeLease.id,
+				utilityType: "electricity",
+				previousReading: previousReading ?? null,
+				currentReading: input.currentReading,
+				previousReadingDate,
+				currentReadingDate: new Date(input.readingDate),
+				unitsUsed,
+				ratePerUnit,
+				fixedCharge,
+				totalAmount,
+				description: input.notes ?? null,
+				isPaid: false,
+			})
+			.returning();
 
 		try {
 			const [leaseInfo] = await db
@@ -440,6 +444,14 @@ export const submitMyReading = protectedProcedure
 				.innerJoin(properties, eq(units.propertyId, properties.id))
 				.where(eq(leases.id, activeLease.id))
 				.limit(1);
+
+			if (utility && leaseInfo) {
+				await sendAutomaticUtilityBillEmail({
+					db,
+					ownerId: leaseInfo.ownerId,
+					utilityIds: [utility.id],
+				});
+			}
 
 			if (leaseInfo) {
 				await db.insert(notifications).values({

@@ -5,6 +5,7 @@ import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { createContext } from "@rently/api/context";
 import { appRouter } from "@rently/api/routers/index";
+import { runScheduledReminderJob } from "@rently/api/scheduled-reminders";
 import { auth } from "@rently/auth";
 import { env } from "@rently/env/server";
 import { initLogger } from "evlog";
@@ -115,4 +116,13 @@ app.get("/", (c) => {
 	return c.text("OK");
 });
 
-export default app;
+export async function scheduled(event: {
+	scheduledTime: number;
+}): Promise<void> {
+	await runScheduledReminderJob({ now: new Date(event.scheduledTime) });
+}
+
+export default {
+	fetch: app.fetch,
+	scheduled,
+};

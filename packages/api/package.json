@@ -25,6 +25,10 @@
 		"./utils": {
 			"types": "./src/utils/index.ts",
 			"default": "./src/utils/index.ts"
+		},
+		"./scheduled-reminders": {
+			"types": "./src/scheduled-reminders.ts",
+			"default": "./src/scheduled-reminders.ts"
 		}
 	},
 	"scripts": {},

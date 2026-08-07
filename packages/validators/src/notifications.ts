@@ -27,6 +27,8 @@ export const NotificationPreferencesSchema = z.object({
 	leaseExpiryAlert: z.boolean(),
 	rentDueReminder: z.boolean(),
 	overdueAlert: z.boolean(),
+	rentDueLeadDays: z.number().int().min(0).max(14),
+	overdueGraceDays: z.number().int().min(1).max(31),
 	updatedAt: z.date(),
 });
 
@@ -37,6 +39,8 @@ export const UpdateNotificationPreferencesSchema = z
 		leaseExpiryAlert: z.boolean(),
 		rentDueReminder: z.boolean(),
 		overdueAlert: z.boolean(),
+		rentDueLeadDays: z.number().int().min(0).max(14),
+		overdueGraceDays: z.number().int().min(1).max(31),
 	})
 	.strict();
 

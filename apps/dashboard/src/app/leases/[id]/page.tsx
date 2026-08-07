@@ -21,6 +21,9 @@ import { LeaseForm, type LeaseFormValues } from "@/components/forms/lease-form";
 import { Container } from "@/components/shared/container";
 import {
 	useOptimisticUpdateLease,
+	useRentReminderSuppression,
+	useResumeNextRentReminders,
+	useSuppressNextRentReminders,
 	useSuspenseLease,
 	useTerminateLease,
 } from "@/hooks/leases";
@@ -48,6 +51,9 @@ export default function LeaseDetailPage({
 	// Mutaions
 	const updateLease = useOptimisticUpdateLease();
 	const terminateLease = useTerminateLease();
+	const reminderSuppression = useRentReminderSuppression(id);
+	const suppressReminders = useSuppressNextRentReminders();
+	const resumeReminders = useResumeNextRentReminders();
 
 	const allUnits = useMemo(
 		() =>
@@ -137,6 +143,36 @@ export default function LeaseDetailPage({
 				</DetailHeader>
 				{/*Main Details*/}
 				<LeaseDetails lease={lease} />
+
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-base">Rent reminders</CardTitle>
+					</CardHeader>
+					<CardContent className="flex flex-wrap items-center justify-between gap-3">
+						<p className="text-muted-foreground text-sm">
+							{reminderSuppression.data?.suppressed
+								? `Rent reminders are skipped for ${reminderSuppression.data.periodKey}.`
+								: "Give your tenant a little breathing room next month when needed."}
+						</p>
+						{reminderSuppression.data?.suppressed ? (
+							<Button
+								variant="outline"
+								disabled={resumeReminders.isPending}
+								onClick={() => resumeReminders.mutate({ leaseId: id })}
+							>
+								Resume reminders
+							</Button>
+						) : (
+							<Button
+								variant="outline"
+								disabled={suppressReminders.isPending || isTerminated}
+								onClick={() => suppressReminders.mutate({ leaseId: id })}
+							>
+								Skip next month’s reminders
+							</Button>
+						)}
+					</CardContent>
+				</Card>
 
 				<Card>
 					<CardHeader>

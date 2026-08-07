@@ -62,6 +62,8 @@ describe("notification preferences", () => {
 			leaseExpiryAlert: true,
 			rentDueReminder: true,
 			overdueAlert: true,
+			rentDueLeadDays: 3,
+			overdueGraceDays: 2,
 		});
 		expect(results[1]?.preferences).toEqual(results[0]?.preferences);
 	});
@@ -74,6 +76,8 @@ describe("notification preferences", () => {
 			leaseExpiryAlert: false,
 			rentDueReminder: false,
 			overdueAlert: true,
+			rentDueLeadDays: 3,
+			overdueGraceDays: 2,
 		});
 		expect(result.preferences).toMatchObject({
 			paymentReceived: false,
@@ -81,6 +85,8 @@ describe("notification preferences", () => {
 			leaseExpiryAlert: false,
 			rentDueReminder: false,
 			overdueAlert: true,
+			rentDueLeadDays: 3,
+			overdueGraceDays: 2,
 		});
 	});
 
@@ -100,6 +106,8 @@ describe("notification preferences", () => {
 			leaseExpiryAlert: false,
 			rentDueReminder: false,
 			overdueAlert: false,
+			rentDueLeadDays: 3,
+			overdueGraceDays: 2,
 		});
 		const otherPreferences = await clientFor(other).getPreferences();
 		expect(otherPreferences.preferences.paymentReceived).toBe(true);

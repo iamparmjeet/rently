@@ -90,7 +90,7 @@
 - [x] Wire `paymentReceived` toggle → send email on `createPayment` success
 - [x] Wire `utilityBillGenerated` toggle → send email when a utility bill is approved/generated.
 - [x] Convert `buildReceiptMessage()` to the shared KeyHQ HTML email wrapper.
-- [ ] Scheduled preference-driven email reminders follow in Milestone 7.
+- [x] Scheduled preference-driven email reminders follow in Milestone 7.
 
 ### Private Tenant Documents _(Milestone 2 — Tenant Trust Workflows)_
 
@@ -122,16 +122,16 @@
 
 ### Rent Cycle + Cloudflare Cron _(Milestone 7)_
 
-- [ ] Create `queryRentCycleRows`, `computeRentCycleItem`, period-key generation, and configurable owner grace days (default: zero).
-- [ ] Create a scheduled-email delivery deduplication table with a unique owner/lease/type/period/threshold key. Cloudflare Cron delivery is at-least-once, so this database constraint—not an in-memory lock—prevents duplicate emails.
-- [ ] Export both `fetch` and `scheduled` handlers from the Worker entry point.
-- [ ] Configure the Worker with `"triggers": { "crons": ["30 2 * * *"] }`; Cloudflare cron uses UTC, so this runs at 08:00 IST.
-- [ ] Start with this single Cloudflare Free-plan trigger. Reassess only if the job cannot stay within its 10 ms CPU / 50 external-subrequest limits, or if more than five account-level Cron Triggers are needed.
-- [ ] In `scheduled()`, await the reminder job; reserve `ctx.waitUntil()` for separately tracked concurrent work.
-- [ ] Send lease-expiry reminders at 30, 7, and 1 days; rent-due reminders on each owner’s configured lead day; and period-aware overdue reminders after the owner grace period.
-- [ ] Respect notification preferences and use the deduplication record before every email attempt.
-- [ ] Keep total transactional email volume within the active email provider’s free quota; currently, Resend Free permits 3,000 emails/month and 100/day. Reassess paid email only when observed beta volume requires it.
-- [ ] Test repeated scheduled executions, Asia/Kolkata date boundaries, and notification-preference enforcement. During local development, trigger the handler through Wrangler’s `/__scheduled` endpoint.
+- [x] Create `queryRentCycleRows`, `computeRentCycleItem`, period-key generation, and configurable owner lead/grace days (defaults: 3 days before due and 2 days after due).
+- [x] Create a scheduled-email delivery deduplication table with a unique owner/lease/type/period/threshold key. Cloudflare Cron delivery is at-least-once, so this database constraint—not an in-memory lock—prevents duplicate emails.
+- [x] Export both `fetch` and `scheduled` handlers from the Worker entry point.
+- [x] Configure the Worker with `"triggers": { "crons": ["30 2 * * *"] }`; Cloudflare cron uses UTC, so this runs at 08:00 IST.
+- [x] Start with this single Cloudflare Free-plan trigger. Reassess only if the job cannot stay within its 10 ms CPU / 50 external-subrequest limits, or if more than five account-level Cron Triggers are needed.
+- [x] In `scheduled()`, await the reminder job; reserve `ctx.waitUntil()` for separately tracked concurrent work.
+- [x] Send lease-expiry reminders at 30, 7, and 1 days; rent-due reminders on each owner’s configured lead day; and period-aware overdue reminders after the owner grace period.
+- [x] Respect notification preferences and use the deduplication record before every email attempt.
+- [x] Keep total transactional email volume within the active email provider’s free quota; currently, Resend Free permits 3,000 emails/month and 100/day. Reassess paid email only when observed beta volume requires it.
+- [x] Test repeated scheduled executions, Asia/Kolkata date boundaries, and notification-preference enforcement. During local development, trigger the handler through Wrangler’s `/__scheduled` endpoint.
 
 ### PDF Rent Receipts
 

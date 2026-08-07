@@ -2,6 +2,7 @@
 
 import { Button } from "@rently/ui/components/button";
 import { Card, CardContent } from "@rently/ui/components/card";
+import { Input } from "@rently/ui/components/input";
 import { Switch } from "@rently/ui/components/switch";
 import { useEffect, useMemo, useState } from "react";
 import { Container } from "@/components/shared/container";
@@ -16,16 +17,25 @@ type Preferences = {
 	leaseExpiryAlert: boolean;
 	rentDueReminder: boolean;
 	overdueAlert: boolean;
+	rentDueLeadDays: number;
+	overdueGraceDays: number;
 };
 
-const scheduledKeys = new Set<keyof Preferences>([
+type BooleanPreferenceKey =
+	| "paymentReceived"
+	| "utilityBillGenerated"
+	| "leaseExpiryAlert"
+	| "rentDueReminder"
+	| "overdueAlert";
+
+const scheduledKeys = new Set<BooleanPreferenceKey>([
 	"rentDueReminder",
 	"leaseExpiryAlert",
 	"overdueAlert",
 ]);
 
 const fields: Array<{
-	key: keyof Preferences;
+	key: BooleanPreferenceKey;
 	label: string;
 	description: string;
 }> = [
@@ -42,20 +52,18 @@ const fields: Array<{
 	{
 		key: "rentDueReminder",
 		label: "Rent due reminders",
-		description:
-			"Stored now; scheduled reminders activate in the upcoming milestone.",
+		description: "Email the tenant before rent is due each month.",
 	},
 	{
 		key: "leaseExpiryAlert",
 		label: "Lease expiry alerts",
-		description:
-			"Stored now; scheduled reminders activate in the upcoming milestone.",
+		description: "Email the tenant 30, 7, and 1 day before lease expiry.",
 	},
 	{
 		key: "overdueAlert",
 		label: "Overdue reminders",
 		description:
-			"Stored now; scheduled reminders activate in the upcoming milestone.",
+			"Email the tenant once rent remains overdue after the grace period.",
 	},
 ];
 
@@ -70,7 +78,11 @@ export function NotificationsTab() {
 
 	const changed = useMemo(() => {
 		if (!draft || !data?.preferences) return false;
-		return fields.some(({ key }) => draft[key] !== data.preferences[key]);
+		return (
+			fields.some(({ key }) => draft[key] !== data.preferences[key]) ||
+			draft.rentDueLeadDays !== data.preferences.rentDueLeadDays ||
+			draft.overdueGraceDays !== data.preferences.overdueGraceDays
+		);
 	}, [data?.preferences, draft]);
 
 	if (isLoading || !draft) {
@@ -115,6 +127,68 @@ export function NotificationsTab() {
 								</div>
 							))}
 						</div>
+						<div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
+							<div className="space-y-1.5">
+								<label
+									className="font-medium text-sm"
+									htmlFor="rentDueLeadDays"
+								>
+									Rent reminder lead time
+								</label>
+								<p className="text-muted-foreground text-xs">
+									Send the rent reminder this many days before the due date
+									(0–14).
+								</p>
+								<Input
+									id="rentDueLeadDays"
+									type="number"
+									min={0}
+									max={14}
+									value={draft.rentDueLeadDays}
+									disabled={update.isPending}
+									onChange={(event) =>
+										setDraft((current) =>
+											current
+												? {
+														...current,
+														rentDueLeadDays: Number(event.target.value),
+													}
+												: current,
+										)
+									}
+								/>
+							</div>
+							<div className="space-y-1.5">
+								<label
+									className="font-medium text-sm"
+									htmlFor="overdueGraceDays"
+								>
+									Overdue reminder grace period
+								</label>
+								<p className="text-muted-foreground text-xs">
+									Send the overdue reminder this many days after the due date
+									(1–31).
+								</p>
+								<Input
+									id="overdueGraceDays"
+									type="number"
+									min={1}
+									max={31}
+									value={draft.overdueGraceDays}
+									disabled={update.isPending}
+									onChange={(event) =>
+										setDraft((current) =>
+											current
+												? {
+														...current,
+														overdueGraceDays: Number(event.target.value),
+													}
+												: current,
+										)
+									}
+								/>
+							</div>
+						</div>
 						<p className="text-muted-foreground text-xs">
 							WhatsApp sharing remains manual and opens Web WhatsApp from
 							Payment and Utility actions.
@@ -129,8 +203,8 @@ export function NotificationsTab() {
 				</Button>
 				{fields.some(({ key }) => scheduledKeys.has(key)) && (
 					<p className="text-muted-foreground text-xs">
-						Rent, lease-expiry, and overdue settings are saved for the
-						scheduled-reminder milestone and do not send emails yet.
+						Scheduled reminders run daily at 08:00 IST. Rent reminders are sent
+						to tenants only.
 					</p>
 				)}
 			</div>

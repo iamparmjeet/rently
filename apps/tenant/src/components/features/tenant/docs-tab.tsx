@@ -1,36 +1,167 @@
 "use client";
 
-import { cn } from "@rently/ui/lib/utils";
 import {
-	IconCheck,
-	IconClock,
-	IconFileText,
-	IconUser,
-} from "@tabler/icons-react";
+	TENANT_DOCUMENT_TYPES,
+	type TenantDocumentType,
+} from "@rently/db/constants/tenant-document-constants";
+import { Button } from "@rently/ui/components/button";
+import { Input } from "@rently/ui/components/input";
+import { Label } from "@rently/ui/components/label";
+import { cn } from "@rently/ui/lib/utils";
+import { IconClock, IconFileText, IconUser } from "@tabler/icons-react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
-import { useTenantLease, useTenantProfile } from "@/hooks/tenant-portal";
+import {
+	useTenantDocumentAction,
+	useTenantDocuments,
+	useTenantLease,
+	useTenantProfile,
+} from "@/hooks/tenant-portal";
+import { client } from "@/utils/orpc";
 
-interface DocCard {
-	key: string;
-	label: string;
-	valueKey: "uidNumber" | "panNumber";
-}
-
-const DOCUMENTS: DocCard[] = [
-	{ key: "uid", label: "Aadhaar Card", valueKey: "uidNumber" },
-	{ key: "pan", label: "PAN Card", valueKey: "panNumber" },
+const DOCUMENTS: Array<{ type: TenantDocumentType; label: string }> = [
+	{ type: TENANT_DOCUMENT_TYPES.AADHAAR, label: "Aadhaar" },
+	{ type: TENANT_DOCUMENT_TYPES.PAN, label: "PAN" },
+	{ type: TENANT_DOCUMENT_TYPES.PASSPORT_PHOTO, label: "Passport photo" },
+	{
+		type: TENANT_DOCUMENT_TYPES.POLICE_VERIFICATION,
+		label: "Police verification",
+	},
+	{ type: TENANT_DOCUMENT_TYPES.BANK_PASSBOOK, label: "Bank passbook" },
+	{ type: TENANT_DOCUMENT_TYPES.VOTER_ID, label: "Voter ID" },
 ];
 
-export function DocsTab() {
-	const { data: profileData, isLoading } = useTenantProfile();
-	const { data: leaseData } = useTenantLease();
+const ACCEPT = "application/pdf,image/jpeg,image/png";
 
+type DocumentSummary = Awaited<
+	ReturnType<typeof client.rent.tenantDocument.listMyDocuments>
+>["documents"][number];
+
+function statusLabel(doc: DocumentSummary): string {
+	const request = doc.updateRequest;
+	if (request?.status === "pending") return "Replacement requested";
+	if (request?.status === "approved") return "Replacement approved";
+	if (request?.status === "submitted") return "Replacement submitted";
+	if (request?.status === "rejected") return "Replacement rejected";
+	if (doc.purgedAt) return "Historical file purged";
+	return (
+		{
+			upload_pending: "Uploading",
+			awaiting_tenant_consent: "Awaiting your consent",
+			pending_review: "Pending owner review",
+			owner_reviewed: "Owner reviewed",
+			rejected: "Rejected",
+			superseded: "Historical file",
+			expired: "Expired",
+		}[doc.status as string] ?? doc.status
+	);
+}
+
+function Countdown({ until }: { until: string | Date }) {
+	const [now, setNow] = useState(() => Date.now());
+	const remaining = Math.max(0, new Date(until).getTime() - now);
+	useEffect(() => {
+		const timer = window.setInterval(() => setNow(Date.now()), 1000);
+		return () => window.clearInterval(timer);
+	}, []);
+	if (!remaining) return <span>Window expired</span>;
+	const hours = Math.floor(remaining / 3_600_000);
+	const minutes = Math.floor((remaining % 3_600_000) / 60_000);
+	return (
+		<span>
+			{hours}h {minutes}m remaining
+		</span>
+	);
+}
+
+export function DocsTab() {
+	const { data: profileData, isLoading: profileLoading } = useTenantProfile();
+	const { data: leaseData } = useTenantLease();
+	const { data, isLoading } = useTenantDocuments();
+	const actions = useTenantDocumentAction();
+	const [upload, setUpload] = useState<{
+		type: TenantDocumentType;
+		requestId?: string;
+		file?: File;
+	}>({ type: TENANT_DOCUMENT_TYPES.PAN });
+	const fileRef = useRef<HTMLInputElement>(null);
 	const profile = profileData?.profile;
 	const lease = leaseData?.lease;
-	const isVerified = profile?.verificationStatus === "verified";
 
-	if (isLoading) {
+	if (profileLoading || isLoading)
 		return <div className="h-80 animate-pulse rounded-xl bg-muted" />;
+
+	const docs = data?.documents ?? [];
+	const caps = data?.capabilities;
+	const enabled = (type: TenantDocumentType) =>
+		caps?.documentTypes.find((item) => item.type === type)?.enabled ?? false;
+
+	async function download(documentId: string) {
+		try {
+			const result =
+				await client.rent.tenantDocument.getPrivateDocumentDownloadUrl({
+					documentId,
+				});
+			window.location.assign(result.downloadUrl);
+		} catch (error) {
+			toast.error(
+				error instanceof Error ? error.message : "Could not open document",
+			);
+		}
+	}
+
+	async function submitUpload() {
+		if (!upload.file || !data) return;
+		if (
+			!(document.querySelector("#document-consent") as HTMLInputElement)
+				?.checked
+		) {
+			toast.error("Please confirm document consent before submitting.");
+			return;
+		}
+		if (upload.file.size > data.capabilities.maxBytes) {
+			toast.error("Files must be 10 MB or smaller.");
+			return;
+		}
+		const contentType = upload.file.type as
+			| "application/pdf"
+			| "image/jpeg"
+			| "image/png";
+		if (!data.capabilities.allowedContentTypes.includes(contentType)) {
+			toast.error("Only PDF, JPEG, and PNG files are allowed.");
+			return;
+		}
+		try {
+			await actions.mutateAsync({
+				file: upload.file,
+				tenantId: undefined,
+				documentType: upload.type,
+				contentType,
+				sizeBytes: upload.file.size,
+				target: upload.requestId
+					? { kind: "replacement", requestId: upload.requestId }
+					: { kind: "initial" },
+				aadhaarLastFour:
+					upload.type === TENANT_DOCUMENT_TYPES.AADHAAR
+						? (document.querySelector("#aadhaar-last-four") as HTMLInputElement)
+								?.value
+						: undefined,
+				maskedAadhaarConfirmed:
+					upload.type === TENANT_DOCUMENT_TYPES.AADHAAR &&
+					(document.querySelector("#aadhaar-masked") as HTMLInputElement)
+						?.checked
+						? true
+						: undefined,
+			} as never);
+			toast.success("Document submitted for owner review.");
+			setUpload({ type: TENANT_DOCUMENT_TYPES.PAN });
+		} catch (error) {
+			toast.error(
+				error instanceof Error
+					? error.message
+					: "Document upload failed. You can retry.",
+			);
+		}
 	}
 
 	return (
@@ -38,12 +169,9 @@ export function DocsTab() {
 			<div>
 				<h1 className="font-extrabold text-xl">My Profile & Documents</h1>
 				<p className="mt-1 text-muted-foreground text-sm">
-					Documents submitted to your landlord. Approved documents require owner
-					permission to change.
+					Private documents are shared only with your owner for review.
 				</p>
 			</div>
-
-			{/* Profile info card */}
 			<div className="rounded-xl border bg-background">
 				<div className="flex items-center gap-3 border-b px-4 py-3">
 					<div className="flex h-10 w-10 items-center justify-center rounded-full bg-primary/10">
@@ -55,25 +183,10 @@ export function DocsTab() {
 							{profile?.email ?? "—"}
 						</p>
 					</div>
-					{/* Verification badge */}
-					<div
-						className={cn(
-							"ml-auto flex items-center gap-1 rounded-full px-2.5 py-1 font-semibold text-xs",
-							isVerified
-								? "bg-emerald-500/10 text-emerald-600"
-								: "bg-amber-500/10 text-amber-600",
-						)}
-					>
-						{isVerified ? (
-							<IconCheck className="h-3 w-3" />
-						) : (
-							<IconClock className="h-3 w-3" />
-						)}
-						{isVerified ? "Verified" : "Pending"}
+					<div className="ml-auto flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 font-semibold text-muted-foreground text-xs">
+						<IconClock className="h-3 w-3" /> Per-document review
 					</div>
 				</div>
-
-				{/* Profile details */}
 				<div className="divide-y divide-border">
 					<ProfileRow label="Phone" value={profile?.phone ?? "Not provided"} />
 					<ProfileRow
@@ -82,106 +195,215 @@ export function DocsTab() {
 					/>
 					{lease && (
 						<ProfileRow
-							label="Current Unit"
+							label="Current unit"
 							value={`Unit ${lease.unit.unitNumber}, ${lease.property.name}`}
-						/>
-					)}
-					{profile?.emergencyContactName && (
-						<ProfileRow
-							label="Emergency Contact"
-							value={`${profile.emergencyContactName}${profile.emergencyContact ? ` · ${profile.emergencyContact}` : ""}`}
 						/>
 					)}
 				</div>
 			</div>
-
-			{/* KYC documents grid */}
 			<div>
-				<p className="mb-2.5 font-bold text-sm">KYC Documents</p>
-				<div className="grid grid-cols-2 gap-2.5">
-					{DOCUMENTS.map((doc) => {
-						const value = profile?.[doc.valueKey];
-						const hasDoc = Boolean(value);
-						const verified = hasDoc && isVerified;
-
+				<p className="mb-2.5 font-bold text-sm">Documents</p>
+				<div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+					{DOCUMENTS.map(({ type, label }) => {
+						const document =
+							docs.find(
+								(item) =>
+									item.documentType === type && item.status !== "superseded",
+							) ?? null;
+						const request = document?.updateRequest;
+						const canRequest =
+							document?.status === "owner_reviewed" && !request;
+						const canUploadReplacement = request?.status === "approved";
 						return (
-							<div
-								key={doc.key}
-								className="flex flex-col items-center rounded-xl border bg-background p-4 text-center"
-							>
-								<div
-									className={cn(
-										"mb-2.5 flex h-11 w-11 items-center justify-center rounded-lg",
-										verified
-											? "bg-primary/10 text-primary"
-											: hasDoc
-												? "bg-amber-500/10 text-amber-600"
-												: "bg-muted text-muted-foreground",
-									)}
-								>
-									<IconFileText className="h-5 w-5" />
+							<div key={type} className="rounded-xl border bg-background p-4">
+								<div className="flex items-start gap-3">
+									<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
+										<IconFileText className="h-5 w-5" />
+									</div>
+									<div className="min-w-0">
+										<p className="font-semibold text-sm">{label}</p>
+										<p
+											className={cn(
+												"text-xs",
+												document?.status === "owner_reviewed"
+													? "text-emerald-600"
+													: "text-muted-foreground",
+											)}
+										>
+											{document ? statusLabel(document) : "Not submitted"}
+										</p>
+										{document?.identifierHint && (
+											<p className="mt-1 font-mono text-muted-foreground text-xs">
+												{type === TENANT_DOCUMENT_TYPES.AADHAAR
+													? `XXXX XXXX ${document.identifierHint}`
+													: document.identifierHint}
+											</p>
+										)}
+									</div>
 								</div>
-								<p className="font-semibold text-sm">{doc.label}</p>
-								<p
-									className={cn(
-										"mt-0.5 text-xs",
-										verified
-											? "text-emerald-600"
-											: hasDoc
-												? "text-amber-600"
-												: "text-muted-foreground",
+								{request?.reason && (
+									<p className="mt-3 rounded-md bg-muted px-3 py-2 text-muted-foreground text-xs">
+										Reason: {request.reason}
+									</p>
+								)}
+								{request?.status === "approved" &&
+									request.approvedExpiresAt && (
+										<p className="mt-2 text-amber-600 text-xs">
+											<Countdown until={request.approvedExpiresAt} />
+										</p>
 									)}
-								>
-									{verified
-										? "✓ Verified"
-										: hasDoc
-											? "Uploaded — pending"
-											: "Not uploaded"}
-								</p>
-								<button
-									type="button"
-									className={cn(
-										"mt-3 h-8 w-full rounded-md border font-medium text-xs transition-colors",
-										verified
-											? "border-border bg-muted hover:bg-muted/80"
-											: "border-primary bg-primary text-primary-foreground hover:bg-primary/90",
+								{request?.status === "rejected" && request.ownerNote && (
+									<p className="mt-2 text-destructive text-xs">
+										{request.ownerNote}
+									</p>
+								)}
+								<div className="mt-3 flex flex-wrap gap-2">
+									{document && document.purgedAt === null && (
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={() => download(document.id)}
+										>
+											View / download
+										</Button>
 									)}
-									onClick={() =>
-										toast.info(
-											verified
-												? `${doc.label} is verified.`
-												: hasDoc
-													? `${doc.label} is pending owner review.`
-													: "Document upload coming soon.",
-										)
-									}
-								>
-									{verified ? "View" : hasDoc ? "Pending" : "Upload"}
-								</button>
+									{document?.status === "awaiting_tenant_consent" && (
+										<>
+											<Button
+												size="sm"
+												onClick={() =>
+													document &&
+													actions.confirm.mutate({
+														documentId: document.id,
+														decision: "confirm",
+														consentAccepted: true,
+													})
+												}
+											>
+												Confirm
+											</Button>
+											<Button
+												size="sm"
+												variant="outline"
+												onClick={() =>
+													document &&
+													actions.confirm.mutate({
+														documentId: document.id,
+														decision: "decline",
+													})
+												}
+											>
+												Decline
+											</Button>
+										</>
+									)}
+									{(canRequest || canUploadReplacement) && (
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={() => {
+												if (!document) return;
+												if (canUploadReplacement) {
+													setUpload({ type, requestId: request?.id });
+													fileRef.current?.click();
+													return;
+												}
+												const reason = window.prompt(
+													"Why do you need a replacement?",
+												);
+												if (reason?.trim())
+													actions.requestUpdate.mutate({
+														documentId: document.id,
+														reason: reason.trim(),
+														consentAccepted: true,
+													});
+											}}
+										>
+											{canUploadReplacement
+												? "Upload replacement"
+												: "Request replacement"}
+										</Button>
+									)}
+								</div>
+								{!enabled(type) && type === TENANT_DOCUMENT_TYPES.AADHAAR && (
+									<p className="mt-2 text-amber-600 text-xs">
+										Aadhaar uploads are temporarily disabled. You can still see
+										its card.
+									</p>
+								)}
+								{!document && enabled(type) && (
+									<Button
+										className="mt-3 w-full"
+										size="sm"
+										onClick={() => {
+											setUpload({ type });
+											fileRef.current?.click();
+										}}
+									>
+										Upload
+									</Button>
+								)}
 							</div>
 						);
 					})}
 				</div>
 			</div>
-
-			{/* Document change request banner */}
-			<div className="rounded-xl border border-amber-500/30 bg-amber-500/8 px-4 py-3.5">
-				<p className="font-semibold text-amber-600 text-sm">
-					⚠️ Document Change Request
-				</p>
-				<p className="mt-1 text-muted-foreground text-xs">
-					Need to update an approved document? Changes require owner approval.
-				</p>
-				<button
-					type="button"
-					onClick={() =>
-						toast.info("Document change request sent to your landlord.")
-					}
-					className="mt-2.5 h-8 rounded-md border border-amber-500/50 px-3.5 font-medium text-amber-600 text-xs transition-colors hover:bg-amber-500/10"
-				>
-					Request Document Change
-				</button>
-			</div>
+			<input
+				ref={fileRef}
+				className="hidden"
+				type="file"
+				accept={ACCEPT}
+				onChange={(event) => {
+					const file = event.target.files?.[0];
+					if (file) setUpload((current) => ({ ...current, file }));
+					event.currentTarget.value = "";
+				}}
+			/>
+			{upload.file && (
+				<div className="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4">
+					<div className="w-full max-w-md space-y-4 rounded-xl bg-background p-5 shadow-xl">
+						<h2 className="font-bold">
+							Submit{" "}
+							{DOCUMENTS.find((item) => item.type === upload.type)?.label}
+						</h2>
+						<p className="text-muted-foreground text-sm">
+							{upload.file.name} · {(upload.file.size / 1024 / 1024).toFixed(2)}{" "}
+							MB
+						</p>
+						{upload.type === TENANT_DOCUMENT_TYPES.AADHAAR && (
+							<>
+								<div>
+									<Label htmlFor="aadhaar-last-four">Last four digits</Label>
+									<Input
+										id="aadhaar-last-four"
+										inputMode="numeric"
+										maxLength={4}
+									/>
+								</div>
+								<label className="flex items-start gap-2 text-sm">
+									<input id="aadhaar-masked" type="checkbox" className="mt-1" />{" "}
+									This Aadhaar copy is masked.
+								</label>
+							</>
+						)}
+						<label className="flex items-start gap-2 text-sm">
+							<input id="document-consent" type="checkbox" className="mt-1" /> I
+							consent to sharing this document with my owner for review.
+						</label>
+						<div className="flex justify-end gap-2">
+							<Button
+								variant="outline"
+								onClick={() => setUpload({ type: upload.type })}
+							>
+								Cancel
+							</Button>
+							<Button onClick={submitUpload} disabled={actions.isPending}>
+								Submit
+							</Button>
+						</div>
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }

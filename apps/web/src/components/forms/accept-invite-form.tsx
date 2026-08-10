@@ -224,31 +224,6 @@ export function AcceptInviteForm({
 				</>
 			)}
 
-			<Field data-invalid={!!errors.uidNumber}>
-				<Label htmlFor="uidNumber">UID / Aadhaar Number</Label>
-				<Input
-					id="uidNumber"
-					placeholder="1234 5678 9012"
-					{...register("uidNumber")}
-					disabled={acceptInvite.isPending}
-				/>
-				<p className="text-muted-foreground text-xs">
-					Entered only by you and used for identity verification.
-				</p>
-				<FieldError errors={[errors.uidNumber]} />
-			</Field>
-
-			<Field data-invalid={!!errors.panNumber}>
-				<Label htmlFor="panNumber">PAN Number</Label>
-				<Input
-					id="panNumber"
-					placeholder="ABCDE1234F"
-					{...register("panNumber")}
-					disabled={acceptInvite.isPending}
-				/>
-				<FieldError errors={[errors.panNumber]} />
-			</Field>
-
 			<Field data-invalid={!!errors.password}>
 				<Label htmlFor="password">Password</Label>
 				<div className="relative">

@@ -65,8 +65,6 @@ const editTenantFormSchema = z.object({
 	emergencyContactName: z.string().optional(),
 	emergencyContact: z.string().optional(),
 	emergencyContactLocation: z.string().optional(),
-	uidNumber: z.string().optional(),
-	panNumber: z.string().optional(),
 });
 type EditTenantForm = z.infer<typeof editTenantFormSchema>;
 
@@ -106,8 +104,6 @@ export function TenantCardActions({ tenant }: TenantCardActionsProps) {
 			emergencyContactName: "",
 			emergencyContact: "",
 			emergencyContactLocation: "",
-			uidNumber: "",
-			panNumber: "",
 		},
 	});
 
@@ -198,8 +194,8 @@ export function TenantCardActions({ tenant }: TenantCardActionsProps) {
 					<SheetHeader>
 						<SheetTitle>Edit {tenant.name}</SheetTitle>
 						<SheetDescription>
-							Update contact and KYC information. Name and email are managed by
-							the tenant's account.
+							Update contact information. Name and email are managed by the
+							tenant's account.
 						</SheetDescription>
 					</SheetHeader>
 					<form
@@ -255,30 +251,6 @@ export function TenantCardActions({ tenant }: TenantCardActionsProps) {
 										aria-invalid={!!editErrors.emergencyContact}
 									/>
 									<FieldError errors={[editErrors.emergencyContact]} />
-								</Field>
-
-								<Field data-invalid={!!editErrors.uidNumber}>
-									<FieldLabel htmlFor="uidNumber">
-										Aadhaar / UID Number
-									</FieldLabel>
-									<Input
-										id="uidNumber"
-										placeholder="XXXX XXXX XXXX"
-										{...registerEdit("uidNumber")}
-										aria-invalid={!!editErrors.uidNumber}
-									/>
-									<FieldError errors={[editErrors.uidNumber]} />
-								</Field>
-
-								<Field data-invalid={!!editErrors.panNumber}>
-									<FieldLabel htmlFor="panNumber">PAN Number</FieldLabel>
-									<Input
-										id="panNumber"
-										placeholder="ABCDE1234F"
-										{...registerEdit("panNumber")}
-										aria-invalid={!!editErrors.panNumber}
-									/>
-									<FieldError errors={[editErrors.panNumber]} />
 								</Field>
 							</FieldGroup>
 						</FieldSet>

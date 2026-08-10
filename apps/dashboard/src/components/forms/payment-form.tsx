@@ -26,6 +26,7 @@ import type { Lease } from "@rently/validators";
 import { CreatePaymentSchema } from "@rently/validators";
 import { Controller, useForm } from "react-hook-form";
 import z from "zod";
+import { entityLabel } from "@/utils/display";
 
 // ── Form-layer schema ──
 // The DB stores amount in paise (integer), but the form collects rupees
@@ -104,12 +105,15 @@ export function PaymentForm({
 													? "No active leases"
 													: "Select a lease"
 											}
-										/>
+										>
+											{field.value ? leaseLabels[field.value] : undefined}
+										</SelectValue>
 									</SelectTrigger>
 									<SelectContent>
 										{leases.map((lease) => (
 											<SelectItem key={lease.id} value={lease.id}>
-												{leaseLabels[lease.id] ?? lease.id}
+												{leaseLabels[lease.id] ??
+													entityLabel("Lease", lease.id)}
 											</SelectItem>
 										))}
 									</SelectContent>

@@ -171,16 +171,6 @@ export function EditTenantDialog({
 								/>
 								<FieldError>{form.formState.errors.phone?.message}</FieldError>
 							</Field>
-							<Field>
-								{/* WHY disabled: uidNumber is immutable after first set. Changes
-								    require a document update request through the KYC workflow. */}
-								<FieldLabel>Aadhaar / ID No.</FieldLabel>
-								<Input
-									value={tenant.profile?.uidNumber ?? ""}
-									placeholder="XXXX XXXX XXXX"
-									disabled
-								/>
-							</Field>
 						</FieldGroup>
 
 						<Field>

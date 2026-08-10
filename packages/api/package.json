@@ -29,6 +29,10 @@
 		"./scheduled-reminders": {
 			"types": "./src/scheduled-reminders.ts",
 			"default": "./src/scheduled-reminders.ts"
+		},
+		"./modules/tenant-documents/*": {
+			"types": "./src/modules/tenant-documents/*.ts",
+			"default": "./src/modules/tenant-documents/*.ts"
 		}
 	},
 	"scripts": {},

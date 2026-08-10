@@ -19,7 +19,7 @@ import { useMemo, useState } from "react";
 import { useLease } from "@/hooks/leases";
 import { usePayments } from "@/hooks/payments";
 import { useRemoveTenant, useTenant } from "@/hooks/tenants";
-import { useLeaseUtilities } from "@/hooks/utilities";
+import { useUtilities } from "@/hooks/utilities";
 import { DocumentsTab } from "./documents-tab";
 import { EditTenantDialog } from "./edit-tenant-dialog";
 import { OverviewTab } from "./overview-tab";
@@ -56,14 +56,19 @@ function computeStats(
 	paymentsData: { payments: PaymentListItem[] } | undefined,
 	utilitiesData: { utilities: UtilityListItem[] } | undefined,
 ): TenantStats {
-	const monthlyRent = tenant.currentLease?.rent ?? 0;
-	const leaseId = tenant.currentLease?.id;
+	const activeLeaseIds = new Set(
+		tenant.activeLeases.map((activeLease) => activeLease.id),
+	);
+	const monthlyRent = tenant.activeLeases.reduce(
+		(sum, activeLease) => sum + activeLease.rent,
+		0,
+	);
 	const now = new Date();
 	const year = now.getFullYear();
 	const month = now.getMonth();
 
-	const leasePayments = (paymentsData?.payments ?? []).filter(
-		(p) => p.leaseId === leaseId,
+	const leasePayments = (paymentsData?.payments ?? []).filter((p) =>
+		activeLeaseIds.has(p.leaseId),
 	);
 
 	const totalPaidYTD = leasePayments
@@ -173,25 +178,38 @@ export default function TenantDetailClient({ id }: { id: string }) {
 	const { data, isLoading, isError, error } = useTenant(id);
 	const tenant = data?.tenant;
 
-	// WHY leaseId default "": useLeaseUtilities has `enabled: !!leaseId`,
-	// so an empty string safely disables the fetch until tenant data loads.
-	const leaseId = tenant?.currentLease?.id ?? "";
+	const primaryLeaseId = tenant?.activeLeases[0]?.id ?? "";
 
 	// Secondary fetch: full lease details (startDate, deposit) not in TenantDetailSchema.
 	// Only fires when leaseId is known. Typically already warm from the leases page cache.
-	const { data: leaseData } = useLease(leaseId);
+	const { data: leaseData } = useLease(primaryLeaseId);
 
-	// Utilities for this specific lease
-	const { data: utilitiesData } = useLeaseUtilities(leaseId);
+	// Fetch once and scope to all active leases for this tenant. This avoids
+	// dropping utility records when one tenant occupies multiple units.
+	const { data: allUtilitiesData } = useUtilities();
+	const utilitiesData = useMemo(() => {
+		const activeLeaseIds = new Set(
+			(tenant?.activeLeases ?? []).map((activeLease) => activeLease.id),
+		);
+		return {
+			utilities: (allUtilitiesData?.utilities ?? []).filter((utility) =>
+				activeLeaseIds.has(utility.leaseId),
+			),
+		};
+	}, [allUtilitiesData?.utilities, tenant?.activeLeases]);
 
 	// All owner payments — we filter by leaseId client-side (see computeStats + PaymentsTab)
 	const { data: paymentsData } = usePayments();
 
-	// Derived: only payments for this tenant's lease
-	const leasePayments = useMemo(
-		() => (paymentsData?.payments ?? []).filter((p) => p.leaseId === leaseId),
-		[paymentsData?.payments, leaseId],
-	);
+	// Derived: payments for all active leases belonging to this tenant
+	const leasePayments = useMemo(() => {
+		const activeLeaseIds = new Set(
+			(tenant?.activeLeases ?? []).map((activeLease) => activeLease.id),
+		);
+		return (paymentsData?.payments ?? []).filter((p) =>
+			activeLeaseIds.has(p.leaseId),
+		);
+	}, [paymentsData?.payments, tenant?.activeLeases]);
 
 	// Computed stats
 	const stats = useMemo(
@@ -239,6 +257,7 @@ export default function TenantDetailClient({ id }: { id: string }) {
 
 	//  WhatsApp link **************
 	const waPhone = tenant.phone?.replace(/\D/g, "");
+	const primaryActiveLease = tenant.activeLeases[0];
 
 	function handleRemove() {
 		removeTenant.mutate(
@@ -274,11 +293,11 @@ export default function TenantDetailClient({ id }: { id: string }) {
 							Active
 						</span>
 					</div>
-					{tenant.currentLease && (
+					{tenant.activeLeases.length > 0 && (
 						<p className="mt-0.5 text-muted-foreground text-sm">
-							{tenant.currentLease.propertyName} · Unit{" "}
-							{tenant.currentLease.unitNumber} ·{" "}
-							{formatRupees(tenant.currentLease.rent)}/mo
+							{tenant.activeLeases.length === 1 && primaryActiveLease
+								? `${primaryActiveLease.propertyName} · Unit ${primaryActiveLease.unitNumber} · ${formatRupees(primaryActiveLease.rent)}/mo`
+								: `${tenant.activeLeases.length} active units · ${formatRupees(stats.monthlyRent)}/mo`}
 						</p>
 					)}
 				</div>
@@ -335,7 +354,7 @@ export default function TenantDetailClient({ id }: { id: string }) {
 						<UtilitiesTab
 							tenant={tenant}
 							utilities={utilitiesData?.utilities ?? []}
-							leaseId={leaseId}
+							leaseId={primaryLeaseId}
 						/>
 					)}
 					{activeTab === "payments" && (

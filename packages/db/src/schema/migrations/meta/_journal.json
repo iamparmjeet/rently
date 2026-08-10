@@ -71,6 +71,13 @@
 			"when": 1786091674026,
 			"tag": "0009_gigantic_runaways",
 			"breakpoints": true
+		},
+		{
+			"idx": 10,
+			"version": "7",
+			"when": 1786269600000,
+			"tag": "0010_private_tenant_documents",
+			"breakpoints": true
 		}
 	]
 }

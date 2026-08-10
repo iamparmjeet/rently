@@ -162,7 +162,12 @@ export function PaymentsTab({ tenant, payments, stats }: PaymentsTabProps) {
 				<div className="mb-4 flex items-center justify-between">
 					<h3 className="font-semibold text-base">Payment History</h3>
 					<AddPaymentButton
-						leaseId={tenant.currentLease?.id}
+						leaseId={
+							tenant.activeLeases.length === 1
+								? tenant.activeLeases[0]?.id
+								: undefined
+						}
+						leaseIds={tenant.activeLeases.map((activeLease) => activeLease.id)}
 						variant="default"
 						withIcon
 					/>

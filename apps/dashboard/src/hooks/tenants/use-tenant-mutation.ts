@@ -139,6 +139,7 @@ export function useSuspenseCreateTenant() {
 				status: "pending",
 				createdAt: new Date(),
 				updatedAt: new Date(),
+				activeLeases: [],
 				currentLease: null, // ← was missing; server joins this from leases table
 				// If variables.phone is optional in input but required | null in output:
 				phone: variables.phone ?? null,

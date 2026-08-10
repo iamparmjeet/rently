@@ -3,7 +3,7 @@
 > Single source of truth for build progress.
 > Update this file as items are completed or priorities shift.
 > Tiers: **P0** = must ship before public launch · **P1** = core product gaps · **P2** = growth features · **P3** = post-launch backlog
-> Last audited: 2026-08-07 (verified against the KeyHQ beta integration branch)
+> Last audited: 2026-08-09 (verified against the private-document milestone branch)
 > Cost policy: prefer services with a suitable free tier. Move to a paid tier only when measured usage or a required capability exceeds its documented free limits.
 
 ---
@@ -33,7 +33,7 @@
 
 ---
 
-## Current Milestone — M1: Hard Email Verification and Unified Onboarding
+## Completed Milestone — M1: Hard Email Verification and Unified Onboarding
 
 ### M1a — Hard email verification
 
@@ -79,7 +79,7 @@
 
 ---
 
-## In Progress 🚧
+## Completed Milestone Detail
 
 ### Notification Preferences + Email Triggers _(Milestone 6)_
 
@@ -94,19 +94,20 @@
 
 ### Private Tenant Documents _(Milestone 2 — Tenant Trust Workflows)_
 
-- [ ] Create `tenantDocuments`; store a private R2 key, document type/version, masked identifier, consent, status, submitter/reviewer metadata, notes, and audit timestamps.
-- [ ] Never add public document URL columns to `tenantProfiles` or return permanent public URLs. Provide short-lived, owner/tenant-authorized signed download URLs only.
-- [ ] Store only Aadhaar last four digits in PostgreSQL; require masked Aadhaar uploads and label reviews as “owner reviewed,” never UIDAI verified.
-- [ ] Keep Aadhaar uploads behind a production compliance feature flag.
-- [ ] Implement `submitInitialDocument`, `reviewTenantDocument`, and `getPrivateDocumentDownloadUrl` with owner/tenant authorization tests.
-- [ ] Add tenant upload and owner review UI in the portal/dashboard Docs experiences.
+- [x] Create `tenantDocuments`; store a private R2 key, document type/version, masked identifier, consent, status, submitter/reviewer metadata, notes, and audit timestamps.
+- [x] Never add public document URL columns to `tenantProfiles` or return permanent public URLs. Provide short-lived, owner/tenant-authorized signed download URLs only.
+- [x] Store only Aadhaar last four digits in PostgreSQL; require masked Aadhaar uploads and label reviews as “owner reviewed,” never UIDAI verified.
+- [x] Keep Aadhaar uploads behind a production compliance feature flag.
+- [x] Implement initial submission, consent, owner review, private download, expiry, purge, and authorization interfaces.
+- [x] Add tenant upload/consent and owner upload/review UI in the portal/dashboard Docs experiences.
+- [x] Add the private-bucket environment contract and migration that preserves legacy update-request rows.
 
 ### Document Update Lifecycle _(Milestone 2 — Tenant Trust Workflows)_
 
-- [ ] Initial submission: `pending → verified | rejected`.
-- [ ] Later changes: `pending request → approved → submitted → completed`, with terminal `rejected | expired` states.
-- [ ] An approved update request opens a 48-hour submission window; the prior verified document remains active until final approval.
-- [ ] Implement `createDocumentUpdateRequest`, `reviewDocumentUpdateRequest`, and `submitApprovedDocumentUpdate` with authorization and expiry tests.
+- [x] Initial submission: `upload_pending → pending_review → owner_reviewed | rejected`.
+- [x] Later changes: `pending request → approved → submitted → completed`, with terminal `rejected | expired` states.
+- [x] An approved update request opens a 48-hour submission window; the prior owner-reviewed document remains active until final approval.
+- [x] Implement replacement requests, owner decisions, replacement submission, transactional supersession, and expiry handling.
 
 ---
 

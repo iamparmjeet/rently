@@ -18,7 +18,16 @@ import {
 	SCHEDULED_EMAIL_DELIVERY_STATUS_VALUES,
 	SCHEDULED_EMAIL_TYPE_VALUES,
 } from "@rently/db/constants/scheduled-email-constants";
+import {
+	ALLOWED_TENANT_DOCUMENT_CONTENT_TYPES,
+	DOCUMENT_CONSENT_SOURCE_VALUES,
+	DOCUMENT_UPDATE_REQUEST_STATUS_VALUES,
+	SUBMISSION_SOURCE_VALUES,
+	TENANT_DOCUMENT_STATUS_VALUES,
+	TENANT_DOCUMENT_TYPE_VALUES,
+} from "@rently/db/constants/tenant-document-constants";
 import { sql } from "drizzle-orm";
+import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import {
 	boolean,
 	check,
@@ -29,6 +38,7 @@ import {
 	text,
 	timestamp,
 	unique,
+	uniqueIndex,
 	uuid,
 } from "drizzle-orm/pg-core";
 import { NOTIFICATION_TYPE_VALUES } from "../constants/notification-constants";
@@ -204,7 +214,9 @@ export const tenantProfiles = pgTable("tenant_profiles", {
 		.references(() => user.id, { onDelete: "restrict" }),
 	// Business rule enforcedin API layer, not db layer
 	// Immutable after first set - can change only after approval
-	uidNumber: text("uid_number").unique(),
+	// Kept temporarily for rollback compatibility. New code must not read/write it.
+	uidNumber: text("uid_number"),
+	aadhaarLastFour: text("aadhaar_last_four"),
 	panNumber: text("pan_number").unique(),
 	profileImage: text("image"),
 	// Contact
@@ -232,35 +244,150 @@ export const tenantProfiles = pgTable("tenant_profiles", {
 	...softDeleteColumn(),
 });
 
-//  owner-controlled document modification workflow
+// Legacy field-based workflow. It is renamed to legacy_document_update_requests
+// by the M2 contract migration; do not add new callers for this table.
 export const documentUpdateRequests = pgTable("document_update_requests", {
 	...idColumn(),
 	tenantProfileId: uuid("tenant_profile_id")
 		.notNull()
-		.references(() => tenantProfiles.id, { onDelete: "restrict" }), // ← forward ref OK in .references()
+		.references(() => tenantProfiles.id, { onDelete: "restrict" }),
+	ownerId: uuid("owner_id")
+		.notNull()
+		.references(() => user.id, { onDelete: "restrict" }),
+	// FK is added by the contract migration to avoid a declaration cycle.
+	sourceDocumentId: uuid("source_document_id").notNull(),
 	requestedById: uuid("requested_by_id")
 		.notNull()
-		.references(() => user.id), // who requested the change (owner or tenant)
+		.references(() => user.id, { onDelete: "restrict" }),
 	reason: text("reason").notNull(),
-	fieldToUpdate: text("field_to_update", {
-		enum: DOCUMENT_FIELDS_VALUES,
-	}).notNull(),
 	status: text("status", {
-		enum: DOCUMENT_REQUEST_STATUS_VALUES,
+		enum: DOCUMENT_UPDATE_REQUEST_STATUS_VALUES,
 	})
-		.default("pending")
-		.notNull(),
-	// Who reviewed + when
+		.notNull()
+		.default("pending"),
 	reviewedById: uuid("reviewed_by_id").references(() => user.id),
 	reviewedAt: timestamp("reviewed_at"),
-	ownerNotes: text("owner_notes"),
-	// The Aproval window - when does the unlock expire
+	ownerNote: text("owner_note"),
 	approvedExpiresAt: timestamp("approved_expires_at"),
+	replacementDocumentId: uuid("replacement_document_id"),
+	submittedAt: timestamp("submitted_at"),
 	completedAt: timestamp("completed_at"),
-	newValueSubmitted: text("new_value"),
+	rejectedAt: timestamp("rejected_at"),
+	expiredAt: timestamp("expired_at"),
+	consentVersion: text("consent_version").notNull(),
+	consentedAt: timestamp("consented_at").notNull(),
 	...auditColumns(),
-	...softDeleteColumn(),
 });
+
+export const tenantDocuments = pgTable(
+	"tenant_documents",
+	{
+		...idColumn(),
+		tenantProfileId: uuid("tenant_profile_id")
+			.notNull()
+			.references(() => tenantProfiles.id, { onDelete: "restrict" }),
+		ownerId: uuid("owner_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "restrict" }),
+		documentType: text("document_type", {
+			enum: TENANT_DOCUMENT_TYPE_VALUES,
+		}).notNull(),
+		version: integer("version").notNull(),
+		supersedesDocumentId: uuid("supersedes_document_id").references(
+			(): AnyPgColumn => tenantDocuments.id,
+		),
+		// FK is added by the contract migration to avoid a declaration cycle.
+		updateRequestId: uuid("update_request_id"),
+		status: text("status", {
+			enum: TENANT_DOCUMENT_STATUS_VALUES,
+		}).notNull(),
+		storageKey: text("storage_key").notNull().unique(),
+		contentType: text("content_type", {
+			enum: ALLOWED_TENANT_DOCUMENT_CONTENT_TYPES,
+		}).notNull(),
+		sizeBytes: integer("size_bytes").notNull(),
+		etag: text("etag"),
+		identifierHint: text("identifier_hint"),
+		maskedAadhaarConfirmed: boolean("masked_aadhaar_confirmed"),
+		submissionSource: text("submission_source", {
+			enum: SUBMISSION_SOURCE_VALUES,
+		}).notNull(),
+		submittedById: uuid("submitted_by_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "restrict" }),
+		submittedAt: timestamp("submitted_at"),
+		uploadExpiresAt: timestamp("upload_expires_at").notNull(),
+		consentSource: text("consent_source", {
+			enum: DOCUMENT_CONSENT_SOURCE_VALUES,
+		}),
+		consentVersion: text("consent_version"),
+		consentedById: uuid("consented_by_id").references(() => user.id),
+		consentedAt: timestamp("consented_at"),
+		consentExpiresAt: timestamp("consent_expires_at"),
+		reviewedById: uuid("reviewed_by_id").references(() => user.id),
+		reviewedAt: timestamp("reviewed_at"),
+		reviewNote: text("review_note"),
+		purgeAfter: timestamp("purge_after"),
+		purgedAt: timestamp("purged_at"),
+		purgeAttempts: integer("purge_attempts").notNull().default(0),
+		lastPurgeErrorCode: text("last_purge_error_code"),
+		...auditColumns(),
+	},
+	(table) => [
+		unique("tenant_documents_tenant_type_version_key").on(
+			table.tenantProfileId,
+			table.documentType,
+			table.version,
+		),
+		check("tenant_documents_version_check", sql`${table.version} > 0`),
+		check(
+			"tenant_documents_size_bytes_check",
+			sql`${table.sizeBytes} > 0 AND ${table.sizeBytes} <= 10485760`,
+		),
+		uniqueIndex("tenant_documents_one_reviewed_per_type_key")
+			.on(table.tenantProfileId, table.documentType)
+			.where(sql`${table.status} = 'owner_reviewed'`),
+		uniqueIndex("tenant_documents_one_replacement_per_request_key")
+			.on(table.updateRequestId)
+			.where(sql`${table.updateRequestId} IS NOT NULL`),
+	],
+);
+
+/*
+	The declaration below is intentionally retained only as a migration aid in
+		the source history. The active table definition is above.
+*/
+export const legacyDocumentUpdateRequests = pgTable(
+	"legacy_document_update_requests",
+	{
+		...idColumn(),
+		tenantProfileId: uuid("tenant_profile_id")
+			.notNull()
+			.references(() => tenantProfiles.id, { onDelete: "restrict" }), // ← forward ref OK in .references()
+		requestedById: uuid("requested_by_id")
+			.notNull()
+			.references(() => user.id), // who requested the change (owner or tenant)
+		reason: text("reason").notNull(),
+		fieldToUpdate: text("field_to_update", {
+			enum: DOCUMENT_FIELDS_VALUES,
+		}).notNull(),
+		status: text("status", {
+			enum: DOCUMENT_REQUEST_STATUS_VALUES,
+		})
+			.default("pending")
+			.notNull(),
+		// Who reviewed + when
+		reviewedById: uuid("reviewed_by_id").references(() => user.id),
+		reviewedAt: timestamp("reviewed_at"),
+		ownerNotes: text("owner_notes"),
+		// The Aproval window - when does the unlock expire
+		approvedExpiresAt: timestamp("approved_expires_at"),
+		completedAt: timestamp("completed_at"),
+		newValueSubmitted: text("new_value"),
+		...auditColumns(),
+		...softDeleteColumn(),
+	},
+);
 
 export const ownerProfiles = pgTable("owner_profiles", {
 	...idColumn(),

@@ -4,9 +4,12 @@ import { onError } from "@orpc/server";
 import { RPCHandler } from "@orpc/server/fetch";
 import { ZodToJsonSchemaConverter } from "@orpc/zod/zod4";
 import { createContext } from "@rently/api/context";
+import { runTenantDocumentCleanupJob } from "@rently/api/modules/tenant-documents/cleanup";
+import { createR2TenantDocumentStorage } from "@rently/api/modules/tenant-documents/storage";
 import { appRouter } from "@rently/api/routers/index";
 import { runScheduledReminderJob } from "@rently/api/scheduled-reminders";
 import { auth } from "@rently/auth";
+import { db } from "@rently/db";
 import { env } from "@rently/env/server";
 import { initLogger } from "evlog";
 import {
@@ -119,7 +122,26 @@ app.get("/", (c) => {
 export async function scheduled(event: {
 	scheduledTime: number;
 }): Promise<void> {
-	await runScheduledReminderJob({ now: new Date(event.scheduledTime) });
+	const now = new Date(event.scheduledTime);
+	const [reminders, documents] = await Promise.allSettled([
+		runScheduledReminderJob({ now }),
+		Promise.resolve().then(() =>
+			runTenantDocumentCleanupJob({
+				database: db,
+				storage: createR2TenantDocumentStorage(),
+				now,
+			}),
+		),
+	]);
+	if (reminders.status === "rejected") {
+		console.error("[scheduled] reminders failed", reminders.reason);
+	}
+	if (documents.status === "rejected") {
+		console.error(
+			"[scheduled] tenant document cleanup failed",
+			documents.reason,
+		);
+	}
 }
 
 export default {

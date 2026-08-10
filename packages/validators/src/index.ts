@@ -11,6 +11,7 @@ export * from "./property";
 export * from "./receipt";
 export * from "./subscription";
 export * from "./tenant";
+export * from "./tenant-document";
 export * from "./unit";
 export * from "./upload";
 export * from "./utility";

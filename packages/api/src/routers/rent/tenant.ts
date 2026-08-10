@@ -18,6 +18,7 @@ import {
 	InvitePublicSchema,
 	RemoveTenantSchema,
 	TenantDetailSchema,
+	type TenantLeaseSummary,
 	TenantListItemSchema,
 	UpdateTenantProfileSchema,
 } from "@rently/validators";
@@ -73,6 +74,17 @@ export const listTenants = ownerProcedure
 		const tenantMap = new Map<string, z.infer<typeof TenantListItemSchema>>();
 
 		for (const row of results) {
+			const lease: TenantLeaseSummary | null = row.leaseId
+				? {
+						id: row.leaseId,
+						propertyName: row.propertyName ?? "",
+						unitNumber: row.unitNumber ?? "",
+						rent: row.rent ?? 0,
+						endDate: row.endDate ? row.endDate.toISOString() : null,
+						overdue: null,
+					}
+				: null;
+
 			if (!tenantMap.has(row.tenantId)) {
 				tenantMap.set(row.tenantId, {
 					id: row.tenantId,
@@ -85,17 +97,11 @@ export const listTenants = ownerProcedure
 					createdAt: row.createdAt,
 					updatedAt: row.updatedAt,
 					status: row.inviteStatus ?? ("accepted" as const),
-					currentLease: row.leaseId
-						? {
-								id: row.leaseId,
-								propertyName: row.propertyName ?? "",
-								unitNumber: row.unitNumber ?? "",
-								rent: row.rent ?? 0,
-								endDate: row.endDate ? row.endDate.toISOString() : null,
-								overdue: null,
-							}
-						: null,
+					activeLeases: lease ? [lease] : [],
+					currentLease: lease,
 				});
+			} else if (lease) {
+				tenantMap.get(row.tenantId)?.activeLeases.push(lease);
 			}
 		}
 
@@ -130,6 +136,7 @@ export const listTenants = ownerProcedure
 				status: invite.status,
 				createdAt: invite.createdAt,
 				updatedAt: invite.updatedAt,
+				activeLeases: [],
 				currentLease: null,
 			});
 		}
@@ -140,25 +147,25 @@ export const listTenants = ownerProcedure
 		);
 
 		const tenants = Array.from(tenantMap.values()).map((tenant) => {
-			const overdue = tenant.currentLease
-				? overdueByLeaseId.get(tenant.currentLease.id)
-				: undefined;
+			const activeLeases = tenant.activeLeases.map((lease) => {
+				const overdue = overdueByLeaseId.get(lease.id);
+				return {
+					...lease,
+					overdue: overdue
+						? {
+								paidAmount: overdue.paidAmount,
+								outstandingAmount: overdue.outstandingAmount,
+								dueDate: overdue.dueDate,
+								daysOverdue: overdue.daysOverdue,
+							}
+						: null,
+				};
+			});
 
 			return {
 				...tenant,
-				currentLease: tenant.currentLease
-					? {
-							...tenant.currentLease,
-							overdue: overdue
-								? {
-										paidAmount: overdue.paidAmount,
-										outstandingAmount: overdue.outstandingAmount,
-										dueDate: overdue.dueDate,
-										daysOverdue: overdue.daysOverdue,
-									}
-								: null,
-						}
-					: null,
+				activeLeases,
+				currentLease: activeLeases[0] ?? null,
 			};
 		});
 
@@ -173,7 +180,7 @@ export const getTenantById = ownerProcedure
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
-		const [result] = await db
+		const results = await db
 			.select({
 				// User identity
 				tenantId: user.id,
@@ -188,9 +195,8 @@ export const getTenantById = ownerProcedure
 				emergencyContact: tenantProfiles.emergencyContact,
 				emergencyContactName: tenantProfiles.emergencyContactName,
 				emergencyContactLocation: tenantProfiles.emergencyContactLocation,
-				uidNumber: tenantProfiles.uidNumber,
+				aadhaarLastFour: tenantProfiles.aadhaarLastFour,
 				panNumber: tenantProfiles.panNumber,
-				verificationStatus: tenantProfiles.verificationStatus,
 				// Lease fields — all nullable when no active lease exists
 				leaseId: leases.id,
 				propertyName: properties.name,
@@ -218,7 +224,9 @@ export const getTenantById = ownerProcedure
 				// 2. This owner created this tenant (authorization)
 				and(eq(user.id, input.id), eq(tenantProfiles.createdById, authUser.id)),
 			)
-			.limit(1);
+			.orderBy(desc(leases.startDate));
+
+		const [result] = results;
 
 		// Zero rows means either: tenant doesn't exist, OR belongs to another owner.
 		// NOT_FOUND for both — don't reveal which, prevents enumeration.
@@ -228,21 +236,27 @@ export const getTenantById = ownerProcedure
 			});
 		}
 
-		// Build profile — null if verificationStatus is null (no profile row)
-		// In practice this won't happen once a tenant invitation is accepted,
-		// but LEFT JOIN means TypeScript sees it as nullable, and we handle it safely.
-		const profile =
-			result.verificationStatus !== null
-				? {
-						address: result.profileAddress,
-						emergencyContact: result.emergencyContact,
-						emergencyContactName: result.emergencyContactName,
-						emergencyContactLocation: result.emergencyContactLocation,
-						uidNumber: result.uidNumber,
-						panNumber: result.panNumber,
-						verificationStatus: result.verificationStatus,
-					}
-				: null;
+		const profile = {
+			address: result.profileAddress,
+			emergencyContact: result.emergencyContact,
+			emergencyContactName: result.emergencyContactName,
+			emergencyContactLocation: result.emergencyContactLocation,
+			aadhaarLastFour: result.aadhaarLastFour,
+			panNumber: result.panNumber
+				? `${result.panNumber.slice(0, 2)}••••${result.panNumber.slice(-2)}`
+				: null,
+		};
+
+		const activeLeases: TenantLeaseSummary[] = results
+			.filter((row) => row.leaseId !== null)
+			.map((row) => ({
+				id: row.leaseId as string,
+				propertyName: row.propertyName ?? "",
+				unitNumber: row.unitNumber ?? "",
+				rent: row.rent ?? 0,
+				endDate: row.endDate ? row.endDate.toISOString() : null,
+				overdue: null,
+			}));
 
 		return {
 			tenant: {
@@ -257,17 +271,8 @@ export const getTenantById = ownerProcedure
 				profile,
 				createdAt: result.createdAt,
 				updatedAt: result.updatedAt,
-				// currentLease is null when no active lease row joined
-				currentLease: result.leaseId
-					? {
-							id: result.leaseId,
-							propertyName: result.propertyName ?? "",
-							unitNumber: result.unitNumber ?? "",
-							rent: result.rent ?? 0,
-							endDate: result.endDate ? result.endDate.toISOString() : null,
-							overdue: null,
-						}
-					: null,
+				activeLeases,
+				currentLease: activeLeases[0] ?? null,
 			},
 		};
 	});

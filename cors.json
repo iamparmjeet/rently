@@ -1,0 +1,18 @@
+{
+	"rules": [
+		{
+			"allowed": {
+				"origins": [
+					"https://dashboard-keyhq.parmjeetmishra.com",
+					"https://tenant-keyhq.parmjeetmishra.com",
+					"http://localhost:3002",
+					"http://localhost:3003"
+				],
+				"methods": ["GET", "PUT", "HEAD"],
+				"headers": ["Content-Type", "Content-Disposition", "Cache-Control"]
+			},
+			"exposeHeaders": ["ETag", "Content-Length"],
+			"maxAgeSeconds": 3600
+		}
+	]
+}

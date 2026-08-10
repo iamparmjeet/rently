@@ -7,8 +7,15 @@ import {
 import { Button } from "@rently/ui/components/button";
 import { Input } from "@rently/ui/components/input";
 import { Label } from "@rently/ui/components/label";
+import { PrivateDocumentViewer } from "@rently/ui/components/private-document-viewer";
 import { cn } from "@rently/ui/lib/utils";
-import { IconClock, IconFileText, IconUser } from "@tabler/icons-react";
+import {
+	IconClock,
+	IconDownload,
+	IconEye,
+	IconFileText,
+	IconUser,
+} from "@tabler/icons-react";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -85,6 +92,13 @@ export function DocsTab() {
 		file?: File;
 	}>({ type: TENANT_DOCUMENT_TYPES.PAN });
 	const fileRef = useRef<HTMLInputElement>(null);
+	const [viewer, setViewer] = useState<{
+		documentId: string;
+		title: string;
+		contentType: string;
+		url: string | null;
+		error: string | null;
+	} | null>(null);
 	const profile = profileData?.profile;
 	const lease = leaseData?.lease;
 
@@ -101,11 +115,44 @@ export function DocsTab() {
 			const result =
 				await client.rent.tenantDocument.getPrivateDocumentDownloadUrl({
 					documentId,
+					disposition: "attachment",
 				});
 			window.location.assign(result.downloadUrl);
 		} catch (error) {
 			toast.error(
 				error instanceof Error ? error.message : "Could not open document",
+			);
+		}
+	}
+
+	async function view(document: DocumentSummary, title: string) {
+		setViewer({
+			documentId: document.id,
+			title,
+			contentType: document.contentType,
+			url: null,
+			error: null,
+		});
+		try {
+			const result =
+				await client.rent.tenantDocument.getPrivateDocumentDownloadUrl({
+					documentId: document.id,
+					disposition: "inline",
+				});
+			setViewer((current) =>
+				current ? { ...current, url: result.downloadUrl } : current,
+			);
+		} catch (error) {
+			setViewer((current) =>
+				current
+					? {
+							...current,
+							error:
+								error instanceof Error
+									? error.message
+									: "Could not open document",
+						}
+					: current,
 			);
 		}
 	}
@@ -259,13 +306,31 @@ export function DocsTab() {
 								)}
 								<div className="mt-3 flex flex-wrap gap-2">
 									{document && document.purgedAt === null && (
-										<Button
-											size="sm"
-											variant="outline"
-											onClick={() => download(document.id)}
-										>
-											View / download
-										</Button>
+										<>
+											<Button
+												size="sm"
+												variant="outline"
+												onClick={() =>
+													document &&
+													view(
+														document,
+														DOCUMENTS.find((item) => item.type === type)
+															?.label ?? type,
+													)
+												}
+											>
+												<IconEye />
+												View
+											</Button>
+											<Button
+												size="sm"
+												variant="outline"
+												onClick={() => document && download(document.id)}
+											>
+												<IconDownload />
+												Download
+											</Button>
+										</>
 									)}
 									{document?.status === "awaiting_tenant_consent" && (
 										<>
@@ -403,6 +468,20 @@ export function DocsTab() {
 						</div>
 					</div>
 				</div>
+			)}
+			{viewer && (
+				<PrivateDocumentViewer
+					open
+					onOpenChange={(open) => !open && setViewer(null)}
+					title={viewer.title}
+					contentType={viewer.contentType}
+					url={viewer.url}
+					error={viewer.error}
+					loading={!viewer.url && !viewer.error}
+					onDownload={() => {
+						download(viewer.documentId);
+					}}
+				/>
 			)}
 		</div>
 	);

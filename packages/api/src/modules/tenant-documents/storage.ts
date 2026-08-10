@@ -38,6 +38,7 @@ export type TenantDocumentDownloadInput = {
 	documentType: TenantDocumentType;
 	version: number;
 	contentType: string;
+	disposition?: "inline" | "attachment";
 };
 
 export interface TenantDocumentStorage {
@@ -144,7 +145,7 @@ export class R2TenantDocumentStorage implements TenantDocumentStorage {
 		url.searchParams.set("response-cache-control", "private, no-store");
 		url.searchParams.set(
 			"response-content-disposition",
-			`attachment; filename="${safeFilename(input.documentType, input.version)}"`,
+			`${input.disposition ?? "attachment"}; filename="${safeFilename(input.documentType, input.version)}"`,
 		);
 		url.searchParams.set("response-content-type", input.contentType);
 		url.searchParams.set(
@@ -211,7 +212,7 @@ export class InMemoryTenantDocumentStorage implements TenantDocumentStorage {
 	async createDownloadUrl(input: TenantDocumentDownloadInput): Promise<string> {
 		if (!this.objects.has(input.key))
 			throw new Error("DOCUMENT_OBJECT_MISSING");
-		return `https://in-memory.invalid/download/${encodeURIComponent(input.key)}?ttl=${TENANT_DOCUMENT_DOWNLOAD_URL_TTL_SECONDS}`;
+		return `https://in-memory.invalid/download/${encodeURIComponent(input.key)}?ttl=${TENANT_DOCUMENT_DOWNLOAD_URL_TTL_SECONDS}&disposition=${input.disposition ?? "attachment"}`;
 	}
 
 	async deleteObject(key: string): Promise<void> {

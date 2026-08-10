@@ -57,7 +57,10 @@ const beginUploadInput = z.object({
 	target: z.union([initialTargetSchema, replacementTargetSchema]),
 });
 
-const documentIdInput = z.object({ documentId: z.uuid() });
+const documentIdInput = z.object({
+	documentId: z.uuid(),
+	disposition: z.enum(["inline", "attachment"]).default("attachment"),
+});
 
 const uploadOutput = z.object({
 	documentId: z.uuid(),
@@ -806,6 +809,7 @@ export const getPrivateDocumentDownloadUrl = protectedProcedure
 				documentType: row.document.documentType,
 				version: row.document.version,
 				contentType: row.document.contentType,
+				disposition: input.disposition,
 			}),
 		};
 	});

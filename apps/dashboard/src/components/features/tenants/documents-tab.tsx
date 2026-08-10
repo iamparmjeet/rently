@@ -7,8 +7,9 @@ import {
 import { Button } from "@rently/ui/components/button";
 import { Input } from "@rently/ui/components/input";
 import { Label } from "@rently/ui/components/label";
+import { PrivateDocumentViewer } from "@rently/ui/components/private-document-viewer";
 import type { TenantDetail } from "@rently/validators";
-import { IconFileText } from "@tabler/icons-react";
+import { IconDownload, IconEye, IconFileText } from "@tabler/icons-react";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTenantDocumentAction, useTenantDocuments } from "@/hooks/tenants";
@@ -59,6 +60,13 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 		file?: File;
 	}>({ type: TENANT_DOCUMENT_TYPES.PAN });
 	const fileRef = useRef<HTMLInputElement>(null);
+	const [viewer, setViewer] = useState<{
+		documentId: string;
+		title: string;
+		contentType: string;
+		url: string | null;
+		error: string | null;
+	} | null>(null);
 	if (isLoading)
 		return <div className="h-64 animate-pulse rounded-xl bg-muted" />;
 
@@ -72,11 +80,44 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 			const result =
 				await client.rent.tenantDocument.getPrivateDocumentDownloadUrl({
 					documentId,
+					disposition: "attachment",
 				});
 			window.location.assign(result.downloadUrl);
 		} catch (error) {
 			toast.error(
 				error instanceof Error ? error.message : "Could not open document",
+			);
+		}
+	}
+
+	async function view(document: DocumentSummary, title: string) {
+		setViewer({
+			documentId: document.id,
+			title,
+			contentType: document.contentType,
+			url: null,
+			error: null,
+		});
+		try {
+			const result =
+				await client.rent.tenantDocument.getPrivateDocumentDownloadUrl({
+					documentId: document.id,
+					disposition: "inline",
+				});
+			setViewer((current) =>
+				current ? { ...current, url: result.downloadUrl } : current,
+			);
+		} catch (error) {
+			setViewer((current) =>
+				current
+					? {
+							...current,
+							error:
+								error instanceof Error
+									? error.message
+									: "Could not open document",
+						}
+					: current,
 			);
 		}
 	}
@@ -193,13 +234,30 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 							)}
 							<div className="mt-4 flex flex-wrap gap-2">
 								{doc && !doc.purgedAt && (
-									<Button
-										size="sm"
-										variant="outline"
-										onClick={() => download(doc.id)}
-									>
-										View / download
-									</Button>
+									<>
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={() =>
+												view(
+													doc,
+													DOCUMENTS.find((item) => item.type === type)?.label ??
+														type,
+												)
+											}
+										>
+											<IconEye />
+											View
+										</Button>
+										<Button
+											size="sm"
+											variant="outline"
+											onClick={() => download(doc.id)}
+										>
+											<IconDownload />
+											Download
+										</Button>
+									</>
 								)}
 								{doc?.status === "pending_review" && (
 									<>
@@ -374,6 +432,18 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 						</div>
 					</div>
 				</div>
+			)}
+			{viewer && (
+				<PrivateDocumentViewer
+					open
+					onOpenChange={(open) => !open && setViewer(null)}
+					title={viewer.title}
+					contentType={viewer.contentType}
+					url={viewer.url}
+					error={viewer.error}
+					loading={!viewer.url && !viewer.error}
+					onDownload={() => download(viewer.documentId)}
+				/>
 			)}
 		</div>
 	);

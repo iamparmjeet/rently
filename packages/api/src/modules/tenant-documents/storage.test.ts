@@ -51,8 +51,10 @@ describe("tenant document storage", () => {
 			documentType: "pan",
 			version: 2,
 			contentType: "application/pdf",
+			disposition: "inline",
 		});
 		expect(downloadUrl).toContain("ttl=60");
+		expect(downloadUrl).toContain("disposition=inline");
 		await storage.deleteObject(signed.storageKey);
 		expect(await storage.headObject(signed.storageKey)).toBeNull();
 	});

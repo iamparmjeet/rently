@@ -25,6 +25,7 @@ import {
 } from "@rently/ui/components/select";
 import { type CreateUnit, CreateUnitSchema } from "@rently/validators";
 import { useForm } from "react-hook-form";
+import { entityLabel } from "@/utils/display";
 
 // Schema
 interface UnitFormProps {
@@ -108,14 +109,16 @@ export function UnitForm({
 								disabled={isSubmitting}
 							>
 								<SelectTrigger>
-									<SelectValue placeholder="Select type">
-										{selectedProperty?.name}
+									<SelectValue placeholder="Select a property">
+										{selectedProperty
+											? entityLabel(selectedProperty.name, selectedProperty.id)
+											: undefined}
 									</SelectValue>
 								</SelectTrigger>
 								<SelectContent>
 									{properties.map((p) => (
 										<SelectItem key={p.id} value={p.id}>
-											{p.name}
+											{entityLabel(p.name, p.id)}
 										</SelectItem>
 									))}
 								</SelectContent>

@@ -74,18 +74,22 @@ export function TenantCard({ tenant, actionsSlot }: TenantCardProps) {
 					<div className="rounded-lg bg-muted/50 p-3 text-sm">
 						<div className="flex items-center gap-2 font-medium">
 							<IconBuilding className="size-4" />
-							{tenant.currentLease.propertyName}
+							{tenant.activeLeases.length > 1
+								? `${tenant.activeLeases.length} active units`
+								: tenant.currentLease.propertyName}
 						</div>
 						<div className="mt-1 text-muted-foreground">
-							Unit {tenant.currentLease.unitNumber} · ₹
-							{tenant.currentLease.rent.toLocaleString()}/mo
+							{tenant.activeLeases.length > 1
+								? `₹${tenant.activeLeases.reduce((sum, lease) => sum + lease.rent, 0).toLocaleString()}/mo total`
+								: `Unit ${tenant.currentLease.unitNumber} · ₹${tenant.currentLease.rent.toLocaleString()}/mo`}
 						</div>
-						{tenant.currentLease.endDate && (
-							<div className="mt-1 text-muted-foreground text-xs">
-								Until{" "}
-								{new Date(tenant.currentLease.endDate).toLocaleDateString()}
-							</div>
-						)}
+						{tenant.activeLeases.length === 1 &&
+							tenant.currentLease.endDate && (
+								<div className="mt-1 text-muted-foreground text-xs">
+									Until{" "}
+									{new Date(tenant.currentLease.endDate).toLocaleDateString()}
+								</div>
+							)}
 						{tenant.currentLease.overdue && (
 							<div className="mt-2 flex items-center justify-between gap-2">
 								<Badge variant="destructive" className="text-xs">

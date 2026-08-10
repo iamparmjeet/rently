@@ -3,6 +3,7 @@
 import { Badge } from "@rently/ui/components/badge";
 import { formatRupees } from "@rently/ui/lib/currency";
 import type { Lease, TenantDetail } from "@rently/validators";
+import Link from "next/link";
 
 interface OverviewTabProps {
 	tenant: TenantDetail;
@@ -27,7 +28,7 @@ function SectionHeading({ children }: { children: React.ReactNode }) {
 }
 
 export function OverviewTab({ tenant, lease }: OverviewTabProps) {
-	const { profile, currentLease } = tenant;
+	const { profile, currentLease, activeLeases } = tenant;
 
 	const leaseStartFormatted = lease?.startDate
 		? new Date(lease.startDate).toLocaleDateString("en-IN", {
@@ -47,6 +48,50 @@ export function OverviewTab({ tenant, lease }: OverviewTabProps) {
 		<div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
 			{/* ── Left column: Personal + Lease ************ */}
 			<div className="space-y-8 lg:col-span-2">
+				{/* All active units */}
+				<section>
+					<SectionHeading>
+						Active Units / Leases ({activeLeases.length})
+					</SectionHeading>
+					{activeLeases.length === 0 ? (
+						<p className="rounded-md border border-dashed px-3 py-6 text-center text-muted-foreground text-sm">
+							No active leases
+						</p>
+					) : (
+						<div className="space-y-3">
+							{activeLeases.map((activeLease) => (
+								<div
+									key={activeLease.id}
+									className="flex items-center justify-between gap-4 rounded-lg border p-4"
+								>
+									<div className="min-w-0">
+										<p className="font-medium text-sm">
+											{activeLease.propertyName}
+										</p>
+										<p className="mt-1 text-muted-foreground text-sm">
+											Unit {activeLease.unitNumber} ·{" "}
+											{formatRupees(activeLease.rent)}/mo
+										</p>
+									</div>
+									<div className="flex shrink-0 items-center gap-3">
+										<Badge variant="outline">
+											{activeLease.endDate
+												? `Until ${new Date(activeLease.endDate).toLocaleDateString("en-IN")}`
+												: "Ongoing"}
+										</Badge>
+										<Link
+											href={`/leases/${activeLease.id}`}
+											className="font-medium text-primary text-sm hover:underline"
+										>
+											View lease
+										</Link>
+									</div>
+								</div>
+							))}
+						</div>
+					)}
+				</section>
+
 				{/* Personal Information */}
 				<section>
 					<SectionHeading>Personal Information</SectionHeading>

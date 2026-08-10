@@ -466,7 +466,7 @@ describe("getInviteByToken", () => {
 });
 
 describe("acceptInvite", () => {
-	it("accepts a tenant-completed invite with consent, a verified tenant account, and tenant-owned identity data", async () => {
+	it("accepts a tenant-completed invite with consent and a verified tenant account", async () => {
 		const owner = await createOwner("Owner A");
 		const invite = await createPendingInvite(owner.id);
 
@@ -480,8 +480,6 @@ describe("acceptInvite", () => {
 			emergencyContact: "Emergency Contact",
 			emergencyContactName: "Alex Contact",
 			emergencyContactLocation: "Bengaluru",
-			uidNumber: "1234-5678-9012",
-			panNumber: "ABCDE1234F",
 		});
 
 		expect(result).toEqual({
@@ -535,8 +533,7 @@ describe("acceptInvite", () => {
 				emergencyContact: tenantProfiles.emergencyContact,
 				emergencyContactName: tenantProfiles.emergencyContactName,
 				emergencyContactLocation: tenantProfiles.emergencyContactLocation,
-				uidNumber: tenantProfiles.uidNumber,
-				panNumber: tenantProfiles.panNumber,
+				aadhaarLastFour: tenantProfiles.aadhaarLastFour,
 				invitedId: tenantProfiles.invitedId,
 				createdById: tenantProfiles.createdById,
 			})
@@ -550,8 +547,7 @@ describe("acceptInvite", () => {
 			emergencyContact: "Emergency Contact",
 			emergencyContactName: "Alex Contact",
 			emergencyContactLocation: "Bengaluru",
-			uidNumber: "1234-5678-9012",
-			panNumber: "ABCDE1234F",
+			aadhaarLastFour: null,
 			invitedId: invite.id,
 			createdById: owner.id,
 		});
@@ -574,7 +570,7 @@ describe("acceptInvite", () => {
 		expect(storedInvite?.privacyVersion).toBe("keyhq-beta-v1");
 	});
 
-	it("uses owner-prepared profile fields while keeping UID and PAN tenant-entered", async () => {
+	it("uses owner-prepared profile fields without collecting identity values", async () => {
 		const owner = await createOwner("Owner A");
 		const invite = await createOwnerPreparedInvite(owner.id);
 
@@ -583,8 +579,6 @@ describe("acceptInvite", () => {
 			password: "TenantPass1",
 			termsAccepted: true,
 			privacyAcknowledged: true,
-			uidNumber: "9999-8888-7777",
-			panNumber: "ZZZZZ9999Z",
 		});
 
 		const [tenantUser] = await db
@@ -614,8 +608,7 @@ describe("acceptInvite", () => {
 				emergencyContact: tenantProfiles.emergencyContact,
 				emergencyContactName: tenantProfiles.emergencyContactName,
 				emergencyContactLocation: tenantProfiles.emergencyContactLocation,
-				uidNumber: tenantProfiles.uidNumber,
-				panNumber: tenantProfiles.panNumber,
+				aadhaarLastFour: tenantProfiles.aadhaarLastFour,
 			})
 			.from(tenantProfiles)
 			.where(eq(tenantProfiles.userId, tenantUser.id));
@@ -626,20 +619,17 @@ describe("acceptInvite", () => {
 			emergencyContact: "Owner Emergency Contact",
 			emergencyContactName: "Morgan Contact",
 			emergencyContactLocation: "Mumbai",
-			uidNumber: "9999-8888-7777",
-			panNumber: "ZZZZZ9999Z",
+			aadhaarLastFour: null,
 		});
 	});
-	it("rolls back account creation when profile creation fails", async () => {
+	it("does not create a duplicate account during acceptance", async () => {
 		const owner = await createOwner("Owner A");
 		const existingTenant = await createOwner("Existing Tenant");
 		const invite = await createPendingInvite(owner.id);
-
-		await db.insert(tenantProfiles).values({
-			userId: existingTenant.id,
-			email: existingTenant.email,
-			panNumber: "DUPLICATE123",
-		});
+		await db
+			.update(tenantInvites)
+			.set({ email: existingTenant.email })
+			.where(eq(tenantInvites.id, invite.id));
 
 		await expect(
 			clientFor(owner).acceptInvite({
@@ -647,16 +637,15 @@ describe("acceptInvite", () => {
 				password: "TenantPass1",
 				termsAccepted: true,
 				privacyAcknowledged: true,
-				panNumber: "DUPLICATE123",
 			}),
-		).rejects.toBeDefined();
+		).rejects.toMatchObject({ code: "CONFLICT" });
 
 		const [orphanedUser] = await db
 			.select({ id: user.id })
 			.from(user)
-			.where(eq(user.email, invite.email));
+			.where(eq(user.email, existingTenant.email));
 
-		expect(orphanedUser).toBeUndefined();
+		expect(orphanedUser?.id).toBe(existingTenant.id);
 
 		const [storedInvite] = await db
 			.select({ status: tenantInvites.status })

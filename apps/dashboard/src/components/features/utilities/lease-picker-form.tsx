@@ -16,6 +16,7 @@ import type {
 import { IconChevronRight, IconHome } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { UtilityForm } from "@/components/forms/utility-form";
+import { entityLabel } from "@/utils/display";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -106,12 +107,20 @@ export function UnitPickerUtilityForm({
 					}}
 				>
 					<SelectTrigger>
-						<SelectValue placeholder="Select a property" />
+						<SelectValue placeholder="Select a property">
+							{selectedPropertyId
+								? entityLabel(
+										properties.find((p) => p.id === selectedPropertyId)?.name ??
+											"",
+										selectedPropertyId,
+									)
+								: undefined}
+						</SelectValue>
 					</SelectTrigger>
 					<SelectContent>
 						{properties.map((p) => (
 							<SelectItem key={p.id} value={p.id}>
-								{p.name}
+								{entityLabel(p.name, p.id)}
 							</SelectItem>
 						))}
 					</SelectContent>
@@ -162,9 +171,14 @@ function LeaseUnitCard({
 				<IconHome className="size-4 text-muted-foreground" />
 			</div>
 			<div className="min-w-0 flex-1">
-				<p className="font-medium text-sm">{lease.unitNumber}</p>
+				<p className="font-medium text-sm">
+					{entityLabel(lease.unitNumber, lease.unitId)}
+				</p>
 				<p className="text-muted-foreground text-xs">
-					{lease.tenantName ?? "—"} · ₹{lease.rent.toLocaleString()}/mo
+					{lease.tenantName
+						? entityLabel(lease.tenantName, lease.tenantId)
+						: "—"}{" "}
+					· ₹{lease.rent.toLocaleString()}/mo
 				</p>
 			</div>
 			<IconChevronRight className="size-4 shrink-0 text-muted-foreground" />

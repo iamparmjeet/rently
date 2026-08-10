@@ -424,8 +424,6 @@ export const acceptInvite = publicProcedure
 				await tx
 					.update(tenantProfiles)
 					.set({
-						uidNumber: input.uidNumber ?? null,
-						panNumber: input.panNumber ?? null,
 						updatedAt: now,
 					})
 					.where(eq(tenantProfiles.userId, tenantUserId));
@@ -440,8 +438,6 @@ export const acceptInvite = publicProcedure
 					emergencyContactName: profileSource.emergencyContactName ?? null,
 					emergencyContactLocation:
 						profileSource.emergencyContactLocation ?? null,
-					uidNumber: input.uidNumber ?? null,
-					panNumber: input.panNumber ?? null,
 					invitedId: invite.id,
 					createdById: invite.invitedById,
 				});

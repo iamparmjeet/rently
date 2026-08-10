@@ -5,9 +5,22 @@ import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
 import { Pool as PgPool } from "pg";
 import * as schema from "./schema";
 
-type NeonDatabase = ReturnType<typeof drizzleNeonHttp>;
+export type NeonHttpDatabase = ReturnType<typeof drizzleNeonHttp>;
 type PgDatabase = ReturnType<typeof drizzlePg>;
-export type Database = NeonDatabase | PgDatabase;
+export type Database = NeonHttpDatabase | PgDatabase;
+
+/**
+ * neon-http intentionally does not implement callback transactions. Its batch
+ * API sends a non-interactive group of queries to Neon as one transaction.
+ */
+export function supportsDatabaseBatch(
+	database: Database,
+): database is NeonHttpDatabase {
+	return (
+		"batch" in database &&
+		typeof (database as { batch?: unknown }).batch === "function"
+	);
+}
 
 export function createDb(): Database {
 	const url = env.DATABASE_URL;

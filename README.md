@@ -152,7 +152,7 @@ Every owner-scoped query is filtered by `ctx.user.id`. Ownership helpers (`Verif
 
 - **Properties** — CRUD with property type (residential/commercial) and address
 - **Units** — per-property units with type, rent amount, status (vacant/occupied)
-- **Tenants** — invite-based onboarding; owner-gated KYC (UID/PAN)
+- **Tenants** — invite-based onboarding; private per-document upload, consent, review, replacement, and purge workflow
 - **Leases** — link tenant ↔ unit with start/end date, rent amount, deposit
 - **Utilities** — electricity meter readings per unit; bill calculation
 - **Payments** — rent, utility, and deposit payment records
@@ -165,7 +165,7 @@ Every owner-scoped query is filtered by `ctx.user.id`. Ownership helpers (`Verif
 - **Bill tab** — current month rent + utility breakdown
 - **Payments tab** — payment history
 - **Readings tab** — submit electricity meter readings
-- **Documents tab** — view profile and KYC status; document uploads and change requests are planned
+- **Documents tab** — private six-document upload, consent, owner review, replacement, and short-lived download workflow
 
 ### Auth flows (`apps/web`)
 
@@ -188,9 +188,10 @@ Every owner-scoped query is filtered by `ctx.user.id`. Ownership helpers (`Verif
 | `utilities`              | Electricity meter readings per lease              |
 | `payments`               | Financial transactions (rent / utility / deposit) |
 | `tenantInvites`          | Owner-created invite token with expiry            |
-| `tenantProfiles`         | Extended tenant KYC (UID, PAN, emergency contact) |
+| `tenantProfiles`         | Extended tenant profile, legacy PAN hint, and Aadhaar last four |
 | `ownerProfiles`          | Extended owner profile (GST, UPI, company name)   |
-| `documentUpdateRequests` | Owner-gated UID/PAN change workflow               |
+| `tenantDocuments`        | Private document versions, consent, review, and purge metadata |
+| `documentUpdateRequests` | Tenant-requested replacement lifecycle             |
 
 ### Subscription domain
 
@@ -300,9 +301,18 @@ R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
 R2_PUBLIC_URL=https://keyhq-media.example.com
 R2_S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+R2_PRIVATE_BUCKET_NAME=keyhq-private-documents
+R2_PRIVATE_ACCESS_KEY_ID=
+R2_PRIVATE_SECRET_ACCESS_KEY=
+AADHAAR_UPLOADS_ENABLED=false
 
 NODE_ENV=development
 ```
+
+Tenant documents use the separate private R2 bucket above. Keep public access
+disabled, do not attach a custom domain, and configure bucket CORS with only
+the dashboard and tenant portal origins (including their local development
+ports). The document API returns only short-lived presigned PUT/GET URLs.
 
 ### `apps/*/env.local` (all three Next.js apps)
 
@@ -378,13 +388,13 @@ chore(deps): bump drizzle-orm to 0.45.2
 | R2 owner-avatar upload                                                | ✅ Complete                    |
 | Tenant meter-submission rate limiting                                 | ✅ Complete                    |
 | Mobile sidebar                                                        | ✅ Complete — device QA pending |
-| Hard email verification and unified tenant onboarding                 | 📋 Milestone 1                 |
-| KYC document-file uploads and persisted change-request lifecycle      | 📋 Milestone 2                 |
+| Hard email verification and unified tenant onboarding                 | ✅ Milestone 1                 |
+| Private tenant document workflow and persisted replacement lifecycle  | ✅ Milestone 2                 |
 | Mobile device and journey QA                                          | 📋 Milestone 3                 |
 | Instant dashboard bootstrap                                           | 📋 Milestone 4                 |
 | Print-optimized rent receipts                                         | 📋 Milestone 5                 |
 | Persisted notification preferences and automatic tenant emails        | ✅ Milestone 6                 |
-| Scheduled preference-driven email reminders                            | 📋 Milestone 7                 |
+| Scheduled preference-driven email reminders                           | ✅ Milestone 7                 |
 | Admin panel                                                           | 📋 Post-beta                   |
 
 ---

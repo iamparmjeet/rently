@@ -12,7 +12,6 @@ import {
 } from "@rently/ui/components/field";
 import { Input } from "@rently/ui/components/input";
 import { UpdateTenantProfileSchema } from "@rently/validators";
-import { IconLock } from "@tabler/icons-react";
 import { useForm } from "react-hook-form";
 import z from "zod";
 
@@ -39,10 +38,6 @@ export type TenantProfileFormValues = z.infer<typeof TenantProfileFormSchema>;
 interface TenantProfileFormProps {
 	formId: string;
 	defaultValues?: Partial<TenantProfileFormValues>;
-	// Pass undefined to hide KYC section entirely.
-	// Pass null to show it with "Not set" state.
-	uidNumber?: string | null;
-	panNumber?: string | null;
 	onSubmit: (values: TenantProfileFormValues) => void;
 	isSubmitting?: boolean;
 }
@@ -50,38 +45,9 @@ interface TenantProfileFormProps {
 // KYC-only locked field — requires document update request workflow.
 // Kept separate from editable Better Auth fields on purpose: different
 // unlock mechanism, different visual language.
-function LockedField({
-	label,
-	value,
-	note,
-}: {
-	label: string;
-	value: string;
-	note?: string;
-}) {
-	return (
-		<Field>
-			<FieldLabel className="flex items-center gap-1.5">
-				{label}
-				<span className="flex items-center gap-1 rounded-full bg-muted px-2 py-0.5 text-muted-foreground text-xs">
-					<IconLock className="h-2.5 w-2.5" />
-					{note ?? "Read-only"}
-				</span>
-			</FieldLabel>
-			<Input
-				value={value || "Not set"}
-				disabled
-				className="bg-muted/50 text-muted-foreground"
-			/>
-		</Field>
-	);
-}
-
 export function TenantProfileForm({
 	formId,
 	defaultValues,
-	uidNumber,
-	panNumber,
 	onSubmit,
 	isSubmitting,
 }: TenantProfileFormProps) {
@@ -208,33 +174,6 @@ export function TenantProfileForm({
 					</Field>
 				</FieldGroup>
 			</FieldSet>
-
-			{/* ── KYC Documents (still locked — document request workflow) ── */}
-			{(uidNumber !== undefined || panNumber !== undefined) && (
-				<FieldSet>
-					<FieldLegend>KYC Documents</FieldLegend>
-					<p className="mb-3 text-muted-foreground text-xs">
-						To change these fields, raise a document update request from the
-						tenant detail page.
-					</p>
-					<FieldGroup className="grid grid-cols-2 gap-4">
-						{uidNumber !== undefined && (
-							<LockedField
-								label="Aadhaar / UID Number"
-								value={uidNumber ?? ""}
-								note="Requires document request"
-							/>
-						)}
-						{panNumber !== undefined && (
-							<LockedField
-								label="PAN Number"
-								value={panNumber ?? ""}
-								note="Requires document request"
-							/>
-						)}
-					</FieldGroup>
-				</FieldSet>
-			)}
 		</form>
 	);
 }

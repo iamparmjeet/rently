@@ -223,8 +223,8 @@ export const getMyUtilities = protectedProcedure
 	});
 
 //  4. Get My Profile
-// WHY: Powers the "Profile & Docs" tab. Reads the user row + tenantProfiles row.
-//      verificationStatus drives the doc status badges (pending/verified).
+// WHY: Powers the tenant profile summary. Document state comes from the private
+// tenant-document list procedure, not the legacy profile verification columns.
 export const getMyProfile = protectedProcedure
 	.route({ method: "GET", path: "/rent/tenant-portal/profile" })
 	.output(
@@ -236,9 +236,11 @@ export const getMyProfile = protectedProcedure
 				address: z.string().nullable(),
 				emergencyContactName: z.string().nullable(),
 				emergencyContact: z.string().nullable(),
-				uidNumber: z.string().nullable(),
-				panNumber: z.string().nullable(),
-				verificationStatus: z.string().nullable(),
+				aadhaarLastFour: z
+					.string()
+					.regex(/^\d{4}$/)
+					.nullable(),
+				panHint: z.string().nullable(),
 			}),
 		}),
 	)
@@ -256,9 +258,8 @@ export const getMyProfile = protectedProcedure
 				address: tenantProfiles.address,
 				emergencyContactName: tenantProfiles.emergencyContactName,
 				emergencyContact: tenantProfiles.emergencyContact,
-				uidNumber: tenantProfiles.uidNumber,
-				panNumber: tenantProfiles.panNumber,
-				verificationStatus: tenantProfiles.verificationStatus,
+				aadhaarLastFour: tenantProfiles.aadhaarLastFour,
+				legacyPanNumber: tenantProfiles.panNumber,
 			})
 			.from(user)
 			.leftJoin(tenantProfiles, eq(tenantProfiles.userId, user.id))
@@ -271,7 +272,20 @@ export const getMyProfile = protectedProcedure
 			});
 		}
 
-		return { profile: row };
+		return {
+			profile: {
+				name: row.name,
+				email: row.email,
+				phone: row.phone,
+				address: row.address,
+				emergencyContactName: row.emergencyContactName,
+				emergencyContact: row.emergencyContact,
+				aadhaarLastFour: row.aadhaarLastFour,
+				panHint: row.legacyPanNumber
+					? `${row.legacyPanNumber.slice(0, 2)}••••${row.legacyPanNumber.slice(-2)}`
+					: null,
+			},
+		};
 	});
 
 //  5. Submit My Reading

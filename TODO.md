@@ -3,7 +3,7 @@
 > Single source of truth for build progress.
 > Update this file as items are completed or priorities shift.
 > Tiers: **P0** = must ship before public launch · **P1** = core product gaps · **P2** = growth features · **P3** = post-launch backlog
-> Last audited: 2026-08-07 (verified against the KeyHQ beta integration branch)
+> Last audited: 2026-08-10 (verified against the private-document milestone branch)
 > Cost policy: prefer services with a suitable free tier. Move to a paid tier only when measured usage or a required capability exceeds its documented free limits.
 
 ---
@@ -30,10 +30,12 @@
 - [x] **Milestone 0 — Product Truth and Immediate Defects** — public KeyHQ branding, truthful pricing/copy, legal support contact, corrected local/production URL documentation, invite URLs built from `WEB_APP_URL`, invite delivery feedback and resend action, and stale TODO cleanup.
 - [x] **M0 validation** — Vitest invite suite covers cross-owner resend denial, valid resend, expiry, and preserved invites after email delivery failure; typecheck and production build pass.
 - [x] **PDF rent receipts + manual payment audit** — owner and tenant receipt flows, deterministic receipt numbers, Indian currency words, printable routes, payment controls, authorization coverage, and integration validation are complete.
+- [x] **Private document viewer lifecycle** — separate View and Download actions; PDF/image previews open in an in-app dialog; preview bytes are cached in browser memory for the current tab only.
+- [x] **Neon HTTP document writes** — document lifecycle mutations use Neon-compatible atomic batches; the Docker-only test fallback remains isolated to `rently_test`.
 
 ---
 
-## Current Milestone — M1: Hard Email Verification and Unified Onboarding
+## Completed Milestone — M1: Hard Email Verification and Unified Onboarding
 
 ### M1a — Hard email verification
 
@@ -79,7 +81,7 @@
 
 ---
 
-## In Progress 🚧
+## Completed Milestone Detail
 
 ### Notification Preferences + Email Triggers _(Milestone 6)_
 
@@ -94,19 +96,27 @@
 
 ### Private Tenant Documents _(Milestone 2 — Tenant Trust Workflows)_
 
-- [ ] Create `tenantDocuments`; store a private R2 key, document type/version, masked identifier, consent, status, submitter/reviewer metadata, notes, and audit timestamps.
-- [ ] Never add public document URL columns to `tenantProfiles` or return permanent public URLs. Provide short-lived, owner/tenant-authorized signed download URLs only.
-- [ ] Store only Aadhaar last four digits in PostgreSQL; require masked Aadhaar uploads and label reviews as “owner reviewed,” never UIDAI verified.
-- [ ] Keep Aadhaar uploads behind a production compliance feature flag.
-- [ ] Implement `submitInitialDocument`, `reviewTenantDocument`, and `getPrivateDocumentDownloadUrl` with owner/tenant authorization tests.
-- [ ] Add tenant upload and owner review UI in the portal/dashboard Docs experiences.
+- [x] Create `tenantDocuments`; store a private R2 key, document type/version, masked identifier, consent, status, submitter/reviewer metadata, notes, and audit timestamps.
+- [x] Never add public document URL columns to `tenantProfiles` or return permanent public URLs. Provide short-lived, owner/tenant-authorized signed download URLs only.
+- [x] Store only Aadhaar last four digits in PostgreSQL; require masked Aadhaar uploads and label reviews as “owner reviewed,” never UIDAI verified.
+- [x] Keep Aadhaar uploads behind a production compliance feature flag.
+- [x] Implement initial submission, consent, owner review, private download, expiry, purge, and authorization interfaces.
+- [x] Add tenant upload/consent and owner upload/review UI in the portal/dashboard Docs experiences.
+- [x] Add the private-bucket environment contract and migration that preserves legacy update-request rows.
+- [x] Add separate inline preview and attachment download behavior for all supported document types.
+- [x] Add tab-lifetime in-memory preview caching without localStorage, IndexedDB, permanent URLs, or stored signed URLs.
+- [x] Apply the document migration to the current Neon development branch and verify the document upload flow.
+- [ ] Apply and verify the exact CORS policy on `keyhq-private-documents` with `r2 bucket cors list`.
+- [ ] Complete real R2 smoke tests: unauthenticated denial, signed PUT/GET expiry, allowed dashboard/tenant origins, and rejected unrelated origins.
+- [ ] Commit the feature branch, push it, and open the PR into `beta2` after review of the combined multi-lease + M2 diff.
+- [ ] Deploy beta with `AADHAAR_UPLOADS_ENABLED=false`; verify non-Aadhaar flows before production rollout.
 
 ### Document Update Lifecycle _(Milestone 2 — Tenant Trust Workflows)_
 
-- [ ] Initial submission: `pending → verified | rejected`.
-- [ ] Later changes: `pending request → approved → submitted → completed`, with terminal `rejected | expired` states.
-- [ ] An approved update request opens a 48-hour submission window; the prior verified document remains active until final approval.
-- [ ] Implement `createDocumentUpdateRequest`, `reviewDocumentUpdateRequest`, and `submitApprovedDocumentUpdate` with authorization and expiry tests.
+- [x] Initial submission: `upload_pending → pending_review → owner_reviewed | rejected`.
+- [x] Later changes: `pending request → approved → submitted → completed`, with terminal `rejected | expired` states.
+- [x] An approved update request opens a 48-hour submission window; the prior owner-reviewed document remains active until final approval.
+- [x] Implement replacement requests, owner decisions, replacement submission, transactional supersession, and expiry handling.
 
 ---
 

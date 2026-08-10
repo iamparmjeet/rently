@@ -8,6 +8,7 @@ import { Button } from "@rently/ui/components/button";
 import { Input } from "@rently/ui/components/input";
 import { Label } from "@rently/ui/components/label";
 import { PrivateDocumentViewer } from "@rently/ui/components/private-document-viewer";
+import { usePrivateDocumentUrlCache } from "@rently/ui/hooks/use-private-document-url-cache";
 import type { TenantDetail } from "@rently/validators";
 import { IconDownload, IconEye, IconFileText } from "@tabler/icons-react";
 import { useRef, useState } from "react";
@@ -60,6 +61,7 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 		file?: File;
 	}>({ type: TENANT_DOCUMENT_TYPES.PAN });
 	const fileRef = useRef<HTMLInputElement>(null);
+	const documentUrlCache = usePrivateDocumentUrlCache();
 	const [viewer, setViewer] = useState<{
 		documentId: string;
 		title: string;
@@ -98,14 +100,23 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 			url: null,
 			error: null,
 		});
+
 		try {
-			const result =
-				await client.rent.tenantDocument.getPrivateDocumentDownloadUrl({
-					documentId: document.id,
-					disposition: "inline",
-				});
+			const previewUrl = await documentUrlCache.getPreviewUrl(
+				document.id,
+				async () => {
+					const result =
+						await client.rent.tenantDocument.getPrivateDocumentDownloadUrl({
+							documentId: document.id,
+							disposition: "inline",
+						});
+
+					return result.downloadUrl;
+				},
+			);
+
 			setViewer((current) =>
-				current ? { ...current, url: result.downloadUrl } : current,
+				current ? { ...current, url: previewUrl } : current,
 			);
 		} catch (error) {
 			setViewer((current) =>

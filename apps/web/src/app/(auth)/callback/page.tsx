@@ -49,6 +49,12 @@ export default async function AuthCallbackPage({
 		);
 	}
 
+	if (role === USER_ROLES.ADMIN) {
+		redirect(
+			`${env.NEXT_PUBLIC_ADMIN_URL}/dashboard` as unknown as Route<string>,
+		);
+	}
+
 	redirect(
 		`${env.NEXT_PUBLIC_DASHBOARD_URL}/dashboard` as unknown as Route<string>,
 	);

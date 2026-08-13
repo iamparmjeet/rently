@@ -22,7 +22,7 @@ import {
 	PaymentSelectSchema,
 	UpdatePaymentSchema,
 } from "@rently/validators";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import z from "zod";
 import { isLeaseOwner } from "../helpers";
 import { sendAutomaticPaymentReceipt } from "../helpers/automatic-emails";
@@ -260,7 +260,12 @@ export const listPayments = ownerProcedure
 			.innerJoin(properties, eq(units.propertyId, properties.id))
 			.innerJoin(user, eq(leases.tenantId, user.id))
 			.leftJoin(tenantProfiles, eq(tenantProfiles.userId, user.id))
-			.where(eq(properties.ownerId, authUser.id));
+			.where(eq(properties.ownerId, authUser.id))
+			.orderBy(
+				desc(payments.paymentDate),
+				desc(payments.createdAt),
+				desc(payments.id),
+			);
 
 		return { payments: results };
 	});

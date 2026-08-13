@@ -60,9 +60,8 @@ export function SecurityTab() {
 			});
 			toast.success("Password updated successfully");
 			form.reset();
-		} catch (error) {
+		} catch {
 			toast.error("Failed to update password. Check your current password.");
-			console.error(error); // TODO: remove before prod
 		}
 	}
 
@@ -74,9 +73,8 @@ export function SecurityTab() {
 			// pattern — keeps the current session active so the user isn't locked out.
 			await authClient.revokeOtherSessions();
 			toast.success("All other sessions revoked");
-		} catch (error) {
+		} catch {
 			toast.error("Failed to revoke sessions");
-			console.error(error); // TODO: remove before prod
 		} finally {
 			setIsRevokingAll(false);
 		}

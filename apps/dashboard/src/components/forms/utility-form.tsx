@@ -176,13 +176,7 @@ export function UtilityForm({
 	const enabledCount = Object.values(isEnabled).filter(Boolean).length;
 
 	return (
-		<form
-			onSubmit={handleSubmit(onSubmit, (e) =>
-				// TODO: remove before prod
-				console.log("form errors", e),
-			)}
-			className="flex flex-col gap-6"
-		>
+		<form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6">
 			{/* ── Billing Period ──────────────────────── */}
 			<section className="rounded-lg border bg-card p-4">
 				<p className="mb-3 font-medium text-sm">Billing Period</p>

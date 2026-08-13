@@ -48,8 +48,6 @@ function BetaCodeRedeemer() {
 	const [code, setCode] = useState("");
 	const redeem = useRedeemBetaCode();
 
-	// console.log("redeem", redeem);
-
 	return (
 		<Container className="w-full p-0 sm:max-w-180">
 			<div className="flex gap-2 pt-2">

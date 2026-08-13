@@ -111,9 +111,8 @@ export function ProfileTab() {
 				phone: values.phone,
 			});
 			toast.success("Personal details updated");
-		} catch (error) {
+		} catch {
 			toast.error("Failed to update personal details");
-			console.error(error); // TODO: remove before prod
 		} finally {
 			setIsSavingPersonal(false);
 		}

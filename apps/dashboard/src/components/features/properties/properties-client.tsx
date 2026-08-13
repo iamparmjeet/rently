@@ -32,8 +32,6 @@ export function PropertiesClient() {
 	// No useEffect, no useState for data
 	const { data, isLoading } = useSuspenseProperties();
 
-	// console.log("properties", data);
-
 	// Client-side filtering/sorting (happens on cached data, no network)
 	const filteredProperties = useMemo(() => {
 		const list = data?.properties ?? [];

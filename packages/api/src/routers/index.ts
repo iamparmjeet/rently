@@ -4,6 +4,7 @@ import * as notificationProcedures from "./notification";
 import { rentRouter } from "./rent";
 import { subscriptionProcedures } from "./subscriptions";
 import * as uploadProcedures from "./upload";
+import * as workspaceProcedures from "./workspace";
 
 export const appRouter = {
 	admin: adminRouter,
@@ -11,6 +12,7 @@ export const appRouter = {
 	subscription: subscriptionProcedures,
 	upload: uploadProcedures,
 	notification: notificationProcedures,
+	workspace: workspaceProcedures,
 };
 
 export type AppRouter = typeof appRouter;

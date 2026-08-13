@@ -10,7 +10,6 @@ import {
 	CardTitle,
 } from "@rently/ui/components/card";
 import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
-import { DetailHeader } from "@rently/ui/shared/detail-header";
 import { EmptyState } from "@rently/ui/shared/empty-state";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
 import { NotFoundState } from "@rently/ui/shared/not-found-state";
@@ -20,6 +19,7 @@ import {
 	IconAlertCircle,
 	IconBuildingStore,
 	IconCalendar,
+	IconChevronLeft,
 	IconHome,
 	IconLayout,
 	IconPencil,
@@ -85,17 +85,16 @@ export default function UnitDetailPage({
 	return (
 		<Container>
 			<div className="col-span-12 space-y-6">
-				<DetailHeader
-					backHref={`/properties/${unit.propertyId}` as Route}
-					title={`Unit ${unit.unitNumber}`}
-					subtitle={unit.propertyName ?? undefined}
-				>
-					<Badge
-						variant={isOccupied ? "default" : "secondary"}
-						className="hidden capitalize sm:inline-flex"
+				<div className="flex items-center justify-between gap-4">
+					<Button
+						variant="ghost"
+						nativeButton={false}
+						className="-ml-2 text-muted-foreground"
+						render={<Link href={`/properties/${unit.propertyId}` as Route} />}
 					>
-						{unit.status}
-					</Badge>
+						<IconChevronLeft className="size-4" />
+						{unit.propertyName ?? "Property"}
+					</Button>
 					<div className="flex items-center gap-2">
 						<Button onClick={editDialog.openDialog} variant="outline">
 							<IconPencil className="size-4" />
@@ -149,26 +148,52 @@ export default function UnitDetailPage({
 							isLoading={deleteUnit.isPending}
 						/>
 					</div>
-				</DetailHeader>
+				</div>
 
-				<Card className="overflow-hidden">
-					<CardHeader className="border-b bg-muted/30 pb-4">
-						<div className="flex items-center gap-2">
-							{unit.type === "studio" ? (
-								<IconHome className="size-5 text-primary" />
-							) : (
-								<IconBuildingStore className="size-5 text-primary" />
-							)}
-							<CardTitle className="text-base">Unit snapshot</CardTitle>
-							<Badge
-								variant={isOccupied ? "default" : "secondary"}
-								className="ml-auto capitalize sm:hidden"
-							>
-								{unit.status}
-							</Badge>
+				<Card className="overflow-hidden border-primary/15 py-0 shadow-sm">
+					<CardHeader className="border-b bg-gradient-to-br from-primary/[0.10] via-primary/[0.025] to-transparent px-5 pt-6 pb-5 sm:px-7">
+						<div className="flex flex-wrap items-start justify-between gap-4">
+							<div className="flex items-start gap-3">
+								<div className="flex size-11 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+									{unit.type === "studio" ? (
+										<IconHome className="size-5" />
+									) : (
+										<IconBuildingStore className="size-5" />
+									)}
+								</div>
+								<div>
+									<p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.14em]">
+										{formatUnitType(unit.type)}
+									</p>
+									<h1 className="mt-1 font-semibold text-2xl tracking-tight">
+										Unit {unit.unitNumber}
+									</h1>
+									<p className="mt-1 text-muted-foreground text-sm">
+										{unit.propertyName}
+									</p>
+								</div>
+							</div>
+							<div className="rounded-lg border border-primary/15 bg-background/70 px-4 py-3">
+								<p className="font-semibold text-xl">
+									₹{unit.baseRent.toLocaleString("en-IN")}
+									<span className="ml-1 font-normal text-muted-foreground text-xs">
+										/mo
+									</span>
+								</p>
+								<Badge
+									variant="outline"
+									className={
+										isOccupied
+											? "mt-2 rounded-full border-emerald-200 bg-emerald-50 text-emerald-700"
+											: "mt-2 rounded-full border-amber-200 bg-amber-50 text-amber-700"
+									}
+								>
+									{isOccupied ? "Occupied" : "Available"}
+								</Badge>
+							</div>
 						</div>
 					</CardHeader>
-					<CardContent className="space-y-5 pt-5">
+					<CardContent className="space-y-5 px-5 py-5 sm:px-7">
 						<div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
 							<UnitStat label="Type" value={formatUnitType(unit.type)} />
 							<UnitStat
@@ -202,7 +227,9 @@ export default function UnitDetailPage({
 					</CardContent>
 				</Card>
 
-				<Card className={activeLease ? "border-primary/20" : undefined}>
+				<Card
+					className={activeLease ? "border-primary/20 shadow-sm" : "shadow-sm"}
+				>
 					<CardHeader className="flex flex-row items-center justify-between gap-4">
 						<div>
 							<CardTitle className="text-base">Current tenancy</CardTitle>

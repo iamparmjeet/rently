@@ -5,6 +5,8 @@ import type { LeaseWithDetails, UtilityListItem } from "@rently/validators";
 import { IconBrandWhatsapp, IconChevronRight } from "@tabler/icons-react";
 
 export type CombinedBillGroup = {
+	id: string;
+	period: Date;
 	lease: LeaseWithDetails;
 	utilities: UtilityListItem[];
 	// Derived:
@@ -18,11 +20,13 @@ export type CombinedBillGroup = {
 
 interface CombinedBillRowProps {
 	group: CombinedBillGroup;
+	onViewDetail: () => void;
 	onSendWhatsApp?: () => void;
 }
 
 export function CombinedBillRow({
 	group,
+	onViewDetail,
 	onSendWhatsApp,
 }: CombinedBillRowProps) {
 	const { lease, grandTotal, electricityTotal, waterTotal, maintenanceTotal } =
@@ -37,7 +41,10 @@ export function CombinedBillRow({
 		.slice(0, 2);
 
 	const allPaid = group.utilities.every((u) => u.isPaid);
-	const hasOverdue = group.utilities.some((u) => !u.isPaid);
+	const periodLabel = group.period.toLocaleDateString("en-IN", {
+		month: "long",
+		year: "numeric",
+	});
 
 	function handleWhatsApp() {
 		if (!lease.tenantPhone) return;
@@ -67,84 +74,93 @@ export function CombinedBillRow({
 	}
 
 	return (
-		<div className="flex cursor-pointer items-center gap-4 border-b px-5 py-4 transition-colors last:border-0 hover:bg-muted/40">
-			{/* Avatar */}
-			<div className="flex size-10 shrink-0 items-center justify-center rounded-full bg-primary/10 font-bold text-primary text-sm">
-				{initials}
+		// biome-ignore lint/a11y/useSemanticElements: this summary contains a nested WhatsApp action
+		<div
+			role="button"
+			tabIndex={0}
+			onClick={onViewDetail}
+			onKeyDown={(event) => {
+				if (event.key === "Enter" && event.target === event.currentTarget) {
+					onViewDetail();
+				}
+			}}
+			className="grid cursor-pointer gap-4 border-b px-4 py-4 transition-colors last:border-0 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-inset lg:grid-cols-[minmax(15rem,1fr)_minmax(22rem,1.4fr)_minmax(16rem,.8fr)] lg:items-center lg:px-5"
+		>
+			<div className="flex min-w-0 items-center gap-3">
+				<div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-primary/10 font-bold text-primary text-sm">
+					{initials}
+				</div>
+				<div className="min-w-0">
+					<p className="font-semibold text-sm">{lease.tenantName ?? "—"}</p>
+					<p className="truncate text-muted-foreground text-xs">
+						{lease.propertyName} · Unit {lease.unitNumber}
+					</p>
+					<p className="mt-1 text-[11px] text-muted-foreground">
+						{periodLabel}
+					</p>
+				</div>
 			</div>
 
-			{/* Tenant + unit */}
-			<div className="w-44 shrink-0">
-				<p className="font-semibold text-sm">{lease.tenantName ?? "—"}</p>
-				<p className="text-muted-foreground text-xs">
-					{lease.propertyName} · Unit {lease.unitNumber}
-				</p>
-			</div>
-
-			{/* Bill breakdown pills */}
-			<div className="flex flex-1 flex-wrap items-center gap-3">
-				{/* Always show rent */}
-				<BillPill icon="🏠" label="Rent" amount={lease.rent} />
-
+			<div className="grid grid-cols-2 gap-x-6 gap-y-2 border-y py-3 sm:grid-cols-4 lg:border-y-0 lg:py-0">
+				<BillAmount label="Rent" amount={lease.rent} />
 				{electricityTotal > 0 && (
-					<BillPill icon="⚡" label="Electricity" amount={electricityTotal} />
+					<BillAmount label="Electricity" amount={electricityTotal} />
 				)}
-				{waterTotal > 0 && (
-					<BillPill icon="💧" label="Water" amount={waterTotal} />
-				)}
+				{waterTotal > 0 && <BillAmount label="Water" amount={waterTotal} />}
 				{maintenanceTotal > 0 && (
-					<BillPill icon="🔧" label="Maintenance" amount={maintenanceTotal} />
+					<BillAmount label="Maintenance" amount={maintenanceTotal} />
 				)}
 			</div>
 
-			{/* Total + status */}
-			<div className="shrink-0 text-right">
-				<p className="font-bold text-base">{formatRupees(grandTotal)}</p>
-				<p className="text-[10px] text-muted-foreground">total</p>
+			<div className="flex items-center justify-between gap-3 lg:justify-end">
+				<div className="text-right">
+					<p className="font-bold text-base tabular-nums">
+						{formatRupees(grandTotal)}
+					</p>
+					<div className="mt-0.5 flex items-center justify-end gap-1.5">
+						<span className="text-[10px] text-muted-foreground">Total</span>
+						<Badge
+							variant="secondary"
+							className={
+								allPaid
+									? "bg-emerald-50 text-emerald-700"
+									: "bg-amber-50 text-amber-700"
+							}
+						>
+							{allPaid ? "Paid" : "Pending"}
+						</Badge>
+					</div>
+				</div>
+				<Button
+					size="sm"
+					variant="outline"
+					className="h-8 shrink-0 gap-1.5 px-2.5 text-xs"
+					data-utility-row-action
+					onClick={(e) => {
+						e.stopPropagation();
+						handleWhatsApp();
+					}}
+					disabled={!lease.tenantPhone}
+					title="Send combined bill via WhatsApp"
+				>
+					<IconBrandWhatsapp className="size-4 text-green-600" />
+					Send bill
+				</Button>
+				<IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
 			</div>
-
-			<Badge
-				variant={allPaid ? "default" : hasOverdue ? "destructive" : "secondary"}
-				className="shrink-0 text-xs"
-			>
-				{allPaid ? "Paid" : hasOverdue ? "Overdue" : "Pending"}
-			</Badge>
-
-			{/* WhatsApp send */}
-			<Button
-				size="sm"
-				variant="ghost"
-				className="h-8 shrink-0 gap-1.5 bg-green-50 px-2.5 text-green-700 text-xs hover:bg-green-100"
-				onClick={(e) => {
-					e.stopPropagation();
-					handleWhatsApp();
-				}}
-				disabled={!lease.tenantPhone}
-				title="Send combined bill via WhatsApp"
-			>
-				<IconBrandWhatsapp className="size-4" />
-				Send Bill
-			</Button>
-
-			<IconChevronRight className="size-4 shrink-0 text-muted-foreground" />
 		</div>
 	);
 }
 
-function BillPill({
-	icon,
-	label,
-	amount,
-}: {
-	icon: string;
-	label: string;
-	amount: number;
-}) {
+function BillAmount({ label, amount }: { label: string; amount: number }) {
 	return (
-		<div className="flex items-center gap-1 rounded-md bg-muted px-2 py-1">
-			<span className="text-xs">{icon}</span>
-			<span className="text-muted-foreground text-xs">{label}</span>
-			<span className="font-semibold text-xs">{formatRupees(amount)}</span>
+		<div className="min-w-0">
+			<p className="truncate text-[10px] text-muted-foreground uppercase tracking-wide">
+				{label}
+			</p>
+			<p className="mt-0.5 font-semibold text-sm tabular-nums">
+				{formatRupees(amount)}
+			</p>
 		</div>
 	);
 }

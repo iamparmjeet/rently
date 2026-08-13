@@ -2,6 +2,7 @@ import * as inviteProcedures from "./invite";
 import * as leaseProcedures from "./lease";
 import * as ownerProfile from "./owner-profile";
 import * as paymentProcedures from "./payment";
+import * as paymentExportProcedures from "./payment-export";
 import * as propertyProcedures from "./property";
 import * as receiptProcedures from "./receipt";
 import * as statsProcedures from "./stats";
@@ -19,6 +20,7 @@ export const rentRouter = {
 	invite: inviteProcedures,
 	payment: {
 		...paymentProcedures,
+		...paymentExportProcedures,
 		getPaymentReceiptData: receiptProcedures.getPaymentReceiptData,
 	},
 	utility: utilityProcedures,

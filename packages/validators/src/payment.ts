@@ -1,6 +1,5 @@
 import { PAYMENT_METHOD_VALUES } from "@rently/db/constants/payment-constants";
 import { PAYMENT_TYPE_VALUES } from "@rently/db/constants/rent-constants";
-
 import { payments } from "@rently/db/schema/schema";
 import {
 	createInsertSchema,
@@ -8,6 +7,7 @@ import {
 	createUpdateSchema,
 } from "drizzle-zod";
 import z from "zod";
+import { DateRangeSchema } from "./date";
 
 // ******** Payment **********
 // ── Layer 1: DB-derived
@@ -57,9 +57,6 @@ export const PaymentListItemSchema = PaymentSelectSchema.extend({
  *
  * It deliberately returns a string, not a JavaScript Date.
  */
-export const DateOnlySchema = z.iso.date({
-	error: "Expected a valid date in YYYY-MM-DD format.",
-});
 
 /**
  * Input for an owner-wide payment export.
@@ -67,16 +64,9 @@ export const DateOnlySchema = z.iso.date({
  * Lexicographical comparison works because both values are guaranteed
  * to use the fixed-width YYYY-MM-DD format.
  */
-export const PaymentExportRangeSchema = z
-	.object({
-		startDate: DateOnlySchema,
-		endDate: DateOnlySchema,
-	})
-	.refine(({ startDate, endDate }) => startDate <= endDate, {
-		path: ["endDate"],
-	});
 
-export const OwnerPaymentExportSchema = PaymentExportRangeSchema;
+export const OwnerPaymentExportSchema = DateRangeSchema;
+
 export const TenantPaymentExportSchema = z.object({
 	tenantId: z.uuid(),
 });
@@ -111,7 +101,7 @@ export type CreatePayment = z.infer<typeof CreatePaymentSchema>;
 export type UpdatePayment = z.infer<typeof UpdatePaymentSchema>;
 export type RecordUtilityPayment = z.infer<typeof RecordUtilityPaymentSchema>;
 export type PaymentListItem = z.infer<typeof PaymentListItemSchema>;
-export type PaymentExportRange = z.infer<typeof PaymentExportRangeSchema>;
+export type PaymentExportRange = z.infer<typeof OwnerPaymentExportSchema>;
 export type TenantPaymentExportInput = z.infer<
 	typeof TenantPaymentExportSchema
 >;

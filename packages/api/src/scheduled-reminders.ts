@@ -5,6 +5,10 @@ import {
 	SCHEDULED_EMAIL_DELIVERY_STATUSES,
 	SCHEDULED_EMAIL_TYPES,
 } from "@rently/db/constants/scheduled-email-constants";
+import {
+	ACCOUNT_MODES,
+	WORKSPACE_MODES,
+} from "@rently/db/constants/workspace-modes";
 import { user } from "@rently/db/schema/auth";
 import {
 	leases,
@@ -82,6 +86,8 @@ export async function queryRentCycleRows(
 		.where(
 			and(
 				eq(leases.status, "active"),
+				eq(user.accountMode, ACCOUNT_MODES.STANDARD),
+				eq(user.workspaceMode, WORKSPACE_MODES.LIVE),
 				ownerId ? eq(properties.ownerId, ownerId) : undefined,
 			),
 		)

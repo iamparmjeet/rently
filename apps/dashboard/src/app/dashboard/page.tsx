@@ -1,6 +1,7 @@
 "use client";
 
 import { IconBuildingSkyscraper, IconFileText } from "@tabler/icons-react";
+import { useQuery } from "@tanstack/react-query";
 import { DashboardPageHeader } from "@/components/features/dashboard/dashboard-page-header";
 import { OccupancyCard } from "@/components/features/dashboard/occupancy-card";
 import { OverdueSummaryCard } from "@/components/features/dashboard/overdue-summary-card";
@@ -8,22 +9,31 @@ import { RecentProperties } from "@/components/features/dashboard/recent-propert
 import { RecentTenants } from "@/components/features/dashboard/recent-tenants";
 import { RecentTransactions } from "@/components/features/dashboard/recent-transactions";
 import { RevenueChart } from "@/components/features/dashboard/revenue-chart";
+import { SampleLoader } from "@/components/features/dashboard/sample-loader";
 import { StatCard } from "@/components/features/dashboard/stat-card";
 import { UnitsCard } from "@/components/features/dashboard/unit-card";
 import { UpcomingDues } from "@/components/features/dashboard/upcoming-dues";
 import { Container } from "@/components/shared/container";
 import { useDashboardStats, useRevenueDashboard } from "@/hooks/dashboard";
+import { orpc } from "@/utils/orpc";
 
 export default function DashboardPage() {
 	const { data, isLoading } = useDashboardStats();
 	const { data: revenueData, isLoading: revenueLoading } =
 		useRevenueDashboard();
+	const { data: experience } = useQuery(
+		orpc.workspace.getExperience.queryOptions(),
+	);
 
 	return (
 		<Container>
 			<main className="grid w-full grid-cols-1 items-stretch gap-4 sm:grid-cols-2 lg:grid-cols-12 lg:gap-6">
 				{/* ── Header ──────────── */}
 				<DashboardPageHeader className="col-span-full" />
+				<SampleLoader
+					canLoadSample={experience?.canLoadSample ?? false}
+					isEmpty={(data?.totalProperties ?? 0) === 0}
+				/>
 
 				{/* ── Stat cards ───────────────── */}
 				<StatCard

@@ -9,6 +9,8 @@ export const authClient = createAuthClient({
 			user: {
 				phone: { type: "string", required: false },
 				role: { type: "string", defaultValues: "owner", required: false },
+				accountMode: { type: "string", required: false },
+				workspaceMode: { type: "string", required: false },
 			},
 		}),
 	],

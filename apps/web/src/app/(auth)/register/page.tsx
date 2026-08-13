@@ -57,6 +57,12 @@ export default function RegisterPage() {
 					<Suspense fallback={null}>
 						<RegisterForm />
 					</Suspense>
+					<a
+						className="mt-5 block text-center text-primary text-sm underline"
+						href="/demo"
+					>
+						Try KeyHQ Demo
+					</a>
 				</div>
 			</div>
 		</div>

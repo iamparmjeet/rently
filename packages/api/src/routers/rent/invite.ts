@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { isNonLiveWorkspace } from "@rently/api/modules/sample-workspace";
 import { ownerProcedure, publicProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
 import { auth } from "@rently/auth";
@@ -38,7 +39,7 @@ export const createInvite = ownerProcedure
 	.output(
 		z.object({
 			invite: InvitePublicSchema,
-			deliveryStatus: z.enum(["sent", "failed"]),
+			deliveryStatus: z.enum(["sent", "failed", "suppressed"]),
 		}),
 	)
 	.handler(async ({ context, input }) => {
@@ -52,6 +53,7 @@ export const createInvite = ownerProcedure
 				...input,
 				onboardingMode: "tenant_completed",
 			},
+			suppressDelivery: isNonLiveWorkspace(user),
 		});
 	});
 
@@ -68,7 +70,7 @@ export const resendInvite = ownerProcedure
 	)
 	.output(
 		z.object({
-			deliveryStatus: z.enum(["sent", "failed"]),
+			deliveryStatus: z.enum(["sent", "failed", "suppressed"]),
 		}),
 	)
 	.handler(async ({ context, input }) => {
@@ -123,6 +125,14 @@ export const resendInvite = ownerProcedure
 			throw new ORPCError("GONE", {
 				message: "This invitation has expired. Create a new invitation.",
 			});
+		}
+
+		if (isNonLiveWorkspace(user)) {
+			await db
+				.update(tenantInvites)
+				.set({ deliveryStatus: "suppressed", deliveryErrorCode: null })
+				.where(eq(tenantInvites.id, invite.id));
+			return { deliveryStatus: "suppressed" as const };
 		}
 
 		const deliveryStatus = await sendAndRecordInviteDelivery(db, {
@@ -296,6 +306,20 @@ export const acceptInvite = publicProcedure
 			if (!invite) {
 				throw new ORPCError("NOT_FOUND", {
 					message: "Invalid invite link.",
+				});
+			}
+
+			const [inviter] = await tx
+				.select({
+					accountMode: user.accountMode,
+					workspaceMode: user.workspaceMode,
+				})
+				.from(user)
+				.where(eq(user.id, invite.invitedById))
+				.limit(1);
+			if (inviter && isNonLiveWorkspace(inviter)) {
+				throw new ORPCError("FORBIDDEN", {
+					message: "Demo and sample invitations cannot be accepted.",
 				});
 			}
 

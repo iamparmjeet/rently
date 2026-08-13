@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { assertPrivateDocumentsAllowed } from "@rently/api/modules/sample-workspace";
 import { type Database, supportsDatabaseBatch } from "@rently/db";
 import {
 	ALLOWED_TENANT_DOCUMENT_CONTENT_TYPES,
@@ -357,6 +358,7 @@ export const beginTenantDocumentUpload = protectedProcedure
 	.input(beginUploadInput)
 	.output(uploadOutput)
 	.handler(async ({ context, input }) => {
+		assertPrivateDocumentsAllowed(context.user);
 		const owner = isOwner(context.user);
 		if (owner && !input.tenantId) fail("NOT_FOUND", "NOT_FOUND");
 		const profile = await findProfileForActor(
@@ -477,6 +479,7 @@ export const submitInitialDocument = protectedProcedure
 	.input(submitInput)
 	.output(submitOutput)
 	.handler(async ({ context, input }) => {
+		assertPrivateDocumentsAllowed(context.user);
 		const row = await findDocumentForActor(
 			context.db,
 			context.user,
@@ -924,6 +927,7 @@ export const submitApprovedDocumentUpdate = protectedProcedure
 	.input(submitInput)
 	.output(submitOutput)
 	.handler(async ({ context, input }) => {
+		assertPrivateDocumentsAllowed(context.user);
 		const row = await findDocumentForActor(
 			context.db,
 			context.user,

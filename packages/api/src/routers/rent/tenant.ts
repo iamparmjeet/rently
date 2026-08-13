@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { isNonLiveWorkspace } from "@rently/api/modules/sample-workspace";
 import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
 import { auth } from "@rently/auth";
@@ -288,7 +289,7 @@ export const createTenant = ownerProcedure
 	.output(
 		z.object({
 			invite: InvitePublicSchema,
-			deliveryStatus: z.enum(["sent", "failed"]),
+			deliveryStatus: z.enum(["sent", "failed", "suppressed"]),
 		}),
 	)
 	.handler(async ({ context, input }) => {
@@ -301,6 +302,7 @@ export const createTenant = ownerProcedure
 				...input,
 				onboardingMode: "owner_prepared",
 			},
+			suppressDelivery: isNonLiveWorkspace(authUser),
 		});
 	});
 

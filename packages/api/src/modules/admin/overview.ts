@@ -5,12 +5,16 @@ import {
 } from "@rently/db/constants/payment-constants";
 import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import { USER_ROLES } from "@rently/db/constants/user-roles";
+import {
+	ACCOUNT_MODES,
+	WORKSPACE_MODES,
+} from "@rently/db/constants/workspace-modes";
 import { adminAuditLogs } from "@rently/db/schema/admin";
 import { user } from "@rently/db/schema/auth";
-import { payments } from "@rently/db/schema/schema";
+import { leases, payments, properties, units } from "@rently/db/schema/schema";
 import { invoices, plans, subscriptions } from "@rently/db/schema/subscription";
 import type { AdminOverview } from "@rently/validators";
-import { desc, eq, inArray, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, sql } from "drizzle-orm";
 
 function latestSubscriptionQuery(db: Database) {
 	return db
@@ -23,6 +27,8 @@ function latestSubscriptionQuery(db: Database) {
 			createdAt: subscriptions.createdAt,
 		})
 		.from(subscriptions)
+		.innerJoin(user, eq(subscriptions.userId, user.id))
+		.where(eq(user.accountMode, ACCOUNT_MODES.STANDARD))
 		.orderBy(
 			subscriptions.userId,
 			desc(subscriptions.createdAt),
@@ -80,7 +86,8 @@ export async function queryAdminOverview(
 						Number,
 					),
 			})
-			.from(user),
+			.from(user)
+			.where(eq(user.accountMode, ACCOUNT_MODES.STANDARD)),
 
 		db
 			.select({
@@ -130,7 +137,9 @@ export async function queryAdminOverview(
 						Number,
 					),
 			})
-			.from(invoices),
+			.from(invoices)
+			.innerJoin(user, eq(invoices.userId, user.id))
+			.where(eq(user.accountMode, ACCOUNT_MODES.STANDARD)),
 
 		db
 			.select({
@@ -143,13 +152,20 @@ export async function queryAdminOverview(
 					),
 			})
 			.from(payments)
+			.innerJoin(leases, eq(payments.leaseId, leases.id))
+			.innerJoin(units, eq(leases.unitId, units.id))
+			.innerJoin(properties, eq(units.propertyId, properties.id))
+			.innerJoin(user, eq(properties.ownerId, user.id))
 			.where(
-				inArray(payments.type, [
-					PAYMENT_TYPES.RENT,
-					PAYMENT_TYPES.UTILITY,
-					PAYMENT_TYPES.DEPOSIT,
-					PAYMENT_TYPES.REVERSAL,
-				]),
+				and(
+					inArray(payments.type, [
+						PAYMENT_TYPES.RENT,
+						PAYMENT_TYPES.UTILITY,
+						PAYMENT_TYPES.DEPOSIT,
+						PAYMENT_TYPES.REVERSAL,
+					]),
+					eq(user.workspaceMode, WORKSPACE_MODES.LIVE),
+				),
 			),
 
 		db
@@ -161,6 +177,7 @@ export async function queryAdminOverview(
 				createdAt: user.createdAt,
 			})
 			.from(user)
+			.where(eq(user.accountMode, ACCOUNT_MODES.STANDARD))
 			.orderBy(desc(user.createdAt), desc(user.id))
 			.limit(10),
 
@@ -178,7 +195,12 @@ export async function queryAdminOverview(
 			})
 			.from(invoices)
 			.innerJoin(user, eq(invoices.userId, user.id))
-			.where(eq(invoices.paymentStatus, PAYMENT_STATUS.PAID))
+			.where(
+				and(
+					eq(invoices.paymentStatus, PAYMENT_STATUS.PAID),
+					eq(user.accountMode, ACCOUNT_MODES.STANDARD),
+				),
+			)
 			.orderBy(desc(invoices.paidAt), desc(invoices.createdAt))
 			.limit(10),
 

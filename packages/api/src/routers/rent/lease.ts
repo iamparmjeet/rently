@@ -252,43 +252,74 @@ export const updateLease = ownerProcedure
 			});
 		}
 
+		if (ownership.status === "active") {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"Active leases cannot be edited. Terminate the lease and create a new one to make changes.",
+			});
+		}
+
 		if (ownership.status === "terminated" || ownership.status === "expired") {
 			throw new ORPCError("BAD_REQUEST", {
 				message: "Terminated or expired leases cannot be edited.",
 			});
 		}
 
-		const lease = await db.transaction(async (tx) => {
-			const [updated] = await tx
-				.update(leases)
-				.set({ ...input.data, updatedAt: new Date() })
-				.where(eq(leases.id, input.id))
-				.returning();
+		const unitStatus =
+			input.data.status === "terminated" || input.data.status === "expired"
+				? "available"
+				: input.data.status === "active"
+					? "occupied"
+					: undefined;
+		const updateLeaseQuery = db
+			.update(leases)
+			.set({ ...input.data, updatedAt: new Date() })
+			.where(eq(leases.id, input.id))
+			.returning();
 
-			if (!updated) {
-				throw new ORPCError("NOT_FOUND", {
-					message: "Lease not found",
-				});
+		// Neon HTTP does not support callback transactions. Use its batch API so the
+		// lease and unit updates remain atomic in every database environment.
+		let lease: Awaited<typeof updateLeaseQuery>[number] | undefined;
+		if (supportsBatch(db)) {
+			if (unitStatus) {
+				const [updatedLeases] = await db.batch([
+					updateLeaseQuery,
+					db
+						.update(units)
+						.set({ status: unitStatus, updatedAt: new Date() })
+						.where(eq(units.id, ownership.unitId)),
+				]);
+				lease = updatedLeases[0];
+			} else {
+				const [updatedLeases] = await db.batch([updateLeaseQuery]);
+				lease = updatedLeases[0];
 			}
+		} else {
+			lease = await db.transaction(async (tx) => {
+				const [updated] = await tx
+					.update(leases)
+					.set({ ...input.data, updatedAt: new Date() })
+					.where(eq(leases.id, input.id))
+					.returning();
 
-			if (
-				input.data.status === "terminated" ||
-				input.data.status === "expired"
-			) {
-				await tx
-					.update(units)
-					.set({ status: "available", updatedAt: new Date() })
-					.where(eq(units.id, ownership.unitId));
-			}
+				if (!updated) return undefined;
 
-			if (input.data.status === "active") {
-				await tx
-					.update(units)
-					.set({ status: "occupied", updatedAt: new Date() })
-					.where(eq(units.id, ownership.unitId));
-			}
-			return updated;
-		});
+				if (unitStatus) {
+					await tx
+						.update(units)
+						.set({ status: unitStatus, updatedAt: new Date() })
+						.where(eq(units.id, ownership.unitId));
+				}
+
+				return updated;
+			});
+		}
+
+		if (!lease) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "Lease not found",
+			});
+		}
 
 		return { lease };
 	});
@@ -410,19 +441,29 @@ export const terminateLease = ownerProcedure
 			});
 		}
 
-		// transaction
-		await db.transaction(async (tx) => {
-			await tx
-				.update(leases)
-				.set({ status: "terminated", updatedAt: new Date() })
-				.where(eq(leases.id, input.id));
+		const terminateLeaseQuery = db
+			.update(leases)
+			.set({ status: "terminated", updatedAt: new Date() })
+			.where(eq(leases.id, input.id));
+		const releaseUnitQuery = db
+			.update(units)
+			.set({ status: "available", updatedAt: new Date() })
+			.where(eq(units.id, ownership.unitId));
 
-			// Reset Unit to available
-			await tx
-				.update(units)
-				.set({ status: "available", updatedAt: new Date() })
-				.where(eq(units.id, ownership.unitId));
-		});
+		if (supportsBatch(db)) {
+			await db.batch([terminateLeaseQuery, releaseUnitQuery]);
+		} else {
+			await db.transaction(async (tx) => {
+				await tx
+					.update(leases)
+					.set({ status: "terminated", updatedAt: new Date() })
+					.where(eq(leases.id, input.id));
+				await tx
+					.update(units)
+					.set({ status: "available", updatedAt: new Date() })
+					.where(eq(units.id, ownership.unitId));
+			});
+		}
 		return { success: true };
 	});
 

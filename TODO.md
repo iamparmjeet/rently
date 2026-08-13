@@ -30,6 +30,7 @@
 - [x] **Milestone 0 — Product Truth and Immediate Defects** — public KeyHQ branding, truthful pricing/copy, legal support contact, corrected local/production URL documentation, invite URLs built from `WEB_APP_URL`, invite delivery feedback and resend action, and stale TODO cleanup.
 - [x] **M0 validation** — Vitest invite suite covers cross-owner resend denial, valid resend, expiry, and preserved invites after email delivery failure; typecheck and production build pass.
 - [x] **PDF rent receipts + manual payment audit** — owner and tenant receipt flows, deterministic receipt numbers, Indian currency words, printable routes, payment controls, authorization coverage, and integration validation are complete.
+- [x] **CSV payment exports** — owner-wide inclusive Indian financial-year/custom-range exports and all-time tenant payment history across active and historic leases, with owner-scoped authorization, signed reversal rows, formula-safe UTF-8 CSV generation, and a 10,000-row cap.
 - [x] **Private document viewer lifecycle** — separate View and Download actions; PDF/image previews open in an in-app dialog; preview bytes are cached in browser memory for the current tab only.
 - [x] **Neon HTTP document writes** — document lifecycle mutations use Neon-compatible atomic batches; the Docker-only test fallback remains isolated to `rently_test`.
 
@@ -164,8 +165,8 @@
 
 ### Data Export
 
-- [ ] CSV export for payment history per tenant (owner use — tax / ITR filing)
-- [ ] CSV export for all payments in a date range (all tenants, all properties)
+- [x] CSV export for payment history per tenant (owner use — tax / ITR filing)
+- [x] CSV export for all payments in a date range (all tenants, all properties)
 - [ ] Consider: Excel (.xlsx) variant via `SheetJS` if demand warrants it
 
 ### Referral System

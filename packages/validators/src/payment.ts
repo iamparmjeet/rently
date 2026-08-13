@@ -49,17 +49,7 @@ export const PaymentListItemSchema = PaymentSelectSchema.extend({
 
 // ********* Payment Export **********
 /**
- * A date-only API value.
- *
- * z.iso.date() accepts real YYYY-MM-DD calendar dates and rejects:
- * - malformed values such as 2026-8-1
- * - impossible dates such as 2026-02-30
- *
- * It deliberately returns a string, not a JavaScript Date.
- */
-
-/**
- * Input for an owner-wide payment export.
+ * Date-only input for an owner-wide payment export.
  *
  * Lexicographical comparison works because both values are guaranteed
  * to use the fixed-width YYYY-MM-DD format.

@@ -1,3 +1,7 @@
+import type { DateOnly, DateRange } from "@rently/validators";
+
+export type { DateOnly, DateRange } from "@rently/validators";
+
 export const INDIA_TIME_ZONE = "Asia/Kolkata";
 
 /**
@@ -6,13 +10,6 @@ export const INDIA_TIME_ZONE = "Asia/Kolkata";
  * This is intentionally a string because it represents a calendar day,
  * not a moment in time.
  */
-
-export type DateOnly = string;
-
-export interface DateRange {
-	startDate: DateOnly;
-	endDate: DateOnly;
-}
 
 export interface CalendarDateParts {
 	year: number;

@@ -68,7 +68,13 @@ export function LogoIcon({ className, ...props }: ComponentProps<"svg">) {
 	);
 }
 
-export default function Logo({ className }: { className?: string }) {
+export default function Logo({
+	className,
+	demo = false,
+}: {
+	className?: string;
+	demo?: boolean;
+}) {
 	return (
 		<a
 			href={env.NEXT_PUBLIC_WEB_URL}
@@ -76,6 +82,11 @@ export default function Logo({ className }: { className?: string }) {
 		>
 			<LogoIcon aria-hidden="true" className="size-8.5 shrink-0" />
 			<span className="font-extrabold text-xl tracking-tight">KeyHQ</span>
+			{demo && (
+				<span className="ml-2 rounded bg-blue-600 px-1.5 py-0.5 font-semibold text-[8px] text-white uppercase tracking-wide">
+					Demo
+				</span>
+			)}
 		</a>
 	);
 }

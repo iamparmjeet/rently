@@ -44,16 +44,16 @@ export default function RootLayout({
 			>
 				<QueryProvider>
 					<DashboardORPCProvider>
-						<WorkspaceExperienceProvider>
-							<SidebarProvider>
-								<DashbaordSidebar />
-								<div className="flex min-h-screen w-full flex-col bg-stone-100">
+						<SidebarProvider>
+							<DashbaordSidebar />
+							<div className="flex min-h-screen w-full flex-col bg-stone-100">
+								<WorkspaceExperienceProvider>
 									<DashboardHeader />
 									{children}
 									<Toaster position="bottom-right" />
-								</div>
-							</SidebarProvider>
-						</WorkspaceExperienceProvider>
+								</WorkspaceExperienceProvider>
+							</div>
+						</SidebarProvider>
 					</DashboardORPCProvider>
 				</QueryProvider>
 			</body>

@@ -19,11 +19,15 @@ import { usePathname } from "next/navigation";
 import { SubscriptionStatus } from "@/components/features/subscriptions/subscription-status";
 import { NavigationLinks } from "@/constants/navigation";
 import { useMySubscription } from "@/hooks/subscriptions";
+import { useSession } from "@/lib/auth-client";
 
 export function DashbaordSidebar() {
+	const { data: session } = useSession();
 	const pathname = usePathname();
 	const { data: subscriptionData, isError: subscriptionError } =
 		useMySubscription();
+
+	const isDemo = session?.user.accountMode === "public_demo";
 
 	const overviewLinks = NavigationLinks.filter((link) =>
 		[
@@ -47,7 +51,7 @@ export function DashbaordSidebar() {
 				<SidebarMenu>
 					<SidebarMenuItem className="w-full">
 						<SidebarContent className="flex flex-row items-center justify-between">
-							<Logo className="p-4" />
+							<Logo className="p-4" demo={isDemo} />
 						</SidebarContent>
 						<Separator className="my-4 w-full" />
 					</SidebarMenuItem>

@@ -110,7 +110,7 @@ export default function TenantsClientPage() {
 									<IconMail className="mr-1.5 size-4" />
 									Invite Tenant
 								</Button>
-								<Button onClick={addDialog.openDialog}>
+								<Button size="lg" onClick={addDialog.openDialog}>
 									<IconPlus className="mr-1.5 size-4" />
 									Prepare Invitation
 								</Button>

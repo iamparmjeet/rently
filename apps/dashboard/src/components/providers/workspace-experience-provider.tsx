@@ -25,7 +25,7 @@ export function WorkspaceExperienceProvider({
 	const isSample = data?.mode === "registered_sample";
 	const isPublic = data?.mode === "public_demo";
 	return (
-		<>
+		<div className="flex min-h-screen w-full flex-col bg-stone-100">
 			{(isSample || isPublic) && (
 				<div className="flex items-center justify-between gap-3 bg-primary px-4 py-2 text-primary-foreground text-sm">
 					<span>
@@ -82,6 +82,6 @@ export function WorkspaceExperienceProvider({
 					</div>
 				</div>
 			)}
-		</>
+		</div>
 	);
 }

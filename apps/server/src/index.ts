@@ -222,12 +222,11 @@ app.post("/api/demo/session", async (c) => {
 	}
 	const redirectUrl =
 		body.persona === "owner" ? config.dashboardUrl : config.tenantUrl;
+
+	headers.set("Content-Type", "application/json");
 	return new Response(JSON.stringify({ persona: body.persona, redirectUrl }), {
 		status: 200,
-		headers: {
-			...Object.fromEntries(headers),
-			"Content-Type": "application/json",
-		},
+		headers,
 	});
 });
 

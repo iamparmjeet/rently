@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { assertPrivateDocumentsAllowed } from "@rently/api/modules/sample-workspace";
 import { ownerProcedure } from "@rently/api/procedures";
 import { env } from "@rently/env/server";
 import {
@@ -34,6 +35,7 @@ export const getPresignedUploadUrl = ownerProcedure
 	.output(PresignedUploadUrlResponseSchema)
 	.handler(async ({ context, input }) => {
 		const { user } = context;
+		assertPrivateDocumentsAllowed(user);
 
 		// SECURITY: same key-scoping guard as before
 		if (!input.key.startsWith(`owners/${user.id}/`)) {
@@ -70,6 +72,7 @@ export const deleteAvatar = ownerProcedure
 	.output(z.object({ success: z.boolean() }))
 	.handler(async ({ context }) => {
 		const { user } = context;
+		assertPrivateDocumentsAllowed(user);
 
 		if (!user.image) {
 			return { success: true };

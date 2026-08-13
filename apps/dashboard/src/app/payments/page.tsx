@@ -18,6 +18,7 @@ import {
 	DropdownMenuTrigger,
 } from "@rently/ui/components/dropdown-menu";
 import { formatRupees } from "@rently/ui/lib/currency";
+import type { DateRange } from "@rently/ui/lib/date";
 import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
 import { EmptyState } from "@rently/ui/shared/empty-state";
 import { PageHeader } from "@rently/ui/shared/page-header";
@@ -45,6 +46,7 @@ import { PaymentExportDialog } from "@/components/features/payments/payment-expo
 import { Container } from "@/components/shared/container";
 import {
 	useDeletePayment,
+	useOwnerPaymentExport,
 	usePayments,
 	useSendPaymentReceipt,
 } from "@/hooks/payments";
@@ -377,6 +379,7 @@ function PaymentDetailDialog({
 export default function PaymentsPage() {
 	const { data, isLoading } = usePayments();
 	const voidPayment = useDeletePayment();
+	const exportPayments = useOwnerPaymentExport();
 	const [typeFilter, setTypeFilter] = useState<string>("all");
 	const [search, setSearch] = useState("");
 	const [voidingId, setVoidingId] = useState<string | null>(null);
@@ -422,8 +425,14 @@ export default function PaymentsPage() {
 	const selectedPayment = payments.find((p) => p.id === detailId) ?? null;
 
 	// CSV
-	function handlePreviewExport() {
-		setExportOpen(false);
+	function handlePaymentExport(range: DateRange) {
+		exportPayments.mutate(range, {
+			onSuccess: (result) => {
+				if (result.payments.length > 0) {
+					setExportOpen(false);
+				}
+			},
+		});
 	}
 
 	return (
@@ -449,7 +458,8 @@ export default function PaymentsPage() {
 				<PaymentExportDialog
 					open={exportOpen}
 					onOpenChange={setExportOpen}
-					onExport={handlePreviewExport}
+					onExport={handlePaymentExport}
+					isExporting={exportPayments.isPending}
 				/>
 
 				{/* ── Stat cards ── */}

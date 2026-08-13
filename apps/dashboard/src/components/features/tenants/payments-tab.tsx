@@ -5,7 +5,9 @@ import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
 import { formatRupees } from "@rently/ui/lib/currency";
 import type { PaymentListItem, TenantDetail } from "@rently/validators";
+import { IconDownload } from "@tabler/icons-react";
 import { AddPaymentButton } from "@/components/features/payments/add-payment-button";
+import { useTenantPaymentExport } from "@/hooks/payments";
 
 // ── Payment method display labels ************
 
@@ -121,6 +123,8 @@ interface PaymentsTabProps {
 }
 
 export function PaymentsTab({ tenant, payments, stats }: PaymentsTabProps) {
+	const exportPayments = useTenantPaymentExport();
+
 	// Sort newest first
 	const sorted = [...payments].sort(
 		(a, b) =>
@@ -155,22 +159,46 @@ export function PaymentsTab({ tenant, payments, stats }: PaymentsTabProps) {
 		}))
 		.sort((a, b) => b.percentage - a.percentage);
 
+	function handleTenantExport() {
+		exportPayments.mutate({
+			tenantId: tenant.id,
+			tenantName: tenant.name,
+		});
+	}
+
 	return (
 		<div className="grid grid-cols-1 gap-6 lg:grid-cols-3">
 			{/* ── Left: Payment history ************** */}
 			<div className="lg:col-span-2">
 				<div className="mb-4 flex items-center justify-between">
 					<h3 className="font-semibold text-base">Payment History</h3>
-					<AddPaymentButton
-						leaseId={
-							tenant.activeLeases.length === 1
-								? tenant.activeLeases[0]?.id
-								: undefined
-						}
-						leaseIds={tenant.activeLeases.map((activeLease) => activeLease.id)}
-						variant="default"
-						withIcon
-					/>
+
+					<div className="flex items-center gap-2">
+						<Button
+							type="button"
+							variant="outline"
+							size="sm"
+							className="gap-1.5"
+							disabled={exportPayments.isPending}
+							onClick={handleTenantExport}
+						>
+							<IconDownload className="size-4" />
+							{exportPayments.isPending ? "Preparing…" : "Export CSV"}
+						</Button>
+
+						<AddPaymentButton
+							leaseId={
+								tenant.activeLeases.length === 1
+									? tenant.activeLeases[0]?.id
+									: undefined
+							}
+							leaseIds={tenant.activeLeases.map(
+								(activeLease) => activeLease.id,
+							)}
+							variant="default"
+							withIcon
+						/>
+					</div>
 				</div>
 
 				{sorted.length === 0 ? (

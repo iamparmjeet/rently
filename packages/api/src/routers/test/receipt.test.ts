@@ -3,6 +3,7 @@ import { createDb } from "@rently/db";
 import {
 	LEASE_STATUSES,
 	PAYMENT_TYPES,
+	type PaymentType,
 	PROPERTY_TYPES,
 	UNIT_STATUSES,
 	UNIT_TYPES,
@@ -94,7 +95,7 @@ function clientFor(authUser: TestUser) {
 	);
 }
 
-async function createReceiptFixture(type = PAYMENT_TYPES.RENT) {
+async function createReceiptFixture(type: PaymentType = PAYMENT_TYPES.RENT) {
 	const owner = await createUser(USER_ROLES.OWNER, "Owner A");
 	const tenant = await createUser(USER_ROLES.TENANT, "Tenant A");
 

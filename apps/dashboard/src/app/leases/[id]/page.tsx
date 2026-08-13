@@ -7,7 +7,11 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
-import { formatRupees } from "@rently/ui/lib/currency";
+import {
+	formatRupees,
+	paiseToFormValue,
+	toPaise,
+} from "@rently/ui/lib/currency";
 import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
 import { DetailHeader } from "@rently/ui/shared/detail-header";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
@@ -96,6 +100,10 @@ export default function LeaseDetailPage({
 
 	const { lease } = data;
 	const isTerminated = lease.status === "terminated";
+	const isEditable =
+		lease.status !== "active" &&
+		lease.status !== "terminated" &&
+		lease.status !== "expired";
 
 	// Handlers
 	function handleEdit(values: LeaseFormValues) {
@@ -105,8 +113,8 @@ export default function LeaseDetailPage({
 				data: {
 					startDate: new Date(values.startDate),
 					endDate: values.endDate ? new Date(values.endDate) : undefined,
-					rent: values.rent,
-					deposit: values.deposit,
+					rent: toPaise(values.rent),
+					deposit: values.deposit == null ? undefined : toPaise(values.deposit),
 				},
 			},
 			{ onSuccess: editDialog.closeDialog },
@@ -125,14 +133,12 @@ export default function LeaseDetailPage({
 					title="Lease Details"
 					subtitle={`ID: ${id}`}
 				>
-					<Button
-						variant="outline"
-						disabled={isTerminated}
-						onClick={editDialog.openDialog}
-					>
-						<IconPencil className="mr-2 size-4" />
-						Edit
-					</Button>
+					{isEditable && (
+						<Button variant="outline" onClick={editDialog.openDialog}>
+							<IconPencil className="mr-2 size-4" />
+							Edit
+						</Button>
+					)}
 					<Button
 						variant="destructive"
 						onClick={terminateDialog.openDialog}
@@ -232,35 +238,42 @@ export default function LeaseDetailPage({
 						Utility readings — coming soon
 					</CardContent>
 				</Card>
-				<FormDialog
-					open={editDialog.open}
-					onOpenChange={editDialog.onOpenChange}
-					title="Edit Lease"
-					description="Update dates, rent, and deposit. Unit and tenant cannot be changed."
-					formId="edit-lease-form"
-					isSubmitting={updateLease.isPending}
-					submitLabel="Save Changes"
-				>
-					<LeaseForm
-						key={editDialog.open ? "open" : "closed"}
+				{isEditable && (
+					<FormDialog
+						open={editDialog.open}
+						onOpenChange={editDialog.onOpenChange}
+						title="Edit Lease"
+						description="Update dates, rent, and deposit. Unit and tenant cannot be changed."
 						formId="edit-lease-form"
-						units={allUnits}
-						tenants={tenants}
-						properties={properties}
-						defaultValues={{
-							unitId: lease.unitId,
-							tenantId: lease.tenantId,
-							startDate: new Date(lease.startDate).toISOString().split("T")[0],
-							endDate: lease.endDate
-								? new Date(lease.endDate).toISOString().split("T")[0]
-								: undefined,
-							rent: lease.rent,
-							deposit: lease.deposit ?? undefined,
-						}}
-						onSubmit={handleEdit}
 						isSubmitting={updateLease.isPending}
-					/>
-				</FormDialog>
+						submitLabel="Save Changes"
+					>
+						<LeaseForm
+							key={editDialog.open ? "open" : "closed"}
+							formId="edit-lease-form"
+							units={allUnits}
+							tenants={tenants}
+							properties={properties}
+							defaultValues={{
+								unitId: lease.unitId,
+								tenantId: lease.tenantId,
+								startDate: new Date(lease.startDate)
+									.toISOString()
+									.split("T")[0],
+								endDate: lease.endDate
+									? new Date(lease.endDate).toISOString().split("T")[0]
+									: undefined,
+								rent: paiseToFormValue(lease.rent),
+								deposit:
+									lease.deposit == null
+										? undefined
+										: paiseToFormValue(lease.deposit),
+							}}
+							onSubmit={handleEdit}
+							isSubmitting={updateLease.isPending}
+						/>
+					</FormDialog>
+				)}
 
 				{/* ── Terminate Dialog ─────────────────────────────────── */}
 				<ConfirmDialog

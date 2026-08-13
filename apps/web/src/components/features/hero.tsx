@@ -324,12 +324,15 @@ export function Hero() {
 								<ArrowRight className="h-4 w-4" />
 							</AuthEntryLink>
 							<a
-								href="#how-it-works"
+								href="/demo"
 								className="inline-flex h-13.5 items-center gap-2 rounded-lg border border-border bg-transparent px-9 font-semibold text-[16px] text-foreground no-underline transition-all hover:bg-muted"
 							>
-								See How It Works
+								Try KeyHQ Demo
 							</a>
 						</div>
+						<p className="mt-3 text-[13px] text-muted-foreground">
+							No sign-up required · Explore owner and tenant views
+						</p>
 					</div>
 
 					{/* Right: dashboard mockup */}

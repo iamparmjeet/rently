@@ -38,6 +38,12 @@ export function Header() {
 
 				{/* Desktop CTAs */}
 				<div className="hidden md:flex md:items-center md:gap-4">
+					<Link
+						href="/demo"
+						className="font-medium text-base text-muted-foreground transition-colors hover:text-foreground"
+					>
+						Try demo
+					</Link>
 					<Button variant="ghost" className="text-base">
 						<AuthEntryLink href="/login">Log in</AuthEntryLink>
 					</Button>
@@ -81,6 +87,13 @@ export function Header() {
 						</Link>
 					))}
 					<div className="flex flex-col gap-2 border-t pt-4">
+						<Link
+							href="/demo"
+							className="rounded-md px-4 py-2 text-center font-medium text-muted-foreground text-sm transition-colors hover:bg-muted hover:text-foreground"
+							onClick={() => setMobileMenuOpen(false)}
+						>
+							Try KeyHQ Demo
+						</Link>
 						<Button variant="ghost">
 							<AuthEntryLink href="/login">Log in</AuthEntryLink>
 						</Button>

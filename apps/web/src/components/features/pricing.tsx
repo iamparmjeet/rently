@@ -138,6 +138,16 @@ export function Pricing() {
 						</div>
 					))}
 				</div>
+
+				<p className="mt-7 text-center text-[14px] text-muted-foreground">
+					Want to explore KeyHQ before choosing a plan?{" "}
+					<a
+						href="/demo"
+						className="font-semibold text-primary underline underline-offset-4 transition-colors hover:text-primary-hover"
+					>
+						Try KeyHQ Demo
+					</a>
+				</p>
 			</div>
 		</section>
 	);

@@ -195,6 +195,7 @@ export function useOptimisticCreateUtility() {
 				tenantName: null,
 				tenantPhone: null,
 				tenantEmail: null,
+				receiptPaymentId: null,
 			};
 
 			queryClient.setQueryData<UtilityListCache>(
@@ -430,6 +431,7 @@ export function useOptimisticCreateBatchUtility() {
 					tenantName: lease?.tenantName ?? null,
 					tenantPhone: lease?.tenantPhone ?? null,
 					tenantEmail: lease?.tenantEmail ?? null,
+					receiptPaymentId: null,
 				};
 			});
 

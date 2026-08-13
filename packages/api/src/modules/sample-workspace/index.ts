@@ -417,7 +417,8 @@ async function seedPortfolio(options: {
 				previousReading: 1200 + index * 50,
 				currentReading: 1300 + index * 50,
 				unitsUsed: 100,
-				ratePerUnit: 8.5,
+				// Monetary fields are stored in paise: ₹8.50 per unit.
+				ratePerUnit: 850,
 				fixedCharge: 15000,
 				totalAmount: 100000,
 				isPaid: index === 0,

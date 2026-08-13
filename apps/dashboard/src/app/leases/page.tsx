@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@rently/ui/components/button";
+import { paiseToFormValue, toPaise } from "@rently/ui/lib/currency";
 import { CardSkeleton } from "@rently/ui/shared/card-skelton";
 import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
@@ -109,6 +110,8 @@ export default function LeasesPage() {
 				...values,
 				startDate: new Date(values.startDate),
 				endDate: values.endDate ? new Date(values.endDate) : undefined,
+				rent: toPaise(values.rent),
+				deposit: values.deposit == null ? undefined : toPaise(values.deposit),
 			},
 			{
 				onSuccess: createDialog.closeDialog,
@@ -124,8 +127,8 @@ export default function LeasesPage() {
 				data: {
 					startDate: new Date(values.startDate),
 					endDate: values.endDate ? new Date(values.endDate) : undefined,
-					rent: values.rent,
-					deposit: values.deposit,
+					rent: toPaise(values.rent),
+					deposit: values.deposit == null ? undefined : toPaise(values.deposit),
 				},
 			},
 			{ onSuccess: () => setEditingLease(null) },
@@ -266,8 +269,11 @@ export default function LeasesPage() {
 								endDate: editingLease.endDate
 									? new Date(editingLease.endDate).toISOString().split("T")[0]
 									: undefined,
-								rent: editingLease.rent,
-								deposit: editingLease.deposit ?? undefined,
+								rent: paiseToFormValue(editingLease.rent),
+								deposit:
+									editingLease.deposit == null
+										? undefined
+										: paiseToFormValue(editingLease.deposit),
 								// status: editingLease.status,
 							}}
 							onSubmit={handleEdit}

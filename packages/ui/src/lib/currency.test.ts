@@ -1,9 +1,21 @@
 import { describe, expect, it } from "vitest";
-import { formatFormRupees, rupeesToWords } from "./currency";
+import {
+	formatFormRupees,
+	paiseToFormValue,
+	rupeesToWords,
+	toPaise,
+} from "./currency";
 
 describe("formatFormRupees", () => {
 	it("formats lease values as rupees without paise conversion", () => {
 		expect(formatFormRupees(1_500)).toBe("₹1,500.00");
+	});
+});
+
+describe("lease form currency conversion", () => {
+	it("converts stored paise to displayed rupees and back", () => {
+		expect(paiseToFormValue(300_000)).toBe(3_000);
+		expect(toPaise(3_000)).toBe(300_000);
 	});
 });
 

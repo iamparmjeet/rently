@@ -46,6 +46,7 @@
 		"db:studio": "turbo -F @rently/db db:studio",
 		"db:generate": "turbo -F @rently/db db:generate",
 		"db:migrate": "turbo -F @rently/db db:migrate",
+		"db:migrate:test": "turbo -F @rently/db db:migrate:test",
 		"db:seed": "turbo -F @rently/db db:seed",
 		"db:seed-demo": "bun run --env-file=apps/server/.env apps/server/src/seed-demo.ts",
 		"db:beta-codes": "bun run @rently/db db:beta-codes",

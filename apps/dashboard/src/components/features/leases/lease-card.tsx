@@ -45,6 +45,10 @@ export function LeaseCard({
 	updatedAt,
 }: LeaseCardProps) {
 	const isTerminated = lease.status === "terminated";
+	const isEditable =
+		lease.status !== "active" &&
+		lease.status !== "terminated" &&
+		lease.status !== "expired";
 
 	const startDate = new Date(lease.startDate).toLocaleDateString("en-IN", {
 		day: "2-digit",
@@ -97,25 +101,26 @@ export function LeaseCard({
 									View Details
 								</Link>
 							</DropdownMenuItem>
-							<DropdownMenuItem
-								disabled={isTerminated}
-								onClick={() => (onEdit ? onEdit(lease) : undefined)}
-							>
-								{onEdit ? (
-									<>
-										<IconPencil className="mr-2 size-4" />
-										Edit
-									</>
-								) : (
-									<Link
-										href={`/leases/${lease.leaseId}/edit` as Route}
-										className="flex items-center"
-									>
-										<IconPencil className="mr-2 size-4" />
-										Edit
-									</Link>
-								)}
-							</DropdownMenuItem>
+							{isEditable && (
+								<DropdownMenuItem
+									onClick={() => (onEdit ? onEdit(lease) : undefined)}
+								>
+									{onEdit ? (
+										<>
+											<IconPencil className="mr-2 size-4" />
+											Edit
+										</>
+									) : (
+										<Link
+											href={`/leases/${lease.leaseId}/edit` as Route}
+											className="flex items-center"
+										>
+											<IconPencil className="mr-2 size-4" />
+											Edit
+										</Link>
+									)}
+								</DropdownMenuItem>
+							)}
 							<DropdownMenuSeparator />
 							<DropdownMenuItem
 								disabled={isTerminated}

@@ -13,6 +13,24 @@ import {
 import { IconLayoutGrid, IconTable } from "@tabler/icons-react";
 import type { PropertyFilters } from "@/types/property";
 
+const propertyTypeLabels: Record<PropertyFilters["type"], string> = {
+	all: "All Types",
+	residential: "Residential",
+	commercial: "Commercial",
+};
+
+const propertySortLabels: Record<
+	`${PropertyFilters["sortBy"]}-${PropertyFilters["sortOrder"]}`,
+	string
+> = {
+	"created_at-desc": "Newest First",
+	"created_at-asc": "Oldest First",
+	"name-asc": "Name A–Z",
+	"name-desc": "Name Z–A",
+	"units-desc": "Most Units",
+	"units-asc": "Fewest Units",
+};
+
 interface PropertyFiltersProps {
 	filters: PropertyFilters;
 	onFiltersChange: (filters: PropertyFilters) => void;
@@ -49,7 +67,12 @@ export function PropertyFiltersBar({
 				}
 			>
 				<SelectTrigger className="h-10! w-35 bg-white">
-					<SelectValue placeholder="All Types" className="h-10" />
+					<SelectValue className="h-10">
+						{(value) =>
+							propertyTypeLabels[value as PropertyFilters["type"]] ??
+							"All Types"
+						}
+					</SelectValue>
 				</SelectTrigger>
 				<SelectContent>
 					<SelectItem value="all">All Types</SelectItem>
@@ -70,7 +93,12 @@ export function PropertyFiltersBar({
 				}}
 			>
 				<SelectTrigger className="h-10! w-40 bg-white">
-					<SelectValue />
+					<SelectValue>
+						{(value) =>
+							propertySortLabels[value as keyof typeof propertySortLabels] ??
+							"Newest First"
+						}
+					</SelectValue>
 				</SelectTrigger>
 				<SelectContent>
 					<SelectItem value="created_at-desc">Newest First</SelectItem>

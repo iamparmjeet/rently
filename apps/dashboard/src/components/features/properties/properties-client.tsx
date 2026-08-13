@@ -36,7 +36,7 @@ export function PropertiesClient() {
 	const filteredProperties = useMemo(() => {
 		const list = data?.properties ?? [];
 
-		return list
+		return [...list]
 			.filter((property) => {
 				if (filters.search) {
 					const q = filters.search.toLowerCase();

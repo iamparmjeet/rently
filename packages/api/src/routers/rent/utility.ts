@@ -376,9 +376,12 @@ export const createUtilityBatch = ownerProcedure
 			};
 		});
 
-		const inserted = await db.transaction(async (tx) =>
-			tx.insert(utilities).values(insertValues).returning(),
-		);
+		// A single INSERT is atomic on both database drivers. Neon HTTP does not
+		// support callback transactions, so avoid wrapping this statement in one.
+		const inserted = await db
+			.insert(utilities)
+			.values(insertValues)
+			.returning();
 
 		await sendAutomaticUtilityBillEmail({
 			db,

@@ -133,10 +133,12 @@ export async function createPendingTenantInvite(
 		ownerId,
 		ownerName,
 		input,
+		suppressDelivery,
 	}: {
 		ownerId: string;
 		ownerName: string;
 		input: PendingTenantInviteInput;
+		suppressDelivery?: boolean;
 	},
 ) {
 	const email = input.email.trim().toLowerCase();
@@ -178,6 +180,14 @@ export async function createPendingTenantInvite(
 		throw new ORPCError("INTERNAL_SERVER_ERROR", {
 			message: "Failed to create invitation.",
 		});
+	}
+
+	if (suppressDelivery) {
+		await db
+			.update(tenantInvites)
+			.set({ deliveryStatus: "suppressed" })
+			.where(eq(tenantInvites.id, invite.id));
+		return { invite, deliveryStatus: "suppressed" as const };
 	}
 
 	const deliveryStatus = await sendAndRecordInviteDelivery(db, {

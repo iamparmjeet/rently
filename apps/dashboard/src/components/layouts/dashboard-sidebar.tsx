@@ -1,5 +1,6 @@
 "use client";
 
+import { PLAN_STATUS } from "@rently/db/constants/payment-constants";
 import { Separator } from "@rently/ui/components/separator";
 import {
 	Sidebar,
@@ -16,7 +17,6 @@ import {
 import Logo from "@rently/ui/shared/logo";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { SubscriptionStatus } from "@/components/features/subscriptions/subscription-status";
 import { NavigationLinks } from "@/constants/navigation";
 import { useMySubscription } from "@/hooks/subscriptions";
 import { useSession } from "@/lib/auth-client";
@@ -28,6 +28,8 @@ export function DashbaordSidebar() {
 		useMySubscription();
 
 	const isDemo = session?.user.accountMode === "public_demo";
+	const isSubscriptionActive =
+		subscriptionData?.subscription?.status === PLAN_STATUS.ACTIVE;
 
 	const overviewLinks = NavigationLinks.filter((link) =>
 		[
@@ -75,7 +77,10 @@ export function DashbaordSidebar() {
 										}
 										tooltip={item.name}
 									>
-										<Link href={item.href} className="flex items-center gap-2">
+										<Link
+											href={item.href}
+											className="flex w-full items-center gap-2"
+										>
 											<item.icon className="size-4.5! shrink-0" />
 											<span className="text-base">{item.name}</span>
 										</Link>
@@ -102,18 +107,28 @@ export function DashbaordSidebar() {
 										}
 										tooltip={item.name}
 									>
-										<Link href={item.href} className="flex items-center gap-2">
+										<Link
+											href={item.href}
+											className="flex w-full items-center gap-2"
+										>
 											<item.icon className="`!size-5`" />
 											<span className="text-base">{item.name}</span>
 											{item.name === "Subscription" && subscriptionData && (
-												<SubscriptionStatus
-													subscription={subscriptionData.subscription}
-													showPlan
-													className="ml-auto shrink-0 group-data-[collapsible=icon]:hidden"
-												/>
+												<span className="ml-auto flex shrink-0 items-center gap-1.5 font-medium text-[11px] text-muted-foreground group-data-[collapsible=icon]:hidden">
+													<span
+														aria-hidden="true"
+														className={`size-1.5 rounded-full shadow-[0_0_0_2px] ${
+															isSubscriptionActive
+																? "bg-emerald-500 shadow-emerald-500/15"
+																: "bg-amber-500 shadow-amber-500/15"
+														}`}
+													/>
+													{subscriptionData.subscription?.plan.name ??
+														"Starter"}
+												</span>
 											)}
 											{item.name === "Subscription" && subscriptionError && (
-												<span className="ml-auto shrink-0 rounded-md border px-2 py-1 text-[10px] text-muted-foreground group-data-[collapsible=icon]:hidden">
+												<span className="ml-auto shrink-0 text-[11px] text-muted-foreground group-data-[collapsible=icon]:hidden">
 													Unavailable
 												</span>
 											)}

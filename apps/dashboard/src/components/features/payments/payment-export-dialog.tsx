@@ -49,6 +49,7 @@ export function PaymentExportDialog({
 			...currentRange,
 			[field]: value,
 		}));
+		setRangeError(null);
 	}
 
 	function handleExport() {
@@ -70,7 +71,7 @@ export function PaymentExportDialog({
 		<Dialog open={open} onOpenChange={onOpenChange}>
 			<DialogContent className="max-w-md">
 				<DialogHeader>
-					<DialogTitle>Export Payments</DialogTitle>
+					<DialogTitle>Export payments</DialogTitle>
 					<DialogDescription>
 						Download a CSV for tax filing or reconciliation. Reversals are
 						included as negative amounts.
@@ -95,19 +96,18 @@ export function PaymentExportDialog({
 						className="grid gap-1.5 font-medium text-xs"
 					>
 						End date
-						<input
+						<Input
 							id="payment-export-end-date"
 							type="date"
 							value={range.endDate}
 							onChange={(event) => updateRange("endDate", event.target.value)}
 							disabled={isExporting}
-							className="h-8 rounded-md border bg-background px-2 font-normal text-sm outline-none focus:border-primary focus:ring-2 focus:ring-primary/20 disabled:cursor-not-allowed disabled:opacity-50"
 						/>
 					</label>
 				</div>
 
 				{rangeError && (
-					<p role="alert" className="text-red-500 text-xs">
+					<p role="alert" className="text-destructive text-xs">
 						{rangeError}
 					</p>
 				)}

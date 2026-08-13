@@ -41,6 +41,7 @@ import {
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { AddPaymentButton } from "@/components/features/payments/add-payment-button";
+import { PaymentExportDialog } from "@/components/features/payments/payment-export-dialog";
 import { Container } from "@/components/shared/container";
 import {
 	useDeletePayment,
@@ -380,6 +381,7 @@ export default function PaymentsPage() {
 	const [search, setSearch] = useState("");
 	const [voidingId, setVoidingId] = useState<string | null>(null);
 	const [detailId, setDetailId] = useState<string | null>(null);
+	const [exportOpen, setExportOpen] = useState(false);
 
 	if (isLoading) return <PageLoader />;
 
@@ -419,6 +421,11 @@ export default function PaymentsPage() {
 
 	const selectedPayment = payments.find((p) => p.id === detailId) ?? null;
 
+	// CSV
+	function handlePreviewExport() {
+		setExportOpen(false);
+	}
+
 	return (
 		<Container>
 			<div className="col-span-12 flex flex-col gap-6">
@@ -427,8 +434,23 @@ export default function PaymentsPage() {
 					title="Payments"
 					description="Track rent collections and payment history."
 				>
+					<Button
+						type="button"
+						variant="outline"
+						className="gap-1.5"
+						onClick={() => setExportOpen(true)}
+					>
+						<IconDownload className="size-4" />
+						Export CSV
+					</Button>
 					<AddPaymentButton withIcon />
 				</PageHeader>
+
+				<PaymentExportDialog
+					open={exportOpen}
+					onOpenChange={setExportOpen}
+					onExport={handlePreviewExport}
+				/>
 
 				{/* ── Stat cards ── */}
 				<div className="grid grid-cols-2 gap-4 sm:grid-cols-4">

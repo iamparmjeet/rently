@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { workspaceCapabilities } from "@rently/api/modules/sample-workspace";
 import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
 import type { Database } from "@rently/db";
@@ -341,6 +342,9 @@ export const sendPaymentReceipt = ownerProcedure
 	.output(z.object({ sent: z.boolean() }))
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
+		if (!workspaceCapabilities(authUser).outboundCommunication) {
+			return { sent: false };
+		}
 
 		// single query for ownership check AND data retrieval.
 		// The innerJoin on properties.ownerId already enforces authorization —

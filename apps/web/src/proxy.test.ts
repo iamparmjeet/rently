@@ -13,6 +13,7 @@ vi.mock("@rently/env/web", () => ({
 		NEXT_PUBLIC_WEB_URL: "https://keyhq.test",
 		NEXT_PUBLIC_DASHBOARD_URL: "https://dashboard.keyhq.test",
 		NEXT_PUBLIC_TENANT_URL: "https://tenant.keyhq.test",
+		NEXT_PUBLIC_ADMIN_URL: "https://admin.keyhq.test",
 	},
 }));
 

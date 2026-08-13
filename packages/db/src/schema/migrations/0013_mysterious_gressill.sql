@@ -1,0 +1,1 @@
+CREATE INDEX "subscriptions_user_created_at_idx" ON "subscriptions" USING btree ("user_id","created_at");

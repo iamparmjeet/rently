@@ -2,6 +2,7 @@ import {
 	BILLING_INTERVAL,
 	BILLING_INTERVAL_VALUES,
 	CURRENCY_TYPES,
+	PAYMENT_METHOD_VALUES,
 	PAYMENT_STATUS,
 	PAYMENT_STATUS_VALUES,
 	PLAN_STATUS,
@@ -10,6 +11,7 @@ import {
 } from "@rently/db/constants/payment-constants";
 import {
 	boolean,
+	index,
 	integer,
 	pgTable,
 	text,
@@ -39,50 +41,73 @@ export const plans = pgTable("plans", {
 	...auditColumns(),
 });
 
-export const subscriptions = pgTable("subscriptions", {
-	...idColumn(),
-	userId: uuid("user_id")
-		.references(() => user.id)
-		.notNull(),
-	planId: uuid("plan_id")
-		.references(() => plans.id)
-		.notNull(),
-	status: text("status", {
-		enum: PLAN_STATUS_VALUES,
-	}).default(PLAN_STATUS.ACTIVE),
-	currentPeriodStart: timestamp("current_period_start").defaultNow(),
-	currentPeriodEnd: timestamp("current_period_end"),
-	nextBillingDate: timestamp("next_billing_date"),
-	trialEndsAt: timestamp("trial_ends_at"),
-	expired: boolean("expired").default(false),
-	billingInterval: text("billing_interval", {
-		enum: BILLING_INTERVAL_VALUES,
-	})
-		.default(BILLING_INTERVAL.MONTHLY)
-		.notNull(),
-	totalPaid: integer("total_paid").default(0),
-	currency: text("currency").default(CURRENCY_TYPES.INR),
-	...auditColumns(),
-});
+export const subscriptions = pgTable(
+	"subscriptions",
+	{
+		...idColumn(),
+		userId: uuid("user_id")
+			.references(() => user.id)
+			.notNull(),
+		planId: uuid("plan_id")
+			.references(() => plans.id)
+			.notNull(),
+		status: text("status", {
+			enum: PLAN_STATUS_VALUES,
+		}).default(PLAN_STATUS.ACTIVE),
+		currentPeriodStart: timestamp("current_period_start").defaultNow(),
+		currentPeriodEnd: timestamp("current_period_end"),
+		nextBillingDate: timestamp("next_billing_date"),
+		trialEndsAt: timestamp("trial_ends_at"),
+		expired: boolean("expired").default(false),
+		billingInterval: text("billing_interval", {
+			enum: BILLING_INTERVAL_VALUES,
+		})
+			.default(BILLING_INTERVAL.MONTHLY)
+			.notNull(),
+		totalPaid: integer("total_paid").default(0),
+		currency: text("currency").default(CURRENCY_TYPES.INR),
+		...auditColumns(),
+	},
+	(table) => [
+		index("subscriptions_user_created_at_idx").on(
+			table.userId,
+			table.createdAt,
+		),
+	],
+);
 
-export const invoices = pgTable("invoices", {
-	...idColumn(),
-	subscriptionId: uuid("subscription_id").references(() => subscriptions.id, {
-		onDelete: "set null",
-	}),
-	userId: uuid("user_id")
-		.notNull()
-		.references(() => user.id, { onDelete: "restrict" })
-		.$type<string>(),
-	amount: integer("amount").notNull(),
-	currency: text("currency").default(CURRENCY_TYPES.INR),
-	periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
-	periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
-	paymentStatus: text("payment_status", {
-		enum: PAYMENT_STATUS_VALUES,
-	}).default(PAYMENT_STATUS.UNPAID),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-});
+export const invoices = pgTable(
+	"invoices",
+	{
+		...idColumn(),
+		subscriptionId: uuid("subscription_id").references(() => subscriptions.id, {
+			onDelete: "set null",
+		}),
+		userId: uuid("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "restrict" })
+			.$type<string>(),
+		amount: integer("amount").notNull(),
+		currency: text("currency").default(CURRENCY_TYPES.INR),
+		periodStart: timestamp("period_start", { withTimezone: true }).notNull(),
+		periodEnd: timestamp("period_end", { withTimezone: true }).notNull(),
+		paymentStatus: text("payment_status", {
+			enum: PAYMENT_STATUS_VALUES,
+		}).default(PAYMENT_STATUS.UNPAID),
+		paymentMethod: text("payment_method", { enum: PAYMENT_METHOD_VALUES }),
+		externalPaymentReference: text("external_payment_reference").unique(),
+		paidAt: timestamp("paid_at", { withTimezone: true }),
+		recordedByAdminUserId: uuid("recorded_by_admin_user_id").references(
+			() => user.id,
+			{ onDelete: "restrict" },
+		),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+	},
+	(table) => [
+		index("invoices_user_created_at_idx").on(table.userId, table.createdAt),
+		index("invoices_paid_at_idx").on(table.paidAt),
+	],
+);
 
 export const betaAccessCodes = pgTable("beta_access_codes", {
 	...idColumn(),

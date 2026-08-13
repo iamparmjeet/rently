@@ -1,4 +1,5 @@
 import { relations } from "drizzle-orm";
+import { adminAuditLogs } from "./admin";
 import {
 	documentUpdateRequests,
 	invoices,
@@ -37,6 +38,14 @@ export const userRelations = relations(user, ({ one, many }) => ({
 	notificationPreferences: one(notificationPreferences, {
 		fields: [user.id],
 		references: [notificationPreferences.ownerId],
+	}),
+	adminAuditLogs: many(adminAuditLogs),
+}));
+
+export const adminAuditLogRelations = relations(adminAuditLogs, ({ one }) => ({
+	actorAdmin: one(user, {
+		fields: [adminAuditLogs.actorAdminUserId],
+		references: [user.id],
 	}),
 }));
 

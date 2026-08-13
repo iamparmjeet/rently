@@ -42,6 +42,24 @@ export const UtilityListItemSchema = UtilitySelectSchema.extend({
 	tenantName: z.string().nullable(),
 	tenantPhone: z.string().nullable(),
 	tenantEmail: z.string().nullable(),
+	// The payment that settled this bill. It is used to open the existing
+	// payment receipt from the Utilities screen.
+	receiptPaymentId: z.uuid().nullable(),
+});
+
+// Enriched document data for a single printable utility bill. Keep this
+// separate from the list shape so the bill can include issuer and property
+// details without making every Utilities list request heavier.
+export const UtilityBillDataSchema = UtilitySelectSchema.extend({
+	unitNumber: z.string(),
+	propertyName: z.string(),
+	propertyAddress: z.string(),
+	tenantName: z.string(),
+	ownerName: z.string(),
+	companyName: z.string().nullable(),
+	ownerAddress: z.string().nullable(),
+	gstNumber: z.string().nullable(),
+	receiptPaymentId: z.uuid().nullable(),
 });
 
 export const UtilityReadingSchema = z
@@ -97,6 +115,7 @@ export type NewUtility = z.infer<typeof UtilityInsertSchema>;
 export type CreateUtility = z.infer<typeof CreateUtilitySchema>;
 export type UpdateUtility = z.infer<typeof UpdateUtilitySchema>;
 export type UtilityListItem = z.infer<typeof UtilityListItemSchema>;
+export type UtilityBillData = z.infer<typeof UtilityBillDataSchema>;
 export type UtilityBatchFormValues = z.infer<typeof UtilityBatchFormSchema>;
 export type MeterReading = z.infer<typeof UtilityReadingSchema>;
 export type FixedCharge = z.infer<typeof FixedChargeSchema>;

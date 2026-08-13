@@ -21,6 +21,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@rently/ui/components/select";
+import { paiseToFormValue } from "@rently/ui/lib/currency";
 import {
 	IconAlertCircle,
 	IconBuildingStore,
@@ -175,7 +176,9 @@ export function LeaseForm({
 	// via defaultValues on mount (edit mode). useEffect handles both cases.
 	useEffect(() => {
 		if (selectedUnit && !isEditMode) {
-			setValue("rent", selectedUnit.baseRent, { shouldValidate: true });
+			setValue("rent", paiseToFormValue(selectedUnit.baseRent), {
+				shouldValidate: true,
+			});
 		}
 	}, [selectedUnit, isEditMode, setValue]);
 

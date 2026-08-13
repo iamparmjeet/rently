@@ -1,6 +1,6 @@
 "use client";
 
-import { formatFormRupees } from "@rently/ui/lib/currency";
+import { formatRupees } from "@rently/ui/lib/currency";
 import { IconBuildingSkyscraper } from "@tabler/icons-react";
 import Link from "next/link";
 import { useProperties } from "@/hooks/properties";
@@ -121,7 +121,7 @@ export function RecentProperties({ className = "" }: RecentPropertiesProps) {
 							{/* Monthly revenue ────────────────────────────── */}
 
 							<span className="text-right font-semibold text-emerald-600 text-sm tabular-nums">
-								{formatFormRupees(property.monthlyRevenue)}
+								{formatRupees(property.monthlyRevenue)}
 							</span>
 						</div>
 					))

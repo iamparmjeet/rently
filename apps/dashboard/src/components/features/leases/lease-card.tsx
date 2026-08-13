@@ -12,6 +12,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@rently/ui/components/dropdown-menu";
+import { formatRupees } from "@rently/ui/lib/currency";
 import { cn } from "@rently/ui/lib/utils";
 import { DateRecordMeta } from "@rently/ui/shared/date-record-meta";
 import type { LeaseWithDetails } from "@rently/validators";
@@ -140,7 +141,7 @@ export function LeaseCard({
 
 				{/* Rent*/}
 				<p className="font-bold text-2xl">
-					₹{lease.rent.toLocaleString("en-IN")}
+					{formatRupees(lease.rent)}
 					<span className="font-normal text-muted-foreground text-sm">/mo</span>
 				</p>
 
@@ -156,7 +157,7 @@ export function LeaseCard({
 			<CardFooter className="gap-2 pt-0">
 				<LeaseStatusBadge status={lease.status} />
 				<span className="ml-auto text-muted-foreground text-xs">
-					Deposit: ₹{lease?.deposit?.toLocaleString("en-IN")}
+					Deposit: {lease.deposit == null ? "—" : formatRupees(lease.deposit)}
 				</span>
 			</CardFooter>
 			<DateRecordMeta

@@ -3,7 +3,7 @@ import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import { user } from "@rently/db/schema/auth";
 import { leases, payments, properties, units } from "@rently/db/schema/schema";
 import type { OverdueLease } from "@rently/validators";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull } from "drizzle-orm";
 import { computeOverdueState } from "./overdue";
 import { getLocalDateKey, getLocalPeriodKey } from "./rent-cycle";
 
@@ -19,10 +19,7 @@ export async function queryOverdueLeases(
 			tenantName: user.name,
 			propertyName: properties.name,
 			unitNumber: units.unitNumber,
-			// Lease rent is currently stored in rupees by the lease form. Normalize
-			// it at this boundary so it can be compared with payment amounts, which
-			// are stored in paise and consumed by the overdue UI in paise.
-			rent: sql<number>`${leases.rent} * 100`,
+			rent: leases.rent,
 			startDate: leases.startDate,
 			endDate: leases.endDate,
 			rentDueDate: leases.rentDueDate,

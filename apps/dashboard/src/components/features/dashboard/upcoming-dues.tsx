@@ -1,6 +1,6 @@
 import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import { Skeleton } from "@rently/ui/components/skeleton";
-import { formatFormRupees } from "@rently/ui/lib/currency";
+import { formatRupees } from "@rently/ui/lib/currency";
 import type { PaymentListItem } from "@rently/validators";
 import { IconArrowRight } from "@tabler/icons-react";
 import Link from "next/link";
@@ -15,7 +15,7 @@ interface DueEntry {
 	tenantName: string;
 	unitNumber: string;
 	propertyName: string;
-	amount: number; // lease rent is stored in rupees
+	amount: number; // lease rent is stored in paise
 	dueDate: Date;
 	daysUntil: number; // negative = overdue
 	urgency: DueUrgency;
@@ -71,7 +71,7 @@ function isRentPaidThisMonth(
 		return total + Math.max(p.amount, 0);
 	}, 0);
 
-	return paidThisMonth >= rent * 100;
+	return paidThisMonth >= rent;
 }
 
 const URGENCY_CONFIG: Record<
@@ -129,7 +129,7 @@ export function UpcomingDues({ className = "" }) {
 						tenantName: l.tenantName ?? "Unknown Tenant",
 						unitNumber: l.unitNumber,
 						propertyName: l.propertyName,
-						amount: l.rent, // lease rent is stored in rupees
+						amount: l.rent,
 						dueDate,
 						daysUntil,
 						urgency: classifyUrgency(daysUntil),
@@ -218,7 +218,7 @@ function DueRow({ entry }: { entry: DueEntry }) {
 			{/* Amount + urgency label */}
 			<div className="flex shrink-0 flex-col items-end gap-1">
 				<span className="font-semibold text-sm tabular-nums">
-					{formatFormRupees(entry.amount)}
+					{formatRupees(entry.amount)}
 				</span>
 				<span className={`flex items-center gap-1 text-xs ${config.textCls}`}>
 					<span

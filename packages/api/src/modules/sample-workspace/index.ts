@@ -270,7 +270,7 @@ async function seedPortfolio(options: {
 			propertyId: ids.propertyResidential,
 			unitNumber: "A-101",
 			type: "2BHK" as const,
-			baseRent: 2800000,
+			baseRent: 280000,
 			status: "occupied" as const,
 			furnishing: "semi_furnished" as const,
 		},
@@ -279,7 +279,7 @@ async function seedPortfolio(options: {
 			propertyId: ids.propertyResidential,
 			unitNumber: "A-102",
 			type: "2BHK" as const,
-			baseRent: 3000000,
+			baseRent: 300000,
 			status: "occupied" as const,
 			furnishing: "fully_furnished" as const,
 		},
@@ -288,7 +288,7 @@ async function seedPortfolio(options: {
 			propertyId: ids.propertyResidential,
 			unitNumber: "B-201",
 			type: "1BHK" as const,
-			baseRent: 2100000,
+			baseRent: 1500000,
 			status: "occupied" as const,
 			furnishing: "unfurnished" as const,
 		},
@@ -297,7 +297,7 @@ async function seedPortfolio(options: {
 			propertyId: ids.propertyResidential,
 			unitNumber: "B-202",
 			type: "1BHK" as const,
-			baseRent: 2200000,
+			baseRent: 1600000,
 			status: "available" as const,
 			furnishing: "unfurnished" as const,
 		},
@@ -306,7 +306,7 @@ async function seedPortfolio(options: {
 			propertyId: ids.propertyCommercial,
 			unitNumber: "S-01",
 			type: "shop" as const,
-			baseRent: 3500000,
+			baseRent: 5000000,
 			status: "occupied" as const,
 			furnishing: "unfurnished" as const,
 		},
@@ -315,7 +315,7 @@ async function seedPortfolio(options: {
 			propertyId: ids.propertyCommercial,
 			unitNumber: "S-02",
 			type: "shop" as const,
-			baseRent: 3200000,
+			baseRent: 4500000,
 			status: "available" as const,
 			furnishing: "unfurnished" as const,
 		},
@@ -344,7 +344,7 @@ async function seedPortfolio(options: {
 			target: tenantProfiles.id,
 			set: { email: tenantProfiles.email, deletedAt: null },
 		});
-	const rents = [2800000, 3000000, 2100000, 3500000] as const;
+	const rents = [280000, 300000, 1500000, 5000000] as const;
 	const leaseRows = tenantRows.map((tenant, index) => {
 		const rent = at(rents, index);
 		return {

@@ -1,6 +1,7 @@
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
 import { Card, CardContent, CardHeader } from "@rently/ui/components/card";
+import { formatRupees } from "@rently/ui/lib/currency";
 import { DateRecordMeta } from "@rently/ui/shared/date-record-meta";
 import type { TenantListItem } from "@rently/validators";
 import {
@@ -80,8 +81,8 @@ export function TenantCard({ tenant, actionsSlot }: TenantCardProps) {
 						</div>
 						<div className="mt-1 text-muted-foreground">
 							{tenant.activeLeases.length > 1
-								? `₹${tenant.activeLeases.reduce((sum, lease) => sum + lease.rent, 0).toLocaleString()}/mo total`
-								: `Unit ${tenant.currentLease.unitNumber} · ₹${tenant.currentLease.rent.toLocaleString()}/mo`}
+								? `${formatRupees(tenant.activeLeases.reduce((sum, lease) => sum + lease.rent, 0))}/mo total`
+								: `Unit ${tenant.currentLease.unitNumber} · ${formatRupees(tenant.currentLease.rent)}/mo`}
 						</div>
 						{tenant.activeLeases.length === 1 &&
 							tenant.currentLease.endDate && (

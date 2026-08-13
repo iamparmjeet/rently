@@ -9,6 +9,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@rently/ui/components/select";
+import { formatRupees } from "@rently/ui/lib/currency";
 import type {
 	LeaseWithDetails,
 	UtilityBatchFormValues,
@@ -178,7 +179,7 @@ function LeaseUnitCard({
 					{lease.tenantName
 						? entityLabel(lease.tenantName, lease.tenantId)
 						: "—"}{" "}
-					· ₹{lease.rent.toLocaleString()}/mo
+					· {formatRupees(lease.rent)}/mo
 				</p>
 			</div>
 			<IconChevronRight className="size-4 shrink-0 text-muted-foreground" />

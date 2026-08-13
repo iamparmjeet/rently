@@ -77,8 +77,7 @@ async function seedLease(ownerId: string, tenantId: string, rentDueDate = 10) {
 		tenantId,
 		startDate: new Date("2026-01-01T00:00:00.000Z"),
 		endDate: null,
-		// Lease rent is stored in rupees; the overdue query normalizes it to paise.
-		rent: 1_000,
+		rent: 100_000,
 		status: "active",
 		rentDueDate,
 	});

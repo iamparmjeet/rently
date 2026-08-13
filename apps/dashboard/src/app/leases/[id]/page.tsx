@@ -7,6 +7,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
+import { formatRupees } from "@rently/ui/lib/currency";
 import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
 import { DetailHeader } from "@rently/ui/shared/detail-header";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
@@ -185,15 +186,13 @@ export default function LeaseDetailPage({
 						<div>
 							<p className="text-muted-foreground text-xs">Monthly Rent</p>
 							<p className="font-semibold text-2xl">
-								₹{lease.rent.toLocaleString("en-IN")}
+								{formatRupees(lease.rent)}
 							</p>
 						</div>
 						<div>
 							<p className="text-muted-foreground text-xs">Deposit</p>
 							<p className="font-semibold text-2xl">
-								{lease.deposit
-									? `₹${lease.deposit.toLocaleString("en-IN")}`
-									: "—"}
+								{lease.deposit ? formatRupees(lease.deposit) : "—"}
 							</p>
 						</div>
 						<div>

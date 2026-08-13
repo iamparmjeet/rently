@@ -1,3 +1,4 @@
+import { workspaceCapabilities } from "@rently/api/modules/sample-workspace";
 import type { Database } from "@rently/db";
 import { user } from "@rently/db/schema/auth";
 import {
@@ -36,6 +37,16 @@ export async function sendAutomaticPaymentReceipt(
 	paymentId: string,
 ): Promise<void> {
 	try {
+		const [workspace] = await db
+			.select({
+				accountMode: user.accountMode,
+				workspaceMode: user.workspaceMode,
+			})
+			.from(user)
+			.where(eq(user.id, ownerId))
+			.limit(1);
+		if (!workspace || !workspaceCapabilities(workspace).outboundCommunication)
+			return;
 		if (!(await isPreferenceEnabled(db, ownerId, "paymentReceived"))) return;
 		const [payment] = await db
 			.select({
@@ -100,6 +111,16 @@ export async function sendAutomaticUtilityBillEmail({
 	batchId?: string;
 }): Promise<void> {
 	try {
+		const [workspace] = await db
+			.select({
+				accountMode: user.accountMode,
+				workspaceMode: user.workspaceMode,
+			})
+			.from(user)
+			.where(eq(user.id, ownerId))
+			.limit(1);
+		if (!workspace || !workspaceCapabilities(workspace).outboundCommunication)
+			return;
 		if (!(await isPreferenceEnabled(db, ownerId, "utilityBillGenerated")))
 			return;
 		const filter = utilityIds?.length

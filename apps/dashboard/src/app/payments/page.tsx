@@ -148,6 +148,26 @@ function fmtDate(
 	return new Date(date).toLocaleDateString("en-IN", opts);
 }
 
+function PaymentMetric({
+	icon: Icon,
+	label,
+	value,
+}: {
+	icon: typeof IconChartBar;
+	label: string;
+	value: string | number;
+}) {
+	return (
+		<div className="min-w-0 px-3 py-5 text-center sm:px-4">
+			<Icon className="mx-auto size-4 text-primary" />
+			<p className="mt-2 truncate text-muted-foreground text-xs">{label}</p>
+			<p className="mt-1 truncate font-semibold text-sm sm:text-base">
+				{value}
+			</p>
+		</div>
+	);
+}
+
 // ── WhatsApp message builder ───
 //  pure function, no side effects — easy to test, easy to modify.
 //  Builds the pre-composed message that WhatsApp pre-fills in the chat.
@@ -458,9 +478,6 @@ export default function PaymentsPage() {
 	const reversalCount = payments.filter(
 		(p) => p.type === PAYMENT_TYPES.REVERSAL,
 	).length;
-	const nonReversalCount = payments.filter(
-		(p) => p.type !== PAYMENT_TYPES.REVERSAL,
-	).length;
 
 	const selectedPayment = payments.find((p) => p.id === detailId) ?? null;
 
@@ -502,65 +519,42 @@ export default function PaymentsPage() {
 					isExporting={exportPayments.isPending}
 				/>
 
-				{/* ── Stat cards ── */}
-				<div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-					<div className="col-span-2 rounded-xl bg-linear-to-br from-primary to-primary/75 p-5 text-primary-foreground shadow-[0_8px_28px_hsl(var(--primary)/0.22)] sm:col-span-1">
-						<div className="mb-3 flex size-9 items-center justify-center rounded-lg bg-white/20">
-							<IconCurrencyRupee className="size-4.5" />
+				<section className="overflow-hidden rounded-xl border bg-card shadow-sm">
+					<div className="grid divide-y sm:grid-cols-[1.05fr_1fr] sm:divide-x sm:divide-y-0">
+						<div className="relative overflow-hidden bg-gradient-to-br from-primary/[0.08] via-card to-card p-5">
+							<div className="absolute -top-10 -right-10 size-32 rounded-full bg-primary/[0.08] blur-2xl" />
+							<div className="relative">
+								<p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.14em]">
+									Collection health
+								</p>
+								<p className="mt-1 font-semibold text-3xl tabular-nums tracking-tight">
+									{formatRupees(thisMonthTotal)}
+								</p>
+								<p className="mt-2 text-muted-foreground text-xs">
+									Collected this month · {thisMonthPayments.length} transaction
+									{thisMonthPayments.length !== 1 ? "s" : ""}
+								</p>
+							</div>
 						</div>
-						<p className="font-semibold text-[11px] uppercase tracking-wide opacity-75">
-							Collected This Month
-						</p>
-						<p className="mt-1.5 font-extrabold text-[26px] tabular-nums leading-none tracking-tight">
-							{formatRupees(thisMonthTotal)}
-						</p>
-						<p className="mt-2 text-xs opacity-60">
-							{thisMonthPayments.length} transaction
-							{thisMonthPayments.length !== 1 ? "s" : ""}
-						</p>
-					</div>
-
-					<div className="rounded-xl border bg-card p-5 shadow-sm">
-						<div className="mb-3 flex size-9 items-center justify-center rounded-lg bg-primary/10">
-							<IconChartBar className="size-4.5 text-primary" />
+						<div className="grid grid-cols-3 divide-x">
+							<PaymentMetric
+								icon={IconChartBar}
+								label="All time"
+								value={formatRupees(allTimeTotal)}
+							/>
+							<PaymentMetric
+								icon={IconRefreshAlert}
+								label="Reversals"
+								value={reversalCount}
+							/>
+							<PaymentMetric
+								icon={IconReceipt}
+								label="Records"
+								value={payments.length}
+							/>
 						</div>
-						<p className="font-semibold text-[11px] text-muted-foreground uppercase tracking-wide">
-							All Time
-						</p>
-						<p className="mt-1.5 font-extrabold text-xl tabular-nums tracking-tight">
-							{formatRupees(allTimeTotal)}
-						</p>
-						<p className="mt-2 text-muted-foreground text-xs">
-							{nonReversalCount} payment{nonReversalCount !== 1 ? "s" : ""}
-						</p>
 					</div>
-
-					<div className="rounded-xl border bg-card p-5 shadow-sm">
-						<div className="mb-3 flex size-9 items-center justify-center rounded-lg bg-destructive/10">
-							<IconRefreshAlert className="size-4.5 text-destructive" />
-						</div>
-						<p className="font-semibold text-[11px] text-muted-foreground uppercase tracking-wide">
-							Reversals
-						</p>
-						<p className="mt-1.5 font-extrabold text-xl tabular-nums tracking-tight">
-							{reversalCount}
-						</p>
-						<p className="mt-2 text-muted-foreground text-xs">voided entries</p>
-					</div>
-
-					<div className="rounded-xl border bg-card p-5 shadow-sm">
-						<div className="mb-3 flex size-9 items-center justify-center rounded-lg bg-primary/10">
-							<IconReceipt className="size-4.5 text-primary" />
-						</div>
-						<p className="font-semibold text-[11px] text-muted-foreground uppercase tracking-wide">
-							Total Records
-						</p>
-						<p className="mt-1.5 font-extrabold text-xl tabular-nums tracking-tight">
-							{payments.length}
-						</p>
-						<p className="mt-2 text-muted-foreground text-xs">all entries</p>
-					</div>
-				</div>
+				</section>
 
 				{/* ── Filter bar ── */}
 				<div className="flex flex-wrap items-center gap-3">

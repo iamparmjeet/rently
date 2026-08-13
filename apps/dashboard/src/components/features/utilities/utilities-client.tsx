@@ -9,12 +9,12 @@ import { Button } from "@rently/ui/components/button";
 import {
 	Dialog,
 	DialogContent,
+	DialogDescription,
 	DialogHeader,
 	DialogTitle,
 } from "@rently/ui/components/dialog";
 import { Input } from "@rently/ui/components/input";
 import {
-	formatFormRupees,
 	formatRupees,
 	paiseToFormValue,
 	toPaise,
@@ -31,6 +31,7 @@ import {
 	IconFileInvoice,
 	IconPlus,
 	IconReceipt,
+	IconSearch,
 	IconTool,
 } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
@@ -54,11 +55,12 @@ import { ElectricityRow } from "./electricity-row";
 import { FixedChargeRow } from "./fixed-charge-row";
 import { UnitPickerUtilityForm } from "./lease-picker-form";
 import { MarkPaidDialog } from "./mark-paid-dialog";
-import { UtilityDetailSheet } from "./utility-detail-sheet";
+import { UtilityDetailDialog } from "./utility-detail-sheet";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
 type UtilityTab = "electricity" | "water" | "maintenance" | "combined";
+type UtilityStatusFilter = "all" | "paid" | "unpaid";
 
 type BatchItem = Parameters<
 	typeof client.rent.utility.createUtilityBatch
@@ -76,11 +78,11 @@ export default function UtilitiesClient() {
 
 	const [activeTab, setActiveTab] = useState<UtilityTab>("electricity");
 	const [search, setSearch] = useState("");
+	const [statusFilter, setStatusFilter] = useState<UtilityStatusFilter>("all");
 	const [createOpen, setCreateOpen] = useState(false);
 	const [editTarget, setEditTarget] = useState<UtilityListItem | null>(null);
-	const [detailTarget, setDetailTarget] = useState<UtilityListItem | null>(
-		null,
-	);
+	const [detailItems, setDetailItems] = useState<UtilityListItem[]>([]);
+	const [detailRent, setDetailRent] = useState<number | null>(null);
 	const [markPaidTarget, setMarkPaidTarget] = useState<UtilityListItem | null>(
 		null,
 	);
@@ -93,6 +95,8 @@ export default function UtilitiesClient() {
 		const q = search.toLowerCase();
 		return utilities.filter((u) => {
 			if (activeTab !== "combined" && u.utilityType !== activeTab) return false;
+			if (statusFilter === "paid" && !u.isPaid) return false;
+			if (statusFilter === "unpaid" && u.isPaid) return false;
 			if (!q) return true;
 			return (
 				(u.tenantName ?? "").toLowerCase().includes(q) ||
@@ -100,7 +104,7 @@ export default function UtilitiesClient() {
 				u.unitNumber.toLowerCase().includes(q)
 			);
 		});
-	}, [utilities, activeTab, search]);
+	}, [utilities, activeTab, search, statusFilter]);
 
 	// ── Derived: stats ───────────────────────────────────────────────────────
 	const stats = useMemo(() => {
@@ -117,12 +121,9 @@ export default function UtilitiesClient() {
 
 		return {
 			totalBills: sum(monthlyUtilities),
-			waterTotal: sum(
-				monthlyUtilities.filter((u) => u.utilityType === "water"),
-			),
-			maintenanceTotal: sum(
-				monthlyUtilities.filter((u) => u.utilityType === "maintenance"),
-			),
+			monthlyCount: monthlyUtilities.length,
+			paidTotal: sum(monthlyUtilities.filter((u) => u.isPaid)),
+			paidCount: monthlyUtilities.filter((u) => u.isPaid).length,
 			unpaidTotal: sum(utilities.filter((u) => !u.isPaid)),
 			unpaidCount: utilities.filter((u) => !u.isPaid).length,
 			electricityCount: utilities.filter((u) => u.utilityType === "electricity")
@@ -143,8 +144,11 @@ export default function UtilitiesClient() {
 		for (const u of utilities) {
 			const lease = leases.find((l) => l.leaseId === u.leaseId);
 			if (!lease) continue; // skip orphaned utilities (shouldn't happen)
+			const period = new Date(u.currentReadingDate);
+			const periodKey = `${period.getFullYear()}-${period.getMonth()}`;
+			const groupId = `${u.leaseId}-${periodKey}`;
 
-			const existing = map.get(u.leaseId);
+			const existing = map.get(groupId);
 
 			if (existing) {
 				existing.utilities.push(u);
@@ -157,7 +161,9 @@ export default function UtilitiesClient() {
 				existing.grandTotal += u.totalAmount;
 				existing.allPaid = existing.allPaid && u.isPaid;
 			} else {
-				map.set(u.leaseId, {
+				map.set(groupId, {
+					id: groupId,
+					period: period,
 					lease,
 					utilities: [u],
 					electricityTotal: u.utilityType === "electricity" ? u.totalAmount : 0,
@@ -171,10 +177,26 @@ export default function UtilitiesClient() {
 			}
 		}
 
-		return Array.from(map.values()).sort((a, b) =>
-			(a.lease.tenantName ?? "").localeCompare(b.lease.tenantName ?? ""),
+		return Array.from(map.values()).sort(
+			(a, b) =>
+				b.period.getTime() - a.period.getTime() ||
+				(a.lease.tenantName ?? "").localeCompare(b.lease.tenantName ?? ""),
 		);
 	}, [utilities, leases]);
+
+	const filteredCombinedGroups = useMemo(() => {
+		const q = search.toLowerCase();
+		return combinedGroups.filter((group) => {
+			if (statusFilter === "paid" && !group.allPaid) return false;
+			if (statusFilter === "unpaid" && group.allPaid) return false;
+			if (!q) return true;
+			return (
+				(group.lease.tenantName ?? "").toLowerCase().includes(q) ||
+				group.lease.propertyName.toLowerCase().includes(q) ||
+				group.lease.unitNumber.toLowerCase().includes(q)
+			);
+		});
+	}, [combinedGroups, search, statusFilter]);
 
 	// ── Handlers ─────────────────────────────────────────────────────────────
 
@@ -288,11 +310,14 @@ export default function UtilitiesClient() {
 		);
 	}
 
-	// ── Batch items for detail sheet (all utilities with same batchId) ────────
-	const batchItems = useMemo(() => {
-		if (!detailTarget?.batchId) return detailTarget ? [detailTarget] : [];
-		return utilities.filter((u) => u.batchId === detailTarget.batchId);
-	}, [detailTarget, utilities]);
+	function openUtilityDetail(utility: UtilityListItem) {
+		setDetailRent(null);
+		setDetailItems(
+			utility.batchId
+				? utilities.filter((item) => item.batchId === utility.batchId)
+				: [utility],
+		);
+	}
 
 	// ── Render ────────────────────────────────────────────────────────────────
 
@@ -314,37 +339,41 @@ export default function UtilitiesClient() {
 			</PageHeader>
 
 			{/* Stat cards */}
-			<div className="my-5 grid grid-cols-4 gap-3">
+			<div className="my-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
 				<StatCard
-					icon={<IconReceipt className="size-5 text-primary" />}
-					label="Bills This Month"
+					icon={<IconFileInvoice className="size-5" />}
+					label="Billed this month"
 					value={formatRupees(stats.totalBills)}
-					sub={`${stats.electricityCount + stats.waterCount + stats.maintenanceCount} entries`}
+					sub={`${stats.monthlyCount} ${stats.monthlyCount === 1 ? "bill" : "bills"}`}
 					accent
 				/>
 				<StatCard
-					icon={<IconDroplet className="size-5 text-sky-600" />}
-					label="Water Charges"
-					value={formatRupees(stats.waterTotal)}
-					sub={`${stats.waterCount} units`}
-				/>
-				<StatCard
-					icon={<IconTool className="size-5 text-violet-600" />}
-					label="Maintenance"
-					value={formatRupees(stats.maintenanceTotal)}
-					sub={`${stats.maintenanceCount} jobs`}
+					icon={<IconReceipt className="size-5 text-emerald-600" />}
+					label="Settled bill value"
+					value={formatRupees(stats.paidTotal)}
+					sub={`${stats.paidCount} of ${stats.monthlyCount} bills this month`}
 				/>
 				<StatCard
 					icon={<IconBolt className="size-5 text-destructive" />}
-					label="Unpaid Bills"
+					label="Outstanding balance"
 					value={formatRupees(stats.unpaidTotal)}
-					sub={`${stats.unpaidCount} pending`}
+					sub={`${stats.unpaidCount} ${stats.unpaidCount === 1 ? "bill needs" : "bills need"} attention`}
 					danger={stats.unpaidCount > 0}
+				/>
+				<StatCard
+					icon={<IconTool className="size-5 text-violet-600" />}
+					label="Utility records"
+					value={utilities.length.toLocaleString("en-IN")}
+					sub={`${stats.electricityCount} electricity · ${stats.waterCount} water · ${stats.maintenanceCount} maintenance`}
 				/>
 			</div>
 
 			{/* Tab bar */}
-			<div className="mb-5 flex w-fit gap-1 rounded-lg border bg-muted/40 p-1">
+			<div
+				role="tablist"
+				aria-label="Utility type"
+				className="mb-5 flex max-w-full gap-1 overflow-x-auto rounded-lg border bg-muted/40 p-1"
+			>
 				<TabBtn
 					active={activeTab === "electricity"}
 					onClick={() => setActiveTab("electricity")}
@@ -379,31 +408,10 @@ export default function UtilitiesClient() {
 				/>
 			</div>
 
-			{/* Combined bills tab has no per-type filter, others have search */}
-			{activeTab !== "combined" && (
-				<div className="mb-4 flex items-center gap-3">
-					<Input
-						placeholder={`Search ${activeTab} readings...`}
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						className="max-w-sm"
-					/>
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() => setCreateOpen(true)}
-						className="ml-auto"
-					>
-						<IconPlus className="size-3.5" />
-						Add {activeTab === "electricity" ? "Reading" : "Bill"}
-					</Button>
-				</div>
-			)}
-
 			{/* Tab content */}
 			<div className="overflow-hidden rounded-xl border bg-white">
 				{/* Tab header */}
-				<div className="flex items-center justify-between border-b px-5 py-3">
+				<div className="flex flex-col gap-4 border-b px-4 py-4 lg:flex-row lg:items-center lg:justify-between lg:px-5">
 					<div>
 						<p className="font-semibold text-sm capitalize">
 							{activeTab === "combined"
@@ -412,42 +420,60 @@ export default function UtilitiesClient() {
 						</p>
 						<p className="text-muted-foreground text-xs">
 							{activeTab === "combined"
-								? "Rent + utilities breakdown per tenant"
-								: activeTab === "electricity"
-									? `Rate: ${formatFormRupees(RATEPERUNIT)}/unit (default)`
-									: "Flat charges per unit"}
+								? `${filteredCombinedGroups.length} monthly tenant summaries`
+								: `${filtered.length} ${activeTab === "electricity" ? "meter readings" : "charges"}`}
 						</p>
 					</div>
-					{activeTab === "electricity" && (
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => setCreateOpen(true)}
+					<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
+						<div className="relative min-w-0 sm:w-72">
+							<IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+							<Input
+								aria-label="Search utilities"
+								placeholder="Search tenant, property, or unit"
+								value={search}
+								onChange={(event) => setSearch(event.target.value)}
+								className="w-full pl-8"
+							/>
+						</div>
+						<select
+							aria-label="Filter utility payment status"
+							value={statusFilter}
+							onChange={(event) =>
+								setStatusFilter(event.target.value as UtilityStatusFilter)
+							}
+							className="h-7 rounded-md border bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
 						>
-							<IconPlus className="size-3.5" />
-							Add Reading
-						</Button>
-					)}
-					{activeTab === "combined" && (
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => {
-								// TODO: Generate all bills action
-							}}
-						>
-							Generate All
-						</Button>
-					)}
+							<option value="all">All statuses</option>
+							<option value="paid">Paid</option>
+							<option value="unpaid">Unpaid</option>
+						</select>
+					</div>
 				</div>
+
+				{activeTab !== "combined" && filtered.length > 0 ? (
+					<UtilityTableHeader />
+				) : null}
 
 				{/* Rows */}
 				{activeTab === "combined" ? (
-					combinedGroups.length === 0 ? (
-						<EmptyStateRow message="No utility data yet. Add readings to see combined bills." />
+					filteredCombinedGroups.length === 0 ? (
+						<EmptyStateRow
+							message={
+								search || statusFilter !== "all"
+									? "No combined bills match these filters."
+									: "No utility data yet. Add readings to see combined bills."
+							}
+						/>
 					) : (
-						combinedGroups.map((group) => (
-							<CombinedBillRow key={group.lease.leaseId} group={group} />
+						filteredCombinedGroups.map((group) => (
+							<CombinedBillRow
+								key={group.id}
+								group={group}
+								onViewDetail={() => {
+									setDetailRent(group.lease.rent);
+									setDetailItems(group.utilities);
+								}}
+							/>
 						))
 					)
 				) : filtered.length === 0 ? (
@@ -464,7 +490,7 @@ export default function UtilitiesClient() {
 							onEdit: () => setEditTarget(u),
 							onDelete: () => handleDelete(u.id),
 							onMarkPaid: () => setMarkPaidTarget(u),
-							onViewDetail: () => setDetailTarget(u),
+							onViewDetail: () => openUtilityDetail(u),
 							isDeleting,
 						};
 
@@ -481,9 +507,13 @@ export default function UtilitiesClient() {
 
 			{/* Create dialog */}
 			<Dialog open={createOpen} onOpenChange={setCreateOpen}>
-				<DialogContent className="">
+				<DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-xl">
 					<DialogHeader>
-						<DialogTitle>Add Reading / Bill</DialogTitle>
+						<DialogTitle>Add utility charge</DialogTitle>
+						<DialogDescription>
+							Select a tenant and record one or more charges for the same
+							billing period.
+						</DialogDescription>
 					</DialogHeader>
 					<UnitPickerUtilityForm
 						leases={leases}
@@ -501,7 +531,11 @@ export default function UtilitiesClient() {
 			>
 				<DialogContent className="max-w-md">
 					<DialogHeader>
-						<DialogTitle>Edit Reading</DialogTitle>
+						<DialogTitle>Edit utility charge</DialogTitle>
+						<DialogDescription>
+							Update the billing period and charge details. The total will be
+							recalculated automatically.
+						</DialogDescription>
 					</DialogHeader>
 					{editTarget && (
 						<UtilityForm
@@ -515,12 +549,27 @@ export default function UtilitiesClient() {
 				</DialogContent>
 			</Dialog>
 
-			{/* Detail sheet */}
-			<UtilityDetailSheet
-				items={batchItems}
-				open={detailTarget !== null}
-				onOpenChange={(o) => !o && setDetailTarget(null)}
-				onMarkPaid={setMarkPaidTarget}
+			{/* Detail dialog */}
+			<UtilityDetailDialog
+				items={detailItems}
+				rent={detailRent}
+				open={detailItems.length > 0}
+				onOpenChange={(open) => {
+					if (!open) {
+						setDetailItems([]);
+						setDetailRent(null);
+					}
+				}}
+				onMarkPaid={(utility) => {
+					setDetailItems([]);
+					setDetailRent(null);
+					setMarkPaidTarget(utility);
+				}}
+				onEdit={(utility) => {
+					setDetailItems([]);
+					setDetailRent(null);
+					setEditTarget(utility);
+				}}
 			/>
 
 			{/* Mark paid dialog */}
@@ -600,8 +649,10 @@ function TabBtn({
 	return (
 		<button
 			type="button"
+			role="tab"
+			aria-selected={active}
 			onClick={onClick}
-			className={`flex items-center gap-1.5 rounded-md px-4 py-2 font-medium text-sm transition-all ${
+			className={`flex shrink-0 items-center gap-1.5 rounded-md px-4 py-2 font-medium text-sm transition-all ${
 				active
 					? "bg-white text-foreground shadow-sm"
 					: "text-muted-foreground hover:text-foreground"
@@ -621,6 +672,19 @@ function TabBtn({
 				</span>
 			)}
 		</button>
+	);
+}
+
+function UtilityTableHeader() {
+	return (
+		<div className="hidden grid-cols-[minmax(13rem,1.4fr)_minmax(9rem,1fr)_minmax(8rem,.8fr)_minmax(7rem,.7fr)_minmax(6rem,.55fr)_minmax(15rem,auto)] items-center gap-4 border-b bg-muted/30 px-5 py-2.5 font-semibold text-[10px] text-muted-foreground uppercase tracking-wider lg:grid">
+			<span>Tenant & property</span>
+			<span>Service period</span>
+			<span className="text-center">Usage / charge</span>
+			<span className="text-center">Amount</span>
+			<span className="text-center">Status</span>
+			<span className="text-right">Actions</span>
+		</div>
 	);
 }
 

@@ -25,10 +25,12 @@ import { PageHeader } from "@rently/ui/shared/page-header";
 import { PageLoader } from "@rently/ui/shared/page-loader";
 import type { PaymentListItem } from "@rently/validators";
 import {
+	IconArrowsSort,
 	IconBrandWhatsapp,
 	IconBuildingBank,
 	IconCash,
 	IconChartBar,
+	IconChevronDown,
 	IconChevronRight,
 	IconCreditCard,
 	IconCurrencyRupee,
@@ -60,6 +62,19 @@ interface TypeConfig {
 	badgeVariant: React.ComponentProps<typeof Badge>["variant"];
 	label: string;
 }
+
+type PaymentSort =
+	| "payment-date-desc"
+	| "payment-date-asc"
+	| "recorded-date-desc"
+	| "recorded-date-asc";
+
+const PAYMENT_SORT_LABELS: Record<PaymentSort, string> = {
+	"payment-date-desc": "Newest payment",
+	"payment-date-asc": "Oldest payment",
+	"recorded-date-desc": "Recently recorded",
+	"recorded-date-asc": "First recorded",
+};
 
 function getTypeConfig(type: string): TypeConfig {
 	switch (type) {
@@ -382,6 +397,7 @@ export default function PaymentsPage() {
 	const exportPayments = useOwnerPaymentExport();
 	const [typeFilter, setTypeFilter] = useState<string>("all");
 	const [search, setSearch] = useState("");
+	const [sort, setSort] = useState<PaymentSort>("payment-date-desc");
 	const [voidingId, setVoidingId] = useState<string | null>(null);
 	const [detailId, setDetailId] = useState<string | null>(null);
 	const [exportOpen, setExportOpen] = useState(false);
@@ -401,6 +417,30 @@ export default function PaymentsPage() {
 			(p.tenantName?.toLowerCase().includes(q) ?? false);
 		return matchType && matchSearch;
 	});
+
+	const sortedPayments = [...filtered].sort((a, b) => {
+		const paymentDateDifference =
+			new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime();
+		const recordedDateDifference =
+			new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime();
+		const idDifference = b.id.localeCompare(a.id);
+
+		switch (sort) {
+			case "payment-date-asc":
+				return (
+					-paymentDateDifference || -recordedDateDifference || -idDifference
+				);
+			case "recorded-date-desc":
+				return recordedDateDifference || paymentDateDifference || idDifference;
+			case "recorded-date-asc":
+				return (
+					-recordedDateDifference || -paymentDateDifference || -idDifference
+				);
+			default:
+				return paymentDateDifference || recordedDateDifference || idDifference;
+		}
+	});
+	const activeSortLabel = PAYMENT_SORT_LABELS[sort];
 
 	const now = new Date();
 	const thisMonthPayments = payments.filter((p) => {
@@ -553,6 +593,34 @@ export default function PaymentsPage() {
 						))}
 					</select>
 
+					<DropdownMenu>
+						<DropdownMenuTrigger
+							render={
+								<button
+									type="button"
+									className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-foreground text-sm transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+								>
+									<IconArrowsSort className="size-3.5 text-muted-foreground" />
+									<span>{activeSortLabel}</span>
+									<IconChevronDown className="size-3.5 text-muted-foreground" />
+								</button>
+							}
+						/>
+						<DropdownMenuContent align="start">
+							{(Object.keys(PAYMENT_SORT_LABELS) as PaymentSort[]).map(
+								(option) => (
+									<DropdownMenuItem
+										key={option}
+										onClick={() => setSort(option)}
+									>
+										{PAYMENT_SORT_LABELS[option]}
+										{sort === option && <span className="ml-auto">✓</span>}
+									</DropdownMenuItem>
+								),
+							)}
+						</DropdownMenuContent>
+					</DropdownMenu>
+
 					{(typeFilter !== "all" || search.trim() !== "") && (
 						<button
 							type="button"
@@ -589,7 +657,7 @@ export default function PaymentsPage() {
 					/>
 				) : (
 					<div className="overflow-hidden rounded-xl border bg-card shadow-sm">
-						{filtered.map((payment, index) => {
+						{sortedPayments.map((payment, index) => {
 							const config = getTypeConfig(payment.type);
 							const isVoiding =
 								voidPayment.isPending && voidingId === payment.id;
@@ -599,7 +667,7 @@ export default function PaymentsPage() {
 									key={payment.id}
 									className={[
 										"flex items-center gap-3 px-4 py-3.5 transition-colors",
-										index !== filtered.length - 1 ? "border-b" : "",
+										index !== sortedPayments.length - 1 ? "border-b" : "",
 										isVoiding
 											? "pointer-events-none opacity-50"
 											: "hover:bg-muted/30",

@@ -403,7 +403,6 @@ export default function TenantDetailClient({ id }: { id: string }) {
 				open={editOpen}
 				onOpenChange={setEditOpen}
 				tenant={tenant}
-				lease={leaseData?.lease}
 			/>
 		</div>
 	);

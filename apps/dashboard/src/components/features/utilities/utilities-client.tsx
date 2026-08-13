@@ -26,6 +26,7 @@ import type {
 } from "@rently/validators";
 import {
 	IconBolt,
+	IconDownload,
 	IconDroplet,
 	IconFileInvoice,
 	IconPlus,
@@ -42,6 +43,11 @@ import {
 	useOptimisticUpdateUtility,
 	useSuspenseUtilities,
 } from "@/hooks/utilities";
+import { downloadCsv } from "@/lib/payment-csv";
+import {
+	formatUtilityExportFilename,
+	utilityExportRowsToCsv,
+} from "@/lib/utility-csv";
 import type { client } from "@/utils/orpc";
 import { type CombinedBillGroup, CombinedBillRow } from "./combined-bill-row";
 import { ElectricityRow } from "./electricity-row";
@@ -275,6 +281,13 @@ export default function UtilitiesClient() {
 		removeUtility.mutate({ id });
 	}
 
+	function handleExportCsv() {
+		downloadCsv(
+			utilityExportRowsToCsv(utilities),
+			formatUtilityExportFilename(),
+		);
+	}
+
 	// ── Batch items for detail sheet (all utilities with same batchId) ────────
 	const batchItems = useMemo(() => {
 		if (!detailTarget?.batchId) return detailTarget ? [detailTarget] : [];
@@ -290,6 +303,10 @@ export default function UtilitiesClient() {
 				title="Utilities"
 				description="Track electricity, water, and maintenance charges"
 			>
+				<Button variant="outline" onClick={handleExportCsv}>
+					<IconDownload className="size-4" />
+					Export CSV
+				</Button>
 				<Button onClick={() => setCreateOpen(true)}>
 					<IconPlus className="size-4" />
 					Add Reading

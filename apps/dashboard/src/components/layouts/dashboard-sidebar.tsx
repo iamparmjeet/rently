@@ -98,44 +98,65 @@ export function DashbaordSidebar() {
 					</SidebarGroupLabel>
 					<SidebarGroupContent>
 						<SidebarMenu>
-							{systemLinks.map((item) => (
-								<SidebarMenuItem key={item.name}>
-									<SidebarMenuButton
-										isActive={
-											pathname === item.href ||
-											pathname.startsWith(`${item.href}/`)
-										}
-										tooltip={item.name}
-									>
-										<Link
-											href={item.href}
-											className="flex w-full items-center gap-2"
+							{systemLinks.map((item) => {
+								const isRouteActive =
+									pathname === item.href ||
+									pathname.startsWith(`${item.href}/`);
+								const isSubscription = item.name === "Subscription";
+
+								return (
+									<SidebarMenuItem key={item.name}>
+										<SidebarMenuButton
+											isActive={isRouteActive}
+											tooltip={item.name}
+											className={
+												isSubscription && isRouteActive
+													? "bg-blue-600 text-slate-200 hover:bg-blue-600 hover:text-slate-200"
+													: undefined
+											}
 										>
-											<item.icon className="`!size-5`" />
-											<span className="text-base">{item.name}</span>
-											{item.name === "Subscription" && subscriptionData && (
-												<span className="ml-auto flex shrink-0 items-center gap-1.5 font-medium text-[11px] text-muted-foreground group-data-[collapsible=icon]:hidden">
+											<Link
+												href={item.href}
+												className="flex w-full items-center gap-2"
+											>
+												<item.icon className="size-5" />
+												<span className="text-base">{item.name}</span>
+												{isSubscription && subscriptionData && (
 													<span
-														aria-hidden="true"
-														className={`size-1.5 rounded-full shadow-[0_0_0_2px] ${
-															isSubscriptionActive
-																? "bg-emerald-500 shadow-emerald-500/15"
-																: "bg-amber-500 shadow-amber-500/15"
+														className={`ml-auto flex shrink-0 items-center gap-1.5 font-medium text-[11px] group-data-[collapsible=icon]:hidden ${
+															isRouteActive
+																? "text-slate-200/75"
+																: "text-muted-foreground"
 														}`}
-													/>
-													{subscriptionData.subscription?.plan.name ??
-														"Starter"}
-												</span>
-											)}
-											{item.name === "Subscription" && subscriptionError && (
-												<span className="ml-auto shrink-0 text-[11px] text-muted-foreground group-data-[collapsible=icon]:hidden">
-													Unavailable
-												</span>
-											)}
-										</Link>
-									</SidebarMenuButton>
-								</SidebarMenuItem>
-							))}
+													>
+														<span
+															aria-hidden="true"
+															className={`size-1.5 rounded-full shadow-[0_0_0_2px] ${
+																isSubscriptionActive
+																	? "bg-emerald-500 shadow-emerald-500/15"
+																	: "bg-amber-500 shadow-amber-500/15"
+															}`}
+														/>
+														{subscriptionData.subscription?.plan.name ??
+															"Starter"}
+													</span>
+												)}
+												{isSubscription && subscriptionError && (
+													<span
+														className={`ml-auto shrink-0 text-[11px] group-data-[collapsible=icon]:hidden ${
+															isRouteActive
+																? "text-slate-200/75"
+																: "text-muted-foreground"
+														}`}
+													>
+														Unavailable
+													</span>
+												)}
+											</Link>
+										</SidebarMenuButton>
+									</SidebarMenuItem>
+								);
+							})}
 						</SidebarMenu>
 					</SidebarGroupContent>
 				</SidebarGroup>

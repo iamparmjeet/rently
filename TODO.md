@@ -3,8 +3,23 @@
 > Single source of truth for build progress.
 > Update this file as items are completed or priorities shift.
 > Tiers: **P0** = must ship before public launch · **P1** = core product gaps · **P2** = growth features · **P3** = post-launch backlog
-> Last audited: 2026-08-13 (preserves the private-document milestone status and includes Admin Dashboard V1)
+> Last audited: 2026-08-14 (current automated release checks passed; V1 production gate reviewed)
 > Cost policy: prefer services with a suitable free tier. Move to a paid tier only when measured usage or a required capability exceeds its documented free limits.
+
+---
+
+## V1 Release Decision — 2026-08-14
+
+**Decision: do not release KeyHQ v1 yet.** The codebase is a strong beta candidate, but the production release gate is not closed.
+
+- [x] Current automated verification: `bun run test` — 33 files / 145 tests passed; Vitest loaded `apps/server/.env.test` and enforced the `rently_test` database.
+- [x] Current automated verification: `bun run check-types`, `bunx biome check .`, and `bun run build` passed for server, web, dashboard, tenant, and admin.
+- [ ] **P0 — fix production deployment branch mismatch.** CI runs on pushes to `main`, but the deploy job is gated on `refs/heads/master`; as written, it can never deploy from its trigger branch.
+- [ ] **P0 — add and verify the admin origin in production `CORS_ORIGINS`.** `apps/admin` is shipped, but `apps/server/wrangler.json` omits `https://admin-keyhq.parmjeetmishra.com`.
+- [ ] **P0 — complete the private R2 operational checks** listed in Milestone 2 below: exact CORS policy, unauthenticated denial, presigned PUT/GET expiry, allowed production origins, and rejected unrelated origins.
+- [ ] **P0 — deploy the beta configuration with `AADHAAR_UPLOADS_ENABLED=false` and run a production smoke test** for signup/verification, owner and tenant onboarding, payments/receipts, password reset, admin access, and non-Aadhaar document flow.
+
+**Release sequence:** close the P0 items above → deploy as `0.1.0-beta.3` → operate with real beta users and support monitoring → decide v1 only after the production smoke test and an uneventful beta observation window. P1–P3 feature ideas are not v1 blockers.
 
 ---
 

@@ -13,12 +13,16 @@ import {
 	toPaise,
 } from "@rently/ui/lib/currency";
 import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
-import { DetailHeader } from "@rently/ui/shared/detail-header";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
 import { NotFoundState } from "@rently/ui/shared/not-found-state";
 // import { PageLoader } from "@rently/ui/shared/page-loader";
-import { IconPencil, IconTrash } from "@tabler/icons-react";
-
+import {
+	IconChevronLeft,
+	IconPencil,
+	IconTrash,
+	IconUser,
+} from "@tabler/icons-react";
+import Link from "next/link";
 import { use, useMemo } from "react";
 import { LeaseDetails } from "@/components/features/leases/lease-details";
 import LeaseStatusBadge from "@/components/features/leases/lease-status-badge";
@@ -128,26 +132,64 @@ export default function LeaseDetailPage({
 		<Container>
 			<div className="col-span-12 space-y-6">
 				{/*Header*/}
-				<DetailHeader
-					backHref="/leases"
-					title="Lease Details"
-					subtitle={`ID: ${id}`}
-				>
-					{isEditable && (
-						<Button variant="outline" onClick={editDialog.openDialog}>
-							<IconPencil className="mr-2 size-4" />
-							Edit
-						</Button>
-					)}
+				<div className="flex items-center justify-between gap-4">
 					<Button
-						variant="destructive"
-						onClick={terminateDialog.openDialog}
-						disabled={terminateLease.isPending || isTerminated}
+						variant="ghost"
+						nativeButton={false}
+						className="-ml-2 text-muted-foreground"
+						render={<Link href="/leases" />}
 					>
-						<IconTrash className="mr-2 size-4" />
-						Terminate
+						<IconChevronLeft className="size-4" />
+						Leases
 					</Button>
-				</DetailHeader>
+					<div className="flex items-center gap-2">
+						{isEditable && (
+							<Button variant="outline" onClick={editDialog.openDialog}>
+								<IconPencil className="mr-2 size-4" />
+								Edit
+							</Button>
+						)}
+						<Button
+							variant="destructive"
+							onClick={terminateDialog.openDialog}
+							disabled={terminateLease.isPending || isTerminated}
+						>
+							<IconTrash className="mr-2 size-4" />
+							Terminate
+						</Button>
+					</div>
+				</div>
+				<section className="overflow-hidden rounded-xl border bg-gradient-to-br from-primary/[0.10] via-card to-card p-5 shadow-sm sm:p-7">
+					<div className="flex flex-wrap items-center justify-between gap-4">
+						<div className="flex items-center gap-3">
+							<div className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+								<IconUser className="size-5" />
+							</div>
+							<div>
+								<p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.14em]">
+									Lease agreement
+								</p>
+								<h1 className="mt-1 font-semibold text-2xl tracking-tight">
+									Lease details
+								</h1>
+								<p className="mt-1 text-muted-foreground text-sm">
+									Agreement ID: {id.slice(0, 8)}
+								</p>
+							</div>
+						</div>
+						<div className="rounded-lg border border-primary/15 bg-background/70 px-4 py-3">
+							<p className="font-semibold text-xl">
+								{formatRupees(lease.rent)}
+								<span className="ml-1 font-normal text-muted-foreground text-xs">
+									/mo
+								</span>
+							</p>
+							<div className="mt-2">
+								<LeaseStatusBadge status={lease.status} />
+							</div>
+						</div>
+					</div>
+				</section>
 				{/*Main Details*/}
 				<LeaseDetails lease={lease} />
 

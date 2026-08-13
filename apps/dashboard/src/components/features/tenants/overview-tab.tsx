@@ -21,7 +21,7 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
 	return (
-		<p className="mb-4 font-semibold text-muted-foreground text-xs uppercase tracking-wide">
+		<p className="mb-3 font-semibold text-muted-foreground text-xs uppercase tracking-[0.14em]">
 			{children}
 		</p>
 	);
@@ -45,11 +45,11 @@ export function OverviewTab({ tenant, lease }: OverviewTabProps) {
 		: "Ongoing";
 
 	return (
-		<div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+		<div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
 			{/* ── Left column: Personal + Lease ************ */}
-			<div className="space-y-8 lg:col-span-2">
+			<div className="space-y-5 lg:col-span-2">
 				{/* All active units */}
-				<section>
+				<section className="rounded-lg border bg-muted/[0.12] p-5">
 					<SectionHeading>
 						Active Units / Leases ({activeLeases.length})
 					</SectionHeading>
@@ -93,7 +93,7 @@ export function OverviewTab({ tenant, lease }: OverviewTabProps) {
 				</section>
 
 				{/* Personal Information */}
-				<section>
+				<section className="rounded-lg border p-5">
 					<SectionHeading>Personal Information</SectionHeading>
 					<div className="grid grid-cols-2 gap-6">
 						<InfoRow label="Email" value={tenant.email} />
@@ -171,7 +171,7 @@ export function OverviewTab({ tenant, lease }: OverviewTabProps) {
 				{/* TODO: Wire up once `notes` column is added to tenantProfiles.
 				    Migration needed: ALTER TABLE tenant_profiles ADD COLUMN notes TEXT;
 				    Then add to UpdateTenantProfileSchema + getTenantById output. */}
-				<section>
+				<section className="rounded-lg border p-5">
 					<SectionHeading>
 						Owner Notes{" "}
 						<span className="text-xs normal-case">
@@ -190,7 +190,7 @@ export function OverviewTab({ tenant, lease }: OverviewTabProps) {
 
 				{/* TODO: Reference section needs DB schema additions.
 				    The `referrers` table needs: referredByName, referredByContact, relationship fields. */}
-				<section>
+				<section className="rounded-lg border p-5">
 					<SectionHeading>Reference</SectionHeading>
 					<p className="text-muted-foreground text-sm">
 						Reference tracking coming soon.

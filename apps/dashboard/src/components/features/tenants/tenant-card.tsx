@@ -1,9 +1,13 @@
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
-import { Card, CardContent, CardHeader } from "@rently/ui/components/card";
+import {
+	Card,
+	CardContent,
+	CardFooter,
+	CardHeader,
+} from "@rently/ui/components/card";
 import { formatRupees } from "@rently/ui/lib/currency";
 import { cn } from "@rently/ui/lib/utils";
-import { DateRecordMeta } from "@rently/ui/shared/date-record-meta";
 import type { TenantListItem } from "@rently/validators";
 import {
 	IconArrowRight,
@@ -12,6 +16,7 @@ import {
 	IconPhone,
 	IconUser,
 } from "@tabler/icons-react";
+import { format } from "date-fns";
 import type { Route } from "next";
 import Image from "next/image";
 import Link from "next/link";
@@ -35,11 +40,11 @@ export function TenantCard({ tenant, actionsSlot }: TenantCardProps) {
 	);
 
 	return (
-		<Card className="group flex h-full flex-col overflow-hidden transition-shadow hover:shadow-md">
-			<CardHeader className="pb-4">
+		<Card className="group flex h-full gap-0 overflow-hidden border-border/80 py-0 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md">
+			<CardHeader className="border-b bg-gradient-to-br from-primary/[0.10] via-primary/[0.025] to-transparent px-5 pt-5 pb-4">
 				<div className="flex items-start justify-between gap-3">
 					<div className="flex min-w-0 items-center gap-3">
-						<div className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-full bg-primary/10 text-primary">
+						<div className="relative flex size-11 shrink-0 items-center justify-center overflow-hidden rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
 							{tenant.avatarUrl ? (
 								<Image
 									src={tenant.avatarUrl}
@@ -65,7 +70,7 @@ export function TenantCard({ tenant, actionsSlot }: TenantCardProps) {
 					<div className="flex shrink-0 items-center gap-1.5">
 						<Badge
 							variant={statusVariants[tenant.status]}
-							className="capitalize"
+							className="rounded-full capitalize"
 						>
 							{tenant.status}
 						</Badge>
@@ -74,7 +79,7 @@ export function TenantCard({ tenant, actionsSlot }: TenantCardProps) {
 				</div>
 			</CardHeader>
 
-			<CardContent className="flex flex-1 flex-col gap-4">
+			<CardContent className="flex flex-1 flex-col gap-4 px-5 py-4">
 				<div className="space-y-2 text-sm">
 					<div className="flex items-center gap-2 text-muted-foreground">
 						<IconMail className="size-4 shrink-0" />
@@ -92,7 +97,7 @@ export function TenantCard({ tenant, actionsSlot }: TenantCardProps) {
 				{lease ? (
 					<div
 						className={cn(
-							"rounded-xl border bg-muted/40 p-4",
+							"rounded-lg border bg-muted/[0.18] p-4",
 							lease.overdue && "border-destructive/20 bg-destructive/[0.03]",
 						)}
 					>
@@ -156,25 +161,26 @@ export function TenantCard({ tenant, actionsSlot }: TenantCardProps) {
 						No active lease
 					</div>
 				)}
-
-				<div className="mt-auto space-y-4">
-					<Button
-						variant="outline"
-						size="lg"
-						className="w-full"
-						render={<Link href={`/tenants/${tenant.id}` as Route} />}
-					>
-						View tenant
-						<IconArrowRight className="ml-1 size-4" />
-					</Button>
-
-					<DateRecordMeta
-						createdAt={tenant.createdAt}
-						updatedAt={tenant.updatedAt}
-						className="pt-3"
-					/>
-				</div>
 			</CardContent>
+			<CardFooter className="flex items-center justify-between gap-3 border-t px-5 py-3.5">
+				<p className="min-w-0 truncate text-muted-foreground text-xs">
+					<span className="whitespace-nowrap">
+						Created {format(new Date(tenant.createdAt), "dd MMM yyyy")}
+					</span>
+					<span className="text-muted-foreground/60">&nbsp;·&nbsp;</span>
+					<span className="whitespace-nowrap">
+						Updated {format(new Date(tenant.updatedAt), "dd MMM yyyy")}
+					</span>
+				</p>
+				<Button
+					variant="ghost"
+					size="sm"
+					className="shrink-0 text-primary"
+					render={<Link href={`/tenants/${tenant.id}` as Route} />}
+				>
+					Open <IconArrowRight className="size-3.5" />
+				</Button>
+			</CardFooter>
 		</Card>
 	);
 }

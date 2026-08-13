@@ -108,10 +108,8 @@ function StatCard({
 }) {
 	return (
 		<div
-			className={`rounded-xl p-5 ${
-				variant === "primary"
-					? "bg-primary text-primary-foreground"
-					: "border bg-card"
+			className={`border-r p-4 last:border-r-0 sm:p-5 ${
+				variant === "primary" ? "bg-primary/[0.04] text-foreground" : "bg-card"
 			}`}
 		>
 			<p
@@ -119,7 +117,7 @@ function StatCard({
 			>
 				{label}
 			</p>
-			<p className="mt-1 font-bold text-2xl tracking-tight">{value}</p>
+			<p className="mt-1 font-semibold text-xl tracking-tight">{value}</p>
 		</div>
 	);
 }
@@ -134,16 +132,16 @@ function TabNav({
 	onTabChange: (tab: TabId) => void;
 }) {
 	return (
-		<div className="flex border-b">
+		<div className="flex overflow-x-auto border-b px-2">
 			{TABS.map((tab) => (
 				<button
 					key={tab}
 					type="button"
 					onClick={() => onTabChange(tab)}
-					className={`px-4 py-3 font-medium text-sm transition-colors ${
+					className={`shrink-0 border-b-2 px-4 py-3 font-medium text-sm transition-colors ${
 						activeTab === tab
-							? "border-primary border-b-2 text-primary"
-							: "text-muted-foreground hover:text-foreground"
+							? "border-primary text-primary"
+							: "border-transparent text-muted-foreground hover:text-foreground"
 					}`}
 				>
 					{TAB_LABELS[tab]}
@@ -268,7 +266,6 @@ export default function TenantDetailClient({ id }: { id: string }) {
 
 	return (
 		<div className="col-span-12 space-y-6">
-			{/* ── Breadcrumb ************ */}
 			<nav className="flex items-center gap-1.5 text-sm">
 				<Link href="/tenants" className="text-primary hover:underline">
 					Tenants
@@ -277,52 +274,60 @@ export default function TenantDetailClient({ id }: { id: string }) {
 				<span className="text-muted-foreground">{tenant.name}</span>
 			</nav>
 
-			{/* ── Hero header *********** */}
-			<div className="flex items-center gap-4 rounded-xl border bg-card p-5">
-				{/* Avatar */}
-				<div className="flex size-14 shrink-0 items-center justify-center rounded-full bg-muted font-semibold text-lg text-muted-foreground">
-					{initials}
-				</div>
-
-				{/* Identity */}
-				<div className="min-w-0 flex-1">
-					<div className="flex flex-wrap items-center gap-2">
-						<h1 className="font-semibold text-xl">{tenant.name}</h1>
-						<span className="inline-flex items-center gap-1 rounded-full bg-emerald-100 px-2 py-0.5 text-emerald-700 text-xs dark:bg-emerald-950 dark:text-emerald-400">
-							<span className="size-1.5 rounded-full bg-current" />
-							Active
-						</span>
+			<div className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-primary/[0.10] via-card to-card p-5 shadow-sm sm:p-7">
+				<div className="absolute -top-16 -right-10 size-48 rounded-full bg-primary/[0.07] blur-2xl" />
+				<div className="relative flex flex-wrap items-center gap-4">
+					{/* Avatar */}
+					<div className="flex size-14 shrink-0 items-center justify-center rounded-2xl bg-primary font-semibold text-lg text-primary-foreground shadow-lg shadow-primary/20">
+						{initials}
 					</div>
-					{tenant.activeLeases.length > 0 && (
-						<p className="mt-0.5 text-muted-foreground text-sm">
-							{tenant.activeLeases.length === 1 && primaryActiveLease
-								? `${primaryActiveLease.propertyName} · Unit ${primaryActiveLease.unitNumber} · ${formatRupees(primaryActiveLease.rent)}/mo`
-								: `${tenant.activeLeases.length} active units · ${formatRupees(stats.monthlyRent)}/mo`}
-						</p>
-					)}
-				</div>
 
-				{/* Actions */}
-				<div className="flex shrink-0 items-center gap-2">
-					{waPhone && (
-						<Button
-							variant="outline"
-							size="sm"
-							onClick={() => window.open(`https://wa.me/${waPhone}`, "_blank")}
-						>
-							<IconBrandWhatsapp className="mr-1.5 size-4 text-emerald-600" />
-							WhatsApp
+					{/* Identity */}
+					<div className="min-w-0 flex-1">
+						<div className="flex flex-wrap items-center gap-2">
+							<h1 className="font-semibold text-2xl tracking-tight">
+								{tenant.name}
+							</h1>
+							<span
+								className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs ${tenant.status === "accepted" ? "bg-emerald-100 text-emerald-700" : "bg-amber-100 text-amber-700"}`}
+							>
+								<span className="size-1.5 rounded-full bg-current" />
+								{tenant.status === "accepted" ? "Active" : tenant.status}
+							</span>
+						</div>
+						{tenant.activeLeases.length > 0 && (
+							<p className="mt-0.5 text-muted-foreground text-sm">
+								{tenant.activeLeases.length === 1 && primaryActiveLease
+									? `${primaryActiveLease.propertyName} · Unit ${primaryActiveLease.unitNumber} · ${formatRupees(primaryActiveLease.rent)}/mo`
+									: `${tenant.activeLeases.length} active units · ${formatRupees(stats.monthlyRent)}/mo`}
+							</p>
+						)}
+					</div>
+
+					{/* Actions */}
+					<div className="ml-auto flex shrink-0 items-center gap-2">
+						{waPhone && (
+							<Button
+								variant="outline"
+								size="sm"
+								onClick={() =>
+									window.open(`https://wa.me/${waPhone}`, "_blank")
+								}
+							>
+								<IconBrandWhatsapp className="mr-1.5 size-4 text-emerald-600" />
+								WhatsApp
+							</Button>
+						)}
+						<Button size="sm" onClick={() => setEditOpen(true)}>
+							<IconPencil className="mr-1.5 size-4" />
+							Edit Tenant
 						</Button>
-					)}
-					<Button size="sm" onClick={() => setEditOpen(true)}>
-						<IconPencil className="mr-1.5 size-4" />
-						Edit Tenant
-					</Button>
+					</div>
 				</div>
 			</div>
 
 			{/* ── Stats row ********** */}
-			<div className="grid grid-cols-2 gap-4 sm:grid-cols-4">
+			<div className="grid grid-cols-2 overflow-hidden rounded-xl border bg-card shadow-sm sm:grid-cols-4">
 				<StatCard
 					label="Monthly Rent"
 					value={formatRupees(stats.monthlyRent)}
@@ -343,10 +348,10 @@ export default function TenantDetailClient({ id }: { id: string }) {
 			</div>
 
 			{/* ── Tab navigation ************* */}
-			<div className="rounded-xl border bg-card">
+			<div className="overflow-hidden rounded-xl border bg-card shadow-sm">
 				<TabNav activeTab={activeTab} onTabChange={setTab} />
 
-				<div className="p-6">
+				<div className="p-5 sm:p-6">
 					{activeTab === "overview" && (
 						<OverviewTab tenant={tenant} lease={leaseData?.lease} />
 					)}

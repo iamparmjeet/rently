@@ -4,7 +4,12 @@ import type { InviteStatus } from "@rently/db/constants/rent-constants";
 import { Button } from "@rently/ui/components/button";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
 import { PageHeader } from "@rently/ui/shared/page-header";
-import { IconMail, IconPlus } from "@tabler/icons-react";
+import {
+	IconBuilding,
+	IconMail,
+	IconPlus,
+	IconUserCheck,
+} from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { TenantCard } from "@/components/features/tenants/tenant-card";
 import {
@@ -32,6 +37,22 @@ export default function TenantsClientPage() {
 		if (statusFilter === "all") return data.tenants;
 		return data.tenants.filter((t) => t.status === statusFilter);
 	}, [data?.tenants, statusFilter]);
+
+	const tenantStats = useMemo(() => {
+		const tenants = data?.tenants ?? [];
+		const active = tenants.filter(
+			(tenant) => tenant.status === "accepted",
+		).length;
+		const leased = tenants.filter(
+			(tenant) => tenant.activeLeases.length > 0,
+		).length;
+		return {
+			total: tenants.length,
+			active,
+			pending: tenants.length - active,
+			leased,
+		};
+	}, [data?.tenants]);
 
 	//  Dialogs
 	// WHY two separate useFormDialog instances: each controls its own open/close
@@ -74,8 +95,47 @@ export default function TenantsClientPage() {
 					</Button>
 				</PageHeader>
 
+				<section className="overflow-hidden rounded-xl border bg-card shadow-sm">
+					<div className="grid divide-y sm:grid-cols-[1.05fr_1fr] sm:divide-x sm:divide-y-0">
+						<div className="relative overflow-hidden bg-gradient-to-br from-primary/[0.08] via-card to-card p-5">
+							<div className="absolute -top-10 -right-10 size-32 rounded-full bg-primary/[0.08] blur-2xl" />
+							<div className="relative">
+								<p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.14em]">
+									Tenant relationships
+								</p>
+								<p className="mt-1 font-semibold text-3xl tracking-tight">
+									{tenantStats.active}{" "}
+									<span className="font-normal text-base text-muted-foreground">
+										active tenants
+									</span>
+								</p>
+								<p className="mt-4 text-muted-foreground text-xs">
+									{tenantStats.leased} tenants currently hold an active lease
+								</p>
+							</div>
+						</div>
+						<div className="grid grid-cols-3 divide-x">
+							<TenantMetric
+								icon={IconUserCheck}
+								label="Active"
+								value={tenantStats.active}
+							/>
+							<TenantMetric
+								icon={IconMail}
+								label="Pending"
+								value={tenantStats.pending}
+							/>
+							<TenantMetric
+								icon={IconBuilding}
+								label="With lease"
+								value={tenantStats.leased}
+							/>
+						</div>
+					</div>
+				</section>
+
 				{/* Status filter tabs */}
-				<div className="flex gap-2">
+				<div className="flex gap-2 overflow-x-auto pb-1">
 					{(["all", "accepted", "pending", "expired"] as const).map((s) => (
 						<Button
 							key={s}
@@ -160,5 +220,23 @@ export default function TenantsClientPage() {
 				</FormDialog>
 			</div>
 		</Container>
+	);
+}
+
+function TenantMetric({
+	icon: Icon,
+	label,
+	value,
+}: {
+	icon: typeof IconBuilding;
+	label: string;
+	value: number;
+}) {
+	return (
+		<div className="min-w-0 px-3 py-5 text-center sm:px-4">
+			<Icon className="mx-auto size-4 text-primary" />
+			<p className="mt-2 truncate text-muted-foreground text-xs">{label}</p>
+			<p className="mt-1 font-semibold text-sm sm:text-base">{value}</p>
+		</div>
 	);
 }

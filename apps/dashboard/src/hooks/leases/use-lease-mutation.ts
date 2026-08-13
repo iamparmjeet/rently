@@ -2,6 +2,12 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { client, orpc } from "@/utils/orpc";
 
+function getLeaseUpdateErrorMessage(message: string) {
+	return message === "Internal Server Error"
+		? "Unable to update the lease. Please try again."
+		: message;
+}
+
 // Create
 export function useCreateLease() {
 	const queryClient = useQueryClient();
@@ -67,7 +73,9 @@ export function useUpdateLease() {
 
 		onError: (error, _, context) => {
 			console.error("Failed to Update Lease data", error.message);
-			toast.error(error.message, { id: context?.toastId });
+			toast.error(getLeaseUpdateErrorMessage(error.message), {
+				id: context?.toastId,
+			});
 		},
 	});
 }
@@ -330,7 +338,9 @@ export function useOptimisticUpdateLease() {
 				);
 			}
 			console.error("Failed to Update Lease data", error.message);
-			toast.error(error.message, { id: context?.toastId });
+			toast.error(getLeaseUpdateErrorMessage(error.message), {
+				id: context?.toastId,
+			});
 		},
 		// onSuccess
 		onSuccess: (_, variables, context) => {

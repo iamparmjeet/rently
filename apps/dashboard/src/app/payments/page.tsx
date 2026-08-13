@@ -256,13 +256,12 @@ function PaymentDetailDialog({
 			}}
 		>
 			<DialogContent
-				className="gap-0 overflow-hidden p-0 sm:max-w-md"
+				className="gap-0 overflow-hidden rounded-xl p-0 sm:max-w-md"
 				showCloseButton={false}
 			>
-				{/* ── Title bar ── */}
-				<DialogHeader className="flex flex-row items-center justify-between px-5 py-4">
+				<DialogHeader className="relative flex flex-row items-center justify-between overflow-hidden bg-gradient-to-br from-primary/[0.12] via-primary/[0.03] to-transparent px-5 py-4">
 					<DialogTitle className="font-semibold text-sm">
-						Payment Details
+						Payment details
 					</DialogTitle>
 					<Button
 						variant="ghost"
@@ -277,13 +276,10 @@ function PaymentDetailDialog({
 					</Button>
 				</DialogHeader>
 
-				<div className="h-px bg-border" />
-
-				{/* ── Hero: avatar + amount ── */}
-				<div className="flex items-start justify-between px-5 py-4">
+				<div className="flex items-start justify-between px-5 py-5">
 					<div className="flex items-center gap-3">
 						<div
-							className={`flex size-11 shrink-0 items-center justify-center rounded-full font-bold text-base ${config.avatarBg} ${config.avatarText}`}
+							className={`flex size-11 shrink-0 items-center justify-center rounded-xl font-bold text-base ${config.avatarBg} ${config.avatarText}`}
 						>
 							{payment.type.charAt(0).toUpperCase()}
 						</div>
@@ -291,15 +287,16 @@ function PaymentDetailDialog({
 							<p className="font-semibold text-sm">
 								{payment.tenantName ?? config.label}
 							</p>
-							<p className="font-mono text-muted-foreground text-xs">
-								Lease #{payment.leaseId.slice(0, 8).toUpperCase()}
+							<p className="mt-0.5 text-muted-foreground text-xs">
+								{config.label} · Lease #
+								{payment.leaseId.slice(0, 8).toUpperCase()}
 							</p>
 						</div>
 					</div>
 
 					<div className="text-right">
 						<p
-							className={`font-extrabold text-xl tabular-nums ${
+							className={`font-semibold text-2xl tabular-nums tracking-tight ${
 								isReversal ? "text-destructive" : "text-foreground"
 							}`}
 						>
@@ -311,41 +308,44 @@ function PaymentDetailDialog({
 					</div>
 				</div>
 
-				<div className="mx-5 h-px bg-border" />
-
-				{/* ── Detail grid ── */}
-				<div className="grid grid-cols-2 gap-x-6 gap-y-4 px-5 py-4">
-					<DetailField label="Payment Type" value={config.label} />
-					<DetailField
-						label="Payment Date"
-						value={fmtDate(payment.paymentDate)}
-					/>
-					<DetailField
-						label="Payment Mode"
-						value={
-							payment.paymentMethods
-								? payment.paymentMethods.replace("_", " / ").toUpperCase()
-								: "—"
-						}
-					/>
-					<DetailField
-						label="Lease ID"
-						value={`#${payment.leaseId.slice(0, 8).toUpperCase()}`}
-					/>
-					{payment.referenceNumber && (
-						<DetailField label="Reference #" value={payment.referenceNumber} />
-					)}
-					{payment.description && (
-						<div className="col-span-2">
-							<DetailField label="Description" value={payment.description} />
-						</div>
-					)}
+				<div className="mx-5 rounded-lg border bg-muted/[0.15] p-4">
+					<p className="mb-3 font-medium text-[10px] text-muted-foreground uppercase tracking-[0.14em]">
+						Payment record
+					</p>
+					<div className="grid grid-cols-2 gap-x-6 gap-y-4">
+						<DetailField label="Payment Type" value={config.label} />
+						<DetailField
+							label="Payment Date"
+							value={fmtDate(payment.paymentDate)}
+						/>
+						<DetailField
+							label="Payment Mode"
+							value={
+								payment.paymentMethods
+									? payment.paymentMethods.replace("_", " / ").toUpperCase()
+									: "—"
+							}
+						/>
+						<DetailField
+							label="Lease ID"
+							value={`#${payment.leaseId.slice(0, 8).toUpperCase()}`}
+						/>
+						{payment.referenceNumber && (
+							<DetailField
+								label="Reference #"
+								value={payment.referenceNumber}
+							/>
+						)}
+						{payment.description && (
+							<div className="col-span-2">
+								<DetailField label="Description" value={payment.description} />
+							</div>
+						)}
+					</div>
 				</div>
 
-				<div className="h-px bg-border" />
-
 				{/* ── Footer actions ── */}
-				<DialogFooter className="flex-row gap-2 px-5 py-3 sm:justify-between">
+				<DialogFooter className="mt-5 flex-row gap-2 border-t bg-muted/[0.12] px-5 py-3 sm:justify-between">
 					<Button variant="outline" size="sm" onClick={onClose}>
 						Close
 					</Button>
@@ -660,7 +660,7 @@ export default function PaymentsPage() {
 								<div
 									key={payment.id}
 									className={[
-										"flex items-center gap-3 px-4 py-3.5 transition-colors",
+										"group flex items-center gap-3 px-4 py-3.5 transition-colors sm:px-5",
 										index !== sortedPayments.length - 1 ? "border-b" : "",
 										isVoiding
 											? "pointer-events-none opacity-50"
@@ -668,11 +668,7 @@ export default function PaymentsPage() {
 									].join(" ")}
 								>
 									<div
-										className={`h-10 w-1 shrink-0 rounded-full ${config.accentBar}`}
-									/>
-
-									<div
-										className={`flex size-9 shrink-0 items-center justify-center rounded-full font-bold text-sm ${config.avatarBg} ${config.avatarText}`}
+										className={`flex size-10 shrink-0 items-center justify-center rounded-xl font-bold text-sm ring-1 ring-black/5 ring-inset ${config.avatarBg} ${config.avatarText}`}
 									>
 										{payment.type.charAt(0).toUpperCase()}
 									</div>
@@ -693,7 +689,7 @@ export default function PaymentsPage() {
 												</span>
 											)}
 										</p>
-										<p className="mt-0.5 flex items-center gap-1.5 text-muted-foreground text-xs">
+										<p className="mt-1 flex items-center gap-1.5 text-muted-foreground text-xs">
 											<MethodIcon method={payment.paymentMethods} />
 											<span className="capitalize">
 												{payment.paymentMethods?.replace("_", " ") ??
@@ -708,11 +704,11 @@ export default function PaymentsPage() {
 
 									<button
 										type="button"
-										className="flex min-w-22.5 shrink-0 flex-col items-end gap-0.5 text-right"
+										className="flex min-w-23 shrink-0 flex-col items-end gap-0.5 text-right"
 										onClick={() => setDetailId(payment.id)}
 									>
 										<span
-											className={`font-bold text-sm tabular-nums leading-tight ${
+											className={`font-semibold text-sm tabular-nums leading-tight ${
 												payment.type === PAYMENT_TYPES.REVERSAL
 													? "text-destructive"
 													: ""
@@ -729,7 +725,7 @@ export default function PaymentsPage() {
 										</span>
 										<Badge
 											variant={config.badgeVariant}
-											className="mt-0.5 h-4 px-1.5 py-0 text-[10px] capitalize"
+											className="mt-1 h-4 rounded-full px-1.5 py-0 text-[10px] capitalize"
 										>
 											{payment.type}
 										</Badge>

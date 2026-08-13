@@ -3,7 +3,7 @@
 > Single source of truth for build progress.
 > Update this file as items are completed or priorities shift.
 > Tiers: **P0** = must ship before public launch · **P1** = core product gaps · **P2** = growth features · **P3** = post-launch backlog
-> Last audited: 2026-08-10 (verified against the private-document milestone branch)
+> Last audited: 2026-08-13 (preserves the private-document milestone status and includes Admin Dashboard V1)
 > Cost policy: prefer services with a suitable free tier. Move to a paid tier only when measured usage or a required capability exceeds its documented free limits.
 
 ---
@@ -33,6 +33,8 @@
 - [x] **CSV payment exports** — owner-wide inclusive Indian financial-year/custom-range exports and all-time tenant payment history across active and historic leases, with owner-scoped authorization, signed reversal rows, formula-safe UTF-8 CSV generation, and a 10,000-row cap.
 - [x] **Private document viewer lifecycle** — separate View and Download actions; PDF/image previews open in an in-app dialog; preview bytes are cached in browser memory for the current tab only.
 - [x] **Neon HTTP document writes** — document lifecycle mutations use Neon-compatible atomic batches; the Docker-only test fallback remains isolated to `rently_test`.
+- [x] **Admin Dashboard V1** — separate private app, strict admin authorization, truthful revenue and managed-volume reporting, redacted user support lookup, audited manual subscription payments, beta-code management, and audit history.
+- [x] **Admin production hygiene** — removed production-marked browser debug logging while retaining structured server failure reporting.
 
 ---
 
@@ -121,15 +123,20 @@
 
 ---
 
-## P0 — Must Fix Before Public Launch
-
-- [ ] **Hard email verification and unified onboarding** — _pulled into the M1 section above._
-
-~~Password reset flow~~ — ✅ done. ~~Mobile-responsive sidebar~~ — ✅ done (QA pass in Beta Gate).
-
----
-
 ## P1 — Core Product Gaps
+
+### Completed — Admin Dashboard V1
+
+- [x] Separate `apps/admin` application using shared KeyHQ UI and internal `rently` packages.
+- [x] `adminProcedure` and strict cross-app route protection; owner, tenant, unknown-role, and unauthenticated sessions are rejected or redirected.
+- [x] Overview with registration, verification, subscription, plan-distribution, paid-invoice platform revenue, managed rent volume, and recent-activity data.
+- [x] Paginated user and subscription lookup with support-safe redacted details and filters.
+- [x] Atomic manual payment recording with duplicate-reference protection, subscription activation/extension, cumulative totals, paid invoice creation, mandatory reason, and audit entry.
+- [x] Paginated beta-code creation and explicit expiry with mandatory reasons, auditing, usage visibility, and concurrency guards.
+- [x] Admin audit log with safe structured metadata. Private document values, authentication secrets, sessions, and signed storage URLs remain excluded.
+- [x] Integration coverage runs only through `apps/server/.env.test` against `rently_test`; admin build, server build, Biome, and workspace type checking pass.
+
+> Implementation and learning notes: `docs/admin-v1.md`.
 
 ### Rent Cycle + Cloudflare Cron _(Milestone 7)_
 
@@ -169,12 +176,6 @@
 - [x] CSV export for all payments in a date range (all tenants, all properties)
 - [ ] Consider: Excel (.xlsx) variant via `SheetJS` if demand warrants it
 
-### Referral System
-
-- [ ] Intentionally dormant for beta. Revisit only when referrals become a planned feature.
-
----
-
 ## P2 — Growth Features
 
 ### WhatsApp Business API
@@ -206,9 +207,8 @@
 
 ## P3 — Post-Launch Backlog
 
-- [ ] **Admin panel** — manage users, plans, beta codes, subscriptions without CLI (replaces `db:beta-code` script). Separate `apps/admin` or a protected `/admin` route in `apps/dashboard`
 - [ ] **Two-factor authentication** — Better Auth supports TOTP; SecurityTab already has disabled placeholder buttons
-- [ ] **Audit log** — track all mutations (who changed what, when) for tenant disputes. New `auditLogs` table + `auditMiddleware` on ownerProcedure
+- [ ] **Owner-domain mutation auditing** — separately track owner changes for tenant disputes; do not mix this broader concern with the completed admin-operation audit trail.
 - [ ] **Tenant communication history** — store sent emails in a `tenantMessages` table so owners can see past correspondence
 - [ ] **Multi-property analytics** — per-property revenue breakdown, occupancy rate over time, vacancy duration tracking
 - [ ] **`@react-pdf/renderer` upgrade** — replace `window.print()` receipt approach with a proper PDF blob for email attachments via Resend
@@ -220,8 +220,7 @@
 
 - [x] `notifications-tab.tsx` — `// TODO: migrate from localStorage` comment. Preferences now use owner-scoped database storage.
 - [x] `buildReceiptMessage()` in `payment.ts` — replaced with shared KeyHQ HTML templates in `@rently/email`
-- [ ] `referrers` table is intentionally dormant for beta; revisit only when referrals become a planned feature.
-- [ ] `evlog` console.log calls — several `// TODO: remove before prod` comments across API handlers
+- [x] Production-marked debug logging removed; actionable server failures retain structured contextual logging.
 - [x] Notification preference fields are database columns, not `turbo.json` environment variables.
 - [x] **Fresh Drizzle migration bootstrap** — applied and verified all migrations, including `0008_productive_toad`, against the empty `rently_test` database.
 - [x] **M1b test-database migration diagnosis** — repaired the explicit text-to-timestamp casts in `0002_easy_iceman`; `0007_unique_the_hand` now applies as part of the clean migration path and the invite integration suite runs locally.
@@ -236,3 +235,12 @@
 | `jsPDF` / `pdfmake` for receipts           | Browser `window.print()` produces better output with zero bundle cost. Server-side PDF generation (`pdf-lib`) only needed for email attachments |
 | Separate `/new` and `/edit` routes         | All CRUD uses inline `FormDialog` pattern — keep consistent                                                                                     |
 | Cron for in-app lease-expiry notifications | Lazy creation inside `listNotifications` — cron only needed for the _email_ channel (P1)                                                        |
+| Referral system                            | Dormant during beta. Revisit only when referrals become an intentional acquisition channel.                                                   |
+
+---
+
+## Roadmap After Admin V1
+
+- [x] Owner CSV exports — tenant history and selected date ranges are complete. Defer `.xlsx` until beta users show CSV is insufficient.
+- [ ] Demand-led product work — maintenance requests, bulk reminders/payment recording/utility generation, WhatsApp Business API, communication history, multi-property analytics, and vacancy reporting remain uncommitted until beta feedback establishes priority.
+- [ ] Payment automation threshold — manual UPI plus Admin V1 remains the beta workflow. Revisit Razorpay at 20 or more paying users, or earlier only if reconciliation becomes measurably unreliable.

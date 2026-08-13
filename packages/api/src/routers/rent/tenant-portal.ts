@@ -481,7 +481,7 @@ export const submitMyReading = protectedProcedure
 			console.error(
 				"[tenant-portal: submitMyReading] failed to submit notification:",
 				error,
-			); // TODO: remove before prod
+			);
 			// WHY swallow: a failed notification must never fail the reading submission.
 			// Owner can check manually; tenant's submission is already persisted.
 		}

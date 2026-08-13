@@ -166,11 +166,14 @@ export function PropertyCard({
 			</CardContent>
 
 			<CardFooter className="flex w-full items-center justify-between gap-3 border-t px-5 py-3.5">
-				<p
-					className="min-w-0 truncate text-muted-foreground text-xs"
-					title={`Created ${format(new Date(property.createdAt), "dd MMM yyyy")} · Updated ${format(new Date(property.updatedAt), "dd MMM yyyy")}`}
-				>
-					Updated {format(new Date(property.updatedAt), "dd MMM yyyy")}
+				<p className="min-w-0 truncate text-muted-foreground text-xs">
+					<span className="whitespace-nowrap">
+						Created {format(new Date(property.createdAt), "dd MMM yyyy")}
+					</span>
+					<span className="text-muted-foreground/60">&nbsp;·&nbsp;</span>
+					<span className="whitespace-nowrap">
+						Updated {format(new Date(property.updatedAt), "dd MMM yyyy")}
+					</span>
 				</p>
 				<Button
 					nativeButton={false}

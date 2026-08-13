@@ -1,16 +1,13 @@
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
 import { formatRupees } from "@rently/ui/lib/currency";
-import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
 import type { UtilityListItem } from "@rently/validators";
+import { IconBolt, IconCheck, IconDownload } from "@tabler/icons-react";
 import {
-	IconBolt,
-	IconBrandWhatsapp,
-	IconCheck,
-	IconEdit,
-	IconMail,
-	IconTrash,
-} from "@tabler/icons-react";
+	getUtilityDocumentAction,
+	isUtilityRowActionTarget,
+} from "./utility-row-actions";
+import { UtilityRowMenu } from "./utility-row-menu";
 
 interface ElectricityRowProps {
 	utility: UtilityListItem;
@@ -21,6 +18,15 @@ interface ElectricityRowProps {
 	isDeleting: boolean;
 }
 
+function formatDate(value: Date | null) {
+	if (!value) return "—";
+	return new Date(value).toLocaleDateString("en-IN", {
+		day: "2-digit",
+		month: "short",
+		year: "numeric",
+	});
+}
+
 export function ElectricityRow({
 	isDeleting,
 	onDelete,
@@ -29,173 +35,138 @@ export function ElectricityRow({
 	onViewDetail,
 	utility: u,
 }: ElectricityRowProps) {
-	const prevDate = u.previousReadingDate
-		? new Date(u.previousReadingDate).toLocaleDateString("en-IN", {
-				day: "2-digit",
-				month: "short",
-				year: "2-digit",
-			})
-		: "-";
-
-	const currDate = u.currentReadingDate
-		? new Date(u.currentReadingDate).toLocaleDateString("en-IN", {
-				day: "2-digit",
-				month: "short",
-				year: "numeric",
-			})
-		: "—";
-
-	const prev = Number(u.previousReading ?? 0);
-	const curr = Number(u.currentReading ?? 0);
-	const consumed = Number(u.unitsUsed ?? curr - prev);
-
-	// Money conversion
-	const rateDisplay = u.ratePerUnit ? formatRupees(u.ratePerUnit) : "₹0.09";
+	const previous = Number(u.previousReading ?? 0);
+	const current = Number(u.currentReading ?? 0);
+	const consumed = Number(u.unitsUsed ?? current - previous);
+	const documentAction = getUtilityDocumentAction({
+		utilityId: u.id,
+		receiptPaymentId: u.receiptPaymentId,
+	});
 
 	function handleWhatsApp() {
 		if (!u.tenantPhone) return;
-		const msg = encodeURIComponent(
-			`Dear ${u.tenantName ?? "Tenant"}, your electricity bill for ${currDate} is ${formatRupees(u.totalAmount)} (${consumed.toFixed(1)} kWh × ${rateDisplay}/unit). Please pay at your earliest convenience. - KeyHQ`,
+		const message = encodeURIComponent(
+			`Dear ${u.tenantName ?? "Tenant"}, your electricity bill for ${formatDate(u.currentReadingDate)} is ${formatRupees(u.totalAmount)}. Please pay at your earliest convenience. - KeyHQ`,
 		);
 		window.open(
-			`https://wa.me/${u.tenantPhone.replace(/\D/g, "")}?text=${msg}`,
+			`https://wa.me/${u.tenantPhone.replace(/\D/g, "")}?text=${message}`,
 			"_blank",
 		);
 	}
+
 	function handleEmail() {
 		if (!u.tenantEmail) return;
 		window.open(
-			`mailto:${u.tenantEmail}?subject=Electricity Bill - ${currDate}&body=Dear ${u.tenantName ?? "Tenant"}, your electricity bill is ${formatRupees(u.totalAmount)}.`,
+			`mailto:${u.tenantEmail}?subject=Electricity Bill - ${formatDate(u.currentReadingDate)}&body=Dear ${u.tenantName ?? "Tenant"}, your electricity bill is ${formatRupees(u.totalAmount)}.`,
 		);
 	}
+
 	return (
-		// biome-ignore lint/a11y/useSemanticElements: row contains interactive action buttons — <button> nesting is invalid HTML
+		// biome-ignore lint/a11y/useSemanticElements: a row cannot be a button because it contains its own actions
 		<div
 			role="button"
 			tabIndex={0}
-			className={`flex cursor-pointer items-center gap-4 border-b px-5 py-4 transition-colors last:border-0 hover:bg-muted/40 ${isDeleting ? "pointer-events-none opacity-50" : ""}`}
-			onClick={onViewDetail}
-			onKeyDown={(e) => e.key === "Enter" && onViewDetail()}
+			className={`grid cursor-pointer grid-cols-2 gap-4 border-b px-4 py-4 transition-colors last:border-0 hover:bg-muted/30 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring/30 focus-visible:ring-inset lg:grid-cols-[minmax(13rem,1.4fr)_minmax(9rem,1fr)_minmax(8rem,.8fr)_minmax(7rem,.7fr)_minmax(6rem,.55fr)_minmax(15rem,auto)] lg:items-center lg:px-5 ${isDeleting ? "pointer-events-none opacity-50" : ""}`}
+			onClick={(event) => {
+				if (!isUtilityRowActionTarget(event.target)) onViewDetail();
+			}}
+			onKeyDown={(event) => {
+				if (event.key === "Enter" && !isUtilityRowActionTarget(event.target)) {
+					onViewDetail();
+				}
+			}}
 		>
-			{/* Icon */}
-			<div className="flex size-10 shrink-0 items-center justify-center rounded-lg bg-amber-50 text-amber-600">
-				<IconBolt className="size-5" />
+			<div className="col-span-2 flex min-w-0 items-center gap-3 lg:col-span-1">
+				<div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-amber-50 text-amber-600">
+					<IconBolt className="size-5" />
+				</div>
+				<div className="min-w-0">
+					<p className="truncate font-semibold text-sm">
+						{u.tenantName ?? "Tenant unavailable"}
+					</p>
+					<p className="truncate text-muted-foreground text-xs">
+						{u.propertyName} · Unit {u.unitNumber}
+					</p>
+				</div>
 			</div>
 
-			{/* Tenant + property */}
-			<div className="w-44 shrink-0">
-				<p className="font-semibold text-sm">{u.tenantName ?? "—"}</p>
-				<p className="text-muted-foreground text-xs">
-					{u.propertyName} · Unit {u.unitNumber}
+			<div>
+				<CellLabel>Service period</CellLabel>
+				<p className="font-medium text-sm">
+					{formatDate(u.previousReadingDate)} –{" "}
+					{formatDate(u.currentReadingDate)}
 				</p>
 			</div>
 
-			{/* Reading values */}
-			<div className="flex flex-1 items-center gap-6 overflow-x-auto">
-				<ReadingVal label={`Prev (${prevDate})`} value={`${prev} kWh`} />
-				<ReadingVal label={`Curr (${currDate})`} value={`${curr} kWh`} />
-				<ReadingVal
-					label="Units Used"
-					value={`${consumed.toFixed(1)} kWh`}
-					highlight="blue"
-				/>
-				<ReadingVal
-					label={`Bill (${rateDisplay}/kWh)`}
-					value={formatRupees(u.totalAmount)}
-					highlight="green"
-				/>
+			<div className="lg:text-center">
+				<CellLabel>Usage</CellLabel>
+				<p className="font-semibold text-sm">{consumed.toFixed(1)} kWh</p>
+				<p className="text-muted-foreground text-xs tabular-nums">
+					{previous.toFixed(1)} → {current.toFixed(1)}
+				</p>
 			</div>
 
-			{/* Status + actions */}
+			<div className="lg:text-center">
+				<CellLabel>Amount</CellLabel>
+				<p className="font-bold text-sm tabular-nums">
+					{formatRupees(u.totalAmount)}
+				</p>
+			</div>
 
-			<Badge variant={u.isPaid ? "default" : "secondary"} className="text-xs">
-				{u.isPaid ? "Billed" : "Unpaid"}
-			</Badge>
-
-			{/* WhatsApp */}
-			<Button
-				size="sm"
-				variant="ghost"
-				className="h-8 gap-1.5 bg-green-50 px-2.5 text-green-700 text-xs hover:bg-green-100 hover:text-green-800"
-				onClick={handleWhatsApp}
-				disabled={!u.tenantPhone}
-				title={u.tenantPhone ? "Send via WhatsApp" : "No phone number"}
-			>
-				{/* Simple WA icon inline */}
-				<IconBrandWhatsapp className="size-4" />
-				WA
-			</Button>
-
-			{/* Email */}
-			<Button
-				size="sm"
-				variant="ghost"
-				className="h-8 gap-1.5 bg-blue-50 px-2.5 text-blue-700 text-xs hover:bg-blue-100"
-				onClick={handleEmail}
-				disabled={!u.tenantEmail}
-				title={u.tenantEmail ? "Send via email" : "No email"}
-			>
-				<IconMail className="size-3.5" />
-				Email
-			</Button>
-
-			{/* Mark paid */}
-			{!u.isPaid && (
-				<Button
-					size="icon"
-					variant="ghost"
-					className="size-8"
-					onClick={onMarkPaid}
-					title="Mark as paid"
+			<div className="lg:justify-self-center">
+				<CellLabel>Status</CellLabel>
+				<Badge
+					variant="secondary"
+					className={
+						u.isPaid
+							? "bg-emerald-50 text-emerald-700"
+							: "bg-amber-50 text-amber-700"
+					}
 				>
-					<IconCheck className="size-4" />
+					{u.isPaid ? "Paid" : "Unpaid"}
+				</Badge>
+			</div>
+
+			<div className="col-span-2 flex items-center justify-end gap-1 border-t pt-3 lg:col-span-1 lg:border-0 lg:pt-0">
+				<Button
+					variant="ghost"
+					size="sm"
+					data-utility-row-action
+					onClick={() => window.open(documentAction.href, "_blank", "noopener")}
+					title={documentAction.title}
+				>
+					<IconDownload className="size-3.5" />
+					{documentAction.label}
 				</Button>
-			)}
-
-			{/* Edit */}
-			<Button size="icon" variant="ghost" className="size-8" onClick={onEdit}>
-				<IconEdit className="size-4" />
-			</Button>
-
-			{/* Delete */}
-			<ConfirmDialog
-				title="Delete reading?"
-				description="This meter reading and its bill will be permanently deleted."
-				onConfirm={onDelete}
-				trigger={
-					<Button size="icon" variant="ghost" className="size-8">
-						<IconTrash className="size-4 text-destructive" />
-					</Button>
-				}
-			/>
+				<Button
+					variant="outline"
+					size="sm"
+					className="min-w-[5.75rem]"
+					data-utility-row-action
+					disabled={u.isPaid}
+					onClick={onMarkPaid}
+				>
+					<IconCheck className="size-3.5" />
+					{u.isPaid ? "Paid" : "Mark paid"}
+				</Button>
+				<UtilityRowMenu
+					canEmail={Boolean(u.tenantEmail)}
+					canWhatsApp={Boolean(u.tenantPhone)}
+					isDeleting={isDeleting}
+					onDelete={onDelete}
+					onEdit={onEdit}
+					onEmail={handleEmail}
+					onWhatsApp={handleWhatsApp}
+				/>
+			</div>
 		</div>
 	);
 }
 
-// ── Small helper inside this file — not exported ──────────────────────────────
-function ReadingVal({
-	label,
-	value,
-	highlight,
-}: {
-	label: string;
-	value: string;
-	highlight?: "blue" | "green";
-}) {
+function CellLabel({ children }: { children: React.ReactNode }) {
 	return (
-		<div className="min-w-20">
-			<p className="font-medium text-[10px] text-muted-foreground">{label}</p>
-			<p
-				className={`mt-0.5 font-bold text-sm ${
-					highlight === "blue"
-						? "text-blue-600"
-						: highlight === "green"
-							? "text-green-600"
-							: ""
-				}`}
-			>
-				{value}
-			</p>
-		</div>
+		<p className="mb-1 font-semibold text-[10px] text-muted-foreground uppercase tracking-wide lg:hidden">
+			{children}
+		</p>
 	);
 }

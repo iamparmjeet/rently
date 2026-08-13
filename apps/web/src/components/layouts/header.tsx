@@ -38,12 +38,6 @@ export function Header() {
 
 				{/* Desktop CTAs */}
 				<div className="hidden md:flex md:items-center md:gap-4">
-					<Link
-						href="/demo"
-						className="font-medium text-base text-muted-foreground transition-colors hover:text-foreground"
-					>
-						Try demo
-					</Link>
 					<Button variant="ghost" className="text-base">
 						<AuthEntryLink href="/login">Log in</AuthEntryLink>
 					</Button>
@@ -92,14 +86,7 @@ export function Header() {
 							</Link>
 						))}
 					</div>
-					<div className="mt-2 grid grid-cols-2 gap-2 border-border/70 border-t pt-2">
-						<Link
-							href="/demo"
-							className="flex h-11 items-center justify-center rounded-md border border-border/70 bg-muted/50 px-3 font-medium text-foreground text-sm transition-colors hover:bg-muted"
-							onClick={() => setMobileMenuOpen(false)}
-						>
-							Try demo
-						</Link>
+					<div className="mt-2 grid grid-cols-1 gap-2 border-border/70 border-t pt-2">
 						<Button
 							variant="ghost"
 							className="h-11 rounded-md border border-border/70 bg-background text-sm hover:bg-muted"

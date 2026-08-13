@@ -10,6 +10,7 @@ import { UTILITY_TYPES } from "@rently/db/constants/rent-constants";
 import { user } from "@rently/db/schema/auth";
 import {
 	leases,
+	ownerProfiles,
 	payments,
 	properties,
 	units,
@@ -19,10 +20,11 @@ import {
 	CreateUtilitySchema,
 	RecordUtilityPaymentSchema,
 	UpdateUtilitySchema,
+	UtilityBillDataSchema,
 	UtilityListItemSchema,
 	UtilitySelectSchema,
 } from "@rently/validators";
-import { and, eq } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import z from "zod";
 import { isLeaseOwner, VerifyLeaseOwnership } from "../helpers";
 import {
@@ -84,11 +86,34 @@ async function getOwnedUtility(
 			createdAt: utilities.createdAt,
 			updatedAt: utilities.updatedAt,
 			ownerId: properties.ownerId,
+			unitNumber: units.unitNumber,
+			propertyName: properties.name,
+			propertyAddress: properties.address,
+			tenantName: user.name,
+			companyName: ownerProfiles.companyName,
+			ownerAddress: ownerProfiles.address,
+			gstNumber: ownerProfiles.gstNumber,
+			receiptPaymentId: sql<string | null>`(
+				select ${payments.id}
+				from ${payments}
+				where ${payments.utilityId} = ${utilities.id}
+					and ${payments.type} = 'utility'
+				order by ${payments.createdAt} desc
+				limit 1
+			)`,
 		})
 		.from(utilities)
 		.innerJoin(leases, eq(utilities.leaseId, leases.id))
 		.innerJoin(units, eq(leases.unitId, units.id))
 		.innerJoin(properties, eq(units.propertyId, properties.id))
+		.innerJoin(user, eq(leases.tenantId, user.id))
+		.leftJoin(
+			ownerProfiles,
+			and(
+				eq(ownerProfiles.userId, properties.ownerId),
+				isNull(ownerProfiles.deletedAt),
+			),
+		)
 		.where(eq(utilities.id, utilityId))
 		.limit(1);
 
@@ -239,7 +264,7 @@ export const updateUtility = ownerProcedure
 export const getUtilityById = ownerProcedure
 	.route({ method: "GET", path: "/rent/utility/get" })
 	.input(z.object({ id: z.string() }))
-	.output(z.object({ utility: UtilitySelectSchema }))
+	.output(z.object({ utility: UtilityBillDataSchema }))
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
@@ -248,7 +273,7 @@ export const getUtilityById = ownerProcedure
 
 		// Strip the joined ownerId before returning
 		const { ownerId: _ownerId, ...utility } = row;
-		return { utility };
+		return { utility: { ...utility, ownerName: authUser.name } };
 	});
 
 // 4. list
@@ -292,6 +317,16 @@ export const listUtilities = ownerProcedure
 				isPaid: utilities.isPaid,
 				createdAt: utilities.createdAt,
 				updatedAt: utilities.updatedAt,
+				// A utility can have historical payment attempts. Select only the
+				// latest utility payment so the list remains one row per utility.
+				receiptPaymentId: sql<string | null>`(
+					select ${payments.id}
+					from ${payments}
+					where ${payments.utilityId} = ${utilities.id}
+						and ${payments.type} = 'utility'
+					order by ${payments.createdAt} desc
+					limit 1
+				)`,
 				// enriched context
 				unitNumber: units.unitNumber,
 				propertyName: properties.name,
@@ -420,6 +455,16 @@ export const recordUtilityPayment = ownerProcedure
 		if (utility.leaseId !== input.leaseId) {
 			throw new ORPCError("FORBIDDEN", {
 				message: "Utility does not belong to this lease",
+			});
+		}
+		if (utility.isPaid) {
+			throw new ORPCError("CONFLICT", {
+				message: "This utility bill is already paid",
+			});
+		}
+		if (input.amount !== utility.totalAmount) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Payment amount must match the utility bill total",
 			});
 		}
 

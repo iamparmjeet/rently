@@ -137,6 +137,7 @@ export const INVITE_DELIVERY_STATUSES = {
 	NOT_ATTEMPTED: "not_attempted",
 	SENT: "sent",
 	FAILED: "failed",
+	SUPPRESSED: "suppressed",
 } as const;
 
 export type InviteDeliveryStatus =

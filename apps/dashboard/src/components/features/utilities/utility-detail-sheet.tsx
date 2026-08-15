@@ -31,7 +31,7 @@ export function UtilityDetailDialog({
 	rent?: number | null;
 	open: boolean;
 	onOpenChange: (open: boolean) => void;
-	onEdit: (u: UtilityListItem) => void;
+	onEdit?: (u: UtilityListItem) => void;
 	onMarkPaid: (u: UtilityListItem) => void;
 }) {
 	if (items.length === 0) return null;
@@ -151,7 +151,7 @@ export function UtilityDetailDialog({
 							<UtilityDetailCard
 								key={utility.id}
 								utility={utility}
-								onEdit={() => onEdit(utility)}
+								onEdit={onEdit ? () => onEdit(utility) : undefined}
 								onMarkPaid={() => onMarkPaid(utility)}
 							/>
 						))}

@@ -4,31 +4,28 @@ import {
 	FIXEDCHARGE,
 	RATEPERUNIT,
 } from "@rently/db/constants/payment-constants";
-
 import { Button } from "@rently/ui/components/button";
-import {
-	Dialog,
-	DialogContent,
-	DialogDescription,
-	DialogHeader,
-	DialogTitle,
-} from "@rently/ui/components/dialog";
 import { Input } from "@rently/ui/components/input";
+
 import {
 	formatRupees,
 	paiseToFormValue,
 	toPaise,
 } from "@rently/ui/lib/currency";
+import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
 import { PageHeader } from "@rently/ui/shared/page-header";
 import type {
 	UtilityBatchFormValues,
 	UtilityListItem,
 } from "@rently/validators";
 import {
+	IconAlertTriangle,
 	IconBolt,
 	IconDownload,
 	IconDroplet,
 	IconFileInvoice,
+	IconLayoutGrid,
+	IconList,
 	IconPlus,
 	IconReceipt,
 	IconSearch,
@@ -50,12 +47,14 @@ import {
 	utilityExportRowsToCsv,
 } from "@/lib/utility-csv";
 import type { client } from "@/utils/orpc";
+import { CombinedBillCard } from "./combined-bill-card";
 import { type CombinedBillGroup, CombinedBillRow } from "./combined-bill-row";
 import { ElectricityRow } from "./electricity-row";
 import { FixedChargeRow } from "./fixed-charge-row";
 import { UnitPickerUtilityForm } from "./lease-picker-form";
 import { MarkPaidDialog } from "./mark-paid-dialog";
 import { UtilityDetailDialog } from "./utility-detail-sheet";
+import { UtilityGrid } from "./utility-grid";
 
 // ── Types ────────────────────────────────────────────────────────────────────
 
@@ -76,10 +75,12 @@ export default function UtilitiesClient() {
 	const updateUtility = useOptimisticUpdateUtility();
 	const removeUtility = useOptimisticRemoveUtility();
 
+	const createDialog = useFormDialog();
+
+	const [viewMode, setViewMode] = useState<"cards" | "rows">("cards");
 	const [activeTab, setActiveTab] = useState<UtilityTab>("electricity");
 	const [search, setSearch] = useState("");
 	const [statusFilter, setStatusFilter] = useState<UtilityStatusFilter>("all");
-	const [createOpen, setCreateOpen] = useState(false);
 	const [editTarget, setEditTarget] = useState<UtilityListItem | null>(null);
 	const [detailItems, setDetailItems] = useState<UtilityListItem[]>([]);
 	const [detailRent, setDetailRent] = useState<number | null>(null);
@@ -107,30 +108,24 @@ export default function UtilitiesClient() {
 	}, [utilities, activeTab, search, statusFilter]);
 
 	// ── Derived: stats ───────────────────────────────────────────────────────
-	const stats = useMemo(() => {
-		const thisMonth = new Date().getMonth();
-		const thisYear = new Date().getFullYear();
-
-		const monthlyUtilities = utilities.filter((u) => {
-			const d = new Date(u.currentReadingDate);
-			return d.getMonth() === thisMonth && d.getFullYear() === thisYear;
-		});
-
-		const sum = (arr: UtilityListItem[]) =>
-			arr.reduce((acc, u) => acc + u.totalAmount, 0);
+	const pageStats = useMemo(() => {
+		const totalBilled = utilities.reduce((acc, u) => acc + u.totalAmount, 0);
+		const totalPaid = utilities
+			.filter((u) => u.isPaid)
+			.reduce((acc, u) => acc + u.totalAmount, 0);
+		const totalUnpaid = totalBilled - totalPaid;
+		const paidRecords = utilities.filter((u) => u.isPaid).length;
+		const totalRecords = utilities.length;
+		const collectionRate =
+			totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 100) : 0;
 
 		return {
-			totalBills: sum(monthlyUtilities),
-			monthlyCount: monthlyUtilities.length,
-			paidTotal: sum(monthlyUtilities.filter((u) => u.isPaid)),
-			paidCount: monthlyUtilities.filter((u) => u.isPaid).length,
-			unpaidTotal: sum(utilities.filter((u) => !u.isPaid)),
-			unpaidCount: utilities.filter((u) => !u.isPaid).length,
-			electricityCount: utilities.filter((u) => u.utilityType === "electricity")
-				.length,
-			waterCount: utilities.filter((u) => u.utilityType === "water").length,
-			maintenanceCount: utilities.filter((u) => u.utilityType === "maintenance")
-				.length,
+			totalBilled,
+			totalPaid,
+			totalUnpaid,
+			paidRecords,
+			totalRecords,
+			collectionRate,
 		};
 	}, [utilities]);
 
@@ -251,9 +246,11 @@ export default function UtilitiesClient() {
 
 		createBatch.mutate(
 			{ leaseId: values.leaseId, batchId: values.batchId, items },
-			{ onSuccess: () => setCreateOpen(false) },
+			{ onSuccess: () => createDialog.closeDialog() },
 		);
 	}
+
+	// ── Row-mode handlers ──────────────────────────────────────────────────
 
 	function handleUpdate(values: UtilityBatchFormValues) {
 		if (!editTarget) return;
@@ -269,17 +266,11 @@ export default function UtilitiesClient() {
 			}
 			if (editTarget.utilityType === "water" && values.water) {
 				const { isPaid: _isPaid, ...rest } = values.water;
-				return {
-					...rest,
-					fixedCharge: toPaise(rest.fixedCharge),
-				};
+				return { ...rest, fixedCharge: toPaise(rest.fixedCharge) };
 			}
 			if (editTarget.utilityType === "maintenance" && values.maintenance) {
 				const { isPaid: _isPaid, ...rest } = values.maintenance;
-				return {
-					...rest,
-					fixedCharge: toPaise(rest.fixedCharge),
-				};
+				return { ...rest, fixedCharge: toPaise(rest.fixedCharge) };
 			}
 			return {} as const;
 		})();
@@ -288,8 +279,6 @@ export default function UtilitiesClient() {
 			{
 				id: editTarget.id,
 				data: {
-					// WHY: form stores dates as ISO strings; UpdateUtilitySchema
-					// inherits Date type from drizzle-zod's timestamp column inference
 					previousReadingDate: new Date(values.previousReadingDate),
 					currentReadingDate: new Date(values.currentReadingDate),
 					...typeFields,
@@ -303,13 +292,6 @@ export default function UtilitiesClient() {
 		removeUtility.mutate({ id });
 	}
 
-	function handleExportCsv() {
-		downloadCsv(
-			utilityExportRowsToCsv(utilities),
-			formatUtilityExportFilename(),
-		);
-	}
-
 	function openUtilityDetail(utility: UtilityListItem) {
 		setDetailRent(null);
 		setDetailItems(
@@ -319,315 +301,372 @@ export default function UtilitiesClient() {
 		);
 	}
 
+	function handleExportCsv() {
+		downloadCsv(
+			utilityExportRowsToCsv(utilities),
+			formatUtilityExportFilename(),
+		);
+	}
+
 	// ── Render ────────────────────────────────────────────────────────────────
 
 	return (
 		<Container>
-			{/* Page header */}
-			<PageHeader
-				title="Utilities"
-				description="Track electricity, water, and maintenance charges"
-			>
-				<Button variant="outline" onClick={handleExportCsv}>
-					<IconDownload className="size-4" />
-					Export CSV
-				</Button>
-				<Button onClick={() => setCreateOpen(true)}>
-					<IconPlus className="size-4" />
-					Add Reading
-				</Button>
-			</PageHeader>
+			<div className="col-span-12 flex flex-col gap-6">
+				<PageHeader
+					title="Utilities"
+					description="Track electricity, water, and maintenance charges"
+				>
+					<Button variant="outline" onClick={handleExportCsv}>
+						<IconDownload className="size-4" />
+						Export CSV
+					</Button>
+					<Button onClick={createDialog.openDialog}>
+						<IconPlus className="size-4" />
+						Add Reading
+					</Button>
+				</PageHeader>
 
-			{/* Stat cards */}
-			<div className="my-5 grid grid-cols-2 gap-3 xl:grid-cols-4">
-				<StatCard
-					icon={<IconFileInvoice className="size-5" />}
-					label="Billed this month"
-					value={formatRupees(stats.totalBills)}
-					sub={`${stats.monthlyCount} ${stats.monthlyCount === 1 ? "bill" : "bills"}`}
-					accent
-				/>
-				<StatCard
-					icon={<IconReceipt className="size-5 text-emerald-600" />}
-					label="Settled bill value"
-					value={formatRupees(stats.paidTotal)}
-					sub={`${stats.paidCount} of ${stats.monthlyCount} bills this month`}
-				/>
-				<StatCard
-					icon={<IconBolt className="size-5 text-destructive" />}
-					label="Outstanding balance"
-					value={formatRupees(stats.unpaidTotal)}
-					sub={`${stats.unpaidCount} ${stats.unpaidCount === 1 ? "bill needs" : "bills need"} attention`}
-					danger={stats.unpaidCount > 0}
-				/>
-				<StatCard
-					icon={<IconTool className="size-5 text-violet-600" />}
-					label="Utility records"
-					value={utilities.length.toLocaleString("en-IN")}
-					sub={`${stats.electricityCount} electricity · ${stats.waterCount} water · ${stats.maintenanceCount} maintenance`}
-				/>
-			</div>
-
-			{/* Tab bar */}
-			<div
-				role="tablist"
-				aria-label="Utility type"
-				className="mb-5 flex max-w-full gap-1 overflow-x-auto rounded-lg border bg-muted/40 p-1"
-			>
-				<TabBtn
-					active={activeTab === "electricity"}
-					onClick={() => setActiveTab("electricity")}
-					icon={<IconBolt className="size-3.5" />}
-					label="Electricity"
-					count={
-						utilities.filter((u) => u.utilityType === "electricity").length
-					}
-				/>
-				<TabBtn
-					active={activeTab === "water"}
-					onClick={() => setActiveTab("water")}
-					icon={<IconDroplet className="size-3.5" />}
-					label="Water"
-					count={utilities.filter((u) => u.utilityType === "water").length}
-				/>
-				<TabBtn
-					active={activeTab === "maintenance"}
-					onClick={() => setActiveTab("maintenance")}
-					icon={<IconTool className="size-3.5" />}
-					label="Maintenance"
-					count={
-						utilities.filter((u) => u.utilityType === "maintenance").length
-					}
-				/>
-				<TabBtn
-					active={activeTab === "combined"}
-					onClick={() => setActiveTab("combined")}
-					icon={<IconFileInvoice className="size-3.5" />}
-					label="Combined Bills"
-					count={combinedGroups.length}
-				/>
-			</div>
-
-			{/* Tab content */}
-			<div className="overflow-hidden rounded-xl border bg-white">
-				{/* Tab header */}
-				<div className="flex flex-col gap-4 border-b px-4 py-4 lg:flex-row lg:items-center lg:justify-between lg:px-5">
-					<div>
-						<p className="font-semibold text-sm capitalize">
-							{activeTab === "combined"
-								? "Combined Bills"
-								: `${activeTab} Readings`}
-						</p>
-						<p className="text-muted-foreground text-xs">
-							{activeTab === "combined"
-								? `${filteredCombinedGroups.length} monthly tenant summaries`
-								: `${filtered.length} ${activeTab === "electricity" ? "meter readings" : "charges"}`}
-						</p>
-					</div>
-					<div className="flex flex-col gap-2 sm:flex-row sm:items-center">
-						<div className="relative min-w-0 sm:w-72">
-							<IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
-							<Input
-								aria-label="Search utilities"
-								placeholder="Search tenant, property, or unit"
-								value={search}
-								onChange={(event) => setSearch(event.target.value)}
-								className="w-full pl-8"
+				<section className="overflow-hidden rounded-xl border bg-card shadow-sm">
+					<div className="grid divide-y sm:grid-cols-[1.05fr_1fr] sm:divide-x sm:divide-y-0">
+						<div className="relative overflow-hidden bg-gradient-to-br from-primary/[0.08] via-card to-card p-5">
+							<div className="absolute -top-10 -right-10 size-32 rounded-full bg-primary/[0.08] blur-2xl" />
+							<div className="relative">
+								<p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.14em]">
+									Collection health
+								</p>
+								<p className="mt-1 font-semibold text-3xl tracking-tight">
+									{formatRupees(pageStats.totalUnpaid)}{" "}
+									<span className="font-normal text-base text-muted-foreground">
+										outstanding
+									</span>
+								</p>
+								<div className="mt-4 h-1.5 max-w-sm overflow-hidden rounded-full bg-primary/10">
+									<div
+										className="h-full rounded-full bg-primary transition-all"
+										style={{ width: `${pageStats.collectionRate}%` }}
+									/>
+								</div>
+								<p className="mt-2 text-muted-foreground text-xs">
+									{pageStats.collectionRate}% collected ·{" "}
+									{pageStats.paidRecords} of {pageStats.totalRecords} bills
+									settled
+								</p>
+							</div>
+						</div>
+						<div className="grid grid-cols-3 divide-x">
+							<UtilityMetric
+								icon={IconFileInvoice}
+								label="Total billed"
+								value={formatRupees(pageStats.totalBilled)}
+							/>
+							<UtilityMetric
+								icon={IconReceipt}
+								label="Settled"
+								value={formatRupees(pageStats.totalPaid)}
+							/>
+							<UtilityMetric
+								icon={IconAlertTriangle}
+								label="Outstanding"
+								value={formatRupees(pageStats.totalUnpaid)}
 							/>
 						</div>
-						<select
-							aria-label="Filter utility payment status"
-							value={statusFilter}
-							onChange={(event) =>
-								setStatusFilter(event.target.value as UtilityStatusFilter)
-							}
-							className="h-7 rounded-md border bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-						>
-							<option value="all">All statuses</option>
-							<option value="paid">Paid</option>
-							<option value="unpaid">Unpaid</option>
-						</select>
 					</div>
+				</section>
+
+				{/* Tab bar */}
+				<div
+					role="tablist"
+					aria-label="Utility type"
+					className="mb-5 flex max-w-full gap-1 overflow-x-auto rounded-lg border bg-muted/40 p-1"
+				>
+					<TabBtn
+						active={activeTab === "electricity"}
+						onClick={() => setActiveTab("electricity")}
+						icon={<IconBolt className="size-3.5" />}
+						label="Electricity"
+						count={
+							utilities.filter((u) => u.utilityType === "electricity").length
+						}
+					/>
+					<TabBtn
+						active={activeTab === "water"}
+						onClick={() => setActiveTab("water")}
+						icon={<IconDroplet className="size-3.5" />}
+						label="Water"
+						count={utilities.filter((u) => u.utilityType === "water").length}
+					/>
+					<TabBtn
+						active={activeTab === "maintenance"}
+						onClick={() => setActiveTab("maintenance")}
+						icon={<IconTool className="size-3.5" />}
+						label="Maintenance"
+						count={
+							utilities.filter((u) => u.utilityType === "maintenance").length
+						}
+					/>
+					<TabBtn
+						active={activeTab === "combined"}
+						onClick={() => setActiveTab("combined")}
+						icon={<IconFileInvoice className="size-3.5" />}
+						label="Combined Bills"
+						count={combinedGroups.length}
+					/>
 				</div>
 
-				{activeTab !== "combined" && filtered.length > 0 ? (
-					<UtilityTableHeader />
-				) : null}
+				{activeTab !== "combined" ? (
+					<div>
+						<div className="mb-5 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+							<div className="relative min-w-0 sm:w-72">
+								<IconSearch className="pointer-events-none absolute top-1/2 left-2.5 size-3.5 -translate-y-1/2 text-muted-foreground" />
+								<Input
+									aria-label="Search utilities"
+									placeholder="Search tenant, property, or unit"
+									value={search}
+									onChange={(event) => setSearch(event.target.value)}
+									className="w-full pl-8"
+								/>
+							</div>
+							<div className="flex items-center gap-2">
+								<select
+									aria-label="Filter utility payment status"
+									value={statusFilter}
+									onChange={(event) =>
+										setStatusFilter(event.target.value as UtilityStatusFilter)
+									}
+									className="h-7 rounded-md border bg-background px-2 text-xs outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+								>
+									<option value="all">All statuses</option>
+									<option value="paid">Paid</option>
+									<option value="unpaid">Unpaid</option>
+								</select>
+								<div className="flex items-center rounded-md border bg-muted/30 p-0.5">
+									<button
+										type="button"
+										onClick={() => setViewMode("cards")}
+										className={`rounded-sm p-1.5 transition-colors ${
+											viewMode === "cards"
+												? "bg-white text-foreground shadow-sm"
+												: "text-muted-foreground hover:text-foreground"
+										}`}
+										title="Card view"
+									>
+										<IconLayoutGrid className="size-3.5" />
+									</button>
+									<button
+										type="button"
+										onClick={() => setViewMode("rows")}
+										className={`rounded-sm p-1.5 transition-colors ${
+											viewMode === "rows"
+												? "bg-white text-foreground shadow-sm"
+												: "text-muted-foreground hover:text-foreground"
+										}`}
+										title="Row view"
+									>
+										<IconList className="size-3.5" />
+									</button>
+								</div>
+							</div>
+						</div>
 
-				{/* Rows */}
-				{activeTab === "combined" ? (
-					filteredCombinedGroups.length === 0 ? (
-						<EmptyStateRow
-							message={
-								search || statusFilter !== "all"
-									? "No combined bills match these filters."
-									: "No utility data yet. Add readings to see combined bills."
-							}
-						/>
-					) : (
-						filteredCombinedGroups.map((group) => (
-							<CombinedBillRow
-								key={group.id}
-								group={group}
-								onViewDetail={() => {
-									setDetailRent(group.lease.rent);
-									setDetailItems(group.utilities);
-								}}
+						{viewMode === "cards" ? (
+							<UtilityGrid
+								utilities={filtered}
+								allUtilities={utilities}
+								onCreate={createDialog.openDialog}
 							/>
-						))
-					)
-				) : filtered.length === 0 ? (
-					<EmptyStateRow
-						message={`No ${activeTab} readings found.${search ? " Try clearing the search." : ""}`}
-					/>
+						) : filtered.length === 0 ? (
+							<div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
+								<p className="text-muted-foreground">
+									No readings found.
+									{search ? " Try clearing the search." : ""}
+								</p>
+							</div>
+						) : (
+							<div className="overflow-hidden rounded-xl border bg-white">
+								<UtilityTableHeader />
+								{filtered.map((u) => {
+									const isDeleting =
+										removeUtility.isPending &&
+										removeUtility.variables?.id === u.id;
+
+									const sharedProps = {
+										utility: u,
+										onEdit: () => setEditTarget(u),
+										onDelete: () => handleDelete(u.id),
+										onMarkPaid: () => setMarkPaidTarget(u),
+										onViewDetail: () => openUtilityDetail(u),
+										isDeleting,
+									};
+
+									if (u.utilityType === "electricity") {
+										return <ElectricityRow key={u.id} {...sharedProps} />;
+									}
+									return <FixedChargeRow key={u.id} {...sharedProps} />;
+								})}
+							</div>
+						)}
+					</div>
 				) : (
-					filtered.map((u) => {
-						const isDeleting =
-							removeUtility.isPending && removeUtility.variables?.id === u.id;
+					<div>
+						<div className="mb-5 flex items-center justify-end">
+							<div className="flex items-center rounded-md border bg-muted/30 p-0.5">
+								<button
+									type="button"
+									onClick={() => setViewMode("cards")}
+									className={`rounded-sm p-1.5 transition-colors ${
+										viewMode === "cards"
+											? "bg-white text-foreground shadow-sm"
+											: "text-muted-foreground hover:text-foreground"
+									}`}
+									title="Card view"
+								>
+									<IconLayoutGrid className="size-3.5" />
+								</button>
+								<button
+									type="button"
+									onClick={() => setViewMode("rows")}
+									className={`rounded-sm p-1.5 transition-colors ${
+										viewMode === "rows"
+											? "bg-white text-foreground shadow-sm"
+											: "text-muted-foreground hover:text-foreground"
+									}`}
+									title="Row view"
+								>
+									<IconList className="size-3.5" />
+								</button>
+							</div>
+						</div>
 
-						const sharedProps = {
-							utility: u,
-							onEdit: () => setEditTarget(u),
-							onDelete: () => handleDelete(u.id),
-							onMarkPaid: () => setMarkPaidTarget(u),
-							onViewDetail: () => openUtilityDetail(u),
-							isDeleting,
-						};
-
-						if (u.utilityType === "electricity") {
-							return <ElectricityRow key={u.id} {...sharedProps} />;
-						}
-						// water + maintenance both use the flat charge row
-						return <FixedChargeRow key={u.id} {...sharedProps} />;
-					})
+						{filteredCombinedGroups.length === 0 ? (
+							<div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
+								<p className="text-muted-foreground">
+									{combinedGroups.length === 0
+										? "No utility data yet. Add readings to see combined bills."
+										: "No combined bills match these filters."}
+								</p>
+							</div>
+						) : viewMode === "cards" ? (
+							<div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+								{filteredCombinedGroups.map((group) => (
+									<CombinedBillCard
+										key={group.id}
+										group={group}
+										onViewDetail={() => {
+											setDetailRent(group.lease.rent);
+											setDetailItems(group.utilities);
+										}}
+									/>
+								))}
+							</div>
+						) : (
+							<div className="overflow-hidden rounded-xl border bg-white">
+								{filteredCombinedGroups.map((group) => (
+									<CombinedBillRow
+										key={group.id}
+										group={group}
+										onViewDetail={() => {
+											setDetailRent(group.lease.rent);
+											setDetailItems(group.utilities);
+										}}
+									/>
+								))}
+							</div>
+						)}
+					</div>
 				)}
-			</div>
 
-			{/* ── Dialogs ─────────────────────────────────────────────────── */}
+				{/* ── Dialogs ─────────────────────────────────────────────────── */}
 
-			{/* Create dialog */}
-			<Dialog open={createOpen} onOpenChange={setCreateOpen}>
-				<DialogContent className="max-h-[calc(100vh-2rem)] overflow-y-auto sm:max-w-xl">
-					<DialogHeader>
-						<DialogTitle>Add utility charge</DialogTitle>
-						<DialogDescription>
-							Select a tenant and record one or more charges for the same
-							billing period.
-						</DialogDescription>
-					</DialogHeader>
+				<FormDialog
+					open={createDialog.open}
+					onOpenChange={createDialog.onOpenChange}
+					title="Add utility charge"
+					description="Select a tenant and record one or more charges for the same billing period."
+					formId="create-utility-form"
+					isSubmitting={createBatch.isPending}
+					submitLabel="Add Reading"
+					size="lg"
+				>
 					<UnitPickerUtilityForm
+						key={createDialog.open ? "open" : "closed"}
 						leases={leases}
 						onSubmit={handleCreate}
 						isSubmitting={createBatch.isPending}
 						initialType={activeTab === "combined" ? undefined : activeTab}
+						formId="create-utility-form"
 					/>
-				</DialogContent>
-			</Dialog>
+				</FormDialog>
 
-			{/* Edit dialog */}
-			<Dialog
-				open={editTarget !== null}
-				onOpenChange={(o) => !o && setEditTarget(null)}
-			>
-				<DialogContent className="max-w-md">
-					<DialogHeader>
-						<DialogTitle>Edit utility charge</DialogTitle>
-						<DialogDescription>
-							Update the billing period and charge details. The total will be
-							recalculated automatically.
-						</DialogDescription>
-					</DialogHeader>
-					{editTarget && (
+				{editTarget && (
+					<FormDialog
+						open={editTarget !== null}
+						onOpenChange={(o) => !o && setEditTarget(null)}
+						title="Edit utility charge"
+						formId="edit-utility-row-form"
+						isSubmitting={updateUtility.isPending}
+						submitLabel="Save Changes"
+					>
 						<UtilityForm
+							key={editTarget.id}
 							leaseId={editTarget.leaseId}
+							formId="edit-utility-row-form"
 							defaultValues={mapUtilityToFormDefaults(editTarget)}
 							onSubmit={handleUpdate}
 							isSubmitting={updateUtility.isPending}
-							submitLabel="Save Changes"
 						/>
-					)}
-				</DialogContent>
-			</Dialog>
+					</FormDialog>
+				)}
 
-			{/* Detail dialog */}
-			<UtilityDetailDialog
-				items={detailItems}
-				rent={detailRent}
-				open={detailItems.length > 0}
-				onOpenChange={(open) => {
-					if (!open) {
+				<UtilityDetailDialog
+					items={detailItems}
+					rent={detailRent}
+					open={detailItems.length > 0}
+					onOpenChange={(open) => {
+						if (!open) {
+							setDetailItems([]);
+							setDetailRent(null);
+						}
+					}}
+					onMarkPaid={(utility) => {
 						setDetailItems([]);
 						setDetailRent(null);
-					}
-				}}
-				onMarkPaid={(utility) => {
-					setDetailItems([]);
-					setDetailRent(null);
-					setMarkPaidTarget(utility);
-				}}
-				onEdit={(utility) => {
-					setDetailItems([]);
-					setDetailRent(null);
-					setEditTarget(utility);
-				}}
-			/>
+						setMarkPaidTarget(utility);
+					}}
+					onEdit={() => {
+						setDetailItems([]);
+						setDetailRent(null);
+					}}
+				/>
 
-			{/* Mark paid dialog */}
-			<MarkPaidDialog
-				utility={markPaidTarget}
-				open={markPaidTarget !== null}
-				onOpenChange={(o) => !o && setMarkPaidTarget(null)}
-			/>
+				{/* Mark paid dialog */}
+				<MarkPaidDialog
+					utility={markPaidTarget}
+					open={markPaidTarget !== null}
+					onOpenChange={(o) => !o && setMarkPaidTarget(null)}
+				/>
+			</div>
 		</Container>
 	);
 }
 
 // ── Sub-components ────────────────────────────────────────────────────────────
 
-function StatCard({
-	icon,
+function UtilityMetric({
+	icon: Icon,
 	label,
 	value,
-	sub,
-	accent,
-	danger,
 }: {
-	icon: React.ReactNode;
+	icon: typeof IconFileInvoice;
 	label: string;
 	value: string;
-	sub: string;
-	accent?: boolean;
-	danger?: boolean;
 }) {
 	return (
-		<div
-			className={`rounded-xl border p-4 ${
-				accent
-					? "border-primary/20 bg-primary text-primary-foreground"
-					: danger
-						? "border-destructive/20 bg-destructive/5"
-						: "bg-white"
-			}`}
-		>
-			<div
-				className={`mb-3 flex size-9 items-center justify-center rounded-lg ${accent ? "bg-white/20" : "bg-muted"}`}
-			>
-				{icon}
-			</div>
-			<p
-				className={`text-xs ${accent ? "text-primary-foreground/75" : "text-muted-foreground"}`}
-			>
-				{label}
-			</p>
-			<p
-				className={`mt-1 font-bold text-2xl tracking-tight ${danger ? "text-destructive" : ""}`}
-			>
+		<div className="min-w-0 px-3 py-5 text-center sm:px-4">
+			<Icon className="mx-auto size-4 text-primary" />
+			<p className="mt-2 truncate text-muted-foreground text-xs">{label}</p>
+			<p className="mt-1 truncate font-semibold text-sm sm:text-base">
 				{value}
-			</p>
-			<p
-				className={`mt-1 text-xs ${accent ? "text-primary-foreground/75" : "text-muted-foreground"}`}
-			>
-				{sub}
 			</p>
 		</div>
 	);
@@ -688,16 +727,6 @@ function UtilityTableHeader() {
 	);
 }
 
-function EmptyStateRow({ message }: { message: string }) {
-	return (
-		<div className="flex items-center justify-center px-5 py-12 text-center">
-			<p className="text-muted-foreground text-sm">{message}</p>
-		</div>
-	);
-}
-
-// ── Helpers ───────────────────────────────────────────────────────────────────
-
 function mapUtilityToFormDefaults(
 	u: UtilityListItem,
 ): Partial<UtilityBatchFormValues> {
@@ -717,7 +746,6 @@ function mapUtilityToFormDefaults(
 			electricity: {
 				previousReading: Number(u.previousReading),
 				currentReading: Number(u.currentReading),
-				// WHY paiseToFormValue: DB stores paise; form expects rupees
 				ratePerUnit: paiseToFormValue(u.ratePerUnit ?? RATEPERUNIT),
 				fixedCharge: paiseToFormValue(u.fixedCharge ?? FIXEDCHARGE),
 				isPaid: u.isPaid,

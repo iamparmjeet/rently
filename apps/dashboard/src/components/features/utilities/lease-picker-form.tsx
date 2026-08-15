@@ -29,6 +29,7 @@ interface UnitPickerUtilityFormProps {
 	isSubmitting: boolean;
 	// WHY: which tab the user clicked "Add" from — pre-toggles the right section
 	initialType?: UtilityType;
+	formId?: string;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -38,6 +39,7 @@ export function UnitPickerUtilityForm({
 	onSubmit,
 	isSubmitting,
 	initialType,
+	formId,
 }: UnitPickerUtilityFormProps) {
 	const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(
 		null,
@@ -82,6 +84,7 @@ export function UnitPickerUtilityForm({
 				initialType={initialType}
 				onSubmit={onSubmit}
 				isSubmitting={isSubmitting}
+				formId={formId}
 			/>
 		);
 	}

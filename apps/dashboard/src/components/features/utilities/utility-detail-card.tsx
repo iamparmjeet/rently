@@ -18,7 +18,7 @@ export function UtilityDetailCard({
 	onMarkPaid,
 }: {
 	utility: UtilityListItem;
-	onEdit: () => void;
+	onEdit?: () => void;
 	onMarkPaid: () => void;
 }) {
 	const isElectricity = u.utilityType === "electricity";
@@ -130,10 +130,12 @@ export function UtilityDetailCard({
 					</p>
 				</div>
 				<div className="flex flex-wrap items-center gap-1">
-					<Button variant="ghost" size="sm" onClick={onEdit}>
-						<IconEdit className="size-3.5" />
-						Edit
-					</Button>
+					{onEdit && (
+						<Button variant="ghost" size="sm" onClick={onEdit}>
+							<IconEdit className="size-3.5" />
+							Edit
+						</Button>
+					)}
 					<Button
 						variant="outline"
 						size="sm"

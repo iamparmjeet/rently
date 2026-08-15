@@ -79,7 +79,7 @@ function DashboardMockup() {
 						{/* Content */}
 						<div className="overflow-hidden p-3.5">
 							<div className="mb-0.5 font-bold text-[12.5px]">
-								Good morning, Rahul{" "}
+								Good morning, Parm{" "}
 								<span className="font-normal text-[10.5px] text-muted-foreground">
 									· Wed, 28 May 2025
 								</span>

@@ -18,43 +18,43 @@ export function OverdueSummaryCard({
 }: OverdueSummaryCardProps) {
 	return (
 		<div
-			className={[
-				"rounded-2xl border border-destructive/25 bg-destructive/5 p-6 shadow-sm",
-				className,
-			].join(" ")}
+			className={`overflow-hidden rounded-xl border border-destructive/20 bg-card shadow-sm ${className}`}
 		>
-			<div className="flex items-start justify-between">
-				<div className="rounded-xl bg-destructive/10 p-2.5">
-					<IconAlertTriangle className="size-5 text-destructive" />
+			<div className="border-b bg-gradient-to-br from-destructive/[0.12] via-destructive/[0.03] to-transparent px-5 pt-5 pb-4">
+				<div className="flex items-start justify-between gap-3">
+					<div className="flex items-start gap-3">
+						<div className="flex size-10 shrink-0 items-center justify-center rounded-xl bg-destructive text-destructive-foreground shadow-destructive/20 shadow-lg">
+							<IconAlertTriangle className="size-5" />
+						</div>
+						<div>
+							<p className="font-medium text-[10px] text-muted-foreground uppercase tracking-[0.14em]">
+								Collections risk
+							</p>
+							<h3 className="mt-0.5 font-semibold text-sm">Overdue rent</h3>
+						</div>
+					</div>
+					<Link
+						href="/tenants"
+						className="flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
+					>
+						View tenants
+						<IconArrowUpRight className="size-3" />
+					</Link>
 				</div>
-				<Link
-					href="/tenants"
-					className="flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
-				>
-					View tenants
-					<IconArrowUpRight className="size-3" />
-				</Link>
 			</div>
 
-			<div className="mt-5">
-				<p className="font-medium text-muted-foreground text-sm">
-					Overdue rent
-				</p>
+			<div className="px-5 py-4">
 				{isLoading ? (
-					<Skeleton className="mt-2 h-8 w-24" />
+					<Skeleton className="h-8 w-24" />
 				) : (
 					<>
-						<p className="mt-1 font-extrabold text-2xl tabular-nums">
+						<p className="font-semibold text-3xl tabular-nums tracking-tight">
 							{overdueCount}
 						</p>
-						<p className="mt-1 text-muted-foreground text-xs">
+						<p className="mt-2 text-muted-foreground text-xs">
 							{overdueCount === 0
 								? "All active leases are up to date"
-								: formatRupees(overdueAmount) +
-									" outstanding across " +
-									overdueCount +
-									" lease" +
-									(overdueCount === 1 ? "" : "s")}
+								: `${formatRupees(overdueAmount)} outstanding across ${overdueCount} lease${overdueCount === 1 ? "" : "s"}`}
 						</p>
 					</>
 				)}

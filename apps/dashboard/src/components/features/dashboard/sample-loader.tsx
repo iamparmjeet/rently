@@ -18,9 +18,9 @@ export function SampleLoader({
 	});
 	if (!canLoadSample || !isEmpty) return null;
 	return (
-		<section className="col-span-full rounded-xl border border-dashed bg-card p-6">
+		<section className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-card py-12 text-center">
 			<h2 className="font-semibold text-lg">Add your first property</h2>
-			<p className="mt-1 text-muted-foreground text-sm">
+			<p className="mt-1 max-w-md text-muted-foreground text-sm">
 				Start from scratch, or load a private disposable workspace to explore
 				KeyHQ.
 			</p>

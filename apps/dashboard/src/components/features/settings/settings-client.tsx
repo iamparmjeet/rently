@@ -1,6 +1,7 @@
 "use client";
 
 import { cn } from "@rently/ui/lib/utils";
+import { PageHeader } from "@rently/ui/shared/page-header";
 import { Suspense, useState } from "react";
 import { BillingTab } from "./billing-tab";
 import { CurrencyTab } from "./currency-tab";
@@ -52,12 +53,10 @@ export function SettingsClient() {
 	return (
 		<div className="col-span-12 flex flex-col gap-6">
 			{/* ── Page header  */}
-			<div>
-				<h1 className="font-semibold text-2xl">Settings</h1>
-				<p className="mt-0.5 text-muted-foreground text-sm">
-					Manage your account and preferences
-				</p>
-			</div>
+			<PageHeader
+				title="Settings"
+				description="Manage your account and preferences"
+			/>
 
 			{/* ── Tab navigation ──── */}
 			{/* WHY inline tab nav: no Tabs component exists in @rently/ui.

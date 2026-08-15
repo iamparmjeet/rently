@@ -9,11 +9,15 @@ import {
 } from "@rently/ui/components/card";
 
 import { cn } from "@rently/ui/lib/utils";
-import { DateRecordMeta } from "@rently/ui/shared/date-record-meta";
 import { IconWrapper } from "@rently/ui/shared/icon-wrapper";
 import type { PropertyWithStats } from "@rently/validators";
-import { IconBuildingStore, IconHome } from "@tabler/icons-react";
+import {
+	IconBuildingStore,
+	IconChevronRight,
+	IconHome,
+} from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
+import { format } from "date-fns";
 import Link from "next/link";
 import { orpc } from "@/utils/orpc";
 
@@ -54,28 +58,56 @@ export function PropertyCard({
 		);
 	}
 	const isResidential = property.type === "residential";
+	const tone = isResidential
+		? {
+				header: "from-blue-500/[0.12] via-blue-500/[0.03] to-transparent",
+				icon: "bg-blue-600 text-white shadow-blue-500/20",
+				badge: "border-blue-200 bg-blue-50 text-blue-700",
+				progress: "bg-blue-600",
+			}
+		: {
+				header: "from-amber-500/[0.14] via-amber-500/[0.03] to-transparent",
+				icon: "bg-amber-500 text-white shadow-amber-500/20",
+				badge: "border-amber-200 bg-amber-50 text-amber-700",
+				progress: "bg-amber-500",
+			};
 
 	return (
 		<Card
 			className={cn(
-				"flex flex-col transition-all",
+				"relative gap-0 overflow-hidden border-border/80 py-0 transition-all duration-200 hover:-translate-y-0.5 hover:border-primary/25 hover:shadow-md",
 				isDeleting && "pointer-events-none opacity-50",
 			)}
 			onMouseEnter={handleMouseEnter}
 		>
-			<CardHeader className="">
+			<CardHeader
+				className={cn(
+					"relative border-b bg-gradient-to-br px-5 pt-5 pb-4",
+					tone.header,
+				)}
+			>
 				<div className="flex items-start justify-between">
-					<div className="flex items-center gap-2">
-						<IconWrapper>
+					<div className="flex min-w-0 items-start gap-3">
+						<IconWrapper
+							className={cn(
+								"mt-0.5 size-10 shrink-0 rounded-xl shadow-lg",
+								tone.icon,
+							)}
+						>
 							{isResidential ? (
-								<IconHome className="size-6 shrink-0 text-blue-500" />
+								<IconHome className="size-5 shrink-0" />
 							) : (
-								<IconBuildingStore className="size-6 shrink-0 text-blue-500" />
+								<IconBuildingStore className="size-5 shrink-0" />
 							)}
 						</IconWrapper>
-						<CardTitle className="line-clamp-1 text-base">
-							<p className="font-bold text-lg">{property.name}</p>
-							<p className="line-clamp-1 text-gray-500 text-xs capitalize">
+						<CardTitle className="min-w-0 pt-0.5">
+							<p className="font-medium text-[10px] text-muted-foreground uppercase tracking-[0.14em]">
+								{property.type} property
+							</p>
+							<p className="truncate font-semibold text-base">
+								{property.name}
+							</p>
+							<p className="mt-1 line-clamp-1 text-muted-foreground text-xs">
 								{property.address}
 							</p>
 						</CardTitle>
@@ -86,79 +118,73 @@ export function PropertyCard({
 				</div>
 			</CardHeader>
 
-			{/* Unit Stats — only rendered if unitStats provided */}
-
-			<CardContent className="">
-				<div className="grid grid-cols-3 gap-2 text-center">
-					<div className="rounded-md bg-muted p-2">
-						<p className="font-semibold text-lg">
-							{property ? property.totalUnits : "0"}
+			<CardContent className="space-y-4 bg-card px-5 py-4">
+				<div className="flex items-end justify-between gap-3">
+					<div>
+						<p className="text-muted-foreground text-xs">Monthly revenue</p>
+						<p className="mt-1 font-semibold text-lg tracking-tight">
+							₹{property.monthlyRevenue.toLocaleString("en-IN")}
+							<span className="ml-1 font-normal text-muted-foreground text-xs">
+								/mo
+							</span>
 						</p>
-						<p className="text-muted-foreground text-xs">Total</p>
 					</div>
-					<div className="rounded-md bg-muted p-2">
-						<p className="font-semibold text-green-600 text-lg">
-							{property ? property.occupiedUnits : "0"}
-						</p>
-						<p className="text-muted-foreground text-xs">Occupied</p>
-					</div>
-					<div className="rounded-md bg-muted p-2">
-						<p className="font-semibold text-lg text-orange-500">
-							{property ? property.availableUnits : "0"}
-						</p>
-						<p className="text-muted-foreground text-xs">Vacant</p>
-					</div>
+					<Badge
+						variant="outline"
+						className={cn("rounded-full px-2.5 capitalize", tone.badge)}
+					>
+						{property.type}
+					</Badge>
 				</div>
-
-				{/* Occupancy bar */}
-
-				<div className="mt-3">
-					<div className="mb-1 flex justify-between text-muted-foreground text-xs">
-						<span>Occupancy</span>
-						<span>{occupancyRate ? occupancyRate : 0}%</span>
+				<div>
+					<div className="mb-2 flex items-center justify-between text-xs">
+						<span className="font-medium text-foreground">
+							{occupancyRate}% occupied
+						</span>
+						<span className="text-muted-foreground">
+							{property.occupiedUnits} of {property.totalUnits} units
+						</span>
 					</div>
-					<div className="h-1.5 w-full rounded-full bg-muted">
+					<div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
 						<div
-							className="h-full rounded-full bg-primary transition-all"
-							style={{ width: `${occupancyRate ? occupancyRate : 0}%` }}
+							className={cn(
+								"h-full rounded-full transition-all",
+								tone.progress,
+							)}
+							style={{ width: `${occupancyRate}%` }}
 						/>
+					</div>
+					<div className="mt-2 flex gap-3 text-xs">
+						<span className="text-emerald-700">
+							{property.occupiedUnits} occupied
+						</span>
+						<span className="text-amber-700">
+							{property.availableUnits} available
+						</span>
 					</div>
 				</div>
 			</CardContent>
 
-			<CardFooter className="flex w-full flex-col gap-4">
-				<div className="flex w-full items-center justify-between">
-					<Badge
-						variant="outline"
-						className={cn(
-							"rounded text-xs",
-							isResidential
-								? "border-blue-200 bg-blue-50 text-blue-700"
-								: "border-amber-200 bg-amber-50 text-amber-700",
-						)}
-					>
-						{property.type}
-					</Badge>
-
-					<span className="ml-auto font-medium text-muted-foreground text-xs">
-						₹{property?.monthlyRevenue.toLocaleString("en-IN")}/mo
+			<CardFooter className="flex w-full items-center justify-between gap-3 border-t px-5 py-3.5">
+				<p className="min-w-0 truncate text-muted-foreground text-xs">
+					<span className="whitespace-nowrap">
+						Created {format(new Date(property.createdAt), "dd MMM yyyy")}
 					</span>
-
-					<Button
-						nativeButton={false}
-						variant="outline"
-						size="sm"
-						className="ml-auto"
-						render={<Link href={`/properties/${property.id}`} />}
-					>
-						View
-					</Button>
-				</div>
-				<DateRecordMeta
-					className="w-full"
-					createdAt={property.createdAt}
-					updatedAt={property.updatedAt}
-				/>
+					<span className="text-muted-foreground/60">&nbsp;·&nbsp;</span>
+					<span className="whitespace-nowrap">
+						Updated {format(new Date(property.updatedAt), "dd MMM yyyy")}
+					</span>
+				</p>
+				<Button
+					nativeButton={false}
+					variant="ghost"
+					size="sm"
+					className="shrink-0 text-primary"
+					render={<Link href={`/properties/${property.id}`} />}
+				>
+					Open
+					<IconChevronRight className="size-3.5" />
+				</Button>
 			</CardFooter>
 		</Card>
 	);

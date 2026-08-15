@@ -1,112 +1,96 @@
 "use client";
 
-import { Container } from "@/components/shared/container";
-// localStorage: notification preferences don't exist in the DB schema yet.
-// TODO: migrate to ownerProfiles or a dedicated notificationPreferences table.
-
 import { Button } from "@rently/ui/components/button";
 import { Card, CardContent } from "@rently/ui/components/card";
+import { Input } from "@rently/ui/components/input";
 import { Switch } from "@rently/ui/components/switch";
-import { useEffect, useState } from "react";
-import { toast } from "sonner";
+import { useEffect, useMemo, useState } from "react";
+import { Container } from "@/components/shared/container";
+import {
+	useNotificationPreferences,
+	useUpdateNotificationPreferences,
+} from "@/hooks/notifications";
+import {
+	type EditableNotificationPreferences,
+	toEditableNotificationPreferences,
+} from "./notification-preferences";
 
-const PREFS_STORAGE_KEY = "rently_notification_prefs";
+type Preferences = EditableNotificationPreferences;
 
-type NotificationPrefs = {
-	rentDueReminders: boolean;
-	paymentReceived: boolean;
-	leaseExpiryAlerts: boolean;
-	utilityBillsGenerated: boolean;
-	tenantDocumentUpdates: boolean;
-	whatsappRentReminders: boolean;
-	whatsappUtilityBills: boolean;
-};
+type BooleanPreferenceKey =
+	| "paymentReceived"
+	| "utilityBillGenerated"
+	| "leaseExpiryAlert"
+	| "rentDueReminder"
+	| "overdueAlert";
 
-const DEFAULT_PREFS: NotificationPrefs = {
-	rentDueReminders: true,
-	paymentReceived: true,
-	leaseExpiryAlerts: true,
-	utilityBillsGenerated: false,
-	tenantDocumentUpdates: true,
-	whatsappRentReminders: true,
-	whatsappUtilityBills: true,
-};
+const scheduledKeys = new Set<BooleanPreferenceKey>([
+	"rentDueReminder",
+	"leaseExpiryAlert",
+	"overdueAlert",
+]);
 
-const EMAIL_TOGGLES: {
-	key: keyof NotificationPrefs;
+const fields: Array<{
+	key: BooleanPreferenceKey;
 	label: string;
 	description: string;
-}[] = [
-	{
-		key: "rentDueReminders",
-		label: "Rent due reminders",
-		description: "3 days before, day of, and overdue alerts",
-	},
+}> = [
 	{
 		key: "paymentReceived",
-		label: "Payment received",
-		description: "Instant notification when rent is paid",
+		label: "Automatically email payment receipts",
+		description: "Email the tenant immediately when a payment is recorded.",
 	},
 	{
-		key: "leaseExpiryAlerts",
+		key: "utilityBillGenerated",
+		label: "Automatically email utility bills",
+		description: "Email one combined bill when utility charges are generated.",
+	},
+	{
+		key: "rentDueReminder",
+		label: "Rent due reminders",
+		description: "Email the tenant before rent is due each month.",
+	},
+	{
+		key: "leaseExpiryAlert",
 		label: "Lease expiry alerts",
-		description: "30 days and 7 days before expiry",
+		description: "Email the tenant 30, 7, and 1 day before lease expiry.",
 	},
 	{
-		key: "utilityBillsGenerated",
-		label: "Utility bills generated",
-		description: "When monthly bills are created",
-	},
-	{
-		key: "tenantDocumentUpdates",
-		label: "Tenant document updates",
-		description: "When tenants upload or update documents",
-	},
-];
-
-const WHATSAPP_TOGGLES: {
-	key: keyof NotificationPrefs;
-	label: string;
-	description: string;
-}[] = [
-	{
-		key: "whatsappRentReminders",
-		label: "Rent reminders via WhatsApp",
-		description: "Auto-send payment reminders to tenants",
-	},
-	{
-		key: "whatsappUtilityBills",
-		label: "Utility bills via WhatsApp",
-		description: "Send bills directly to tenant's WhatsApp",
+		key: "overdueAlert",
+		label: "Overdue reminders",
+		description:
+			"Email the tenant once rent remains overdue after the grace period.",
 	},
 ];
 
 export function NotificationsTab() {
-	const [prefs, setPrefs] = useState<NotificationPrefs>(DEFAULT_PREFS);
-	const [hasLoaded, setHasLoaded] = useState(false);
+	const { data, isLoading } = useNotificationPreferences();
+	const update = useUpdateNotificationPreferences();
+	const [draft, setDraft] = useState<Preferences | null>(null);
 
 	useEffect(() => {
-		try {
-			const stored = localStorage.getItem(PREFS_STORAGE_KEY);
-			if (stored) {
-				setPrefs({ ...DEFAULT_PREFS, ...JSON.parse(stored) });
-			}
-		} catch {
-			// Ignore malformed storage — fall back to defaults
-		}
-		setHasLoaded(true);
-	}, []);
+		if (data?.preferences)
+			setDraft(toEditableNotificationPreferences(data.preferences));
+	}, [data]);
 
-	function togglePref(key: keyof NotificationPrefs) {
-		setPrefs((prev) => ({ ...prev, [key]: !prev[key] }));
+	const changed = useMemo(() => {
+		if (!draft || !data?.preferences) return false;
+		return (
+			fields.some(({ key }) => draft[key] !== data.preferences[key]) ||
+			draft.rentDueLeadDays !== data.preferences.rentDueLeadDays ||
+			draft.overdueGraceDays !== data.preferences.overdueGraceDays
+		);
+	}, [data?.preferences, draft]);
+
+	if (isLoading || !draft) {
+		return (
+			<Container className="w-full p-0 sm:max-w-180">
+				<p className="text-muted-foreground text-sm">
+					Loading notification preferences…
+				</p>
+			</Container>
+		);
 	}
-
-	function handleSave() {
-		localStorage.setItem(PREFS_STORAGE_KEY, JSON.stringify(prefs));
-		toast.success("Notification preferences saved");
-	}
-
-	if (!hasLoaded) return null;
 
 	return (
 		<Container className="w-full p-0 sm:max-w-180">
@@ -114,14 +98,13 @@ export function NotificationsTab() {
 				<Card>
 					<CardContent className="space-y-4 pt-6">
 						<p className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-							Email Notifications
+							Email notifications
 						</p>
-
 						<div className="space-y-1 divide-y divide-border">
-							{EMAIL_TOGGLES.map(({ key, label, description }) => (
+							{fields.map(({ key, label, description }) => (
 								<div
 									key={key}
-									className="flex items-center justify-between py-3"
+									className="flex items-center justify-between gap-4 py-3"
 								>
 									<div>
 										<p className="font-medium text-sm">{label}</p>
@@ -130,44 +113,97 @@ export function NotificationsTab() {
 										</p>
 									</div>
 									<Switch
-										checked={prefs[key]}
-										onCheckedChange={() => togglePref(key)}
+										checked={draft[key]}
+										disabled={update.isPending}
+										onCheckedChange={(checked) =>
+											setDraft((current) =>
+												current ? { ...current, [key]: checked } : current,
+											)
+										}
 									/>
 								</div>
 							))}
 						</div>
-					</CardContent>
-				</Card>
-
-				<Card>
-					<CardContent className="space-y-4 pt-6">
-						<p className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-							WhatsApp Notifications
-						</p>
-
-						<div className="space-y-1 divide-y divide-border">
-							{WHATSAPP_TOGGLES.map(({ key, label, description }) => (
-								<div
-									key={key}
-									className="flex items-center justify-between py-3"
+						<div className="grid gap-4 border-t pt-4 sm:grid-cols-2">
+							<div className="space-y-1.5">
+								<label
+									className="font-medium text-sm"
+									htmlFor="rentDueLeadDays"
 								>
-									<div>
-										<p className="font-medium text-sm">{label}</p>
-										<p className="text-muted-foreground text-xs">
-											{description}
-										</p>
-									</div>
-									<Switch
-										checked={prefs[key]}
-										onCheckedChange={() => togglePref(key)}
-									/>
-								</div>
-							))}
+									Rent reminder lead time
+								</label>
+								<p className="text-muted-foreground text-xs">
+									Send the rent reminder this many days before the due date
+									(0–14).
+								</p>
+								<Input
+									id="rentDueLeadDays"
+									type="number"
+									min={0}
+									max={14}
+									value={draft.rentDueLeadDays}
+									disabled={update.isPending}
+									onChange={(event) =>
+										setDraft((current) =>
+											current
+												? {
+														...current,
+														rentDueLeadDays: Number(event.target.value),
+													}
+												: current,
+										)
+									}
+								/>
+							</div>
+							<div className="space-y-1.5">
+								<label
+									className="font-medium text-sm"
+									htmlFor="overdueGraceDays"
+								>
+									Overdue reminder grace period
+								</label>
+								<p className="text-muted-foreground text-xs">
+									Send the overdue reminder this many days after the due date
+									(1–31).
+								</p>
+								<Input
+									id="overdueGraceDays"
+									type="number"
+									min={1}
+									max={31}
+									value={draft.overdueGraceDays}
+									disabled={update.isPending}
+									onChange={(event) =>
+										setDraft((current) =>
+											current
+												? {
+														...current,
+														overdueGraceDays: Number(event.target.value),
+													}
+												: current,
+										)
+									}
+								/>
+							</div>
 						</div>
+						<p className="text-muted-foreground text-xs">
+							WhatsApp sharing remains manual and opens Web WhatsApp from
+							Payment and Utility actions.
+						</p>
 					</CardContent>
 				</Card>
-
-				<Button onClick={handleSave}>Save Preferences</Button>
+				<Button
+					disabled={!changed || update.isPending}
+					onClick={() => update.mutate(draft)}
+				>
+					{update.isPending ? "Saving…" : "Save Preferences"}
+				</Button>
+				{fields.some(({ key }) => scheduledKeys.has(key)) && (
+					<p className="text-muted-foreground text-xs">
+						Scheduled reminders run daily at 08:00 IST. Rent reminders are sent
+						to tenants only.
+					</p>
+				)}
 			</div>
 		</Container>
 	);

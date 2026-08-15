@@ -9,6 +9,7 @@ import DashboardHeader from "@/components/layouts/dashboard-header";
 import { DashbaordSidebar } from "@/components/layouts/dashboard-sidebar";
 import { DashboardORPCProvider } from "@/components/providers/orpc-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { WorkspaceExperienceProvider } from "@/components/providers/workspace-experience-provider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -46,9 +47,11 @@ export default function RootLayout({
 						<SidebarProvider>
 							<DashbaordSidebar />
 							<div className="flex min-h-screen w-full flex-col bg-stone-100">
-								<DashboardHeader />
-								{children}
-								<Toaster position="bottom-right" />
+								<WorkspaceExperienceProvider>
+									<DashboardHeader />
+									{children}
+									<Toaster position="bottom-right" />
+								</WorkspaceExperienceProvider>
 							</div>
 						</SidebarProvider>
 					</DashboardORPCProvider>

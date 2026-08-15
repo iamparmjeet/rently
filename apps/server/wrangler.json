@@ -6,16 +6,21 @@
 		"nodejs_compat",
 		"no_handle_cross_request_promise_resolution"
 	],
+	"triggers": {
+		"crons": ["30 2 * * *", "*/30 * * * *"]
+	},
 	"vars": {
 		"NODE_ENV": "production",
 		"LOG_LEVEL": "info",
 		"COOKIE_DOMAIN": ".parmjeetmishra.com",
-		"CORS_ORIGINS": "https://keyhq.parmjeetmishra.com,https://dashboard-keyhq.parmjeetmishra.com,https://tenant-keyhq.parmjeetmishra.com",
+		"CORS_ORIGINS": "https://keyhq.parmjeetmishra.com,https://dashboard-keyhq.parmjeetmishra.com,https://tenant-keyhq.parmjeetmishra.com,https://admin-keyhq.parmjeetmishra.com",
 		"WEB_APP_URL": "https://keyhq.parmjeetmishra.com",
 		"BETTER_AUTH_URL": "https://keyhq-api.parmjeetmishra.com",
 		"EMAIL_FROM": "info@parmjeetmishra.com",
 		"R2_BUCKET_NAME": "keyhq",
 		"R2_PUBLIC_URL": "https://keyhq-media.parmjeetmishra.com",
+		"R2_PRIVATE_BUCKET_NAME": "keyhq-private-documents",
+		"AADHAAR_UPLOADS_ENABLED": "false",
 		"USE_NEON": "true"
 	},
 	"observability": {

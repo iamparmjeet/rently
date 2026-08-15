@@ -76,6 +76,11 @@ export const useLogin = () => {
 				return;
 			}
 
+			if (role === USER_ROLES.ADMIN) {
+				window.location.href = `${env.NEXT_PUBLIC_ADMIN_URL}/dashboard`;
+				return;
+			}
+
 			window.location.href = `${env.NEXT_PUBLIC_DASHBOARD_URL}/dashboard`;
 		},
 		onError: (err, _, context) => {

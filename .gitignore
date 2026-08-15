@@ -54,3 +54,5 @@ temp
 *.env.prod
 corserro.txt
 env.txt
+AGENTS.md
+docs/

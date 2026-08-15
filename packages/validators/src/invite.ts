@@ -37,11 +37,6 @@ export const CreateOwnerPreparedInviteSchema = InviteIdentitySchema.extend({
 
 const TenantCompletedProfileSchema = TenantProfileDraftSchema;
 
-const TenantSensitiveIdentitySchema = z.object({
-	uidNumber: z.string().trim().min(1).optional(),
-	panNumber: z.string().trim().min(1).optional(),
-});
-
 export const UpdateInviteSchema = createUpdateSchema(tenantInvites).pick({
 	status: true,
 });
@@ -62,7 +57,6 @@ export const AcceptInviteSchema = z
 			error: "You must acknowledge the Privacy Policy",
 		}),
 	})
-	.extend(TenantSensitiveIdentitySchema.shape)
 	.extend(TenantCompletedProfileSchema.shape);
 
 export const CreateReferrerSchema = ReferrerInsertSchema.omit({

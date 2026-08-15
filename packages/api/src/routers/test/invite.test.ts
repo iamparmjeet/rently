@@ -1,7 +1,13 @@
 import { createRouterClient } from "@orpc/server";
 import { createDb } from "@rently/db";
 import { account, user } from "@rently/db/schema/auth";
-import { tenantInvites, tenantProfiles } from "@rently/db/schema/schema";
+import {
+	leases,
+	properties,
+	tenantInvites,
+	tenantProfiles,
+	units,
+} from "@rently/db/schema/schema";
 import { eq, inArray } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -34,11 +40,15 @@ import {
 	getInviteByToken,
 	resendInvite,
 } from "../rent/invite";
-import { createTenant } from "../rent/tenant";
+import { createLease } from "../rent/lease";
+import { createTenant, listTenants } from "../rent/tenant";
 
 const db = createDb();
 const createdUserIds: string[] = [];
 const createdInviteIds: string[] = [];
+const createdLeaseIds: string[] = [];
+const createdUnitIds: string[] = [];
+const createdPropertyIds: string[] = [];
 
 async function createOwner(name: string) {
 	const id = crypto.randomUUID();
@@ -116,6 +126,8 @@ function clientFor(owner: Awaited<ReturnType<typeof createOwner>>) {
 			getInviteByToken,
 			acceptInvite,
 			createTenant,
+			listTenants,
+			createLease,
 		},
 		{
 			context: {
@@ -131,6 +143,10 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+	if (createdLeaseIds.length > 0) {
+		await db.delete(leases).where(inArray(leases.id, createdLeaseIds));
+	}
+
 	if (createdUserIds.length > 0) {
 		await db
 			.delete(tenantProfiles)
@@ -143,12 +159,25 @@ afterEach(async () => {
 			.where(inArray(tenantInvites.id, createdInviteIds));
 	}
 
+	if (createdUnitIds.length > 0) {
+		await db.delete(units).where(inArray(units.id, createdUnitIds));
+	}
+
+	if (createdPropertyIds.length > 0) {
+		await db
+			.delete(properties)
+			.where(inArray(properties.id, createdPropertyIds));
+	}
+
 	if (createdUserIds.length > 0) {
 		await db.delete(user).where(inArray(user.id, createdUserIds));
 	}
 
 	createdInviteIds.length = 0;
 	createdUserIds.length = 0;
+	createdLeaseIds.length = 0;
+	createdUnitIds.length = 0;
+	createdPropertyIds.length = 0;
 	mocks.getSession.mockReset();
 	mocks.passwordHash.mockReset();
 	mocks.sendInviteEmail.mockReset();
@@ -244,6 +273,93 @@ describe("createTenant", () => {
 			.where(eq(user.email, email));
 
 		expect(tenantUser).toBeUndefined();
+	});
+
+	it("lists a newly created invitation as an unverified pending tenant", async () => {
+		const owner = await createOwner("Owner A");
+		const email = `${crypto.randomUUID()}@test.keyhq.invalid`;
+
+		const { invite } = await clientFor(owner).createTenant({
+			name: "Prepared Tenant",
+			email,
+		});
+		createdInviteIds.push(invite.id);
+
+		const { tenants } = await clientFor(owner).listTenants();
+
+		expect(tenants).toContainEqual(
+			expect.objectContaining({
+				id: invite.id,
+				inviteId: invite.id,
+				email,
+				status: "pending",
+				emailVerified: false,
+			}),
+		);
+	});
+
+	it("allows an owner to create a lease for an unverified owner-prepared tenant", async () => {
+		const owner = await createOwner("Owner A");
+		const email = `${crypto.randomUUID()}@test.keyhq.invalid`;
+		const { invite } = await clientFor(owner).createTenant({
+			name: "Prepared Tenant",
+			email,
+			phone: "9123456789",
+		});
+		createdInviteIds.push(invite.id);
+
+		const [property] = await db
+			.insert(properties)
+			.values({
+				ownerId: owner.id,
+				name: "Test Property",
+				address: "1 Test Road",
+				type: "residential",
+			})
+			.returning();
+		if (!property) throw new Error("Failed to create property fixture");
+		createdPropertyIds.push(property.id);
+
+		const [unit] = await db
+			.insert(units)
+			.values({
+				propertyId: property.id,
+				unitNumber: "A-1",
+				type: "1BHK",
+				baseRent: 1500,
+				status: "available",
+			})
+			.returning();
+		if (!unit) throw new Error("Failed to create unit fixture");
+		createdUnitIds.push(unit.id);
+
+		const { lease } = await clientFor(owner).createLease({
+			unitId: unit.id,
+			tenantId: invite.id,
+			startDate: new Date("2026-08-07T00:00:00.000Z"),
+			endDate: new Date("2027-08-07T00:00:00.000Z"),
+			rent: 1500,
+			deposit: 100,
+		});
+		createdLeaseIds.push(lease.id);
+		createdUserIds.push(invite.id);
+
+		expect(lease.tenantId).toBe(invite.id);
+
+		const [provisionalUser] = await db
+			.select({
+				id: user.id,
+				emailVerified: user.emailVerified,
+				role: user.role,
+			})
+			.from(user)
+			.where(eq(user.id, invite.id));
+
+		expect(provisionalUser).toEqual({
+			id: invite.id,
+			emailVerified: false,
+			role: "tenant",
+		});
 	});
 });
 
@@ -350,7 +466,7 @@ describe("getInviteByToken", () => {
 });
 
 describe("acceptInvite", () => {
-	it("accepts a tenant-completed invite with consent, a verified tenant account, and tenant-owned identity data", async () => {
+	it("accepts a tenant-completed invite with consent and a verified tenant account", async () => {
 		const owner = await createOwner("Owner A");
 		const invite = await createPendingInvite(owner.id);
 
@@ -364,8 +480,6 @@ describe("acceptInvite", () => {
 			emergencyContact: "Emergency Contact",
 			emergencyContactName: "Alex Contact",
 			emergencyContactLocation: "Bengaluru",
-			uidNumber: "1234-5678-9012",
-			panNumber: "ABCDE1234F",
 		});
 
 		expect(result).toEqual({
@@ -419,8 +533,7 @@ describe("acceptInvite", () => {
 				emergencyContact: tenantProfiles.emergencyContact,
 				emergencyContactName: tenantProfiles.emergencyContactName,
 				emergencyContactLocation: tenantProfiles.emergencyContactLocation,
-				uidNumber: tenantProfiles.uidNumber,
-				panNumber: tenantProfiles.panNumber,
+				aadhaarLastFour: tenantProfiles.aadhaarLastFour,
 				invitedId: tenantProfiles.invitedId,
 				createdById: tenantProfiles.createdById,
 			})
@@ -434,8 +547,7 @@ describe("acceptInvite", () => {
 			emergencyContact: "Emergency Contact",
 			emergencyContactName: "Alex Contact",
 			emergencyContactLocation: "Bengaluru",
-			uidNumber: "1234-5678-9012",
-			panNumber: "ABCDE1234F",
+			aadhaarLastFour: null,
 			invitedId: invite.id,
 			createdById: owner.id,
 		});
@@ -458,7 +570,7 @@ describe("acceptInvite", () => {
 		expect(storedInvite?.privacyVersion).toBe("keyhq-beta-v1");
 	});
 
-	it("uses owner-prepared profile fields while keeping UID and PAN tenant-entered", async () => {
+	it("uses owner-prepared profile fields without collecting identity values", async () => {
 		const owner = await createOwner("Owner A");
 		const invite = await createOwnerPreparedInvite(owner.id);
 
@@ -467,8 +579,6 @@ describe("acceptInvite", () => {
 			password: "TenantPass1",
 			termsAccepted: true,
 			privacyAcknowledged: true,
-			uidNumber: "9999-8888-7777",
-			panNumber: "ZZZZZ9999Z",
 		});
 
 		const [tenantUser] = await db
@@ -498,8 +608,7 @@ describe("acceptInvite", () => {
 				emergencyContact: tenantProfiles.emergencyContact,
 				emergencyContactName: tenantProfiles.emergencyContactName,
 				emergencyContactLocation: tenantProfiles.emergencyContactLocation,
-				uidNumber: tenantProfiles.uidNumber,
-				panNumber: tenantProfiles.panNumber,
+				aadhaarLastFour: tenantProfiles.aadhaarLastFour,
 			})
 			.from(tenantProfiles)
 			.where(eq(tenantProfiles.userId, tenantUser.id));
@@ -510,20 +619,17 @@ describe("acceptInvite", () => {
 			emergencyContact: "Owner Emergency Contact",
 			emergencyContactName: "Morgan Contact",
 			emergencyContactLocation: "Mumbai",
-			uidNumber: "9999-8888-7777",
-			panNumber: "ZZZZZ9999Z",
+			aadhaarLastFour: null,
 		});
 	});
-	it("rolls back account creation when profile creation fails", async () => {
+	it("does not create a duplicate account during acceptance", async () => {
 		const owner = await createOwner("Owner A");
 		const existingTenant = await createOwner("Existing Tenant");
 		const invite = await createPendingInvite(owner.id);
-
-		await db.insert(tenantProfiles).values({
-			userId: existingTenant.id,
-			email: existingTenant.email,
-			panNumber: "DUPLICATE123",
-		});
+		await db
+			.update(tenantInvites)
+			.set({ email: existingTenant.email })
+			.where(eq(tenantInvites.id, invite.id));
 
 		await expect(
 			clientFor(owner).acceptInvite({
@@ -531,16 +637,15 @@ describe("acceptInvite", () => {
 				password: "TenantPass1",
 				termsAccepted: true,
 				privacyAcknowledged: true,
-				panNumber: "DUPLICATE123",
 			}),
-		).rejects.toBeDefined();
+		).rejects.toMatchObject({ code: "CONFLICT" });
 
 		const [orphanedUser] = await db
 			.select({ id: user.id })
 			.from(user)
-			.where(eq(user.email, invite.email));
+			.where(eq(user.email, existingTenant.email));
 
-		expect(orphanedUser).toBeUndefined();
+		expect(orphanedUser?.id).toBe(existingTenant.id);
 
 		const [storedInvite] = await db
 			.select({ status: tenantInvites.status })

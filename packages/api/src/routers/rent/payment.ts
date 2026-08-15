@@ -1,6 +1,8 @@
 import { ORPCError } from "@orpc/server";
+import { workspaceCapabilities } from "@rently/api/modules/sample-workspace";
 import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
+import type { Database } from "@rently/db";
 import { OWNER_ONLY_PAYMENT_METHODS_VALUE } from "@rently/db/constants/payment-constants";
 import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import type { UserRole } from "@rently/db/constants/user-roles";
@@ -13,16 +15,27 @@ import {
 	units,
 	utilities,
 } from "@rently/db/schema/schema";
-import { sendCustomEmailToTenant } from "@rently/email";
+import { sendPaymentReceiptEmail } from "@rently/email";
 import {
 	CreatePaymentSchema,
 	PaymentListItemSchema,
 	PaymentSelectSchema,
 	UpdatePaymentSchema,
 } from "@rently/validators";
-import { and, eq } from "drizzle-orm";
+import { and, desc, eq } from "drizzle-orm";
 import z from "zod";
 import { isLeaseOwner } from "../helpers";
+import { sendAutomaticPaymentReceipt } from "../helpers/automatic-emails";
+
+type BatchCapableDatabase = Database & {
+	batch<T extends readonly unknown[]>(
+		queries: T,
+	): Promise<{ [K in keyof T]: Awaited<T[K]> }>;
+};
+
+function supportsBatch(db: Database): db is BatchCapableDatabase {
+	return typeof (db as { batch?: unknown }).batch === "function";
+}
 
 // ─── Shared helper ─────
 function assertMethodAllowedForRole(
@@ -42,7 +55,7 @@ function assertMethodAllowedForRole(
 }
 // Fetches a payment + walks the JOIN chain to get ownerId for auth
 async function getOwnedPayment(
-	db: import("@rently/db").Database,
+	db: Database,
 	paymentId: string,
 	userId: string,
 ) {
@@ -102,41 +115,69 @@ export const createPayment = ownerProcedure
 			});
 		}
 
-		// Transaction: insert payment + conditionally mark utility as paid
-		// Why a transaction? If the utility update fails, we don't want a
-		// dangling payment record pointing at an unpaid utility.
 		assertMethodAllowedForRole(input.paymentMethods, "owner");
 
-		const payment = await db.transaction(async (tx) => {
-			const [newPayment] = await tx
-				.insert(payments)
-				.values({
-					leaseId: input.leaseId,
-					amount: input.amount,
-					paymentDate: input.paymentDate,
-					type: input.type ?? PAYMENT_TYPES.RENT,
-					paymentMethods: input.paymentMethods ?? null,
-					referenceNumber: input.referenceNumber ?? null,
-					description: input.description ?? null,
-					utilityId: input.utilityId ?? null,
-				})
-				.returning();
+		const createPaymentQuery = db
+			.insert(payments)
+			.values({
+				leaseId: input.leaseId,
+				amount: input.amount,
+				paymentDate: input.paymentDate,
+				type: input.type ?? PAYMENT_TYPES.RENT,
+				paymentMethods: input.paymentMethods ?? null,
+				referenceNumber: input.referenceNumber ?? null,
+				description: input.description ?? null,
+				utilityId: input.utilityId ?? null,
+			})
+			.returning();
 
-			if (!newPayment) {
-				throw new ORPCError("INTERNAL_SERVER_ERROR", {
-					message: "Failed to record payment",
-				});
-			}
+		let payment: Awaited<typeof createPaymentQuery>[number] | undefined;
+		const utilityId = input.utilityId ?? null;
 
-			// Side- effect: Mark as paid if this payment covers
-			if (newPayment.utilityId) {
+		if (!utilityId) {
+			[payment] = await createPaymentQuery;
+		} else if (supportsBatch(db)) {
+			const [createdPayments] = await db.batch([
+				createPaymentQuery,
+				db
+					.update(utilities)
+					.set({ isPaid: true })
+					.where(eq(utilities.id, utilityId)),
+			]);
+			payment = createdPayments[0];
+		} else {
+			payment = await db.transaction(async (tx) => {
+				const [newPayment] = await tx
+					.insert(payments)
+					.values({
+						leaseId: input.leaseId,
+						amount: input.amount,
+						paymentDate: input.paymentDate,
+						type: input.type ?? PAYMENT_TYPES.RENT,
+						paymentMethods: input.paymentMethods ?? null,
+						referenceNumber: input.referenceNumber ?? null,
+						description: input.description ?? null,
+						utilityId,
+					})
+					.returning();
+
 				await tx
 					.update(utilities)
 					.set({ isPaid: true })
-					.where(eq(utilities.id, newPayment.utilityId));
-			}
-			return newPayment;
-		});
+					.where(eq(utilities.id, utilityId));
+
+				return newPayment;
+			});
+		}
+
+		if (!payment) {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
+				message: "Failed to record payment",
+			});
+		}
+
+		await sendAutomaticPaymentReceipt(db, authUser.id, payment.id);
+
 		return { payment };
 	});
 
@@ -219,7 +260,12 @@ export const listPayments = ownerProcedure
 			.innerJoin(properties, eq(units.propertyId, properties.id))
 			.innerJoin(user, eq(leases.tenantId, user.id))
 			.leftJoin(tenantProfiles, eq(tenantProfiles.userId, user.id))
-			.where(eq(properties.ownerId, authUser.id));
+			.where(eq(properties.ownerId, authUser.id))
+			.orderBy(
+				desc(payments.paymentDate),
+				desc(payments.createdAt),
+				desc(payments.id),
+			);
 
 		return { payments: results };
 	});
@@ -235,87 +281,65 @@ export const voidPayment = ownerProcedure
 		// need UtilityId before deleting
 		const existing = await getOwnedPayment(db, input.id, authUser.id);
 
-		const reversal = await db.transaction(async (tx) => {
-			const [reversalRow] = await tx
-				.insert(payments)
-				.values({
-					leaseId: existing.leaseId,
-					amount: -existing.amount,
-					paymentDate: new Date(),
-					type: "reversal",
-					description: input.reason ?? `Reversal of payment ${existing.id}`,
-					referenceNumber: existing.id,
-					utilityId: null,
-				})
-				.returning();
+		const createReversalQuery = db
+			.insert(payments)
+			.values({
+				leaseId: existing.leaseId,
+				amount: -existing.amount,
+				paymentDate: new Date(),
+				type: "reversal",
+				description: input.reason ?? `Reversal of payment ${existing.id}`,
+				referenceNumber: existing.id,
+				utilityId: null,
+			})
+			.returning();
 
-			if (!reversalRow) {
-				throw new ORPCError("INTERNAL_SERVER_ERROR", {
-					message: "Failed to create reversal",
-				});
-			}
+		let reversal: Awaited<typeof createReversalQuery>[number] | undefined;
+		const utilityId = existing.utilityId;
 
-			// Reverse the utility
-			if (existing.utilityId) {
+		if (!utilityId) {
+			[reversal] = await createReversalQuery;
+		} else if (supportsBatch(db)) {
+			const [reversalRows] = await db.batch([
+				createReversalQuery,
+				db
+					.update(utilities)
+					.set({ isPaid: false })
+					.where(eq(utilities.id, utilityId)),
+			]);
+			reversal = reversalRows[0];
+		} else {
+			reversal = await db.transaction(async (tx) => {
+				const [reversalRow] = await tx
+					.insert(payments)
+					.values({
+						leaseId: existing.leaseId,
+						amount: -existing.amount,
+						paymentDate: new Date(),
+						type: "reversal",
+						description: input.reason ?? `Reversal of payment ${existing.id}`,
+						referenceNumber: existing.id,
+						utilityId: null,
+					})
+					.returning();
+
 				await tx
 					.update(utilities)
 					.set({ isPaid: false })
-					.where(eq(utilities.id, existing.utilityId));
-			}
-			return reversalRow;
-		});
+					.where(eq(utilities.id, utilityId));
+
+				return reversalRow;
+			});
+		}
+
+		if (!reversal) {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
+				message: "Failed to create reversal",
+			});
+		}
 
 		return { reversal };
 	});
-
-function fmtPaise(paise: number): string {
-	return new Intl.NumberFormat("en-IN", {
-		style: "currency",
-		currency: "INR",
-		maximumFractionDigits: 0,
-	}).format(paise / 100);
-}
-
-function buildReceiptMessage({
-	tenantName,
-	type,
-	amount,
-	paymentDate,
-	paymentMethods,
-	referenceNumber,
-}: {
-	tenantName: string;
-	type: string;
-	amount: number;
-	paymentDate: Date;
-	paymentMethods: string | null;
-	referenceNumber: string | null;
-}): string {
-	const date = new Date(paymentDate).toLocaleDateString("en-IN", {
-		day: "2-digit",
-		month: "long",
-		year: "numeric",
-	});
-	const method = paymentMethods?.replace("_", " ") ?? "—";
-	const ref = referenceNumber ?? "—";
-	const typeLabel = type.charAt(0).toUpperCase() + type.slice(1);
-
-	return [
-		`Dear ${tenantName},`,
-		"",
-		"This is a confirmation that we have received your payment.",
-		"",
-		"Payment Details:",
-		`• Type    : ${typeLabel}`,
-		`• Amount  : ${fmtPaise(amount)}`,
-		`• Date    : ${date}`,
-		`• Method  : ${method}`,
-		`• Ref #   : ${ref}`,
-		"",
-		"Thank you for your timely payment.",
-		"– KeyHQ",
-	].join("\n");
-}
 
 export const sendPaymentReceipt = ownerProcedure
 	.route({ method: "POST", path: "/rent/payment/send-receipt" })
@@ -323,6 +347,9 @@ export const sendPaymentReceipt = ownerProcedure
 	.output(z.object({ sent: z.boolean() }))
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
+		if (!workspaceCapabilities(authUser).outboundCommunication) {
+			return { sent: false };
+		}
 
 		// single query for ownership check AND data retrieval.
 		// The innerJoin on properties.ownerId already enforces authorization —
@@ -336,6 +363,8 @@ export const sendPaymentReceipt = ownerProcedure
 				referenceNumber: payments.referenceNumber,
 				tenantEmail: user.email,
 				tenantName: user.name,
+				propertyName: properties.name,
+				unitNumber: units.unitNumber,
 			})
 			.from(payments)
 			.innerJoin(leases, eq(payments.leaseId, leases.id))
@@ -356,16 +385,20 @@ export const sendPaymentReceipt = ownerProcedure
 			});
 		}
 
-		// consistent with the invite/sendEmailToTenant pattern — email
-		// failure is logged and surfaced as an error response but does not
-		//  corrupt the payment record. The payment already happened; the
-		//  receipt is a notification, not a side-effect of the transaction.
-		await sendCustomEmailToTenant({
+		// Manual delivery uses the same specialized HTML template as automatic
+		// receipts. The payment already happened; the receipt is independent of
+		// the persistence transaction.
+		await sendPaymentReceiptEmail({
 			to: result.tenantEmail,
 			tenantName: result.tenantName,
 			ownerName: authUser.name,
-			subject: `Payment Receipt — ${fmtPaise(result.amount)}`,
-			message: buildReceiptMessage(result),
+			propertyName: result.propertyName,
+			unitNumber: result.unitNumber,
+			amount: result.amount,
+			paymentDate: result.paymentDate,
+			paymentType: result.type,
+			paymentMethod: result.paymentMethods,
+			referenceNumber: result.referenceNumber,
 		});
 
 		return { sent: true };

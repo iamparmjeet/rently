@@ -3,16 +3,35 @@ import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
 import type { Database } from "@rently/db";
 import { LEASE_STATUS_VALUES } from "@rently/db/constants/rent-constants";
+import { USER_ROLES } from "@rently/db/constants/user-roles";
 import { user } from "@rently/db/schema/auth";
-import { leases, properties, units } from "@rently/db/schema/schema";
+import {
+	leases,
+	properties,
+	rentReminderSuppressions,
+	tenantInvites,
+	tenantProfiles,
+	units,
+} from "@rently/db/schema/schema";
 import {
 	CreateLeaseSchema,
 	LeaseSelectSchema,
 	LeaseWithDetailsSchema,
 	UpdateLeaseSchema,
 } from "@rently/validators";
-import { and, eq, sql } from "drizzle-orm";
+import { and, eq, isNull, sql } from "drizzle-orm";
 import z from "zod";
+import { getNextLocalPeriodKey } from "../helpers/rent-cycle";
+
+type BatchCapableDatabase = Database & {
+	batch<T extends readonly unknown[]>(
+		queries: T,
+	): Promise<{ [K in keyof T]: Awaited<T[K]> }>;
+};
+
+function supportsBatch(db: Database): db is BatchCapableDatabase {
+	return typeof (db as { batch?: unknown }).batch === "function";
+}
 
 // Ownership helpers
 // Lease -> Unit -> property -> ownerId
@@ -71,30 +90,141 @@ export const createLease = ownerProcedure
 			});
 		}
 
-		// Transaction - Both ops succeed or both fail
-		const lease = await db.transaction(async (tx) => {
-			const [newLease] = await tx
-				.insert(leases)
-				.values({
-					...input,
-					status: "active",
-				})
-				.returning();
+		const [registeredTenant] = await db
+			.select({ id: user.id })
+			.from(user)
+			.innerJoin(tenantProfiles, eq(tenantProfiles.userId, user.id))
+			.where(
+				and(
+					eq(user.id, input.tenantId),
+					eq(tenantProfiles.createdById, authUser.id),
+				),
+			)
+			.limit(1);
 
-			if (!newLease) {
-				throw new ORPCError("INTERNAL_SERVER_ERROR", {
-					message: "Failed to create lease",
-				});
+		// Owner-prepared tenants are valid lease parties before accepting the invite.
+		// Their invite ID becomes a stable provisional user ID so the existing lease
+		// foreign key remains valid and acceptance can later claim the same identity.
+		const [pendingTenant] = registeredTenant
+			? []
+			: await db
+					.select({
+						id: tenantInvites.id,
+						name: tenantInvites.name,
+						email: tenantInvites.email,
+						phone: tenantInvites.phone,
+						address: tenantInvites.address,
+						emergencyContact: tenantInvites.emergencyContact,
+						emergencyContactName: tenantInvites.emergencyContactName,
+						emergencyContactLocation: tenantInvites.emergencyContactLocation,
+					})
+					.from(tenantInvites)
+					.where(
+						and(
+							eq(tenantInvites.id, input.tenantId),
+							eq(tenantInvites.invitedById, authUser.id),
+							eq(tenantInvites.onboardingMode, "owner_prepared"),
+							eq(tenantInvites.status, "pending"),
+							isNull(tenantInvites.deletedAt),
+						),
+					)
+					.limit(1);
+
+		if (!registeredTenant && !pendingTenant) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Tenant is not available for this lease",
+			});
+		}
+
+		const createLeaseQuery = db
+			.insert(leases)
+			.values({ ...input, status: "active" })
+			.returning();
+		const occupyUnitQuery = db
+			.update(units)
+			.set({ status: "occupied", updatedAt: new Date() })
+			.where(eq(units.id, input.unitId));
+
+		// Neon HTTP does not support callback transactions. Its batch API sends both
+		// statements as one database transaction; node-postgres retains its normal
+		// callback transaction path.
+		let lease: Awaited<typeof createLeaseQuery>[number] | undefined;
+		if (supportsBatch(db)) {
+			if (pendingTenant) {
+				const [, , createdLeases] = await db.batch([
+					db.insert(user).values({
+						id: pendingTenant.id,
+						name: pendingTenant.name,
+						email: pendingTenant.email.toLowerCase(),
+						emailVerified: false,
+						role: USER_ROLES.TENANT,
+						phone: pendingTenant.phone,
+					}),
+					db.insert(tenantProfiles).values({
+						userId: pendingTenant.id,
+						email: pendingTenant.email.toLowerCase(),
+						phone: pendingTenant.phone,
+						address: pendingTenant.address,
+						emergencyContact: pendingTenant.emergencyContact,
+						emergencyContactName: pendingTenant.emergencyContactName,
+						emergencyContactLocation: pendingTenant.emergencyContactLocation,
+						invitedId: pendingTenant.id,
+						createdById: authUser.id,
+					}),
+					createLeaseQuery,
+					occupyUnitQuery,
+				]);
+				lease = createdLeases[0];
+			} else {
+				const [createdLeases] = await db.batch([
+					createLeaseQuery,
+					occupyUnitQuery,
+				]);
+				lease = createdLeases[0];
 			}
+		} else {
+			lease = await db.transaction(async (tx) => {
+				if (pendingTenant) {
+					await tx.insert(user).values({
+						id: pendingTenant.id,
+						name: pendingTenant.name,
+						email: pendingTenant.email.toLowerCase(),
+						emailVerified: false,
+						role: USER_ROLES.TENANT,
+						phone: pendingTenant.phone,
+					});
+					await tx.insert(tenantProfiles).values({
+						userId: pendingTenant.id,
+						email: pendingTenant.email.toLowerCase(),
+						phone: pendingTenant.phone,
+						address: pendingTenant.address,
+						emergencyContact: pendingTenant.emergencyContact,
+						emergencyContactName: pendingTenant.emergencyContactName,
+						emergencyContactLocation: pendingTenant.emergencyContactLocation,
+						invitedId: pendingTenant.id,
+						createdById: authUser.id,
+					});
+				}
 
-			// update unit status to occupied
-			await tx
-				.update(units)
-				.set({ status: "occupied", updatedAt: new Date() })
-				.where(eq(units.id, input.unitId));
+				const [newLease] = await tx
+					.insert(leases)
+					.values({ ...input, status: "active" })
+					.returning();
 
-			return newLease;
-		});
+				await tx
+					.update(units)
+					.set({ status: "occupied", updatedAt: new Date() })
+					.where(eq(units.id, input.unitId));
+
+				return newLease;
+			});
+		}
+
+		if (!lease) {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
+				message: "Failed to create lease",
+			});
+		}
 
 		return { lease };
 	});
@@ -122,43 +252,74 @@ export const updateLease = ownerProcedure
 			});
 		}
 
+		if (ownership.status === "active") {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"Active leases cannot be edited. Terminate the lease and create a new one to make changes.",
+			});
+		}
+
 		if (ownership.status === "terminated" || ownership.status === "expired") {
 			throw new ORPCError("BAD_REQUEST", {
 				message: "Terminated or expired leases cannot be edited.",
 			});
 		}
 
-		const lease = await db.transaction(async (tx) => {
-			const [updated] = await tx
-				.update(leases)
-				.set({ ...input.data, updatedAt: new Date() })
-				.where(eq(leases.id, input.id))
-				.returning();
+		const unitStatus =
+			input.data.status === "terminated" || input.data.status === "expired"
+				? "available"
+				: input.data.status === "active"
+					? "occupied"
+					: undefined;
+		const updateLeaseQuery = db
+			.update(leases)
+			.set({ ...input.data, updatedAt: new Date() })
+			.where(eq(leases.id, input.id))
+			.returning();
 
-			if (!updated) {
-				throw new ORPCError("NOT_FOUND", {
-					message: "Lease not found",
-				});
+		// Neon HTTP does not support callback transactions. Use its batch API so the
+		// lease and unit updates remain atomic in every database environment.
+		let lease: Awaited<typeof updateLeaseQuery>[number] | undefined;
+		if (supportsBatch(db)) {
+			if (unitStatus) {
+				const [updatedLeases] = await db.batch([
+					updateLeaseQuery,
+					db
+						.update(units)
+						.set({ status: unitStatus, updatedAt: new Date() })
+						.where(eq(units.id, ownership.unitId)),
+				]);
+				lease = updatedLeases[0];
+			} else {
+				const [updatedLeases] = await db.batch([updateLeaseQuery]);
+				lease = updatedLeases[0];
 			}
+		} else {
+			lease = await db.transaction(async (tx) => {
+				const [updated] = await tx
+					.update(leases)
+					.set({ ...input.data, updatedAt: new Date() })
+					.where(eq(leases.id, input.id))
+					.returning();
 
-			if (
-				input.data.status === "terminated" ||
-				input.data.status === "expired"
-			) {
-				await tx
-					.update(units)
-					.set({ status: "available", updatedAt: new Date() })
-					.where(eq(units.id, ownership.unitId));
-			}
+				if (!updated) return undefined;
 
-			if (input.data.status === "active") {
-				await tx
-					.update(units)
-					.set({ status: "occupied", updatedAt: new Date() })
-					.where(eq(units.id, ownership.unitId));
-			}
-			return updated;
-		});
+				if (unitStatus) {
+					await tx
+						.update(units)
+						.set({ status: unitStatus, updatedAt: new Date() })
+						.where(eq(units.id, ownership.unitId));
+				}
+
+				return updated;
+			});
+		}
+
+		if (!lease) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "Lease not found",
+			});
+		}
 
 		return { lease };
 	});
@@ -280,18 +441,129 @@ export const terminateLease = ownerProcedure
 			});
 		}
 
-		// transaction
-		await db.transaction(async (tx) => {
-			await tx
-				.update(leases)
-				.set({ status: "terminated", updatedAt: new Date() })
-				.where(eq(leases.id, input.id));
+		const terminateLeaseQuery = db
+			.update(leases)
+			.set({ status: "terminated", updatedAt: new Date() })
+			.where(eq(leases.id, input.id));
+		const releaseUnitQuery = db
+			.update(units)
+			.set({ status: "available", updatedAt: new Date() })
+			.where(eq(units.id, ownership.unitId));
 
-			// Reset Unit to available
-			await tx
-				.update(units)
-				.set({ status: "available", updatedAt: new Date() })
-				.where(eq(units.id, ownership.unitId));
-		});
+		if (supportsBatch(db)) {
+			await db.batch([terminateLeaseQuery, releaseUnitQuery]);
+		} else {
+			await db.transaction(async (tx) => {
+				await tx
+					.update(leases)
+					.set({ status: "terminated", updatedAt: new Date() })
+					.where(eq(leases.id, input.id));
+				await tx
+					.update(units)
+					.set({ status: "available", updatedAt: new Date() })
+					.where(eq(units.id, ownership.unitId));
+			});
+		}
 		return { success: true };
+	});
+
+async function assertOwnedLeaseForReminder(
+	db: Database,
+	ownerId: string,
+	leaseId: string,
+	activeOnly = true,
+) {
+	const [lease] = await db
+		.select({
+			id: leases.id,
+			status: leases.status,
+			ownerId: properties.ownerId,
+		})
+		.from(leases)
+		.innerJoin(units, eq(leases.unitId, units.id))
+		.innerJoin(properties, eq(units.propertyId, properties.id))
+		.where(eq(leases.id, leaseId))
+		.limit(1);
+
+	if (!lease) {
+		throw new ORPCError("NOT_FOUND", { message: "Lease not found" });
+	}
+	if (lease.ownerId !== ownerId) {
+		throw new ORPCError("FORBIDDEN", {
+			message: "You do not own this lease",
+		});
+	}
+	if (activeOnly && lease.status !== "active") {
+		throw new ORPCError("BAD_REQUEST", {
+			message: "Only active leases can have rent reminders",
+		});
+	}
+}
+
+export const suppressNextRentReminders = ownerProcedure
+	.route({ method: "POST", path: "/rent/lease/reminders/suppress" })
+	.input(z.object({ leaseId: z.string().min(1) }))
+	.output(z.object({ periodKey: z.string(), suppressed: z.boolean() }))
+	.handler(async ({ context, input }) => {
+		const { db, user: authUser } = context;
+		await assertOwnedLeaseForReminder(db, authUser.id, input.leaseId);
+		const periodKey = getNextLocalPeriodKey(new Date());
+
+		await db
+			.insert(rentReminderSuppressions)
+			.values({ ownerId: authUser.id, leaseId: input.leaseId, periodKey })
+			.onConflictDoNothing({
+				target: [
+					rentReminderSuppressions.ownerId,
+					rentReminderSuppressions.leaseId,
+					rentReminderSuppressions.periodKey,
+				],
+			});
+
+		return { periodKey, suppressed: true };
+	});
+
+export const getNextRentReminderSuppression = ownerProcedure
+	.route({ method: "GET", path: "/rent/lease/reminders/suppress" })
+	.input(z.object({ leaseId: z.string().min(1) }))
+	.output(z.object({ periodKey: z.string(), suppressed: z.boolean() }))
+	.handler(async ({ context, input }) => {
+		const { db, user: authUser } = context;
+		await assertOwnedLeaseForReminder(db, authUser.id, input.leaseId, false);
+		const periodKey = getNextLocalPeriodKey(new Date());
+		const [suppression] = await db
+			.select({ id: rentReminderSuppressions.id })
+			.from(rentReminderSuppressions)
+			.where(
+				and(
+					eq(rentReminderSuppressions.ownerId, authUser.id),
+					eq(rentReminderSuppressions.leaseId, input.leaseId),
+					eq(rentReminderSuppressions.periodKey, periodKey),
+				),
+			)
+			.limit(1);
+
+		return { periodKey, suppressed: Boolean(suppression) };
+	});
+
+export const resumeNextRentReminders = ownerProcedure
+	.route({ method: "DELETE", path: "/rent/lease/reminders/suppress" })
+	.input(z.object({ leaseId: z.string().min(1) }))
+	.output(z.object({ periodKey: z.string(), suppressed: z.boolean() }))
+	.handler(async ({ context, input }) => {
+		const { db, user: authUser } = context;
+		await assertOwnedLeaseForReminder(db, authUser.id, input.leaseId);
+		const periodKey = getNextLocalPeriodKey(new Date());
+
+		await db
+			.delete(rentReminderSuppressions)
+			.where(
+				and(
+					eq(rentReminderSuppressions.ownerId, authUser.id),
+					eq(rentReminderSuppressions.leaseId, input.leaseId),
+					eq(rentReminderSuppressions.periodKey, periodKey),
+				),
+			);
+
+		return { periodKey, suppressed: false };
 	});

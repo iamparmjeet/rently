@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { isNonLiveWorkspace } from "@rently/api/modules/sample-workspace";
 import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
 import { auth } from "@rently/auth";
@@ -18,11 +19,13 @@ import {
 	InvitePublicSchema,
 	RemoveTenantSchema,
 	TenantDetailSchema,
+	type TenantLeaseSummary,
 	TenantListItemSchema,
 	UpdateTenantProfileSchema,
 } from "@rently/validators";
 import { and, desc, eq, inArray } from "drizzle-orm";
 import z from "zod";
+import { queryOverdueLeases } from "../helpers/overdue-query";
 import { createPendingTenantInvite } from "./invite-service";
 
 // List tenants for this owner
@@ -40,8 +43,11 @@ export const listTenants = ownerProcedure
 				tenantId: user.id,
 				name: user.name,
 				email: user.email,
+				emailVerified: user.emailVerified,
 				phone: user.phone,
 				avatarUrl: user.image,
+				inviteId: tenantProfiles.invitedId,
+				inviteStatus: tenantInvites.status,
 				leaseId: leases.id, // nullable — no lease = null
 				propertyName: properties.name, // nullable — no lease = null
 				unitNumber: units.unitNumber, // nullable — no lease = null
@@ -53,6 +59,7 @@ export const listTenants = ownerProcedure
 			})
 			.from(tenantProfiles)
 			.innerJoin(user, eq(tenantProfiles.userId, user.id))
+			.leftJoin(tenantInvites, eq(tenantProfiles.invitedId, tenantInvites.id))
 			// LEFT JOIN: keep the tenant row even if no matching lease exists
 			.leftJoin(
 				leases,
@@ -68,33 +75,100 @@ export const listTenants = ownerProcedure
 		const tenantMap = new Map<string, z.infer<typeof TenantListItemSchema>>();
 
 		for (const row of results) {
+			const lease: TenantLeaseSummary | null = row.leaseId
+				? {
+						id: row.leaseId,
+						propertyName: row.propertyName ?? "",
+						unitNumber: row.unitNumber ?? "",
+						rent: row.rent ?? 0,
+						endDate: row.endDate ? row.endDate.toISOString() : null,
+						overdue: null,
+					}
+				: null;
+
 			if (!tenantMap.has(row.tenantId)) {
 				tenantMap.set(row.tenantId, {
 					id: row.tenantId,
+					inviteId: row.inviteStatus === "pending" ? row.inviteId : null,
 					name: row.name,
 					email: row.email,
+					emailVerified: row.emailVerified,
 					phone: row.phone,
 					avatarUrl: row.avatarUrl,
 					createdAt: row.createdAt,
 					updatedAt: row.updatedAt,
-					status:
-						row.leaseStatus === "active"
-							? ("accepted" as const)
-							: ("pending" as const),
-					currentLease: row.leaseId
-						? {
-								id: row.leaseId,
-								propertyName: row.propertyName ?? "",
-								unitNumber: row.unitNumber ?? "",
-								rent: row.rent ?? 0,
-								endDate: row.endDate ? row.endDate.toISOString() : null,
-							}
-						: null,
+					status: row.inviteStatus ?? ("accepted" as const),
+					activeLeases: lease ? [lease] : [],
+					currentLease: lease,
 				});
+			} else if (lease) {
+				tenantMap.get(row.tenantId)?.activeLeases.push(lease);
 			}
 		}
 
-		const tenants = Array.from(tenantMap.values());
+		// A tenant has no user/profile until they accept the invitation. Include
+		// those owner-created records here too, otherwise a newly added tenant
+		// disappears from the dashboard until they finish onboarding.
+		const pendingInvites = await db
+			.select({
+				id: tenantInvites.id,
+				name: tenantInvites.name,
+				email: tenantInvites.email,
+				phone: tenantInvites.phone,
+				status: tenantInvites.status,
+				createdAt: tenantInvites.createdAt,
+				updatedAt: tenantInvites.updatedAt,
+			})
+			.from(tenantInvites)
+			.where(eq(tenantInvites.invitedById, authUser.id))
+			.orderBy(desc(tenantInvites.createdAt));
+
+		for (const invite of pendingInvites) {
+			if (invite.status === "accepted" || tenantMap.has(invite.id)) continue;
+
+			tenantMap.set(invite.id, {
+				id: invite.id,
+				inviteId: invite.id,
+				name: invite.name,
+				email: invite.email,
+				emailVerified: false,
+				phone: invite.phone,
+				avatarUrl: null,
+				status: invite.status,
+				createdAt: invite.createdAt,
+				updatedAt: invite.updatedAt,
+				activeLeases: [],
+				currentLease: null,
+			});
+		}
+
+		const overdueLeases = await queryOverdueLeases(db, new Date(), authUser.id);
+		const overdueByLeaseId = new Map(
+			overdueLeases.map((lease) => [lease.leaseId, lease]),
+		);
+
+		const tenants = Array.from(tenantMap.values()).map((tenant) => {
+			const activeLeases = tenant.activeLeases.map((lease) => {
+				const overdue = overdueByLeaseId.get(lease.id);
+				return {
+					...lease,
+					overdue: overdue
+						? {
+								paidAmount: overdue.paidAmount,
+								outstandingAmount: overdue.outstandingAmount,
+								dueDate: overdue.dueDate,
+								daysOverdue: overdue.daysOverdue,
+							}
+						: null,
+				};
+			});
+
+			return {
+				...tenant,
+				activeLeases,
+				currentLease: activeLeases[0] ?? null,
+			};
+		});
 
 		return { tenants };
 	});
@@ -107,12 +181,13 @@ export const getTenantById = ownerProcedure
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
-		const [result] = await db
+		const results = await db
 			.select({
 				// User identity
 				tenantId: user.id,
 				name: user.name,
 				email: user.email,
+				emailVerified: user.emailVerified,
 				userPhone: user.phone,
 				avatarUrl: user.image,
 				// TenantProfile fields (all nullable if no profile row — shouldn't
@@ -121,9 +196,8 @@ export const getTenantById = ownerProcedure
 				emergencyContact: tenantProfiles.emergencyContact,
 				emergencyContactName: tenantProfiles.emergencyContactName,
 				emergencyContactLocation: tenantProfiles.emergencyContactLocation,
-				uidNumber: tenantProfiles.uidNumber,
+				aadhaarLastFour: tenantProfiles.aadhaarLastFour,
 				panNumber: tenantProfiles.panNumber,
-				verificationStatus: tenantProfiles.verificationStatus,
 				// Lease fields — all nullable when no active lease exists
 				leaseId: leases.id,
 				propertyName: properties.name,
@@ -151,7 +225,9 @@ export const getTenantById = ownerProcedure
 				// 2. This owner created this tenant (authorization)
 				and(eq(user.id, input.id), eq(tenantProfiles.createdById, authUser.id)),
 			)
-			.limit(1);
+			.orderBy(desc(leases.startDate));
+
+		const [result] = results;
 
 		// Zero rows means either: tenant doesn't exist, OR belongs to another owner.
 		// NOT_FOUND for both — don't reveal which, prevents enumeration.
@@ -161,43 +237,43 @@ export const getTenantById = ownerProcedure
 			});
 		}
 
-		// Build profile — null if verificationStatus is null (no profile row)
-		// In practice this won't happen once a tenant invitation is accepted,
-		// but LEFT JOIN means TypeScript sees it as nullable, and we handle it safely.
-		const profile =
-			result.verificationStatus !== null
-				? {
-						address: result.profileAddress,
-						emergencyContact: result.emergencyContact,
-						emergencyContactName: result.emergencyContactName,
-						emergencyContactLocation: result.emergencyContactLocation,
-						uidNumber: result.uidNumber,
-						panNumber: result.panNumber,
-						verificationStatus: result.verificationStatus,
-					}
-				: null;
+		const profile = {
+			address: result.profileAddress,
+			emergencyContact: result.emergencyContact,
+			emergencyContactName: result.emergencyContactName,
+			emergencyContactLocation: result.emergencyContactLocation,
+			aadhaarLastFour: result.aadhaarLastFour,
+			panNumber: result.panNumber
+				? `${result.panNumber.slice(0, 2)}••••${result.panNumber.slice(-2)}`
+				: null,
+		};
+
+		const activeLeases: TenantLeaseSummary[] = results
+			.filter((row) => row.leaseId !== null)
+			.map((row) => ({
+				id: row.leaseId as string,
+				propertyName: row.propertyName ?? "",
+				unitNumber: row.unitNumber ?? "",
+				rent: row.rent ?? 0,
+				endDate: row.endDate ? row.endDate.toISOString() : null,
+				overdue: null,
+			}));
 
 		return {
 			tenant: {
 				id: result.tenantId,
+				inviteId: null,
 				name: result.name,
 				email: result.email,
+				emailVerified: result.emailVerified,
 				phone: result.userPhone,
 				avatarUrl: result.avatarUrl,
 				status: "accepted" as const,
 				profile,
 				createdAt: result.createdAt,
 				updatedAt: result.updatedAt,
-				// currentLease is null when no active lease row joined
-				currentLease: result.leaseId
-					? {
-							id: result.leaseId,
-							propertyName: result.propertyName ?? "",
-							unitNumber: result.unitNumber ?? "",
-							rent: result.rent ?? 0,
-							endDate: result.endDate ? result.endDate.toISOString() : null,
-						}
-					: null,
+				activeLeases,
+				currentLease: activeLeases[0] ?? null,
 			},
 		};
 	});
@@ -213,7 +289,7 @@ export const createTenant = ownerProcedure
 	.output(
 		z.object({
 			invite: InvitePublicSchema,
-			deliveryStatus: z.enum(["sent", "failed"]),
+			deliveryStatus: z.enum(["sent", "failed", "suppressed"]),
 		}),
 	)
 	.handler(async ({ context, input }) => {
@@ -226,6 +302,7 @@ export const createTenant = ownerProcedure
 				...input,
 				onboardingMode: "owner_prepared",
 			},
+			suppressDelivery: isNonLiveWorkspace(authUser),
 		});
 	});
 

@@ -15,13 +15,12 @@ interface DueEntry {
 	tenantName: string;
 	unitNumber: string;
 	propertyName: string;
-	amount: number; // paise — pass through formatRupees()
+	amount: number;
 	dueDate: Date;
-	daysUntil: number; // negative = overdue
+	daysUntil: number;
 	urgency: DueUrgency;
 }
 
-//  Helpers
 function getNextDueDate(
 	startDate: Date | string,
 	rentDueDate: number | null,
@@ -37,7 +36,6 @@ function getNextDueDate(
 		: new Date(today.getFullYear(), today.getMonth() + 1, dueDay);
 }
 
-// Calendar days b/w today and target- negative means past
 function getDaysUntil(date: Date): number {
 	const today = new Date();
 	today.setHours(0, 0, 0, 0);
@@ -53,21 +51,25 @@ function classifyUrgency(days: number): DueUrgency {
 
 function isRentPaidThisMonth(
 	leaseId: string,
+	rent: number,
 	payments: PaymentListItem[],
 ): boolean {
 	const now = new Date();
 	const thisMonth = now.getMonth();
 	const thisYear = now.getFullYear();
 
-	return payments.some((p) => {
-		if (p.leaseId !== leaseId) return false;
-
-		if (p.type !== PAYMENT_TYPES.RENT) return false;
-		if (p.amount <= 0) return false;
+	const paidThisMonth = payments.reduce((total, p) => {
+		if (p.leaseId !== leaseId || p.type !== PAYMENT_TYPES.RENT) return total;
 
 		const pd = new Date(p.paymentDate);
-		return pd.getMonth() === thisMonth && pd.getFullYear() === thisYear;
-	});
+		if (pd.getMonth() !== thisMonth || pd.getFullYear() !== thisYear) {
+			return total;
+		}
+
+		return total + Math.max(p.amount, 0);
+	}, 0);
+
+	return paidThisMonth >= rent;
 }
 
 const URGENCY_CONFIG: Record<
@@ -100,8 +102,6 @@ const URGENCY_CONFIG: Record<
 	},
 };
 
-// Main component
-
 export function UpcomingDues({ className = "" }) {
 	const { data: leasesData, isLoading: leasesLoading } = useLeases("active");
 	const { data: paymentsData, isLoading: paymentsLoading } = usePayments();
@@ -112,76 +112,74 @@ export function UpcomingDues({ className = "" }) {
 
 	const dueEntries = useMemo((): DueEntry[] => {
 		if (isLoading) return [];
-		return (
-			activeLeases
-				// Filter out leases where rent is already paid this month
-				.filter((l) => !isRentPaidThisMonth(l.leaseId, allPayments))
-				.map((l): DueEntry => {
-					const dueDate = getNextDueDate(l.startDate, l.rentDueDate);
-					const daysUntil = getDaysUntil(dueDate);
-					return {
-						leaseId: l.leaseId,
-
-						tenantName: l.tenantName ?? "Unknown Tenant",
-						unitNumber: l.unitNumber,
-						propertyName: l.propertyName,
-						amount: l.rent, // paise
-						dueDate,
-						daysUntil,
-						urgency: classifyUrgency(daysUntil),
-					};
-				})
-
-				.sort((a, b) => a.daysUntil - b.daysUntil)
-
-				.slice(0, 6)
-		);
+		return activeLeases
+			.filter((l) => !isRentPaidThisMonth(l.leaseId, l.rent, allPayments))
+			.map((l): DueEntry => {
+				const dueDate = getNextDueDate(l.startDate, l.rentDueDate);
+				const daysUntil = getDaysUntil(dueDate);
+				return {
+					leaseId: l.leaseId,
+					tenantName: l.tenantName ?? "Unknown Tenant",
+					unitNumber: l.unitNumber,
+					propertyName: l.propertyName,
+					amount: l.rent,
+					dueDate,
+					daysUntil,
+					urgency: classifyUrgency(daysUntil),
+				};
+			})
+			.sort((a, b) => a.daysUntil - b.daysUntil)
+			.slice(0, 6);
 	}, [activeLeases, allPayments, isLoading]);
 
 	const overdueCount = dueEntries.filter((e) => e.urgency === "overdue").length;
 
 	return (
 		<div
-			className={`rounded-2xl border border-border/40 bg-card p-6 shadow-sm ${className}`}
+			className={`overflow-hidden rounded-xl border bg-card shadow-sm ${className}`}
 		>
-			{/* Header */}
-			<div className="flex items-center justify-between">
-				<div>
-					<h3 className="font-semibold text-sm">Upcoming Dues</h3>
-					{/* Overdue badge — only shown when there's something to act on */}
-					{overdueCount > 0 && !isLoading && (
-						<p className="mt-0.5 text-destructive text-xs">
-							{overdueCount} overdue
+			<div className="border-b bg-gradient-to-br from-primary/[0.10] via-primary/[0.025] to-transparent px-5 pt-5 pb-4">
+				<div className="flex items-center justify-between">
+					<div>
+						<p className="font-medium text-[10px] text-muted-foreground uppercase tracking-[0.14em]">
+							Rent cycle
 						</p>
+						<h3 className="mt-0.5 font-semibold text-sm">Upcoming dues</h3>
+						{overdueCount > 0 && !isLoading && (
+							<p className="mt-1 text-destructive text-xs">
+								{overdueCount} overdue
+							</p>
+						)}
+					</div>
+					{!isLoading && dueEntries.length > 0 && (
+						<Link
+							href="/payments"
+							className="flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
+						>
+							View all
+							<IconArrowRight className="size-3" />
+						</Link>
 					)}
 				</div>
-				{!isLoading && dueEntries.length > 0 && (
-					<Link
-						href="/payments"
-						className="flex items-center gap-1 text-muted-foreground text-xs transition-colors hover:text-foreground"
-					>
-						View all
-						<IconArrowRight className="size-3" />
-					</Link>
-				)}
 			</div>
 
-			{isLoading ? (
-				<Loading />
-			) : dueEntries.length === 0 ? (
-				<EmptyState />
-			) : (
-				<div className="mt-2 flex flex-col divide-y divide-border/40">
-					{dueEntries.map((entry) => (
-						<DueRow key={entry.leaseId} entry={entry} />
-					))}
-				</div>
-			)}
+			<div className="px-5">
+				{isLoading ? (
+					<Loading />
+				) : dueEntries.length === 0 ? (
+					<EmptyState />
+				) : (
+					<div className="flex flex-col divide-y">
+						{dueEntries.map((entry) => (
+							<DueRow key={entry.leaseId} entry={entry} />
+						))}
+					</div>
+				)}
+			</div>
 		</div>
 	);
 }
 
-//  Sub components
 function DueRow({ entry }: { entry: DueEntry }) {
 	const config = URGENCY_CONFIG[entry.urgency];
 
@@ -194,14 +192,10 @@ function DueRow({ entry }: { entry: DueEntry }) {
 
 	return (
 		<div className="flex items-center gap-3 py-3">
-			{/* Avatar — tenant initials. No image needed; */}
-			<div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-primary/10">
-				<span className="font-semibold text-[11px] text-primary">
-					{initials || "?"}
-				</span>
+			<div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+				<span className="font-semibold text-[11px]">{initials || "?"}</span>
 			</div>
 
-			{/* Name + unit context */}
 			<div className="min-w-0 flex-1">
 				<p className="truncate font-medium text-sm leading-none">
 					{entry.tenantName}
@@ -211,7 +205,6 @@ function DueRow({ entry }: { entry: DueEntry }) {
 				</p>
 			</div>
 
-			{/* Amount + urgency label */}
 			<div className="flex shrink-0 flex-col items-end gap-1">
 				<span className="font-semibold text-sm tabular-nums">
 					{formatRupees(entry.amount)}
@@ -229,11 +222,11 @@ function DueRow({ entry }: { entry: DueEntry }) {
 
 function Loading() {
 	return (
-		<div className="mt-4 flex flex-col divide-y divide-border/40">
+		<div className="flex flex-col divide-y">
 			{Array.from({ length: 4 }).map((_, i) => (
 				<div key={i} className="flex items-center gap-4 py-3.5">
 					<Skeleton
-						className="size-9 rounded-full"
+						className="size-9 rounded-xl"
 						style={{ animationDelay: `${i * 120}ms` }}
 					/>
 					<div className="flex-1 space-y-2">
@@ -258,7 +251,7 @@ function Loading() {
 
 function EmptyState() {
 	return (
-		<div className="mt-6 flex flex-col items-center justify-center py-8 text-center">
+		<div className="flex flex-col items-center justify-center py-10 text-center">
 			<p className="font-medium text-muted-foreground text-sm">
 				All caught up!
 			</p>

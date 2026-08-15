@@ -16,6 +16,8 @@ export const authClient = createAuthClient({
 					defaultValues: "owner",
 					required: false,
 				},
+				accountMode: { type: "string", required: false },
+				workspaceMode: { type: "string", required: false },
 			},
 		}),
 	],

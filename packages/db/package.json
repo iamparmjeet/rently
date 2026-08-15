@@ -12,6 +12,7 @@
 	"scripts": {
 		"db:push": "drizzle-kit push",
 		"db:generate": "drizzle-kit generate",
+		"db:migrate:test": "DRIZZLE_ENV=test drizzle-kit migrate",
 		"db:studio": "drizzle-kit studio",
 		"db:migrate": "drizzle-kit migrate",
 		"db:seed": "bun run --env-file=../../apps/server/.env src/seed/plans.ts",

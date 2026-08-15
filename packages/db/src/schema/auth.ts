@@ -1,6 +1,13 @@
 import { USER_ROLE_VALUES, USER_ROLES } from "@rently/db/constants/user-roles";
+import {
+	ACCOUNT_MODE_VALUES,
+	ACCOUNT_MODES,
+	WORKSPACE_MODE_VALUES,
+	WORKSPACE_MODES,
+} from "@rently/db/constants/workspace-modes";
 import { relations, sql } from "drizzle-orm";
 import {
+	type AnyPgColumn,
 	boolean,
 	index,
 	pgTable,
@@ -9,22 +16,43 @@ import {
 	uuid,
 } from "drizzle-orm/pg-core";
 
-export const user = pgTable("user", {
-	id: uuid("id").default(sql`pg_catalog.gen_random_uuid()`).primaryKey(),
-	name: text("name").notNull(),
-	email: text("email").notNull().unique(),
-	emailVerified: boolean("email_verified").default(false).notNull(),
-	image: text("image"),
-	role: text("role", { enum: USER_ROLE_VALUES })
-		.default(USER_ROLES.OWNER)
-		.notNull(),
-	phone: text("phone"),
-	createdAt: timestamp("created_at").defaultNow().notNull(),
-	updatedAt: timestamp("updated_at")
-		.defaultNow()
-		.$onUpdate(() => /* @__PURE__ */ new Date())
-		.notNull(),
-});
+export const user = pgTable(
+	"user",
+	{
+		id: uuid("id").default(sql`pg_catalog.gen_random_uuid()`).primaryKey(),
+		name: text("name").notNull(),
+		email: text("email").notNull().unique(),
+		emailVerified: boolean("email_verified").default(false).notNull(),
+		image: text("image"),
+		role: text("role", { enum: USER_ROLE_VALUES })
+			.default(USER_ROLES.OWNER)
+			.notNull(),
+		phone: text("phone"),
+		accountMode: text("account_mode", { enum: ACCOUNT_MODE_VALUES })
+			.default(ACCOUNT_MODES.STANDARD)
+			.notNull(),
+		workspaceMode: text("workspace_mode", { enum: WORKSPACE_MODE_VALUES })
+			.default(WORKSPACE_MODES.LIVE)
+			.notNull(),
+		sampleWorkspaceUsedAt: timestamp("sample_workspace_used_at"),
+		sampleOwnerId: uuid("sample_owner_id").references(
+			(): AnyPgColumn => user.id,
+			{
+				onDelete: "cascade",
+			},
+		),
+		createdAt: timestamp("created_at").defaultNow().notNull(),
+		updatedAt: timestamp("updated_at")
+			.defaultNow()
+			.$onUpdate(() => /* @__PURE__ */ new Date())
+			.notNull(),
+	},
+	(table) => [
+		index("user_account_mode_idx").on(table.accountMode),
+		index("user_workspace_mode_idx").on(table.workspaceMode),
+		index("user_sample_owner_id_idx").on(table.sampleOwnerId),
+	],
+);
 
 export const session = pgTable(
 	"session",

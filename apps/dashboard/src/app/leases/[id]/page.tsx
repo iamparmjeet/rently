@@ -7,13 +7,22 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
+import {
+	formatRupees,
+	paiseToFormValue,
+	toPaise,
+} from "@rently/ui/lib/currency";
 import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
-import { DetailHeader } from "@rently/ui/shared/detail-header";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
 import { NotFoundState } from "@rently/ui/shared/not-found-state";
 // import { PageLoader } from "@rently/ui/shared/page-loader";
-import { IconPencil, IconTrash } from "@tabler/icons-react";
-
+import {
+	IconChevronLeft,
+	IconPencil,
+	IconTrash,
+	IconUser,
+} from "@tabler/icons-react";
+import Link from "next/link";
 import { use, useMemo } from "react";
 import { LeaseDetails } from "@/components/features/leases/lease-details";
 import LeaseStatusBadge from "@/components/features/leases/lease-status-badge";
@@ -21,6 +30,9 @@ import { LeaseForm, type LeaseFormValues } from "@/components/forms/lease-form";
 import { Container } from "@/components/shared/container";
 import {
 	useOptimisticUpdateLease,
+	useRentReminderSuppression,
+	useResumeNextRentReminders,
+	useSuppressNextRentReminders,
 	useSuspenseLease,
 	useTerminateLease,
 } from "@/hooks/leases";
@@ -48,6 +60,9 @@ export default function LeaseDetailPage({
 	// Mutaions
 	const updateLease = useOptimisticUpdateLease();
 	const terminateLease = useTerminateLease();
+	const reminderSuppression = useRentReminderSuppression(id);
+	const suppressReminders = useSuppressNextRentReminders();
+	const resumeReminders = useResumeNextRentReminders();
 
 	const allUnits = useMemo(
 		() =>
@@ -89,6 +104,10 @@ export default function LeaseDetailPage({
 
 	const { lease } = data;
 	const isTerminated = lease.status === "terminated";
+	const isEditable =
+		lease.status !== "active" &&
+		lease.status !== "terminated" &&
+		lease.status !== "expired";
 
 	// Handlers
 	function handleEdit(values: LeaseFormValues) {
@@ -98,8 +117,8 @@ export default function LeaseDetailPage({
 				data: {
 					startDate: new Date(values.startDate),
 					endDate: values.endDate ? new Date(values.endDate) : undefined,
-					rent: values.rent,
-					deposit: values.deposit,
+					rent: toPaise(values.rent),
+					deposit: values.deposit == null ? undefined : toPaise(values.deposit),
 				},
 			},
 			{ onSuccess: editDialog.closeDialog },
@@ -113,30 +132,96 @@ export default function LeaseDetailPage({
 		<Container>
 			<div className="col-span-12 space-y-6">
 				{/*Header*/}
-				<DetailHeader
-					backHref="/leases"
-					title="Lease Details"
-					subtitle={`ID: ${id}`}
-				>
+				<div className="flex items-center justify-between gap-4">
 					<Button
-						variant="outline"
-						disabled={isTerminated}
-						onClick={editDialog.openDialog}
+						variant="ghost"
+						nativeButton={false}
+						className="-ml-2 text-muted-foreground"
+						render={<Link href="/leases" />}
 					>
-						<IconPencil className="mr-2 size-4" />
-						Edit
+						<IconChevronLeft className="size-4" />
+						Leases
 					</Button>
-					<Button
-						variant="destructive"
-						onClick={terminateDialog.openDialog}
-						disabled={terminateLease.isPending || isTerminated}
-					>
-						<IconTrash className="mr-2 size-4" />
-						Terminate
-					</Button>
-				</DetailHeader>
+					<div className="flex items-center gap-2">
+						{isEditable && (
+							<Button variant="outline" onClick={editDialog.openDialog}>
+								<IconPencil className="mr-2 size-4" />
+								Edit
+							</Button>
+						)}
+						<Button
+							variant="destructive"
+							onClick={terminateDialog.openDialog}
+							disabled={terminateLease.isPending || isTerminated}
+						>
+							<IconTrash className="mr-2 size-4" />
+							Terminate
+						</Button>
+					</div>
+				</div>
+				<section className="overflow-hidden rounded-xl border bg-gradient-to-br from-primary/[0.10] via-card to-card p-5 shadow-sm sm:p-7">
+					<div className="flex flex-wrap items-center justify-between gap-4">
+						<div className="flex items-center gap-3">
+							<div className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
+								<IconUser className="size-5" />
+							</div>
+							<div>
+								<p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.14em]">
+									Lease agreement
+								</p>
+								<h1 className="mt-1 font-semibold text-2xl tracking-tight">
+									Lease details
+								</h1>
+								<p className="mt-1 text-muted-foreground text-sm">
+									Agreement ID: {id.slice(0, 8)}
+								</p>
+							</div>
+						</div>
+						<div className="rounded-lg border border-primary/15 bg-background/70 px-4 py-3">
+							<p className="font-semibold text-xl">
+								{formatRupees(lease.rent)}
+								<span className="ml-1 font-normal text-muted-foreground text-xs">
+									/mo
+								</span>
+							</p>
+							<div className="mt-2">
+								<LeaseStatusBadge status={lease.status} />
+							</div>
+						</div>
+					</div>
+				</section>
 				{/*Main Details*/}
 				<LeaseDetails lease={lease} />
+
+				<Card>
+					<CardHeader>
+						<CardTitle className="text-base">Rent reminders</CardTitle>
+					</CardHeader>
+					<CardContent className="flex flex-wrap items-center justify-between gap-3">
+						<p className="text-muted-foreground text-sm">
+							{reminderSuppression.data?.suppressed
+								? `Rent reminders are skipped for ${reminderSuppression.data.periodKey}.`
+								: "Give your tenant a little breathing room next month when needed."}
+						</p>
+						{reminderSuppression.data?.suppressed ? (
+							<Button
+								variant="outline"
+								disabled={resumeReminders.isPending}
+								onClick={() => resumeReminders.mutate({ leaseId: id })}
+							>
+								Resume reminders
+							</Button>
+						) : (
+							<Button
+								variant="outline"
+								disabled={suppressReminders.isPending || isTerminated}
+								onClick={() => suppressReminders.mutate({ leaseId: id })}
+							>
+								Skip next month’s reminders
+							</Button>
+						)}
+					</CardContent>
+				</Card>
 
 				<Card>
 					<CardHeader>
@@ -149,15 +234,13 @@ export default function LeaseDetailPage({
 						<div>
 							<p className="text-muted-foreground text-xs">Monthly Rent</p>
 							<p className="font-semibold text-2xl">
-								₹{lease.rent.toLocaleString("en-IN")}
+								{formatRupees(lease.rent)}
 							</p>
 						</div>
 						<div>
 							<p className="text-muted-foreground text-xs">Deposit</p>
 							<p className="font-semibold text-2xl">
-								{lease.deposit
-									? `₹${lease.deposit.toLocaleString("en-IN")}`
-									: "—"}
+								{lease.deposit ? formatRupees(lease.deposit) : "—"}
 							</p>
 						</div>
 						<div>
@@ -197,35 +280,42 @@ export default function LeaseDetailPage({
 						Utility readings — coming soon
 					</CardContent>
 				</Card>
-				<FormDialog
-					open={editDialog.open}
-					onOpenChange={editDialog.onOpenChange}
-					title="Edit Lease"
-					description="Update dates, rent, and deposit. Unit and tenant cannot be changed."
-					formId="edit-lease-form"
-					isSubmitting={updateLease.isPending}
-					submitLabel="Save Changes"
-				>
-					<LeaseForm
-						key={editDialog.open ? "open" : "closed"}
+				{isEditable && (
+					<FormDialog
+						open={editDialog.open}
+						onOpenChange={editDialog.onOpenChange}
+						title="Edit Lease"
+						description="Update dates, rent, and deposit. Unit and tenant cannot be changed."
 						formId="edit-lease-form"
-						units={allUnits}
-						tenants={tenants}
-						properties={properties}
-						defaultValues={{
-							unitId: lease.unitId,
-							tenantId: lease.tenantId,
-							startDate: new Date(lease.startDate).toISOString().split("T")[0],
-							endDate: lease.endDate
-								? new Date(lease.endDate).toISOString().split("T")[0]
-								: undefined,
-							rent: lease.rent,
-							deposit: lease.deposit ?? undefined,
-						}}
-						onSubmit={handleEdit}
 						isSubmitting={updateLease.isPending}
-					/>
-				</FormDialog>
+						submitLabel="Save Changes"
+					>
+						<LeaseForm
+							key={editDialog.open ? "open" : "closed"}
+							formId="edit-lease-form"
+							units={allUnits}
+							tenants={tenants}
+							properties={properties}
+							defaultValues={{
+								unitId: lease.unitId,
+								tenantId: lease.tenantId,
+								startDate: new Date(lease.startDate)
+									.toISOString()
+									.split("T")[0],
+								endDate: lease.endDate
+									? new Date(lease.endDate).toISOString().split("T")[0]
+									: undefined,
+								rent: paiseToFormValue(lease.rent),
+								deposit:
+									lease.deposit == null
+										? undefined
+										: paiseToFormValue(lease.deposit),
+							}}
+							onSubmit={handleEdit}
+							isSubmitting={updateLease.isPending}
+						/>
+					</FormDialog>
+				)}
 
 				{/* ── Terminate Dialog ─────────────────────────────────── */}
 				<ConfirmDialog

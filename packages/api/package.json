@@ -25,6 +25,18 @@
 		"./utils": {
 			"types": "./src/utils/index.ts",
 			"default": "./src/utils/index.ts"
+		},
+		"./scheduled-reminders": {
+			"types": "./src/scheduled-reminders.ts",
+			"default": "./src/scheduled-reminders.ts"
+		},
+		"./modules/tenant-documents/*": {
+			"types": "./src/modules/tenant-documents/*.ts",
+			"default": "./src/modules/tenant-documents/*.ts"
+		},
+		"./modules/sample-workspace": {
+			"types": "./src/modules/sample-workspace/index.ts",
+			"default": "./src/modules/sample-workspace/index.ts"
 		}
 	},
 	"scripts": {},

@@ -1,9 +1,11 @@
 import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import { user } from "@rently/db/schema/auth";
 import { leases, payments, properties, units } from "@rently/db/schema/schema";
-import { and, count, desc, eq, gte, ne, sql, sum } from "drizzle-orm";
+import { OverdueLeasesResponseSchema } from "@rently/validators";
+import { and, count, desc, eq, gte, isNull, ne, sql, sum } from "drizzle-orm";
 import z from "zod";
 import { ownerProcedure } from "../../procedures";
+import { queryOverdueLeases } from "../helpers/overdue-query";
 
 const DashboardStatsSchema = z.object({
 	totalProperties: z.number().int(),
@@ -28,7 +30,9 @@ export const getDashboardStats = ownerProcedure
 				db
 					.select({ count: count() })
 					.from(properties)
-					.where(eq(properties.ownerId, user.id)),
+					.where(
+						and(eq(properties.ownerId, user.id), isNull(properties.deletedAt)),
+					),
 
 				// 2) Total units across all owned properties
 				// WHY: innerJoin enforces multi-tenant ownership — only units under THIS user's properties
@@ -36,7 +40,13 @@ export const getDashboardStats = ownerProcedure
 					.select({ count: count() })
 					.from(units)
 					.innerJoin(properties, eq(units.propertyId, properties.id))
-					.where(eq(properties.ownerId, user.id)),
+					.where(
+						and(
+							eq(properties.ownerId, user.id),
+							isNull(properties.deletedAt),
+							isNull(units.deletedAt),
+						),
+					),
 
 				// 3) Occupied units only
 				db
@@ -44,7 +54,12 @@ export const getDashboardStats = ownerProcedure
 					.from(units)
 					.innerJoin(properties, eq(units.propertyId, properties.id))
 					.where(
-						and(eq(properties.ownerId, user.id), eq(units.status, "occupied")),
+						and(
+							eq(properties.ownerId, user.id),
+							isNull(properties.deletedAt),
+							isNull(units.deletedAt),
+							eq(units.status, "occupied"),
+						),
 					),
 
 				// 4) Active leases (lease → unit → property → ownerId)
@@ -54,7 +69,12 @@ export const getDashboardStats = ownerProcedure
 					.innerJoin(units, eq(leases.unitId, units.id))
 					.innerJoin(properties, eq(units.propertyId, properties.id))
 					.where(
-						and(eq(properties.ownerId, user.id), eq(leases.status, "active")),
+						and(
+							eq(properties.ownerId, user.id),
+							isNull(properties.deletedAt),
+							isNull(units.deletedAt),
+							eq(leases.status, "active"),
+						),
 					),
 			]);
 
@@ -95,7 +115,18 @@ const RevenueDashboardSchema = z.object({
 	revenueByMonth: z.array(RevenueMonthSchema),
 	recentTransactions: z.array(RecentTransactionItemSchema),
 	totalThisMonth: z.number().int(),
+	overdueCount: z.number().int(),
+	overdueAmount: z.number().int(),
 });
+
+export const getOverdueLeases = ownerProcedure
+	.route({ method: "GET", path: "/rent/stats/overdue" })
+	.output(OverdueLeasesResponseSchema)
+	.handler(async ({ context }) => {
+		return {
+			leases: await queryOverdueLeases(context.db, new Date(), context.user.id),
+		};
+	});
 
 export const getRevenueDashboard = ownerProcedure
 	.route({ method: "GET", path: "/rent/stats/revenue" })
@@ -108,7 +139,7 @@ export const getRevenueDashboard = ownerProcedure
 		const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
 
 		// 2) Revenue By Month
-		const [revenueRows, recentRows] = await Promise.all([
+		const [revenueRows, recentRows, overdueLeases] = await Promise.all([
 			db
 				.select({
 					monthStart: sql<Date>`date_trunc('month', ${payments.paymentDate})`,
@@ -152,6 +183,8 @@ export const getRevenueDashboard = ownerProcedure
 				)
 				.orderBy(desc(payments.paymentDate))
 				.limit(5),
+
+			queryOverdueLeases(db, now, authUser.id),
 		]);
 
 		// 4 ) - Generate All 12 month buckets
@@ -181,6 +214,11 @@ export const getRevenueDashboard = ownerProcedure
 			revenueByMonth,
 			recentTransactions: recentRows,
 			totalThisMonth,
+			overdueCount: overdueLeases.length,
+			overdueAmount: overdueLeases.reduce(
+				(total, lease) => total + lease.outstandingAmount,
+				0,
+			),
 		};
 	});
 

@@ -3,13 +3,95 @@ import type { NotificationType } from "@rently/db/constants/notification-constan
 import { NOTIFICATION_TYPES } from "@rently/db/constants/notification-constants";
 import {
 	leases,
+	notificationPreferences,
 	notifications,
 	properties,
 	units,
 } from "@rently/db/schema/schema";
-import { NotificationListItemSchema } from "@rently/validators";
+import {
+	NotificationListItemSchema,
+	NotificationPreferencesSchema,
+	UpdateNotificationPreferencesSchema,
+} from "@rently/validators";
 import { and, count, desc, eq, gte, inArray, lte } from "drizzle-orm";
 import z from "zod";
+import { queryOverdueLeases } from "./helpers/overdue-query";
+import { getLocalPeriodKey } from "./helpers/rent-cycle";
+
+const notificationPreferencesOutput = z.object({
+	preferences: NotificationPreferencesSchema,
+});
+
+const preferenceValues = (
+	input: z.infer<typeof UpdateNotificationPreferencesSchema>,
+) => ({
+	paymentReceived: input.paymentReceived,
+	utilityBillGenerated: input.utilityBillGenerated,
+	leaseExpiryAlert: input.leaseExpiryAlert,
+	rentDueReminder: input.rentDueReminder,
+	overdueAlert: input.overdueAlert,
+	rentDueLeadDays: input.rentDueLeadDays,
+	overdueGraceDays: input.overdueGraceDays,
+});
+
+export const getPreferences = ownerProcedure
+	.route({ method: "GET", path: "/notification/preferences" })
+	.output(notificationPreferencesOutput)
+	.handler(async ({ context }) => {
+		const { db, user } = context;
+		await db
+			.insert(notificationPreferences)
+			.values({ ownerId: user.id })
+			.onConflictDoNothing({ target: notificationPreferences.ownerId });
+		const [preferences] = await db
+			.select({
+				paymentReceived: notificationPreferences.paymentReceived,
+				utilityBillGenerated: notificationPreferences.utilityBillGenerated,
+				leaseExpiryAlert: notificationPreferences.leaseExpiryAlert,
+				rentDueReminder: notificationPreferences.rentDueReminder,
+				overdueAlert: notificationPreferences.overdueAlert,
+				rentDueLeadDays: notificationPreferences.rentDueLeadDays,
+				overdueGraceDays: notificationPreferences.overdueGraceDays,
+				updatedAt: notificationPreferences.updatedAt,
+			})
+			.from(notificationPreferences)
+			.where(eq(notificationPreferences.ownerId, user.id));
+		if (!preferences)
+			throw new Error("Notification preferences could not be loaded");
+		return { preferences };
+	});
+
+export const updatePreferences = ownerProcedure
+	.route({ method: "PATCH", path: "/notification/preferences" })
+	.input(UpdateNotificationPreferencesSchema)
+	.output(notificationPreferencesOutput)
+	.handler(async ({ context, input }) => {
+		const { db, user } = context;
+		const values = preferenceValues(input);
+		await db
+			.insert(notificationPreferences)
+			.values({ ownerId: user.id, ...values })
+			.onConflictDoUpdate({
+				target: notificationPreferences.ownerId,
+				set: { ...values, updatedAt: new Date() },
+			});
+		const [preferences] = await db
+			.select({
+				paymentReceived: notificationPreferences.paymentReceived,
+				utilityBillGenerated: notificationPreferences.utilityBillGenerated,
+				leaseExpiryAlert: notificationPreferences.leaseExpiryAlert,
+				rentDueReminder: notificationPreferences.rentDueReminder,
+				overdueAlert: notificationPreferences.overdueAlert,
+				rentDueLeadDays: notificationPreferences.rentDueLeadDays,
+				overdueGraceDays: notificationPreferences.overdueGraceDays,
+				updatedAt: notificationPreferences.updatedAt,
+			})
+			.from(notificationPreferences)
+			.where(eq(notificationPreferences.ownerId, user.id));
+		if (!preferences)
+			throw new Error("Notification preferences could not be saved");
+		return { preferences };
+	});
 
 //  1. List notifications
 // WHY this procedure does writes on a GET: lease-expiry notifications are
@@ -88,6 +170,60 @@ export const listNotifications = ownerProcedure
 			}
 		}
 
+		// Lazy-create one overdue notification per lease and billing period.
+		// The period is encoded in entityType so a read notification does not
+		// reappear on every poll, while a new month's overdue state can notify.
+		const overdueLeases = await queryOverdueLeases(db, now, user.id);
+		const overduePeriodEntityType = `rent_overdue:${getLocalPeriodKey(now)}`;
+
+		if (overdueLeases.length > 0) {
+			const existingOverdue = await db
+				.select({ entityId: notifications.entityId })
+				.from(notifications)
+				.where(
+					and(
+						eq(notifications.userId, user.id),
+						eq(notifications.type, NOTIFICATION_TYPES.RENT_OVERDUE),
+						eq(notifications.entityType, overduePeriodEntityType),
+						inArray(
+							notifications.entityId,
+							overdueLeases.map((lease) => lease.leaseId),
+						),
+					),
+				);
+
+			const alreadyNotified = new Set(
+				existingOverdue
+					.map((notification) => notification.entityId)
+					.filter((entityId): entityId is string => entityId !== null),
+			);
+			const toInsert = overdueLeases.filter(
+				(lease) => !alreadyNotified.has(lease.leaseId),
+			);
+
+			if (toInsert.length > 0) {
+				await db.insert(notifications).values(
+					toInsert.map((lease) => ({
+						userId: user.id,
+						type: NOTIFICATION_TYPES.RENT_OVERDUE as NotificationType,
+						title: "Rent payment overdue",
+						message:
+							"Rent for Unit " +
+							lease.unitNumber +
+							" is " +
+							lease.daysOverdue +
+							" day" +
+							(lease.daysOverdue === 1 ? "" : "s") +
+							" overdue. " +
+							formatNotificationAmount(lease.outstandingAmount) +
+							" remains outstanding.",
+						entityId: lease.leaseId,
+						entityType: overduePeriodEntityType,
+					})),
+				);
+			}
+		}
+
 		//  Fetch all notifications, newest first
 		const results = await db
 			.select({
@@ -108,6 +244,16 @@ export const listNotifications = ownerProcedure
 
 		return { notifications: results };
 	});
+
+function formatNotificationAmount(paise: number): string {
+	return (
+		"₹" +
+		(paise / 100).toLocaleString("en-IN", {
+			minimumFractionDigits: 2,
+			maximumFractionDigits: 2,
+		})
+	);
+}
 
 //  2. Unread count
 // WHY separate procedure: the header bell badge polls this on a 30s interval.

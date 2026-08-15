@@ -60,6 +60,12 @@ export default async function proxy(request: NextRequest) {
 		);
 	}
 
+	if (role === USER_ROLES.ADMIN) {
+		return NextResponse.redirect(
+			new URL("/dashboard", env.NEXT_PUBLIC_ADMIN_URL),
+		);
+	}
+
 	// Unknown role → web home.
 	if (role !== USER_ROLES.TENANT) {
 		return NextResponse.redirect(

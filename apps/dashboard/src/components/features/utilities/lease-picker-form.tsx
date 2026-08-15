@@ -9,6 +9,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@rently/ui/components/select";
+import { formatRupees } from "@rently/ui/lib/currency";
 import type {
 	LeaseWithDetails,
 	UtilityBatchFormValues,
@@ -16,6 +17,7 @@ import type {
 import { IconChevronRight, IconHome } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { UtilityForm } from "@/components/forms/utility-form";
+import { entityLabel } from "@/utils/display";
 
 // ── Types ─────────────────────────────────────────────────────────────────────
 
@@ -27,6 +29,7 @@ interface UnitPickerUtilityFormProps {
 	isSubmitting: boolean;
 	// WHY: which tab the user clicked "Add" from — pre-toggles the right section
 	initialType?: UtilityType;
+	formId?: string;
 }
 
 // ── Component ──────────────────────────────────────────────────────────────────
@@ -36,6 +39,7 @@ export function UnitPickerUtilityForm({
 	onSubmit,
 	isSubmitting,
 	initialType,
+	formId,
 }: UnitPickerUtilityFormProps) {
 	const [selectedPropertyId, setSelectedPropertyId] = useState<string | null>(
 		null,
@@ -80,6 +84,7 @@ export function UnitPickerUtilityForm({
 				initialType={initialType}
 				onSubmit={onSubmit}
 				isSubmitting={isSubmitting}
+				formId={formId}
 			/>
 		);
 	}
@@ -106,12 +111,20 @@ export function UnitPickerUtilityForm({
 					}}
 				>
 					<SelectTrigger>
-						<SelectValue placeholder="Select a property" />
+						<SelectValue placeholder="Select a property">
+							{selectedPropertyId
+								? entityLabel(
+										properties.find((p) => p.id === selectedPropertyId)?.name ??
+											"",
+										selectedPropertyId,
+									)
+								: undefined}
+						</SelectValue>
 					</SelectTrigger>
 					<SelectContent>
 						{properties.map((p) => (
 							<SelectItem key={p.id} value={p.id}>
-								{p.name}
+								{entityLabel(p.name, p.id)}
 							</SelectItem>
 						))}
 					</SelectContent>
@@ -162,9 +175,14 @@ function LeaseUnitCard({
 				<IconHome className="size-4 text-muted-foreground" />
 			</div>
 			<div className="min-w-0 flex-1">
-				<p className="font-medium text-sm">{lease.unitNumber}</p>
+				<p className="font-medium text-sm">
+					{entityLabel(lease.unitNumber, lease.unitId)}
+				</p>
 				<p className="text-muted-foreground text-xs">
-					{lease.tenantName ?? "—"} · ₹{lease.rent.toLocaleString()}/mo
+					{lease.tenantName
+						? entityLabel(lease.tenantName, lease.tenantId)
+						: "—"}{" "}
+					· {formatRupees(lease.rent)}/mo
 				</p>
 			</div>
 			<IconChevronRight className="size-4 shrink-0 text-muted-foreground" />

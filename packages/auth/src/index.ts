@@ -4,6 +4,10 @@ import {
 	PLAN_STATUS,
 } from "@rently/db/constants/payment-constants";
 import { USER_ROLES } from "@rently/db/constants/user-roles";
+import {
+	ACCOUNT_MODES,
+	WORKSPACE_MODES,
+} from "@rently/db/constants/workspace-modes";
 import * as schema from "@rently/db/schema/auth";
 import { plans, subscriptions } from "@rently/db/schema/subscription";
 import { generatedId } from "@rently/db/utils/id";
@@ -45,7 +49,11 @@ export function createAuth() {
 			sendResetPassword: async ({ user, url }) => {
 				// This callback handles every password-reset request.
 				// Tenants receive a setup email; owners receive the standard reset email.
-				const typeUser = user as typeof user & { role?: string };
+				const typeUser = user as typeof user & {
+					role?: string;
+					accountMode?: string;
+				};
+				if (typeUser.accountMode === ACCOUNT_MODES.PUBLIC_DEMO) return;
 				if (typeUser.role === USER_ROLES.TENANT) {
 					const urlObj = new URL(url);
 					const ownerParam = urlObj.searchParams.get("owner");
@@ -104,6 +112,18 @@ export function createAuth() {
 					type: "string",
 					required: false,
 					input: true,
+				},
+				accountMode: {
+					type: "string",
+					required: false,
+					defaultValue: ACCOUNT_MODES.STANDARD,
+					input: false,
+				},
+				workspaceMode: {
+					type: "string",
+					required: false,
+					defaultValue: WORKSPACE_MODES.LIVE,
+					input: false,
 				},
 			},
 		},

@@ -7,6 +7,7 @@ import { cn } from "@rently/ui/lib/utils";
 
 import { TenantORPCProvider } from "@/components/providers/orpc-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
+import { WorkspaceExperienceProvider } from "@/components/providers/workspace-experience-provider";
 
 const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
 
@@ -41,10 +42,12 @@ export default function RootLayout({
 			>
 				<QueryProvider>
 					<TenantORPCProvider>
-						<div className="mx-auto flex min-h-screen max-w-4xl flex-col">
-							{children}
-							<Toaster position="bottom-right" />
-						</div>
+						<WorkspaceExperienceProvider>
+							<div className="mx-auto flex min-h-screen max-w-4xl flex-col">
+								{children}
+								<Toaster position="bottom-right" />
+							</div>
+						</WorkspaceExperienceProvider>
 					</TenantORPCProvider>
 				</QueryProvider>
 			</body>

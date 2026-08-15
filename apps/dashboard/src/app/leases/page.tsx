@@ -1,6 +1,7 @@
 "use client";
 
 import { Button } from "@rently/ui/components/button";
+import { paiseToFormValue, toPaise } from "@rently/ui/lib/currency";
 import { CardSkeleton } from "@rently/ui/shared/card-skelton";
 import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
@@ -93,6 +94,7 @@ export default function LeasesPage() {
 			})),
 		[propertiesData?.properties],
 	);
+	const cannotCreateLease = tenants.length === 0 || availableUnits.length === 0;
 
 	// Filtered List
 	const filtered = useMemo(() => {
@@ -100,6 +102,19 @@ export default function LeasesPage() {
 		if (statusFilter === "all") return data.leases;
 		return data.leases.filter((l) => l.status === statusFilter);
 	}, [data?.leases, statusFilter]);
+	const leaseStats = useMemo(() => {
+		const leases = data?.leases ?? [];
+		const active = leases.filter((lease) => lease.status === "active").length;
+		const monthlyRent = leases
+			.filter((lease) => lease.status === "active")
+			.reduce((sum, lease) => sum + lease.rent, 0);
+		return {
+			active,
+			total: leases.length,
+			ending: leases.filter((lease) => lease.status === "expired").length,
+			monthlyRent,
+		};
+	}, [data?.leases]);
 
 	// ********* handlers
 	function handleCreate(values: LeaseFormValues) {
@@ -108,6 +123,8 @@ export default function LeasesPage() {
 				...values,
 				startDate: new Date(values.startDate),
 				endDate: values.endDate ? new Date(values.endDate) : undefined,
+				rent: toPaise(values.rent),
+				deposit: values.deposit == null ? undefined : toPaise(values.deposit),
 			},
 			{
 				onSuccess: createDialog.closeDialog,
@@ -123,8 +140,8 @@ export default function LeasesPage() {
 				data: {
 					startDate: new Date(values.startDate),
 					endDate: values.endDate ? new Date(values.endDate) : undefined,
-					rent: values.rent,
-					deposit: values.deposit,
+					rent: toPaise(values.rent),
+					deposit: values.deposit == null ? undefined : toPaise(values.deposit),
 				},
 			},
 			{ onSuccess: () => setEditingLease(null) },
@@ -165,6 +182,7 @@ export default function LeasesPage() {
 						description="Create a rental agreement between a unit and a tenant."
 						formId="create-lease-form"
 						isSubmitting={createLease.isPending}
+						submitDisabled={cannotCreateLease}
 						submitLabel="Create Lease"
 					>
 						<LeaseForm
@@ -178,9 +196,35 @@ export default function LeasesPage() {
 						/>
 					</FormDialog>
 				</PageHeader>
+				<section className="overflow-hidden rounded-xl border bg-card shadow-sm">
+					<div className="grid divide-y sm:grid-cols-[1.05fr_1fr] sm:divide-x sm:divide-y-0">
+						<div className="relative overflow-hidden bg-gradient-to-br from-primary/[0.08] via-card to-card p-5">
+							<p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.14em]">
+								Lease portfolio
+							</p>
+							<p className="mt-1 font-semibold text-3xl tracking-tight">
+								{leaseStats.active}{" "}
+								<span className="font-normal text-base text-muted-foreground">
+									active agreements
+								</span>
+							</p>
+							<p className="mt-4 text-muted-foreground text-xs">
+								{leaseStats.ending} expired · {leaseStats.total} total
+								agreements
+							</p>
+						</div>
+						<div className="grid grid-cols-2 divide-x">
+							<LeaseMetric label="Active leases" value={leaseStats.active} />
+							<LeaseMetric
+								label="Monthly rent"
+								value={`₹${leaseStats.monthlyRent.toLocaleString("en-IN")}`}
+							/>
+						</div>
+					</div>
+				</section>
 
 				{/* ── Status filter tabs ────────────── */}
-				<div className="flex gap-2">
+				<div className="flex gap-2 overflow-x-auto pb-1">
 					{(["all", "active", "expired", "terminated"] as const).map((s) => (
 						<Button
 							key={s}
@@ -264,8 +308,11 @@ export default function LeasesPage() {
 								endDate: editingLease.endDate
 									? new Date(editingLease.endDate).toISOString().split("T")[0]
 									: undefined,
-								rent: editingLease.rent,
-								deposit: editingLease.deposit ?? undefined,
+								rent: paiseToFormValue(editingLease.rent),
+								deposit:
+									editingLease.deposit == null
+										? undefined
+										: paiseToFormValue(editingLease.deposit),
 								// status: editingLease.status,
 							}}
 							onSubmit={handleEdit}
@@ -289,5 +336,22 @@ export default function LeasesPage() {
 				/>
 			</div>
 		</Container>
+	);
+}
+
+function LeaseMetric({
+	label,
+	value,
+}: {
+	label: string;
+	value: string | number;
+}) {
+	return (
+		<div className="min-w-0 px-4 py-5 text-center">
+			<p className="truncate text-muted-foreground text-xs">{label}</p>
+			<p className="mt-2 truncate font-semibold text-sm sm:text-base">
+				{value}
+			</p>
+		</div>
 	);
 }

@@ -3,8 +3,23 @@
 > Single source of truth for build progress.
 > Update this file as items are completed or priorities shift.
 > Tiers: **P0** = must ship before public launch · **P1** = core product gaps · **P2** = growth features · **P3** = post-launch backlog
-> Last audited: 2026-08-06 (verified against the KeyHQ beta integration branch)
+> Last audited: 2026-08-14 (current automated release checks passed; V1 production gate reviewed)
 > Cost policy: prefer services with a suitable free tier. Move to a paid tier only when measured usage or a required capability exceeds its documented free limits.
+
+---
+
+## V1 Release Decision — 2026-08-14
+
+**Decision: do not release KeyHQ v1 yet.** The codebase is a strong beta candidate, but the production release gate is not closed.
+
+- [x] Current automated verification: `bun run test` — 33 files / 145 tests passed; Vitest loaded `apps/server/.env.test` and enforced the `rently_test` database.
+- [x] Current automated verification: `bun run check-types`, `bunx biome check .`, and `bun run build` passed for server, web, dashboard, tenant, and admin.
+- [x] **P0 — fix production deployment branch mismatch.** CI runs on pushes to `main`, but the deploy job is gated on `refs/heads/master`; as written, it can never deploy from its trigger branch.
+- [x] **P0 — add and verify the admin origin in production `CORS_ORIGINS`.** `apps/admin` is shipped, but `apps/server/wrangler.json` omits `https://admin-keyhq.parmjeetmishra.com`.
+- [ ] **P0 — complete the private R2 operational checks** listed in Milestone 2 below: exact CORS policy, unauthenticated denial, presigned PUT/GET expiry, allowed production origins, and rejected unrelated origins.
+- [ ] **P0 — deploy the beta configuration with `AADHAAR_UPLOADS_ENABLED=false` and run a production smoke test** for signup/verification, owner and tenant onboarding, payments/receipts, password reset, admin access, and non-Aadhaar document flow.
+
+**Release sequence:** close the P0 items above → deploy as `0.1.0-beta.3` → operate with real beta users and support monitoring → decide v1 only after the production smoke test and an uneventful beta observation window. P1–P3 feature ideas are not v1 blockers.
 
 ---
 
@@ -29,10 +44,16 @@
 - [x] **Mobile sidebar (Sheet variant)** — shared `Sidebar` renders a `Sheet` on mobile via `useIsMobile()`; `SidebarTrigger` in the header opens it.
 - [x] **Milestone 0 — Product Truth and Immediate Defects** — public KeyHQ branding, truthful pricing/copy, legal support contact, corrected local/production URL documentation, invite URLs built from `WEB_APP_URL`, invite delivery feedback and resend action, and stale TODO cleanup.
 - [x] **M0 validation** — Vitest invite suite covers cross-owner resend denial, valid resend, expiry, and preserved invites after email delivery failure; typecheck and production build pass.
+- [x] **PDF rent receipts + manual payment audit** — owner and tenant receipt flows, deterministic receipt numbers, Indian currency words, printable routes, payment controls, authorization coverage, and integration validation are complete.
+- [x] **CSV payment exports** — owner-wide inclusive Indian financial-year/custom-range exports and all-time tenant payment history across active and historic leases, with owner-scoped authorization, signed reversal rows, formula-safe UTF-8 CSV generation, and a 10,000-row cap.
+- [x] **Private document viewer lifecycle** — separate View and Download actions; PDF/image previews open in an in-app dialog; preview bytes are cached in browser memory for the current tab only.
+- [x] **Neon HTTP document writes** — document lifecycle mutations use Neon-compatible atomic batches; the Docker-only test fallback remains isolated to `rently_test`.
+- [x] **Admin Dashboard V1** — separate private app, strict admin authorization, truthful revenue and managed-volume reporting, redacted user support lookup, audited manual subscription payments, beta-code management, and audit history.
+- [x] **Admin production hygiene** — removed production-marked browser debug logging while retaining structured server failure reporting.
 
 ---
 
-## Current Milestone — M1: Hard Email Verification and Unified Onboarding
+## Completed Milestone — M1: Hard Email Verification and Unified Onboarding
 
 ### M1a — Hard email verification
 
@@ -73,95 +94,102 @@
 
 ### Fast-follow (beta week 1–2, not gating)
 
-- [ ] PDF rent receipts — design complete; key differentiator (tenant HRA claims). See P1 for sub-tasks.
-- [ ] Subscription status badge in sidebar
+- [x] PDF rent receipts — implemented and validated for owner and tenant flows.
+- [x] Subscription status badge in sidebar
 
 ---
 
-## In Progress 🚧
+## Completed Milestone Detail
 
 ### Notification Preferences + Email Triggers _(Milestone 6)_
 
 > In-app notifications are DONE. This section is only the preference-driven email layer.
 
-- [ ] Create one owner-scoped `notificationPreferences` row with `paymentReceived`, `utilityBillGenerated`, `leaseExpiryAlert`, `rentDueReminder`, `overdueAlert`, and `updatedAt`.
-- [ ] Replace `localStorage` with owner-scoped query and mutation hooks.
-- [ ] Wire `paymentReceived` toggle → send email on `createPayment` success
-- [ ] Wire `utilityBillGenerated` toggle → send email when a utility bill is approved/generated.
-- [ ] Convert `buildReceiptMessage()` to the shared KeyHQ HTML email wrapper.
-- [ ] Scheduled preference-driven email reminders follow in Milestone 7.
+- [x] Create one owner-scoped `notificationPreferences` row with `paymentReceived`, `utilityBillGenerated`, `leaseExpiryAlert`, `rentDueReminder`, `overdueAlert`, and `updatedAt`.
+- [x] Replace `localStorage` with owner-scoped query and mutation hooks.
+- [x] Wire `paymentReceived` toggle → send email on `createPayment` success
+- [x] Wire `utilityBillGenerated` toggle → send email when a utility bill is approved/generated.
+- [x] Convert `buildReceiptMessage()` to the shared KeyHQ HTML email wrapper.
+- [x] Scheduled preference-driven email reminders follow in Milestone 7.
 
 ### Private Tenant Documents _(Milestone 2 — Tenant Trust Workflows)_
 
-- [ ] Create `tenantDocuments`; store a private R2 key, document type/version, masked identifier, consent, status, submitter/reviewer metadata, notes, and audit timestamps.
-- [ ] Never add public document URL columns to `tenantProfiles` or return permanent public URLs. Provide short-lived, owner/tenant-authorized signed download URLs only.
-- [ ] Store only Aadhaar last four digits in PostgreSQL; require masked Aadhaar uploads and label reviews as “owner reviewed,” never UIDAI verified.
-- [ ] Keep Aadhaar uploads behind a production compliance feature flag.
-- [ ] Implement `submitInitialDocument`, `reviewTenantDocument`, and `getPrivateDocumentDownloadUrl` with owner/tenant authorization tests.
-- [ ] Add tenant upload and owner review UI in the portal/dashboard Docs experiences.
+- [x] Create `tenantDocuments`; store a private R2 key, document type/version, masked identifier, consent, status, submitter/reviewer metadata, notes, and audit timestamps.
+- [x] Never add public document URL columns to `tenantProfiles` or return permanent public URLs. Provide short-lived, owner/tenant-authorized signed download URLs only.
+- [x] Store only Aadhaar last four digits in PostgreSQL; require masked Aadhaar uploads and label reviews as “owner reviewed,” never UIDAI verified.
+- [x] Keep Aadhaar uploads behind a production compliance feature flag.
+- [x] Implement initial submission, consent, owner review, private download, expiry, purge, and authorization interfaces.
+- [x] Add tenant upload/consent and owner upload/review UI in the portal/dashboard Docs experiences.
+- [x] Add the private-bucket environment contract and migration that preserves legacy update-request rows.
+- [x] Add separate inline preview and attachment download behavior for all supported document types.
+- [x] Add tab-lifetime in-memory preview caching without localStorage, IndexedDB, permanent URLs, or stored signed URLs.
+- [x] Apply the document migration to the current Neon development branch and verify the document upload flow.
+- [ ] Apply and verify the exact CORS policy on `keyhq-private-documents` with `r2 bucket cors list`.
+- [ ] Complete real R2 smoke tests: unauthenticated denial, signed PUT/GET expiry, allowed dashboard/tenant origins, and rejected unrelated origins.
+- [ ] Commit the feature branch, push it, and open the PR into `beta2` after review of the combined multi-lease + M2 diff.
+- [ ] Deploy beta with `AADHAAR_UPLOADS_ENABLED=false`; verify non-Aadhaar flows before production rollout.
 
 ### Document Update Lifecycle _(Milestone 2 — Tenant Trust Workflows)_
 
-- [ ] Initial submission: `pending → verified | rejected`.
-- [ ] Later changes: `pending request → approved → submitted → completed`, with terminal `rejected | expired` states.
-- [ ] An approved update request opens a 48-hour submission window; the prior verified document remains active until final approval.
-- [ ] Implement `createDocumentUpdateRequest`, `reviewDocumentUpdateRequest`, and `submitApprovedDocumentUpdate` with authorization and expiry tests.
-
----
-
-## P0 — Must Fix Before Public Launch
-
-- [ ] **Hard email verification and unified onboarding** — _pulled into the M1 section above._
-
-~~Password reset flow~~ — ✅ done. ~~Mobile-responsive sidebar~~ — ✅ done (QA pass in Beta Gate).
+- [x] Initial submission: `upload_pending → pending_review → owner_reviewed | rejected`.
+- [x] Later changes: `pending request → approved → submitted → completed`, with terminal `rejected | expired` states.
+- [x] An approved update request opens a 48-hour submission window; the prior owner-reviewed document remains active until final approval.
+- [x] Implement replacement requests, owner decisions, replacement submission, transactional supersession, and expiry handling.
 
 ---
 
 ## P1 — Core Product Gaps
 
+### Completed — Admin Dashboard V1
+
+- [x] Separate `apps/admin` application using shared KeyHQ UI and internal `rently` packages.
+- [x] `adminProcedure` and strict cross-app route protection; owner, tenant, unknown-role, and unauthenticated sessions are rejected or redirected.
+- [x] Overview with registration, verification, subscription, plan-distribution, paid-invoice platform revenue, managed rent volume, and recent-activity data.
+- [x] Paginated user and subscription lookup with support-safe redacted details and filters.
+- [x] Atomic manual payment recording with duplicate-reference protection, subscription activation/extension, cumulative totals, paid invoice creation, mandatory reason, and audit entry.
+- [x] Paginated beta-code creation and explicit expiry with mandatory reasons, auditing, usage visibility, and concurrency guards.
+- [x] Admin audit log with safe structured metadata. Private document values, authentication secrets, sessions, and signed storage URLs remain excluded.
+- [x] Integration coverage runs only through `apps/server/.env.test` against `rently_test`; admin build, server build, Biome, and workspace type checking pass.
+
+> Implementation and learning notes: `docs/admin-v1.md`.
+
 ### Rent Cycle + Cloudflare Cron _(Milestone 7)_
 
-- [ ] Create `queryRentCycleRows`, `computeRentCycleItem`, period-key generation, and configurable owner grace days (default: zero).
-- [ ] Create a scheduled-email delivery deduplication table with a unique owner/lease/type/period/threshold key. Cloudflare Cron delivery is at-least-once, so this database constraint—not an in-memory lock—prevents duplicate emails.
-- [ ] Export both `fetch` and `scheduled` handlers from the Worker entry point.
-- [ ] Configure the Worker with `"triggers": { "crons": ["30 2 * * *"] }`; Cloudflare cron uses UTC, so this runs at 08:00 IST.
-- [ ] Start with this single Cloudflare Free-plan trigger. Reassess only if the job cannot stay within its 10 ms CPU / 50 external-subrequest limits, or if more than five account-level Cron Triggers are needed.
-- [ ] In `scheduled()`, await the reminder job; reserve `ctx.waitUntil()` for separately tracked concurrent work.
-- [ ] Send lease-expiry reminders at 30, 7, and 1 days; rent-due reminders on each owner’s configured lead day; and period-aware overdue reminders after the owner grace period.
-- [ ] Respect notification preferences and use the deduplication record before every email attempt.
-- [ ] Keep total transactional email volume within the active email provider’s free quota; currently, Resend Free permits 3,000 emails/month and 100/day. Reassess paid email only when observed beta volume requires it.
-- [ ] Test repeated scheduled executions, Asia/Kolkata date boundaries, and notification-preference enforcement. During local development, trigger the handler through Wrangler’s `/__scheduled` endpoint.
+- [x] Create `queryRentCycleRows`, `computeRentCycleItem`, period-key generation, and configurable owner lead/grace days (defaults: 3 days before due and 2 days after due).
+- [x] Create a scheduled-email delivery deduplication table with a unique owner/lease/type/period/threshold key. Cloudflare Cron delivery is at-least-once, so this database constraint—not an in-memory lock—prevents duplicate emails.
+- [x] Export both `fetch` and `scheduled` handlers from the Worker entry point.
+- [x] Configure the Worker with `"triggers": { "crons": ["30 2 * * *"] }`; Cloudflare cron uses UTC, so this runs at 08:00 IST.
+- [x] Start with this single Cloudflare Free-plan trigger. Reassess only if the job cannot stay within its 10 ms CPU / 50 external-subrequest limits, or if more than five account-level Cron Triggers are needed.
+- [x] In `scheduled()`, await the reminder job; reserve `ctx.waitUntil()` for separately tracked concurrent work.
+- [x] Send lease-expiry reminders at 30, 7, and 1 days; rent-due reminders on each owner’s configured lead day; and period-aware overdue reminders after the owner grace period.
+- [x] Respect notification preferences and use the deduplication record before every email attempt.
+- [x] Keep total transactional email volume within the active email provider’s free quota; currently, Resend Free permits 3,000 emails/month and 100/day. Reassess paid email only when observed beta volume requires it.
+- [x] Test repeated scheduled executions, Asia/Kolkata date boundaries, and notification-preference enforcement. During local development, trigger the handler through Wrangler’s `/__scheduled` endpoint.
 
 ### PDF Rent Receipts
 
-- [ ] `getPaymentReceiptData` oRPC procedure — enriched JOIN (payment + owner profile + property + unit + tenant)
-- [ ] `generateReceiptNumber(paymentId)` utility in `@rently/db/utils/receipt.ts` (deterministic from UUIDv7)
-- [ ] `rupeesToWords(paise)` utility in `@rently/ui/lib/currency.ts` (Indian numbering — lakh/crore)
-- [ ] `/receipts/[paymentId]` route in `apps/dashboard` — print-optimised HTML + `window.print()`
-- [ ] `getMyPaymentReceiptData` oRPC procedure (tenant-scoped, `protectedProcedure`)
-- [ ] `/receipts/[paymentId]` route in `apps/tenant`
-- [ ] "Download" button in `PaymentDetailDialog` → `window.open('/receipts/[id]?print=true')`
-- [ ] "Download" button in tenant portal payment history
+- [x] `getPaymentReceiptData` oRPC procedure — enriched JOIN (payment + owner profile + property + unit + tenant)
+- [x] `generateReceiptNumber(paymentId)` utility in `@rently/db/utils/receipt.ts` (deterministic from UUIDv7)
+- [x] `rupeesToWords(paise)` utility in `@rently/ui/lib/currency.ts` (Indian numbering — lakh/crore)
+- [x] `/receipts/[paymentId]` route in `apps/dashboard` — print-optimised HTML + `window.print()`
+- [x] `getMyPaymentReceiptData` oRPC procedure (tenant-scoped, `protectedProcedure`)
+- [x] `/receipts/[paymentId]` route in `apps/tenant`
+- [x] "Download" button in `PaymentDetailDialog` → `window.open('/receipts/[id]?print=true')`
+- [x] "Download" button in tenant portal payment history
 
 ### Late Payment / Overdue Tracking
 
-- [ ] Define "overdue" — payment not recorded by `lease.rentDueDate` of the current month
-- [ ] `getOverdueLeases` query — leases past due date with no rent payment this cycle
-- [ ] Overdue badge on tenant card in dashboard
-- [ ] Overdue summary card on revenue dashboard
-- [ ] `overdueAlert` notification trigger (in-app notification system already supports new types)
+- [x] Define "overdue" — after the current month's due date with rent still outstanding; partial payments remain overdue for the balance
+- [x] `getOverdueLeases` query — owner-scoped leases past due date with no full rent payment this cycle
+- [x] Overdue badge on tenant card in dashboard
+- [x] Overdue summary card on revenue dashboard
+- [x] `overdueAlert` notification trigger (period-deduplicated in-app notifications)
 
 ### Data Export
 
-- [ ] CSV export for payment history per tenant (owner use — tax / ITR filing)
-- [ ] CSV export for all payments in a date range (all tenants, all properties)
+- [x] CSV export for payment history per tenant (owner use — tax / ITR filing)
+- [x] CSV export for all payments in a date range (all tenants, all properties)
 - [ ] Consider: Excel (.xlsx) variant via `SheetJS` if demand warrants it
-
-### Referral System
-
-- [ ] Intentionally dormant for beta. Revisit only when referrals become a planned feature.
-
----
 
 ## P2 — Growth Features
 
@@ -194,9 +222,8 @@
 
 ## P3 — Post-Launch Backlog
 
-- [ ] **Admin panel** — manage users, plans, beta codes, subscriptions without CLI (replaces `db:beta-code` script). Separate `apps/admin` or a protected `/admin` route in `apps/dashboard`
 - [ ] **Two-factor authentication** — Better Auth supports TOTP; SecurityTab already has disabled placeholder buttons
-- [ ] **Audit log** — track all mutations (who changed what, when) for tenant disputes. New `auditLogs` table + `auditMiddleware` on ownerProcedure
+- [ ] **Owner-domain mutation auditing** — separately track owner changes for tenant disputes; do not mix this broader concern with the completed admin-operation audit trail.
 - [ ] **Tenant communication history** — store sent emails in a `tenantMessages` table so owners can see past correspondence
 - [ ] **Multi-property analytics** — per-property revenue breakdown, occupancy rate over time, vacancy duration tracking
 - [ ] **`@react-pdf/renderer` upgrade** — replace `window.print()` receipt approach with a proper PDF blob for email attachments via Resend
@@ -206,12 +233,11 @@
 
 ## Known Technical Debt
 
-- [ ] `notifications-tab.tsx` — `// TODO: migrate from localStorage` comment. Preferences need DB storage before any email trigger can read them
-- [ ] `buildReceiptMessage()` in `payment.ts` — plain text email body. Replace with HTML template consistent with `@rently/email`
-- [ ] `referrers` table is intentionally dormant for beta; revisit only when referrals become a planned feature.
-- [ ] `evlog` console.log calls — several `// TODO: remove before prod` comments across API handlers
-- [ ] Notification preference fields not declared in `turbo.json` env vars yet — add when migrated from localStorage
-- [x] **Fresh Drizzle migration bootstrap** — verified all eight migrations from an empty `rently_test` database before the final `integration/keyhq-beta` → `main` merge.
+- [x] `notifications-tab.tsx` — `// TODO: migrate from localStorage` comment. Preferences now use owner-scoped database storage.
+- [x] `buildReceiptMessage()` in `payment.ts` — replaced with shared KeyHQ HTML templates in `@rently/email`
+- [x] Production-marked debug logging removed; actionable server failures retain structured contextual logging.
+- [x] Notification preference fields are database columns, not `turbo.json` environment variables.
+- [x] **Fresh Drizzle migration bootstrap** — applied and verified all migrations, including `0008_productive_toad`, against the empty `rently_test` database.
 - [x] **M1b test-database migration diagnosis** — repaired the explicit text-to-timestamp casts in `0002_easy_iceman`; `0007_unique_the_hand` now applies as part of the clean migration path and the invite integration suite runs locally.
 
 ---
@@ -224,3 +250,12 @@
 | `jsPDF` / `pdfmake` for receipts           | Browser `window.print()` produces better output with zero bundle cost. Server-side PDF generation (`pdf-lib`) only needed for email attachments |
 | Separate `/new` and `/edit` routes         | All CRUD uses inline `FormDialog` pattern — keep consistent                                                                                     |
 | Cron for in-app lease-expiry notifications | Lazy creation inside `listNotifications` — cron only needed for the _email_ channel (P1)                                                        |
+| Referral system                            | Dormant during beta. Revisit only when referrals become an intentional acquisition channel.                                                   |
+
+---
+
+## Roadmap After Admin V1
+
+- [x] Owner CSV exports — tenant history and selected date ranges are complete. Defer `.xlsx` until beta users show CSV is insufficient.
+- [ ] Demand-led product work — maintenance requests, bulk reminders/payment recording/utility generation, WhatsApp Business API, communication history, multi-property analytics, and vacancy reporting remain uncommitted until beta feedback establishes priority.
+- [ ] Payment automation threshold — manual UPI plus Admin V1 remains the beta workflow. Revisit Razorpay at 20 or more paying users, or earlier only if reconciliation becomes measurably unreliable.

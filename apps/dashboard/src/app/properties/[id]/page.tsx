@@ -2,22 +2,20 @@
 
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
-import {
-	Card,
-	CardContent,
-	CardHeader,
-	CardTitle,
-} from "@rently/ui/components/card";
-import { DetailHeader } from "@rently/ui/shared/detail-header";
 import { EmptyState } from "@rently/ui/shared/empty-state";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
 import { IconWrapper } from "@rently/ui/shared/icon-wrapper";
 import type { CreateUnit, UnitWithLease } from "@rently/validators";
 import {
+	IconBuilding,
+	IconCalendar,
+	IconChevronLeft,
 	IconHome2,
 	IconLayout,
 	IconPencil,
 	IconPlus,
+	IconRuler2,
+	IconUsers,
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { use } from "react";
@@ -79,16 +77,26 @@ export default function PropertyDetailPage({
 	const units = unitsData?.units ?? [];
 	const occupiedUnits = units.filter((u) => u.status === "occupied");
 	const monthlyRevenue = occupiedUnits.reduce((sum, u) => sum + u.baseRent, 0);
+	const vacantUnits = units.length - occupiedUnits.length;
+	const occupancyRate =
+		units.length > 0
+			? Math.round((occupiedUnits.length / units.length) * 100)
+			: 0;
 
 	return (
 		<Container>
 			<div className="col-span-12 space-y-6">
 				{/*Breadcrumb  + actions*/}
-				<DetailHeader
-					backHref={"/properties"}
-					title={property.name}
-					subtitle={property.address}
-				>
+				<div className="flex items-center justify-between gap-4">
+					<Button
+						variant="ghost"
+						nativeButton={false}
+						className="-ml-2 text-muted-foreground"
+						render={<Link href="/properties" />}
+					>
+						<IconChevronLeft className="size-4" />
+						Properties
+					</Button>
 					<div className="flex gap-2">
 						<Button
 							onClick={editProperty.openDialog}
@@ -143,65 +151,135 @@ export default function PropertyDetailPage({
 							/>
 						</FormDialog>
 					</div>
-				</DetailHeader>
+				</div>
 
-				{/* Property Info Card*/}
-				<Card className="p-4 shadow-xs">
-					<CardHeader>
-						<div className="flex items-center gap-2">
-							<IconHome2 className="size-6 text-muted-foreground" />
-							<CardTitle className="font-semibold text-lg">
-								Property Details
-							</CardTitle>
-							<Badge
-								variant="outline"
-								className="ml-auto bg-blue-100 text-blue-600"
-							>
-								{property.type}
-							</Badge>
-						</div>
-					</CardHeader>
-					<CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-4">
-						<div>
-							<p className="text-base text-muted-foreground">Total Units</p>
-							<p className="font-semibold text-2xl">{units.length}</p>
-						</div>
-						<div>
-							<p className="text-base text-muted-foreground">Occupied</p>
-							<p className="font-semibold text-2xl text-green-700">
-								{occupiedUnits.length}
-							</p>
-						</div>
-						<div>
-							<p className="text-base text-muted-foreground">Vacant</p>
-							<p className="font-semibold text-2xl text-orange-700">
-								{units.length - occupiedUnits.length}
-							</p>
-						</div>
-						<div>
-							<p className="text-base text-muted-foreground">Monthly Revenue</p>
-							<p className="font-semibold text-2xl">
-								₹{monthlyRevenue.toLocaleString("en-IN")}
-							</p>
-						</div>
-					</CardContent>
-				</Card>
+				<section className="overflow-hidden rounded-xl border bg-card shadow-sm">
+					<div className="relative overflow-hidden border-b bg-gradient-to-br from-primary/[0.09] via-card to-card px-5 py-6 sm:px-7">
+						<div className="absolute -top-16 -right-10 size-48 rounded-full bg-primary/[0.07] blur-2xl" />
+						<div className="relative flex flex-col gap-6">
+							<div className="flex flex-wrap items-start justify-between gap-4">
+								<div className="space-y-2">
+									<div className="flex items-center gap-2">
+										<div className="flex size-9 items-center justify-center rounded-lg bg-primary text-primary-foreground shadow-sm">
+											<IconHome2 className="size-4" />
+										</div>
+										<Badge
+											variant="outline"
+											className="rounded-full border-primary/20 bg-primary/5 px-2.5 text-primary capitalize"
+										>
+											{property.type}
+										</Badge>
+									</div>
+									<div>
+										<p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.14em]">
+											Property overview
+										</p>
+										<h2 className="mt-1 font-semibold text-2xl tracking-tight sm:text-3xl">
+											{property.name}
+										</h2>
+										<p className="mt-1 text-muted-foreground text-sm">
+											{property.address}
+										</p>
+									</div>
+								</div>
+								<div className="min-w-44 rounded-lg border border-primary/15 bg-background/70 px-4 py-3 backdrop-blur-sm">
+									<div className="flex items-baseline justify-between gap-3">
+										<p className="font-semibold text-2xl">{occupancyRate}%</p>
+										<p className="text-muted-foreground text-xs">occupied</p>
+									</div>
+									<div className="mt-2 h-1.5 overflow-hidden rounded-full bg-primary/10">
+										<div
+											className="h-full rounded-full bg-primary transition-all"
+											style={{ width: `${occupancyRate}%` }}
+										/>
+									</div>
+								</div>
+							</div>
 
-				{/* Units List */}
-				<div>
-					<h2 className="mb-3 font-semibold text-lg">Units</h2>
-					{unitsLoading ? (
-						<UnitSkelton />
-					) : units.length === 0 ? (
-						<NoUnit id={id} />
-					) : (
-						<div className="space-y-2">
-							{units.map((unit) => (
-								<DetailUnitsList key={unit.id} unit={unit} />
-							))}
+							<div className="grid grid-cols-2 gap-x-6 gap-y-5 sm:grid-cols-4">
+								<PropertyMetric label="Total units" value={units.length} />
+								<PropertyMetric
+									label="Occupied"
+									value={occupiedUnits.length}
+									className="text-emerald-600"
+								/>
+								<PropertyMetric
+									label="Available"
+									value={vacantUnits}
+									className="text-amber-600"
+								/>
+								<PropertyMetric
+									label="Monthly revenue"
+									value={`₹${monthlyRevenue.toLocaleString("en-IN")}`}
+								/>
+							</div>
+						</div>
+					</div>
+
+					{(property.description ||
+						property.floors ||
+						property.totalArea ||
+						property.yearBuilt) && (
+						<div className="grid gap-5 border-b px-5 py-5 sm:px-7 lg:grid-cols-[1fr_auto]">
+							<div>
+								<p className="font-medium text-sm">About this property</p>
+								{property.description && (
+									<p className="mt-1.5 max-w-3xl text-muted-foreground text-sm leading-6">
+										{property.description}
+									</p>
+								)}
+							</div>
+							<div className="flex flex-wrap gap-x-5 gap-y-3 text-muted-foreground text-sm lg:justify-end">
+								{property.floors && (
+									<PropertyFact
+										icon={IconBuilding}
+										value={`${property.floors} floors`}
+									/>
+								)}
+								{property.totalArea && (
+									<PropertyFact
+										icon={IconRuler2}
+										value={`${property.totalArea} sq ft`}
+									/>
+								)}
+								{property.yearBuilt && (
+									<PropertyFact
+										icon={IconCalendar}
+										value={`Built ${property.yearBuilt}`}
+									/>
+								)}
+							</div>
 						</div>
 					)}
-				</div>
+
+					<div className="px-5 py-5 sm:px-7">
+						<div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+							<div>
+								<h2 className="font-semibold text-lg">Units</h2>
+								<p className="text-muted-foreground text-sm">
+									{units.length === 1
+										? "1 unit in this property"
+										: `${units.length} units in this property`}
+								</p>
+							</div>
+							<div className="hidden items-center gap-1.5 text-muted-foreground text-xs sm:flex">
+								<IconUsers className="size-3.5" />
+								{occupiedUnits.length} tenants currently assigned
+							</div>
+						</div>
+						{unitsLoading ? (
+							<UnitSkelton />
+						) : units.length === 0 ? (
+							<NoUnit id={id} />
+						) : (
+							<div className="overflow-hidden rounded-lg border">
+								{units.map((unit) => (
+									<DetailUnitsList key={unit.id} unit={unit} />
+								))}
+							</div>
+						)}
+					</div>
+				</section>
 			</div>
 		</Container>
 	);
@@ -211,9 +289,12 @@ export default function PropertyDetailPage({
 
 function UnitSkelton() {
 	return (
-		<div className="space-y-2">
+		<div className="overflow-hidden rounded-lg border">
 			{Array.from({ length: 3 }).map((_, i) => (
-				<div key={i} className="h-16 animate-pulse rounded-lg bg-muted" />
+				<div
+					key={i}
+					className="h-20 animate-pulse border-b bg-muted/60 last:border-b-0"
+				/>
 			))}
 		</div>
 	);
@@ -225,7 +306,7 @@ function NoUnit({ id }: { id: string }) {
 			icon={IconLayout}
 			title="No units yet"
 			description="Add your first unit to start tracking tenants and rent."
-			className="rounded-xl bg-white shadow"
+			className="rounded-lg border border-dashed bg-muted/30 shadow-none"
 		>
 			<AddUnitButton propertyId={id} withIcon />
 		</EmptyState>
@@ -233,36 +314,84 @@ function NoUnit({ id }: { id: string }) {
 }
 
 function DetailUnitsList({ unit }: { unit: UnitWithLease }) {
+	const isOccupied = unit.status === "occupied";
+	const tenantName = unit.activeLease?.tenantName;
+
 	return (
 		<Link
 			key={unit.id}
 			href={`/units/${unit.id}`}
-			className="flex items-center gap-4 rounded-lg border bg-card p-4 shadow-xs transition hover:bg-accent/50"
+			className="group flex items-center gap-3 border-b bg-card px-3 py-3 transition-colors last:border-b-0 hover:bg-muted/50 sm:gap-4 sm:px-4"
 		>
-			<IconWrapper className="text-blue-500">
+			<IconWrapper className="size-10 shrink-0 rounded-lg bg-primary/8 text-primary group-hover:bg-primary group-hover:text-primary-foreground">
 				<IconLayout />
 			</IconWrapper>
-			<div className="flex-1">
-				<p className="font-medium text-lg">Unit {unit.unitNumber}</p>
-				<p className="text-base text-muted-foreground capitalize">
-					{unit.type} . {unit.area ? `${unit.area} sq ft` : "N/A"}
+			<div className="min-w-0 flex-1">
+				<p className="font-medium text-sm sm:text-base">
+					Unit {unit.unitNumber}
+				</p>
+				<p className="mt-0.5 truncate text-muted-foreground text-xs capitalize sm:text-sm">
+					{unit.type}
+					{unit.area ? ` · ${unit.area.toLocaleString("en-IN")} sq ft` : ""}
 				</p>
 			</div>
+			<div className="hidden min-w-36 flex-1 text-muted-foreground text-sm md:block">
+				{tenantName ?? "Available"}
+			</div>
 			<div className="text-right">
-				<p className="font-medium text-base">
+				<p className="font-medium text-sm sm:text-base">
 					₹{unit.baseRent.toLocaleString("en-IN")}/mo
 				</p>
-
-				<p className="text-gray-500 text-xs">
-					{unit.activeLease ? unit.activeLease.tenantName : "tenant"}
+				<p className="mt-0.5 truncate text-muted-foreground text-xs md:hidden">
+					{tenantName ?? "Available"}
 				</p>
 			</div>
 			<Badge
-				variant={unit.status === "occupied" ? "outline" : "secondary"}
-				className="mt-0.5 rounded text-xs"
+				variant="outline"
+				className={
+					isOccupied
+						? "rounded-full border-emerald-200 bg-emerald-50 text-emerald-700"
+						: "rounded-full border-amber-200 bg-amber-50 text-amber-700"
+				}
 			>
-				{unit.status}
+				{isOccupied ? "Occupied" : "Available"}
 			</Badge>
 		</Link>
+	);
+}
+
+function PropertyMetric({
+	label,
+	value,
+	className,
+}: {
+	label: string;
+	value: string | number;
+	className?: string;
+}) {
+	return (
+		<div>
+			<p className="text-muted-foreground text-xs">{label}</p>
+			<p
+				className={`mt-1 font-semibold text-xl tracking-tight ${className ?? ""}`}
+			>
+				{value}
+			</p>
+		</div>
+	);
+}
+
+function PropertyFact({
+	icon: Icon,
+	value,
+}: {
+	icon: typeof IconBuilding;
+	value: string;
+}) {
+	return (
+		<span className="flex items-center gap-1.5 whitespace-nowrap">
+			<Icon className="size-3.5" />
+			{value}
+		</span>
 	);
 }

@@ -26,12 +26,12 @@ export function CtaBand() {
 							Create Free Account
 							<ArrowRight className="h-4 w-4" />
 						</AuthEntryLink>
-						<AuthEntryLink
-							href="/login"
+						<a
+							href="/demo"
 							className="inline-flex h-13.5 items-center gap-2 rounded-lg border border-white/40 bg-transparent px-9 font-semibold text-[16px] text-white no-underline transition-all hover:bg-white/10"
 						>
-							Sign In
-						</AuthEntryLink>
+							Try KeyHQ Demo
+						</a>
 					</div>
 
 					<p className="relative z-1 mt-2.5 text-[12.5px] text-white/48">

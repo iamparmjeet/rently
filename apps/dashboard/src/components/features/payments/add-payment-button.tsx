@@ -12,6 +12,7 @@ import {
 } from "@/components/forms/payment-form";
 import { useLeases } from "@/hooks/leases";
 import { useRecordPayment } from "@/hooks/payments";
+import { entityLabel } from "@/utils/display";
 
 interface AddPaymentButtonProps {
 	//  optional leaseId — when injected (e.g. from lease detail page),
@@ -19,12 +20,15 @@ interface AddPaymentButtonProps {
 	//      is still called but the result is filtered to the single lease.
 	//      Same pattern as AddUnitButton's optional propertyId.
 	leaseId?: string;
+	/** Restrict the lease selector to a tenant's active leases. */
+	leaseIds?: string[];
 	withIcon?: boolean;
 	variant?: React.ComponentProps<typeof Button>["variant"];
 }
 
 export function AddPaymentButton({
 	leaseId,
+	leaseIds,
 	withIcon,
 	variant,
 }: AddPaymentButtonProps) {
@@ -33,6 +37,13 @@ export function AddPaymentButton({
 
 	const { data: leasesData } = useLeases("active");
 	const activeLeases = leasesData?.leases ?? [];
+	const selectableLeases = useMemo(
+		() =>
+			leaseIds
+				? activeLeases.filter((lease) => leaseIds.includes(lease.leaseId))
+				: activeLeases,
+		[activeLeases, leaseIds],
+	);
 
 	// ── Derived data for the form ───
 	const leaseList = useMemo(() => {
@@ -40,26 +51,26 @@ export function AddPaymentButton({
 		// The fetch still runs (no conditional hook) but we scope the options.
 		if (leaseId) return [{ id: leaseId }];
 		// LeaseWithDetails uses `leaseId` (not `id`) — map explicitly.
-		return activeLeases.map((l) => ({ id: l.leaseId }));
-	}, [leaseId, activeLeases]);
+		return selectableLeases.map((l) => ({ id: l.leaseId }));
+	}, [leaseId, selectableLeases]);
 
 	const leaseLabels = useMemo(() => {
 		if (leaseId) {
 			// Find the matching lease for a label, fall back to the raw ID
-			const match = activeLeases.find((l) => l.leaseId === leaseId);
+			const match = selectableLeases.find((l) => l.leaseId === leaseId);
 			const label = match
-				? `${match.unitNumber} – ${match.tenantName ?? "Unknown"} · ${match.propertyName}`
-				: leaseId;
+				? `${entityLabel(match.unitNumber, match.unitId)} – ${match.tenantName ? entityLabel(match.tenantName, match.tenantId) : "Unknown"} · ${entityLabel(match.propertyName, match.propertyId)} · Lease-${leaseId.slice(-6).toUpperCase()}`
+				: entityLabel("Lease", leaseId);
 			return { [leaseId]: label };
 		}
 		return Object.fromEntries(
-			activeLeases.map((l) => [
+			selectableLeases.map((l) => [
 				l.leaseId,
 				// Format: "Unit 101 – Amandeep Singh · Green Valley Apartments"
-				`${l.unitNumber} – ${l.tenantName ?? "Unknown"} · ${l.propertyName}`,
+				`${entityLabel(l.unitNumber, l.unitId)} – ${l.tenantName ? entityLabel(l.tenantName, l.tenantId) : "Unknown"} · ${entityLabel(l.propertyName, l.propertyId)} · Lease-${l.leaseId.slice(-6).toUpperCase()}`,
 			]),
 		);
-	}, [leaseId, activeLeases]);
+	}, [leaseId, selectableLeases]);
 
 	// ── Submit handler ──────
 	function handleSubmit(values: PaymentFormValues) {

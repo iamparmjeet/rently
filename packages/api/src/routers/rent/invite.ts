@@ -1,4 +1,5 @@
 import { ORPCError } from "@orpc/server";
+import { isNonLiveWorkspace } from "@rently/api/modules/sample-workspace";
 import { ownerProcedure, publicProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
 import { auth } from "@rently/auth";
@@ -38,7 +39,7 @@ export const createInvite = ownerProcedure
 	.output(
 		z.object({
 			invite: InvitePublicSchema,
-			deliveryStatus: z.enum(["sent", "failed"]),
+			deliveryStatus: z.enum(["sent", "failed", "suppressed"]),
 		}),
 	)
 	.handler(async ({ context, input }) => {
@@ -52,6 +53,7 @@ export const createInvite = ownerProcedure
 				...input,
 				onboardingMode: "tenant_completed",
 			},
+			suppressDelivery: isNonLiveWorkspace(user),
 		});
 	});
 
@@ -68,7 +70,7 @@ export const resendInvite = ownerProcedure
 	)
 	.output(
 		z.object({
-			deliveryStatus: z.enum(["sent", "failed"]),
+			deliveryStatus: z.enum(["sent", "failed", "suppressed"]),
 		}),
 	)
 	.handler(async ({ context, input }) => {
@@ -123,6 +125,14 @@ export const resendInvite = ownerProcedure
 			throw new ORPCError("GONE", {
 				message: "This invitation has expired. Create a new invitation.",
 			});
+		}
+
+		if (isNonLiveWorkspace(user)) {
+			await db
+				.update(tenantInvites)
+				.set({ deliveryStatus: "suppressed", deliveryErrorCode: null })
+				.where(eq(tenantInvites.id, invite.id));
+			return { deliveryStatus: "suppressed" as const };
 		}
 
 		const deliveryStatus = await sendAndRecordInviteDelivery(db, {
@@ -299,6 +309,20 @@ export const acceptInvite = publicProcedure
 				});
 			}
 
+			const [inviter] = await tx
+				.select({
+					accountMode: user.accountMode,
+					workspaceMode: user.workspaceMode,
+				})
+				.from(user)
+				.where(eq(user.id, invite.invitedById))
+				.limit(1);
+			if (inviter && isNonLiveWorkspace(inviter)) {
+				throw new ORPCError("FORBIDDEN", {
+					message: "Demo and sample invitations cannot be accepted.",
+				});
+			}
+
 			if (invite.status === "accepted") {
 				throw new ORPCError("CONFLICT", {
 					message: "This invitation has already been accepted. Please log in.",
@@ -327,10 +351,46 @@ export const acceptInvite = publicProcedure
 				.where(eq(user.email, invite.email.toLowerCase()))
 				.limit(1);
 
+			let claimsOwnerPreparedIdentity = false;
 			if (existingUser) {
-				throw new ORPCError("CONFLICT", {
-					message: "An account with this email already exists. Please log in.",
-				});
+				if (invite.onboardingMode !== "owner_prepared") {
+					throw new ORPCError("CONFLICT", {
+						message:
+							"An account with this email already exists. Please log in.",
+					});
+				}
+
+				const [preparedProfile] = await tx
+					.select({ id: tenantProfiles.id })
+					.from(tenantProfiles)
+					.where(
+						and(
+							eq(tenantProfiles.userId, existingUser.id),
+							eq(tenantProfiles.invitedId, invite.id),
+							eq(tenantProfiles.createdById, invite.invitedById),
+						),
+					)
+					.limit(1);
+
+				const [credentialAccount] = await tx
+					.select({ id: account.id })
+					.from(account)
+					.where(
+						and(
+							eq(account.userId, existingUser.id),
+							eq(account.providerId, "credential"),
+						),
+					)
+					.limit(1);
+
+				if (!preparedProfile || credentialAccount) {
+					throw new ORPCError("CONFLICT", {
+						message:
+							"An account with this email already exists. Please log in.",
+					});
+				}
+
+				claimsOwnerPreparedIdentity = true;
 			}
 
 			const tenantCompletedFieldsWereSupplied = [
@@ -354,16 +414,27 @@ export const acceptInvite = publicProcedure
 			const profileSource =
 				invite.onboardingMode === "owner_prepared" ? invite : input;
 
-			const tenantUserId = generatedId();
+			const tenantUserId = existingUser?.id ?? generatedId();
 
-			await tx.insert(user).values({
-				id: tenantUserId,
-				name: invite.name,
-				email: invite.email.toLowerCase(),
-				emailVerified: true,
-				role: USER_ROLES.TENANT,
-				phone: profileSource.phone ?? null,
-			});
+			if (claimsOwnerPreparedIdentity) {
+				await tx
+					.update(user)
+					.set({
+						emailVerified: true,
+						phone: profileSource.phone ?? null,
+						updatedAt: now,
+					})
+					.where(eq(user.id, tenantUserId));
+			} else {
+				await tx.insert(user).values({
+					id: tenantUserId,
+					name: invite.name,
+					email: invite.email.toLowerCase(),
+					emailVerified: true,
+					role: USER_ROLES.TENANT,
+					phone: profileSource.phone ?? null,
+				});
+			}
 
 			await tx.insert(account).values({
 				id: generatedId(),
@@ -373,21 +444,28 @@ export const acceptInvite = publicProcedure
 				password: passwordHash,
 			});
 
-			await tx.insert(tenantProfiles).values({
-				id: generatedId(),
-				userId: tenantUserId,
-				email: invite.email.toLowerCase(),
-				phone: profileSource.phone ?? null,
-				address: profileSource.address ?? null,
-				emergencyContact: profileSource.emergencyContact ?? null,
-				emergencyContactName: profileSource.emergencyContactName ?? null,
-				emergencyContactLocation:
-					profileSource.emergencyContactLocation ?? null,
-				uidNumber: input.uidNumber ?? null,
-				panNumber: input.panNumber ?? null,
-				invitedId: invite.id,
-				createdById: invite.invitedById,
-			});
+			if (claimsOwnerPreparedIdentity) {
+				await tx
+					.update(tenantProfiles)
+					.set({
+						updatedAt: now,
+					})
+					.where(eq(tenantProfiles.userId, tenantUserId));
+			} else {
+				await tx.insert(tenantProfiles).values({
+					id: generatedId(),
+					userId: tenantUserId,
+					email: invite.email.toLowerCase(),
+					phone: profileSource.phone ?? null,
+					address: profileSource.address ?? null,
+					emergencyContact: profileSource.emergencyContact ?? null,
+					emergencyContactName: profileSource.emergencyContactName ?? null,
+					emergencyContactLocation:
+						profileSource.emergencyContactLocation ?? null,
+					invitedId: invite.id,
+					createdById: invite.invitedById,
+				});
+			}
 
 			// Conditional transition protects against a concurrent acceptance or
 			// an invite expiring while this transaction is in progress. Throwing

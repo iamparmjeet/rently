@@ -1,4 +1,5 @@
 import { Button } from "@rently/ui/components/button";
+import { toPaise } from "@rently/ui/lib/currency";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
 import { IconPlus } from "@tabler/icons-react";
 import { LeaseForm, type LeaseFormValues } from "@/components/forms/lease-form";
@@ -58,6 +59,8 @@ export function AddLeaseButton({
 		id: p.id,
 		name: p.name,
 	}));
+	const cannotCreateLease =
+		tenantOptions.length === 0 || unitOptions.length === 0;
 
 	function handleSubmit(values: LeaseFormValues) {
 		createLease.mutate(
@@ -66,8 +69,8 @@ export function AddLeaseButton({
 				tenantId: values.tenantId,
 				startDate: new Date(values.startDate),
 				endDate: values.endDate ? new Date(values.endDate) : undefined,
-				rent: values.rent,
-				deposit: values.deposit,
+				rent: toPaise(values.rent),
+				deposit: values.deposit == null ? undefined : toPaise(values.deposit),
 			},
 			{ onSuccess: dialog.closeDialog },
 		);
@@ -85,6 +88,7 @@ export function AddLeaseButton({
 				title="Add Lease"
 				formId="add-lease-form"
 				isSubmitting={createLease.isPending}
+				submitDisabled={cannotCreateLease}
 				submitLabel="Add Lease"
 			>
 				<LeaseForm

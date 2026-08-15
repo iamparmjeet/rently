@@ -2,12 +2,10 @@
 
 import { NotFoundState } from "@rently/ui/shared/not-found-state";
 import { PageHeader } from "@rently/ui/shared/page-header";
-import { type StatItem, StatsGrid } from "@rently/ui/shared/stat-grid";
 import {
 	IconChartBar,
 	IconCircleHalf2,
 	IconLayoutBoard,
-	IconUsers,
 } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import {
@@ -61,32 +59,6 @@ export default function UnitsPage() {
 		};
 	}, [data?.units]);
 
-	const stats = useMemo<StatItem[]>(
-		() => [
-			{
-				icon: IconLayoutBoard,
-				label: "Total Units",
-				value: pageStats.totalUnits,
-			},
-			{
-				icon: IconUsers,
-				label: "Occupancy",
-				value: `${pageStats.occupancyRate}%`,
-			},
-			{
-				icon: IconCircleHalf2,
-				label: "Vacant Units",
-				value: pageStats.vacantUnits,
-			},
-			{
-				icon: IconChartBar,
-				label: "Monthly Revenue",
-				value: `₹${pageStats.monthlyRevenue.toLocaleString("en-IN")}`,
-			},
-		],
-		[pageStats],
-	);
-
 	// GOTCHA: guard comes after all hooks
 	if (isError) return <NotFoundState />;
 
@@ -100,7 +72,58 @@ export default function UnitsPage() {
 					<AddUnitButton withIcon />
 				</PageHeader>
 
-				<StatsGrid stats={stats} isLoading={isLoading} />
+				<section className="overflow-hidden rounded-xl border bg-card shadow-sm">
+					<div className="grid divide-y sm:grid-cols-[1.05fr_1fr] sm:divide-x sm:divide-y-0">
+						<div className="relative overflow-hidden bg-gradient-to-br from-primary/[0.08] via-card to-card p-5">
+							<div className="absolute -top-10 -right-10 size-32 rounded-full bg-primary/[0.08] blur-2xl" />
+							<div className="relative">
+								<p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.14em]">
+									Occupancy health
+								</p>
+								{isLoading ? (
+									<div className="mt-2 h-9 w-24 animate-pulse rounded bg-muted" />
+								) : (
+									<p className="mt-1 font-semibold text-3xl tracking-tight">
+										{pageStats.occupancyRate}%{" "}
+										<span className="font-normal text-base text-muted-foreground">
+											occupied
+										</span>
+									</p>
+								)}
+								<div className="mt-4 h-1.5 max-w-sm overflow-hidden rounded-full bg-primary/10">
+									<div
+										className="h-full rounded-full bg-primary transition-all"
+										style={{ width: `${pageStats.occupancyRate}%` }}
+									/>
+								</div>
+								<p className="mt-2 text-muted-foreground text-xs">
+									{pageStats.totalUnits - pageStats.vacantUnits} occupied ·{" "}
+									{pageStats.vacantUnits} available
+								</p>
+							</div>
+						</div>
+						<div className="grid grid-cols-3 divide-x">
+							<UnitMetric
+								icon={IconLayoutBoard}
+								label="Units"
+								value={pageStats.totalUnits}
+								isLoading={isLoading}
+							/>
+							<UnitMetric
+								icon={IconCircleHalf2}
+								label="Available"
+								value={pageStats.vacantUnits}
+								isLoading={isLoading}
+							/>
+							<UnitMetric
+								icon={IconChartBar}
+								label="Monthly rent"
+								value={`₹${pageStats.monthlyRevenue.toLocaleString("en-IN")}`}
+								isLoading={isLoading}
+							/>
+						</div>
+					</div>
+				</section>
 
 				<UnitFiltersBar filters={filters} onFiltersChange={setFilters} />
 
@@ -114,5 +137,31 @@ export default function UnitsPage() {
 				/>
 			</div>
 		</Container>
+	);
+}
+
+function UnitMetric({
+	icon: Icon,
+	label,
+	value,
+	isLoading,
+}: {
+	icon: typeof IconLayoutBoard;
+	label: string;
+	value: string | number;
+	isLoading: boolean;
+}) {
+	return (
+		<div className="min-w-0 px-3 py-5 text-center sm:px-4">
+			<Icon className="mx-auto size-4 text-primary" />
+			<p className="mt-2 truncate text-muted-foreground text-xs">{label}</p>
+			{isLoading ? (
+				<div className="mx-auto mt-1 h-5 w-12 animate-pulse rounded bg-muted" />
+			) : (
+				<p className="mt-1 truncate font-semibold text-sm sm:text-base">
+					{value}
+				</p>
+			)}
+		</div>
 	);
 }

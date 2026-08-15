@@ -33,6 +33,7 @@ rently/                          ← Turborepo root
 │   ├── web/                     ← Marketing site + auth flows (port 3001)
 │   ├── dashboard/               ← Owner portal (port 3002)
 │   ├── tenant/                  ← Tenant portal (port 3003)
+│   ├── admin/                   ← Private KeyHQ operations app (port 3004)
 │   └── server/                  ← Hono API server / Cloudflare Workers entry
 └── packages/
     ├── api/                     ← oRPC routers + all business logic
@@ -53,7 +54,8 @@ rently/                          ← Turborepo root
 | `apps/web`       | 3001 | Everyone    | Landing page, `/login`, `/register`, invite acceptance |
 | `apps/dashboard` | 3002 | Owners      | Full property management UI                            |
 | `apps/tenant`    | 3003 | Tenants     | Lease overview, bills, payments, meter readings        |
-| `apps/server`    | 8787 | Internal    | Hono + oRPC API, auth handler, OpenAPI docs            |
+| `apps/admin`     | 3004 | KeyHQ staff | User support, subscriptions, beta codes, audit history |
+| `apps/server`    | 3000 | Internal    | Hono + oRPC API, auth handler, OpenAPI docs            |
 
 ---
 
@@ -121,6 +123,12 @@ User action (form submit)
 
 ```
 appRouter
+├── admin
+│   ├── stats          overview
+│   ├── users          list, get
+│   ├── subscriptions  list, recordPayment
+│   ├── betaCodes      list, create, expire
+│   └── auditLogs      list
 └── rent
     ├── property   list, get, create, update, delete      ✅
     ├── unit       list, get, create, update, delete      ✅
@@ -137,6 +145,7 @@ appRouter
 - All auth UI lives in `apps/web`. After sign-in, routing is role-based:
   - `role: owner` → redirected to `apps/dashboard`
   - `role: tenant` → redirected to `apps/tenant`
+  - `role: admin` → redirected to `apps/admin`
 - Cross-app navigation uses `window.location.replace()` with `NEXT_PUBLIC_*` env vars — never `router.push()`, which only works within a single Next.js app.
 - Route protection is handled by `proxy.ts` in each app — **there is no `middleware.ts`**.
 
@@ -152,7 +161,7 @@ Every owner-scoped query is filtered by `ctx.user.id`. Ownership helpers (`Verif
 
 - **Properties** — CRUD with property type (residential/commercial) and address
 - **Units** — per-property units with type, rent amount, status (vacant/occupied)
-- **Tenants** — invite-based onboarding; owner-gated KYC (UID/PAN)
+- **Tenants** — invite-based onboarding; private per-document upload, consent, review, replacement, and purge workflow
 - **Leases** — link tenant ↔ unit with start/end date, rent amount, deposit
 - **Utilities** — electricity meter readings per unit; bill calculation
 - **Payments** — rent, utility, and deposit payment records
@@ -165,7 +174,7 @@ Every owner-scoped query is filtered by `ctx.user.id`. Ownership helpers (`Verif
 - **Bill tab** — current month rent + utility breakdown
 - **Payments tab** — payment history
 - **Readings tab** — submit electricity meter readings
-- **Documents tab** — view profile and KYC status; document uploads and change requests are planned
+- **Documents tab** — private six-document upload, consent, owner review, replacement, and short-lived download workflow
 
 ### Auth flows (`apps/web`)
 
@@ -188,9 +197,10 @@ Every owner-scoped query is filtered by `ctx.user.id`. Ownership helpers (`Verif
 | `utilities`              | Electricity meter readings per lease              |
 | `payments`               | Financial transactions (rent / utility / deposit) |
 | `tenantInvites`          | Owner-created invite token with expiry            |
-| `tenantProfiles`         | Extended tenant KYC (UID, PAN, emergency contact) |
+| `tenantProfiles`         | Extended tenant profile, legacy PAN hint, and Aadhaar last four |
 | `ownerProfiles`          | Extended owner profile (GST, UPI, company name)   |
-| `documentUpdateRequests` | Owner-gated UID/PAN change workflow               |
+| `tenantDocuments`        | Private document versions, consent, review, and purge metadata |
+| `documentUpdateRequests` | Tenant-requested replacement lifecycle             |
 
 ### Subscription domain
 
@@ -199,6 +209,7 @@ Every owner-scoped query is filtered by `ctx.user.id`. Ownership helpers (`Verif
 | `plans`         | Pricing tiers              |
 | `subscriptions` | Active plan per owner      |
 | `invoices`      | Per-billing-period records |
+| `adminAuditLogs` | Audited KeyHQ admin mutations |
 
 All primary keys are **UUIDv7** — time-ordered, app-generated, no PostgreSQL extension required.
 
@@ -236,10 +247,11 @@ Copy the example env files and fill in values:
 # Server
 cp apps/server/.env.example apps/server/.env
 
-# Frontend apps (web, dashboard, tenant share the same client vars)
+# Frontend apps share the same client variables
 cp apps/web/.env.example apps/web/.env.local
-cp apps/dashboard/.env.example apps/dashboard/.env.local
-cp apps/tenant/.env.example apps/tenant/.env.local
+cp apps/web/.env.example apps/dashboard/.env.local
+cp apps/web/.env.example apps/tenant/.env.local
+cp apps/admin/.env.example apps/admin/.env.local
 ```
 
 See [Environment Variables](#environment-variables) below for all required keys.
@@ -259,10 +271,11 @@ bun run db:seed        # seed subscription plans
 bun run dev
 
 # Or individually
-bun run dev:server     # API server — port 8787
+bun run dev:server     # API server — port 3000
 bun run dev:web        # Marketing + auth — port 3001
 bun run dev:dashboard  # Owner portal — port 3002
 bun run dev:tenant     # Tenant portal — port 3003
+bun run dev:admin      # Private operations app — port 3004
 ```
 
 ---
@@ -278,8 +291,8 @@ USE_NEON=false                  # set to "true" in production to use Neon server
 
 # Auth
 BETTER_AUTH_SECRET=             # min 32 chars — generate with: openssl rand -base64 32
-BETTER_AUTH_URL=http://localhost:8787
-CORS_ORIGINS=http://localhost:3001,http://localhost:3002,http://localhost:3003
+BETTER_AUTH_URL=http://localhost:3000
+CORS_ORIGINS=http://localhost:3001,http://localhost:3002,http://localhost:3003,http://localhost:3004
 COOKIE_DOMAIN=localhost
 WEB_APP_URL=http://localhost:3001
 
@@ -300,17 +313,27 @@ R2_ACCESS_KEY_ID=
 R2_SECRET_ACCESS_KEY=
 R2_PUBLIC_URL=https://keyhq-media.example.com
 R2_S3_ENDPOINT=https://<account-id>.r2.cloudflarestorage.com
+R2_PRIVATE_BUCKET_NAME=keyhq-private-documents
+R2_PRIVATE_ACCESS_KEY_ID=
+R2_PRIVATE_SECRET_ACCESS_KEY=
+AADHAAR_UPLOADS_ENABLED=false
 
 NODE_ENV=development
 ```
 
-### `apps/*/env.local` (all three Next.js apps)
+Tenant documents use the separate private R2 bucket above. Keep public access
+disabled, do not attach a custom domain, and configure bucket CORS with only
+the dashboard and tenant portal origins (including their local development
+ports). The document API returns only short-lived presigned PUT/GET URLs.
+
+### `apps/*/.env.local` (all four Next.js apps)
 
 ```env
-NEXT_PUBLIC_SERVER_URL=http://localhost:8787
+NEXT_PUBLIC_SERVER_URL=http://localhost:3000
 NEXT_PUBLIC_WEB_URL=http://localhost:3001
 NEXT_PUBLIC_DASHBOARD_URL=http://localhost:3002
 NEXT_PUBLIC_TENANT_URL=http://localhost:3003
+NEXT_PUBLIC_ADMIN_URL=http://localhost:3004
 ```
 
 ---
@@ -378,12 +401,13 @@ chore(deps): bump drizzle-orm to 0.45.2
 | R2 owner-avatar upload                                                | ✅ Complete                    |
 | Tenant meter-submission rate limiting                                 | ✅ Complete                    |
 | Mobile sidebar                                                        | ✅ Complete — device QA pending |
-| Hard email verification and unified tenant onboarding                 | 📋 Milestone 1                 |
-| KYC document-file uploads and persisted change-request lifecycle      | 📋 Milestone 2                 |
+| Hard email verification and unified tenant onboarding                 | ✅ Milestone 1                 |
+| Private tenant document workflow and persisted replacement lifecycle  | ✅ Milestone 2                 |
 | Mobile device and journey QA                                          | 📋 Milestone 3                 |
 | Instant dashboard bootstrap                                           | 📋 Milestone 4                 |
 | Print-optimized rent receipts                                         | 📋 Milestone 5                 |
-| Persisted notification preferences and scheduled reminders            | 📋 Milestones 6–7              |
+| Persisted notification preferences and automatic tenant emails        | ✅ Milestone 6                 |
+| Scheduled preference-driven email reminders                           | ✅ Milestone 7                 |
 | Admin panel                                                           | 📋 Post-beta                   |
 
 ---

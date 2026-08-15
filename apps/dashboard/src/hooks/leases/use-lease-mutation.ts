@@ -1,6 +1,12 @@
-import { useMutation, useQueryClient } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { client, orpc } from "@/utils/orpc";
+
+function getLeaseUpdateErrorMessage(message: string) {
+	return message === "Internal Server Error"
+		? "Unable to update the lease. Please try again."
+		: message;
+}
 
 // Create
 export function useCreateLease() {
@@ -67,7 +73,9 @@ export function useUpdateLease() {
 
 		onError: (error, _, context) => {
 			console.error("Failed to Update Lease data", error.message);
-			toast.error(error.message, { id: context?.toastId });
+			toast.error(getLeaseUpdateErrorMessage(error.message), {
+				id: context?.toastId,
+			});
 		},
 	});
 }
@@ -116,6 +124,51 @@ export function useTerminateLease() {
 				queryKey: orpc.rent.unit.getUnitById.key(),
 			});
 		},
+	});
+}
+
+export function useRentReminderSuppression(leaseId: string) {
+	return useQuery({
+		...orpc.rent.lease.getNextRentReminderSuppression.queryOptions({
+			input: { leaseId },
+		}),
+		enabled: !!leaseId,
+	});
+}
+
+export function useSuppressNextRentReminders() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (
+			input: Parameters<typeof client.rent.lease.suppressNextRentReminders>[0],
+		) => client.rent.lease.suppressNextRentReminders(input),
+		onSuccess: (_, variables) => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.lease.getNextRentReminderSuppression.key({
+					input: { leaseId: variables.leaseId },
+				}),
+			});
+			toast.success("Next month’s rent reminders skipped");
+		},
+		onError: (error) => toast.error(error.message),
+	});
+}
+
+export function useResumeNextRentReminders() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (
+			input: Parameters<typeof client.rent.lease.resumeNextRentReminders>[0],
+		) => client.rent.lease.resumeNextRentReminders(input),
+		onSuccess: (_, variables) => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.lease.getNextRentReminderSuppression.key({
+					input: { leaseId: variables.leaseId },
+				}),
+			});
+			toast.success("Next month’s rent reminders resumed");
+		},
+		onError: (error) => toast.error(error.message),
 	});
 }
 
@@ -285,7 +338,9 @@ export function useOptimisticUpdateLease() {
 				);
 			}
 			console.error("Failed to Update Lease data", error.message);
-			toast.error(error.message, { id: context?.toastId });
+			toast.error(getLeaseUpdateErrorMessage(error.message), {
+				id: context?.toastId,
+			});
 		},
 		// onSuccess
 		onSuccess: (_, variables, context) => {

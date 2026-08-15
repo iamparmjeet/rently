@@ -1,13 +1,16 @@
 import { relations } from "drizzle-orm";
+import { adminAuditLogs } from "./admin";
 import {
 	documentUpdateRequests,
 	invoices,
 	leases,
+	notificationPreferences,
 	ownerProfiles,
 	payments,
 	plans,
 	properties,
 	subscriptions,
+	tenantDocuments,
 	tenantInvites,
 	tenantProfiles,
 	units,
@@ -32,7 +35,29 @@ export const userRelations = relations(user, ({ one, many }) => ({
 		relationName: "invitedBy",
 	}),
 	subscriptions: many(subscriptions),
+	notificationPreferences: one(notificationPreferences, {
+		fields: [user.id],
+		references: [notificationPreferences.ownerId],
+	}),
+	adminAuditLogs: many(adminAuditLogs),
 }));
+
+export const adminAuditLogRelations = relations(adminAuditLogs, ({ one }) => ({
+	actorAdmin: one(user, {
+		fields: [adminAuditLogs.actorAdminUserId],
+		references: [user.id],
+	}),
+}));
+
+export const notificationPreferencesRelations = relations(
+	notificationPreferences,
+	({ one }) => ({
+		owner: one(user, {
+			fields: [notificationPreferences.ownerId],
+			references: [user.id],
+		}),
+	}),
+);
 
 export const propertyRelations = relations(properties, ({ one, many }) => ({
 	owner: one(user, {
@@ -141,6 +166,7 @@ export const tenantProfilesRelations = relations(
 			relationName: "pendingRequest",
 		}),
 		documentRequests: many(documentUpdateRequests),
+		documents: many(tenantDocuments),
 	}),
 );
 
@@ -158,6 +184,40 @@ export const documentUpdateRequestsRelations = relations(
 		reviewedBy: one(user, {
 			fields: [documentUpdateRequests.reviewedById],
 			references: [user.id],
+		}),
+		sourceDocument: one(tenantDocuments, {
+			fields: [documentUpdateRequests.sourceDocumentId],
+			references: [tenantDocuments.id],
+			relationName: "sourceDocument",
+		}),
+		replacementDocument: one(tenantDocuments, {
+			fields: [documentUpdateRequests.replacementDocumentId],
+			references: [tenantDocuments.id],
+			relationName: "replacementDocument",
+		}),
+	}),
+);
+
+export const tenantDocumentsRelations = relations(
+	tenantDocuments,
+	({ one }) => ({
+		tenant: one(tenantProfiles, {
+			fields: [tenantDocuments.tenantProfileId],
+			references: [tenantProfiles.id],
+		}),
+		owner: one(user, {
+			fields: [tenantDocuments.ownerId],
+			references: [user.id],
+			relationName: "documentOwner",
+		}),
+		submittedBy: one(user, {
+			fields: [tenantDocuments.submittedById],
+			references: [user.id],
+			relationName: "documentSubmitter",
+		}),
+		updateRequest: one(documentUpdateRequests, {
+			fields: [tenantDocuments.updateRequestId],
+			references: [documentUpdateRequests.id],
 		}),
 	}),
 );

@@ -16,6 +16,11 @@ if (databaseUrl.pathname !== "/rently_test") {
 }
 
 export default defineConfig({
+	oxc: {
+		jsx: {
+			runtime: "automatic",
+		},
+	},
 	resolve: {
 		alias: {
 			"@": fileURLToPath(new URL("./apps/web/src", import.meta.url)),
@@ -23,7 +28,7 @@ export default defineConfig({
 	},
 	test: {
 		environment: "node",
-		include: ["packages/**/*.test.ts", "apps/**/*.test.{ts,tsx}"],
+		include: ["packages/**/*.test.{ts,tsx}", "apps/**/*.test.{ts,tsx}"],
 		exclude: ["**/node_modules/**", "**/.next/**"],
 		testTimeout: 10_000,
 	},

@@ -10,6 +10,7 @@ import {
 } from "@rently/ui/components/dropdown-menu";
 import type { NotificationListItem } from "@rently/validators";
 import {
+	IconAlertTriangle,
 	IconBell,
 	IconBolt,
 	IconFileText,
@@ -29,6 +30,8 @@ function NotificationIcon({ type }: { type: string }) {
 		return <IconHome className="size-4 text-green-500" />;
 	if (type === "lease_expiring_soon")
 		return <IconFileText className="size-4 text-destructive" />;
+	if (type === "rent_overdue")
+		return <IconAlertTriangle className="size-4 text-destructive" />;
 	return <IconBell className="size-4 text-muted-foreground" />;
 }
 

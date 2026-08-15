@@ -27,6 +27,7 @@ interface FormDialogProps {
 	description?: string;
 	formId: string;
 	isSubmitting?: boolean;
+	submitDisabled?: boolean;
 	submitLabel?: string;
 	size?: keyof typeof sizeClasses;
 	children: React.ReactNode;
@@ -38,6 +39,7 @@ export function FormDialog({
 	title,
 	description,
 	isSubmitting = false,
+	submitDisabled = false,
 	open: controlledOpen,
 	onOpenChange: controlledOnOpenChange,
 	size = "md",
@@ -79,7 +81,7 @@ export function FormDialog({
 						className=""
 						type="submit"
 						form={formId}
-						disabled={isSubmitting}
+						disabled={isSubmitting || submitDisabled}
 					>
 						{isSubmitting && (
 							<IconLoader2 className="mr-2 size-4 animate-spin" />

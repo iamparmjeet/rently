@@ -43,6 +43,7 @@ interface UtilityFormProps {
 	onSubmit: (values: UtilityBatchFormValues) => void;
 	isSubmitting?: boolean;
 	submitLabel?: string;
+	formId?: string;
 }
 
 type UtilityTab = "electricity" | "water" | "maintenance";
@@ -113,6 +114,7 @@ export function UtilityForm({
 	onSubmit,
 	isSubmitting = false,
 	submitLabel = "Save Reading",
+	formId,
 }: UtilityFormProps) {
 	// Start on the initialType tab, or electricity by default
 	const [activeTab, setActiveTab] = useState<UtilityTab>(
@@ -177,10 +179,8 @@ export function UtilityForm({
 
 	return (
 		<form
-			onSubmit={handleSubmit(onSubmit, (e) =>
-				// TODO: remove before prod
-				console.log("form errors", e),
-			)}
+			id={formId}
+			onSubmit={handleSubmit(onSubmit)}
 			className="flex flex-col gap-6"
 		>
 			{/* ── Billing Period ──────────────────────── */}
@@ -387,13 +387,15 @@ export function UtilityForm({
 					</div>
 				)}
 
-				<Button
-					type="submit"
-					disabled={isSubmitting || enabledCount === 0}
-					className="w-full"
-				>
-					{isSubmitting ? "Saving..." : submitLabel}
-				</Button>
+				{!formId && (
+					<Button
+						type="submit"
+						disabled={isSubmitting || enabledCount === 0}
+						className="w-full"
+					>
+						{isSubmitting ? "Saving..." : submitLabel}
+					</Button>
+				)}
 			</section>
 		</form>
 	);

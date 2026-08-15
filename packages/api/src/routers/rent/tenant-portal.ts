@@ -18,6 +18,7 @@ import {
 } from "@rently/db/schema/schema";
 import { and, count, desc, eq, gte, lt } from "drizzle-orm";
 import z from "zod";
+import { sendAutomaticUtilityBillEmail } from "../helpers/automatic-emails";
 
 // **************
 const READING_RATE_LIMIT_MAX = 5; // max submissions
@@ -222,8 +223,8 @@ export const getMyUtilities = protectedProcedure
 	});
 
 //  4. Get My Profile
-// WHY: Powers the "Profile & Docs" tab. Reads the user row + tenantProfiles row.
-//      verificationStatus drives the doc status badges (pending/verified).
+// WHY: Powers the tenant profile summary. Document state comes from the private
+// tenant-document list procedure, not the legacy profile verification columns.
 export const getMyProfile = protectedProcedure
 	.route({ method: "GET", path: "/rent/tenant-portal/profile" })
 	.output(
@@ -235,9 +236,11 @@ export const getMyProfile = protectedProcedure
 				address: z.string().nullable(),
 				emergencyContactName: z.string().nullable(),
 				emergencyContact: z.string().nullable(),
-				uidNumber: z.string().nullable(),
-				panNumber: z.string().nullable(),
-				verificationStatus: z.string().nullable(),
+				aadhaarLastFour: z
+					.string()
+					.regex(/^\d{4}$/)
+					.nullable(),
+				panHint: z.string().nullable(),
 			}),
 		}),
 	)
@@ -255,9 +258,8 @@ export const getMyProfile = protectedProcedure
 				address: tenantProfiles.address,
 				emergencyContactName: tenantProfiles.emergencyContactName,
 				emergencyContact: tenantProfiles.emergencyContact,
-				uidNumber: tenantProfiles.uidNumber,
-				panNumber: tenantProfiles.panNumber,
-				verificationStatus: tenantProfiles.verificationStatus,
+				aadhaarLastFour: tenantProfiles.aadhaarLastFour,
+				legacyPanNumber: tenantProfiles.panNumber,
 			})
 			.from(user)
 			.leftJoin(tenantProfiles, eq(tenantProfiles.userId, user.id))
@@ -270,7 +272,20 @@ export const getMyProfile = protectedProcedure
 			});
 		}
 
-		return { profile: row };
+		return {
+			profile: {
+				name: row.name,
+				email: row.email,
+				phone: row.phone,
+				address: row.address,
+				emergencyContactName: row.emergencyContactName,
+				emergencyContact: row.emergencyContact,
+				aadhaarLastFour: row.aadhaarLastFour,
+				panHint: row.legacyPanNumber
+					? `${row.legacyPanNumber.slice(0, 2)}••••${row.legacyPanNumber.slice(-2)}`
+					: null,
+			},
+		};
 	});
 
 //  5. Submit My Reading
@@ -417,20 +432,23 @@ export const submitMyReading = protectedProcedure
 		const fixedCharge = lastReading?.fixedCharge ?? FIXEDCHARGE;
 		const totalAmount = Math.round(unitsUsed * ratePerUnit + fixedCharge);
 
-		await db.insert(utilities).values({
-			leaseId: activeLease.id,
-			utilityType: "electricity",
-			previousReading: previousReading ?? null,
-			currentReading: input.currentReading,
-			previousReadingDate,
-			currentReadingDate: new Date(input.readingDate),
-			unitsUsed,
-			ratePerUnit,
-			fixedCharge,
-			totalAmount,
-			description: input.notes ?? null,
-			isPaid: false,
-		});
+		const [utility] = await db
+			.insert(utilities)
+			.values({
+				leaseId: activeLease.id,
+				utilityType: "electricity",
+				previousReading: previousReading ?? null,
+				currentReading: input.currentReading,
+				previousReadingDate,
+				currentReadingDate: new Date(input.readingDate),
+				unitsUsed,
+				ratePerUnit,
+				fixedCharge,
+				totalAmount,
+				description: input.notes ?? null,
+				isPaid: false,
+			})
+			.returning();
 
 		try {
 			const [leaseInfo] = await db
@@ -440,6 +458,14 @@ export const submitMyReading = protectedProcedure
 				.innerJoin(properties, eq(units.propertyId, properties.id))
 				.where(eq(leases.id, activeLease.id))
 				.limit(1);
+
+			if (utility && leaseInfo) {
+				await sendAutomaticUtilityBillEmail({
+					db,
+					ownerId: leaseInfo.ownerId,
+					utilityIds: [utility.id],
+				});
+			}
 
 			if (leaseInfo) {
 				await db.insert(notifications).values({
@@ -455,7 +481,7 @@ export const submitMyReading = protectedProcedure
 			console.error(
 				"[tenant-portal: submitMyReading] failed to submit notification:",
 				error,
-			); // TODO: remove before prod
+			);
 			// WHY swallow: a failed notification must never fail the reading submission.
 			// Owner can check manually; tenant's submission is already persisted.
 		}

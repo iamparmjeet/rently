@@ -67,7 +67,7 @@ export function UnitCardActions({ unit }: UnitCardActionsProps) {
 						baseRent: unit.baseRent,
 						area: unit.area,
 						description: unit.description,
-						furnishing: unit.furnishing ? null : "unfurnished",
+						furnishing: getInitialFurnishing(unit.furnishing),
 						type: unit.type,
 					}}
 					onSubmit={handleEditSubmit}
@@ -87,4 +87,16 @@ export function UnitCardActions({ unit }: UnitCardActionsProps) {
 			/>
 		</>
 	);
+}
+
+function getInitialFurnishing(value: string | null): CreateUnit["furnishing"] {
+	if (
+		value === "unfurnished" ||
+		value === "semi_furnished" ||
+		value === "fully_furnished"
+	) {
+		return value;
+	}
+
+	return "unfurnished";
 }

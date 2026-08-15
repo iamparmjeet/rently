@@ -42,3 +42,33 @@ const requireOwner = base.middleware(async ({ context, next }) => {
 });
 
 export const ownerProcedure = protectedProcedure.use(requireOwner);
+
+const requireAdmin = base.middleware(async ({ context, next }) => {
+	// biome-ignore lint/suspicious/noExplicitAny: Better Auth additionalFields are not typed on the base User.
+	const role = (context as any).user.role as string | undefined;
+
+	if (role !== USER_ROLES.ADMIN) {
+		throw new ORPCError("FORBIDDEN", {
+			message: "Only KeyHQ administrators can access this resource.",
+		});
+	}
+
+	return next({ context });
+});
+
+export const adminProcedure = protectedProcedure.use(requireAdmin);
+
+const requireTenant = base.middleware(async ({ context, next }) => {
+	// biome-ignore lint/suspicious/noExplicitAny: Better Auth additionalFields aren't typed on base User
+	const role = (context as any).user.role as string | undefined;
+
+	if (role !== USER_ROLES.TENANT) {
+		throw new ORPCError("FORBIDDEN", {
+			message: "Only tenants can perform this action.",
+		});
+	}
+
+	return next({ context });
+});
+
+export const tenantProcedure = protectedProcedure.use(requireTenant);

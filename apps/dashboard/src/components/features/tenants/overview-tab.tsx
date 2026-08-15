@@ -3,6 +3,7 @@
 import { Badge } from "@rently/ui/components/badge";
 import { formatRupees } from "@rently/ui/lib/currency";
 import type { Lease, TenantDetail } from "@rently/validators";
+import Link from "next/link";
 
 interface OverviewTabProps {
 	tenant: TenantDetail;
@@ -20,14 +21,14 @@ function InfoRow({ label, value }: { label: string; value: React.ReactNode }) {
 
 function SectionHeading({ children }: { children: React.ReactNode }) {
 	return (
-		<p className="mb-4 font-semibold text-muted-foreground text-xs uppercase tracking-wide">
+		<p className="mb-3 font-semibold text-muted-foreground text-xs uppercase tracking-[0.14em]">
 			{children}
 		</p>
 	);
 }
 
 export function OverviewTab({ tenant, lease }: OverviewTabProps) {
-	const { profile, currentLease } = tenant;
+	const { profile, currentLease, activeLeases } = tenant;
 
 	const leaseStartFormatted = lease?.startDate
 		? new Date(lease.startDate).toLocaleDateString("en-IN", {
@@ -44,11 +45,55 @@ export function OverviewTab({ tenant, lease }: OverviewTabProps) {
 		: "Ongoing";
 
 	return (
-		<div className="grid grid-cols-1 gap-8 lg:grid-cols-3">
+		<div className="grid grid-cols-1 gap-5 lg:grid-cols-3">
 			{/* ── Left column: Personal + Lease ************ */}
-			<div className="space-y-8 lg:col-span-2">
+			<div className="space-y-5 lg:col-span-2">
+				{/* All active units */}
+				<section className="rounded-lg border bg-muted/[0.12] p-5">
+					<SectionHeading>
+						Active Units / Leases ({activeLeases.length})
+					</SectionHeading>
+					{activeLeases.length === 0 ? (
+						<p className="rounded-md border border-dashed px-3 py-6 text-center text-muted-foreground text-sm">
+							No active leases
+						</p>
+					) : (
+						<div className="space-y-3">
+							{activeLeases.map((activeLease) => (
+								<div
+									key={activeLease.id}
+									className="flex items-center justify-between gap-4 rounded-lg border p-4"
+								>
+									<div className="min-w-0">
+										<p className="font-medium text-sm">
+											{activeLease.propertyName}
+										</p>
+										<p className="mt-1 text-muted-foreground text-sm">
+											Unit {activeLease.unitNumber} ·{" "}
+											{formatRupees(activeLease.rent)}/mo
+										</p>
+									</div>
+									<div className="flex shrink-0 items-center gap-3">
+										<Badge variant="outline">
+											{activeLease.endDate
+												? `Until ${new Date(activeLease.endDate).toLocaleDateString("en-IN")}`
+												: "Ongoing"}
+										</Badge>
+										<Link
+											href={`/leases/${activeLease.id}`}
+											className="font-medium text-primary text-sm hover:underline"
+										>
+											View lease
+										</Link>
+									</div>
+								</div>
+							))}
+						</div>
+					)}
+				</section>
+
 				{/* Personal Information */}
-				<section>
+				<section className="rounded-lg border p-5">
 					<SectionHeading>Personal Information</SectionHeading>
 					<div className="grid grid-cols-2 gap-6">
 						<InfoRow label="Email" value={tenant.email} />
@@ -126,7 +171,7 @@ export function OverviewTab({ tenant, lease }: OverviewTabProps) {
 				{/* TODO: Wire up once `notes` column is added to tenantProfiles.
 				    Migration needed: ALTER TABLE tenant_profiles ADD COLUMN notes TEXT;
 				    Then add to UpdateTenantProfileSchema + getTenantById output. */}
-				<section>
+				<section className="rounded-lg border p-5">
 					<SectionHeading>
 						Owner Notes{" "}
 						<span className="text-xs normal-case">
@@ -145,7 +190,7 @@ export function OverviewTab({ tenant, lease }: OverviewTabProps) {
 
 				{/* TODO: Reference section needs DB schema additions.
 				    The `referrers` table needs: referredByName, referredByContact, relationship fields. */}
-				<section>
+				<section className="rounded-lg border p-5">
 					<SectionHeading>Reference</SectionHeading>
 					<p className="text-muted-foreground text-sm">
 						Reference tracking coming soon.

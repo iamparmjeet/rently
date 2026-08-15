@@ -21,6 +21,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@rently/ui/components/select";
+import { paiseToFormValue } from "@rently/ui/lib/currency";
 import {
 	IconAlertCircle,
 	IconBuildingStore,
@@ -32,6 +33,7 @@ import {
 import { useEffect, useState } from "react";
 import { type Resolver, useForm } from "react-hook-form";
 import z from "zod";
+import { entityLabel } from "@/utils/display";
 
 // ── Types ────────
 
@@ -62,14 +64,23 @@ type TenantOption = {
 // ── Form schema ──────────────
 // WHY: String dates — <input type="date"> produces "YYYY-MM-DD" strings.
 // The conversion to Date happens at the mutation call site (the handler), not here.
-export const LeaseFormSchema = z.object({
-	unitId: z.string().min(1, "Select a unit"),
-	tenantId: z.string().min(1, "Select a tenant"),
-	startDate: z.string().min(1, "Start date is required"),
-	endDate: z.string().optional(),
-	rent: z.number().min(1, "Rent must be > 0"),
-	deposit: z.number().optional(),
-});
+export const LeaseFormSchema = z
+	.object({
+		unitId: z.string().min(1, "Select a unit"),
+		tenantId: z.string().min(1, "Select a tenant"),
+		startDate: z.string().min(1, "Start date is required"),
+		endDate: z.string().optional(),
+		rent: z.number().min(1, "Rent must be > 0"),
+		deposit: z.number().optional(),
+	})
+	.refine(
+		({ startDate, endDate }) =>
+			!endDate || !startDate || new Date(endDate) > new Date(startDate),
+		{
+			message: "End date must be after start date",
+			path: ["endDate"],
+		},
+	);
 
 export type LeaseFormValues = z.infer<typeof LeaseFormSchema>;
 
@@ -150,9 +161,11 @@ export function LeaseForm({
 		: [];
 
 	// Read-only property label when propertyId is pre-set from context
-	const presetPropertyName = initialPropertyId
-		? (properties.find((p) => p.id === initialPropertyId)?.name ?? null)
+	const presetProperty = initialPropertyId
+		? (properties.find((p) => p.id === initialPropertyId) ?? null)
 		: null;
+	const selectedProperty = properties.find((p) => p.id === selectedPropertyId);
+	const selectedTenant = tenants.find((t) => t.id === watchedTenantId);
 
 	// WHY: edit mode = defaultValues.unitId is already populated.
 	// In edit mode we skip the cascade and show read-only unit + tenant info.
@@ -163,7 +176,9 @@ export function LeaseForm({
 	// via defaultValues on mount (edit mode). useEffect handles both cases.
 	useEffect(() => {
 		if (selectedUnit && !isEditMode) {
-			setValue("rent", selectedUnit.baseRent, { shouldValidate: true });
+			setValue("rent", paiseToFormValue(selectedUnit.baseRent), {
+				shouldValidate: true,
+			});
 		}
 	}, [selectedUnit, isEditMode, setValue]);
 
@@ -218,10 +233,12 @@ export function LeaseForm({
 							{/* Step 1 — Property */}
 							{initialPropertyId ? (
 								// Pre-set from context (e.g. from property detail page)
-								presetPropertyName && (
+								presetProperty && (
 									<div className="flex items-center gap-2 rounded-md border bg-muted/50 px-3 py-2 text-sm">
 										<span className="text-muted-foreground">Property:</span>
-										<span className="font-medium">{presetPropertyName}</span>
+										<span className="font-medium">
+											{entityLabel(presetProperty.name, presetProperty.id)}
+										</span>
 									</div>
 								)
 							) : (
@@ -233,7 +250,14 @@ export function LeaseForm({
 										disabled={isSubmitting}
 									>
 										<SelectTrigger>
-											<SelectValue placeholder="Select a property first" />
+											<SelectValue placeholder="Select a property first">
+												{selectedProperty
+													? entityLabel(
+															selectedProperty.name,
+															selectedProperty.id,
+														)
+													: undefined}
+											</SelectValue>
 										</SelectTrigger>
 										<SelectContent>
 											{properties.length === 0 ? (
@@ -243,7 +267,7 @@ export function LeaseForm({
 											) : (
 												properties.map((p) => (
 													<SelectItem key={p.id} value={p.id}>
-														{p.name}
+														{entityLabel(p.name, p.id)}
 													</SelectItem>
 												))
 											)}
@@ -296,12 +320,16 @@ export function LeaseForm({
 										disabled={isSubmitting}
 									>
 										<SelectTrigger>
-											<SelectValue placeholder="Select a tenant" />
+											<SelectValue placeholder="Select a tenant">
+												{selectedTenant
+													? entityLabel(selectedTenant.name, selectedTenant.id)
+													: undefined}
+											</SelectValue>
 										</SelectTrigger>
 										<SelectContent>
 											{tenants.map((t) => (
 												<SelectItem key={t.id} value={t.id}>
-													<span>{t.name}</span>
+													<span>{entityLabel(t.name, t.id)}</span>
 													<span className="ml-2 text-muted-foreground text-xs">
 														{t.email}
 													</span>
@@ -422,7 +450,9 @@ function UnitCard({
 			{/* Unit info */}
 			<div className="min-w-0 flex-1">
 				<div className="flex items-center gap-2">
-					<span className="font-medium text-sm">{unit.unitNumber}</span>
+					<span className="font-medium text-sm">
+						{entityLabel(unit.unitNumber, unit.id)}
+					</span>
 					{unit.type && (
 						<span className="rounded-full bg-muted px-2 py-0.5 font-medium text-[10px] text-muted-foreground uppercase tracking-wide">
 							{UNIT_TYPE_LABELS[unit.type as UnitType] ?? unit.type}
@@ -468,8 +498,12 @@ function ReadOnlyUnitBadge({ unit }: { unit: UnitOption }) {
 				)}
 			</div>
 			<div className="min-w-0 flex-1">
-				<p className="font-medium text-sm">{unit.unitNumber}</p>
-				<p className="text-muted-foreground text-xs">{unit.propertyName}</p>
+				<p className="font-medium text-sm">
+					{entityLabel(unit.unitNumber, unit.id)}
+				</p>
+				<p className="text-muted-foreground text-xs">
+					{entityLabel(unit.propertyName, unit.propertyId)}
+				</p>
 			</div>
 			<Badge variant="secondary" className="shrink-0 text-xs">
 				Unit
@@ -486,7 +520,9 @@ function ReadOnlyTenantBadge({ tenant }: { tenant: TenantOption | undefined }) {
 				{tenant.name.charAt(0).toUpperCase()}
 			</div>
 			<div className="min-w-0 flex-1">
-				<p className="font-medium text-sm">{tenant.name}</p>
+				<p className="font-medium text-sm">
+					{entityLabel(tenant.name, tenant.id)}
+				</p>
 				<p className="truncate text-muted-foreground text-xs">{tenant.email}</p>
 			</div>
 			<Badge variant="secondary" className="shrink-0 text-xs">

@@ -98,6 +98,30 @@ export const PAYMENT_STATUS_VALUES = Object.values(PAYMENT_STATUS) as [
 	...PaymentStatus[],
 ];
 
+export const CREDIT_TYPES = {
+	DISCOUNT: "discount",
+	WRITE_OFF: "write_off",
+	CREDIT_NOTE: "credit_note",
+} as const;
+export type CreditType = (typeof CREDIT_TYPES)[keyof typeof CREDIT_TYPES];
+export const CREDIT_TYPE_VALUES = Object.values(CREDIT_TYPES) as [
+	CreditType,
+	...CreditType[],
+];
+
+export const APPLIED_AS = {
+	ADJUST: "adjust",
+	REFUND: "refund",
+} as const;
+export type AppliedAs = (typeof APPLIED_AS)[keyof typeof APPLIED_AS];
+export const APPLIED_AS_VALUES = Object.values(APPLIED_AS) as [
+	AppliedAs,
+	...AppliedAs[],
+];
+
+export const GST_RATES = [0, 5, 12, 18] as const;
+export type GstRate = (typeof GST_RATES)[number];
+
 // [
 //   {
 //     name: "Basic",

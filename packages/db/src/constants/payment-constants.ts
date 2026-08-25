@@ -121,6 +121,10 @@ export const APPLIED_AS_VALUES = Object.values(APPLIED_AS) as [
 
 export const GST_RATES = [0, 5, 12, 18] as const;
 export type GstRate = (typeof GST_RATES)[number];
+export const GST_RATES_VALUES = Object.values(GST_RATES) as [
+	GstRate,
+	...GstRate[],
+];
 
 // [
 //   {

@@ -43,7 +43,9 @@ export const UpsertOwnerProfileSchema = z
 		// TODO: add bio and preferredCurrency after DB migration adds those columns
 	})
 	.superRefine((v, ctx) => {
-		if (v.gstEnabled && !v.gstNumber) {
+		// Allow gstEnabled:true when gstNumber is undefined (keep existing GSTIN) — handler merges with existing profile and validates presence.
+		// Only error when caller explicitly disables GSTIN (empty string) or provides no GSTIN without existing one (handled server-side).
+		if (v.gstEnabled && v.gstNumber === "") {
 			ctx.addIssue({
 				code: "custom",
 				path: ["gstEnabled"],

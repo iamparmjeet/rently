@@ -252,13 +252,8 @@ export const updateLease = ownerProcedure
 			});
 		}
 
-		if (ownership.status === "active") {
-			throw new ORPCError("BAD_REQUEST", {
-				message:
-					"Active leases cannot be edited. Terminate the lease and create a new one to make changes.",
-			});
-		}
-
+		// Active leases are editable (rent, deposit, notice, description, dates).
+		// Only terminated/expired are immutable — they represent closed periods.
 		if (ownership.status === "terminated" || ownership.status === "expired") {
 			throw new ORPCError("BAD_REQUEST", {
 				message: "Terminated or expired leases cannot be edited.",
@@ -354,7 +349,13 @@ export const getLeaseById = ownerProcedure
 			.from(leases)
 			.innerJoin(units, eq(leases.unitId, units.id))
 			.innerJoin(properties, eq(units.propertyId, properties.id))
-			.where(eq(leases.id, input.id))
+			.where(
+				and(
+					eq(leases.id, input.id),
+					isNull(properties.deletedAt),
+					isNull(units.deletedAt),
+				),
+			)
 			.limit(1);
 
 		if (!result) {
@@ -411,6 +412,8 @@ export const listLeases = ownerProcedure
 			.where(
 				and(
 					eq(properties.ownerId, authUser.id),
+					isNull(properties.deletedAt),
+					isNull(units.deletedAt),
 					input.status ? eq(leases.status, input.status) : undefined,
 				),
 			)

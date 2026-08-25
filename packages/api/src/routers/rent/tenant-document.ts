@@ -21,6 +21,7 @@ import {
 import {
 	documentUpdateRequests,
 	tenantDocuments,
+	tenantInvites,
 	tenantProfiles,
 } from "@rently/db/schema/schema";
 import { generatedId } from "@rently/db/utils/id";
@@ -32,7 +33,7 @@ import {
 	type TenantDocumentSummarySchema,
 	TenantDocumentTypeSchema,
 } from "@rently/validators";
-import { and, desc, eq, gt, inArray, max, or } from "drizzle-orm";
+import { and, desc, eq, gt, inArray, isNull, max, or } from "drizzle-orm";
 import z from "zod";
 import type { TenantDocumentStorage } from "../../modules/tenant-documents/storage";
 import { createR2TenantDocumentStorage } from "../../modules/tenant-documents/storage";
@@ -342,15 +343,44 @@ export const listTenantDocuments = ownerProcedure
 	.input(z.object({ tenantId: z.uuid() }))
 	.output(listOutput)
 	.handler(async ({ context, input }) => {
-		const profile = await findProfileForActor(
-			context.db,
-			context.user,
-			input.tenantId,
-		);
-		return {
-			documents: await listDocuments(context.db, profile.id),
-			capabilities: capabilities(),
-		};
+		try {
+			const profile = await findProfileForActor(
+				context.db,
+				context.user,
+				input.tenantId,
+			);
+			return {
+				documents: await listDocuments(context.db, profile.id),
+				capabilities: capabilities(),
+			};
+		} catch (error) {
+			// Pending invite (no tenantProfiles yet) — return empty docs + capabilities so UI shows pending state instead of 404 log spam
+			// tenant.ts:176 getTenantById already does this fallback for detail page
+			if (
+				error instanceof ORPCError &&
+				error.message === "NOT_FOUND" &&
+				error.status === 404
+			) {
+				const [invite] = await context.db
+					.select({ id: tenantInvites.id })
+					.from(tenantInvites)
+					.where(
+						and(
+							eq(tenantInvites.id, input.tenantId),
+							eq(tenantInvites.invitedById, context.user.id),
+							isNull(tenantInvites.deletedAt),
+						),
+					)
+					.limit(1);
+				if (invite) {
+					return {
+						documents: [],
+						capabilities: capabilities(),
+					};
+				}
+			}
+			throw error;
+		}
 	});
 
 export const beginTenantDocumentUpload = protectedProcedure
@@ -1076,6 +1106,40 @@ export const submitApprovedDocumentUpdate = protectedProcedure
 		return { success: true };
 	});
 
+export const deletePendingDocument = ownerProcedure
+	.route({ method: "DELETE", path: "/rent/tenant-document/delete" })
+	.input(z.object({ documentId: z.uuid() }))
+	.output(submitOutput)
+	.handler(async ({ context, input }) => {
+		const row = await findDocumentForActor(
+			context.db,
+			context.user,
+			input.documentId,
+		);
+		const doc = row.document;
+		if (
+			![
+				TENANT_DOCUMENT_STATUSES.UPLOAD_PENDING,
+				TENANT_DOCUMENT_STATUSES.PENDING_REVIEW,
+				TENANT_DOCUMENT_STATUSES.AWAITING_TENANT_CONSENT,
+			].includes(doc.status as never)
+		) {
+			fail("CONFLICT", "CONFLICT");
+		}
+		const storage = documentStorage();
+		await storage.deleteObject(doc.storageKey).catch(() => undefined);
+		await context.db
+			.update(tenantDocuments)
+			.set({
+				status: TENANT_DOCUMENT_STATUSES.EXPIRED,
+				purgedAt: new Date(),
+				purgeAfter: new Date(),
+				updatedAt: new Date(),
+			})
+			.where(eq(tenantDocuments.id, doc.id));
+		return { success: true };
+	});
+
 export const tenantDocument = {
 	listMyDocuments,
 	listTenantDocuments,
@@ -1087,4 +1151,5 @@ export const tenantDocument = {
 	createDocumentUpdateRequest,
 	reviewDocumentUpdateRequest,
 	submitApprovedDocumentUpdate,
+	deletePendingDocument,
 };

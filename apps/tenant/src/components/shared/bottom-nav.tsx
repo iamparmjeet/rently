@@ -31,7 +31,10 @@ interface BottomNavProps {
 
 export function BottomNav({ activeTab, onTabChange }: BottomNavProps) {
 	return (
-		<nav className="fixed right-0 bottom-0 left-0 z-50 mx-auto flex max-w-220 border-t bg-background">
+		<nav
+			className="fixed right-0 bottom-0 left-0 z-50 mx-auto flex max-w-220 border-t bg-background"
+			style={{ paddingBottom: "env(safe-area-inset-bottom)" }}
+		>
 			{NAV_ITEMS.map(({ id, label, icon: Icon }) => {
 				const isActive = activeTab === id;
 				return (

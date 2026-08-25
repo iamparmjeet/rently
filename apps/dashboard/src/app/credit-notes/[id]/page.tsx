@@ -45,11 +45,29 @@ export default function CreditNotePage({
 		};
 	}, [note]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset printed on id change
+	useEffect(() => {
+		printed.current = false;
+	}, [id]);
+
 	useEffect(() => {
 		if (!shouldPrint || !note || printed.current) return;
 		printed.current = true;
-		const t = window.setTimeout(() => window.print(), 0);
-		return () => window.clearTimeout(t);
+		let cancelled = false;
+		const doPrint = async () => {
+			try {
+				if (document.fonts?.ready) await document.fonts.ready;
+			} catch {}
+			if (cancelled) return;
+			window.requestAnimationFrame(() => {
+				if (!cancelled) window.print();
+			});
+		};
+		const timer = window.setTimeout(doPrint, 100);
+		return () => {
+			cancelled = true;
+			window.clearTimeout(timer);
+		};
 	}, [shouldPrint, note]);
 
 	if (isLoading) return <PageLoader rows={2} />;

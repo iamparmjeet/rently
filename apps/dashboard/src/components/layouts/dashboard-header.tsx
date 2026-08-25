@@ -85,6 +85,7 @@ function UserButton() {
 								src={session.user.image}
 								alt="user image"
 								fill
+								priority
 								className="cursor-pointer object-cover"
 								sizes="48px"
 							/>
@@ -107,6 +108,7 @@ function UserButton() {
 										src={session.user.image}
 										alt="user image"
 										fill
+										priority
 										className="object-cover"
 										sizes="48px"
 									/>

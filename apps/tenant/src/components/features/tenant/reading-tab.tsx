@@ -39,18 +39,24 @@ export function ReadingTab() {
 	);
 
 	const prevReading = latestElec?.currentReading ?? 0;
-	const currValue = Number.parseInt(currentInput, 10) || 0;
+	// parseFloat keeps fractional meter readings (meters often have decimals)
+	const currValue = Number.parseFloat(currentInput) || 0;
 
 	const unitsConsumed = Math.max(0, currValue - prevReading);
+	// Only estimate when owner rate is known — fallback 900/10000 is estimate only when no prior bill
+	const hasRate =
+		latestElec?.ratePerUnit != null && latestElec?.fixedCharge != null;
 	const estimatePaise =
-		currValue > prevReading && latestElec
+		currValue > prevReading && latestElec && hasRate
 			? Math.round(
-					unitsConsumed * (latestElec.ratePerUnit ?? 900) +
-						(latestElec.fixedCharge ?? 10000),
+					unitsConsumed * (latestElec.ratePerUnit as number) +
+						(latestElec.fixedCharge as number),
 				)
-			: 0;
+			: currValue > prevReading && latestElec && !hasRate
+				? Math.round(unitsConsumed * 900 + 10000) // fallback estimate when no prior rate
+				: 0;
 
-	const showEstimate = currValue > 0 && currValue >= prevReading;
+	const showEstimate = currValue > 0 && currValue > prevReading;
 
 	function handleSubmit() {
 		if (!currentInput) return;
@@ -192,22 +198,14 @@ export function ReadingTab() {
 			</div>
 
 			{/* Actions */}
-			<div className="grid grid-cols-2 gap-2.5">
+			<div className="flex gap-2.5">
 				<button
 					type="button"
 					disabled={!currentInput || isPending}
 					onClick={handleSubmit}
-					className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border bg-background font-medium text-sm transition-colors hover:bg-muted disabled:cursor-not-allowed disabled:opacity-50"
+					className="flex h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-primary bg-primary font-medium text-primary-foreground text-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
 				>
-					Submit Reading
-				</button>
-				<button
-					type="button"
-					disabled={!currentInput || isPending}
-					onClick={handleSubmit}
-					className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-primary bg-primary font-medium text-primary-foreground text-sm transition-colors hover:bg-primary/90 disabled:cursor-not-allowed disabled:opacity-50"
-				>
-					{isPending ? "Submitting…" : "✉️ Submit & Notify"}
+					{isPending ? "Submitting…" : "Submit & Notify"}
 				</button>
 			</div>
 

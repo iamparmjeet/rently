@@ -48,12 +48,30 @@ export default function UtilityBillPage({
 		};
 	}, [billNumber, utility]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset printed on id change
+	useEffect(() => {
+		printed.current = false;
+	}, [id]);
+
 	useEffect(() => {
 		if (!shouldPrint || !utility || printed.current) return;
 
 		printed.current = true;
-		const timer = window.setTimeout(() => window.print(), 0);
-		return () => window.clearTimeout(timer);
+		let cancelled = false;
+		const doPrint = async () => {
+			try {
+				if (document.fonts?.ready) await document.fonts.ready;
+			} catch {}
+			if (cancelled) return;
+			window.requestAnimationFrame(() => {
+				if (!cancelled) window.print();
+			});
+		};
+		const timer = window.setTimeout(doPrint, 100);
+		return () => {
+			cancelled = true;
+			window.clearTimeout(timer);
+		};
 	}, [shouldPrint, utility]);
 
 	if (isLoading) return <PageLoader rows={2} />;

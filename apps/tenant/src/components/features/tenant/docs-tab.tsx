@@ -17,6 +17,7 @@ import {
 	IconFileText,
 	IconUser,
 } from "@tabler/icons-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
@@ -25,7 +26,7 @@ import {
 	useTenantLease,
 	useTenantProfile,
 } from "@/hooks/tenant-portal";
-import { client } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 
 const DOCUMENTS: Array<{ type: TenantDocumentType; label: string }> = [
 	{ type: TENANT_DOCUMENT_TYPES.AADHAAR, label: "Aadhaar" },
@@ -87,11 +88,17 @@ export function DocsTab() {
 	const { data: leaseData } = useTenantLease();
 	const { data, isLoading } = useTenantDocuments();
 	const actions = useTenantDocumentAction();
+	const queryClient = useQueryClient();
 	const [upload, setUpload] = useState<{
 		type: TenantDocumentType;
 		requestId?: string;
 		file?: File;
 	}>({ type: TENANT_DOCUMENT_TYPES.PAN });
+	const [consentChecked, setConsentChecked] = useState(false);
+	const [aadhaarLastFour, setAadhaarLastFour] = useState("");
+	const [maskedConfirmed, setMaskedConfirmed] = useState(false);
+	const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+	const [optimistic, setOptimistic] = useState<DocumentSummary | null>(null);
 	const fileRef = useRef<HTMLInputElement>(null);
 	const documentUrlCache = usePrivateDocumentUrlCache();
 	const [viewer, setViewer] = useState<{
@@ -169,10 +176,7 @@ export function DocsTab() {
 
 	async function submitUpload() {
 		if (!upload.file || !data) return;
-		if (
-			!(document.querySelector("#document-consent") as HTMLInputElement)
-				?.checked
-		) {
+		if (!consentChecked) {
 			toast.error("Please confirm document consent before submitting.");
 			return;
 		}
@@ -188,6 +192,48 @@ export function DocsTab() {
 			toast.error("Only PDF, JPEG, and PNG files are allowed.");
 			return;
 		}
+		if (
+			upload.type === TENANT_DOCUMENT_TYPES.AADHAAR &&
+			aadhaarLastFour &&
+			!/^\d{4}$/.test(aadhaarLastFour)
+		) {
+			toast.error("Last four digits must be 4 numbers");
+			return;
+		}
+		// C+A hybrid: optimistic blur card in <200ms, progress for >2MB via XHR
+		const optimisticDoc: DocumentSummary = {
+			id: `optimistic-${upload.type}-${Date.now()}`,
+			documentType: upload.type,
+			version: 1,
+			status: "upload_pending" as const,
+			contentType: contentType as string,
+			sizeBytes: upload.file.size,
+			identifierHint: null,
+			submissionSource: "tenant" as const,
+			submittedAt: new Date().toISOString() as unknown as Date,
+			consentExpiresAt: null,
+			reviewedAt: null,
+			reviewNote: null,
+			purgeAfter: null,
+			purgedAt: null,
+			updateRequest: null,
+		} as unknown as DocumentSummary;
+		setOptimistic(optimisticDoc);
+		// also patch query cache so owner view sees it instantly after invalidate
+		queryClient.setQueryData(
+			orpc.rent.tenantDocument.listMyDocuments.key(),
+			(old: unknown) => {
+				const prev = old as
+					| {
+							documents: DocumentSummary[];
+							capabilities: typeof data.capabilities;
+					  }
+					| undefined;
+				if (!prev) return prev;
+				return { ...prev, documents: [optimisticDoc, ...prev.documents] };
+			},
+		);
+		setUploadProgress(0);
 		try {
 			await actions.mutateAsync({
 				file: upload.file,
@@ -198,26 +244,46 @@ export function DocsTab() {
 				target: upload.requestId
 					? { kind: "replacement", requestId: upload.requestId }
 					: { kind: "initial" },
+				onProgress: (pct: number) => setUploadProgress(pct),
 				aadhaarLastFour:
 					upload.type === TENANT_DOCUMENT_TYPES.AADHAAR
-						? (document.querySelector("#aadhaar-last-four") as HTMLInputElement)
-								?.value
+						? aadhaarLastFour || undefined
 						: undefined,
 				maskedAadhaarConfirmed:
-					upload.type === TENANT_DOCUMENT_TYPES.AADHAAR &&
-					(document.querySelector("#aadhaar-masked") as HTMLInputElement)
-						?.checked
+					upload.type === TENANT_DOCUMENT_TYPES.AADHAAR && maskedConfirmed
 						? true
 						: undefined,
 			} as never);
 			toast.success("Document submitted for owner review.");
 			setUpload({ type: TENANT_DOCUMENT_TYPES.PAN });
+			setConsentChecked(false);
+			setAadhaarLastFour("");
+			setMaskedConfirmed(false);
 		} catch (error) {
 			toast.error(
 				error instanceof Error
 					? error.message
 					: "Document upload failed. You can retry.",
 			);
+			// remove optimistic on error
+			queryClient.setQueryData(
+				orpc.rent.tenantDocument.listMyDocuments.key(),
+				(old: unknown) => {
+					const prev = old as
+						| { documents: DocumentSummary[]; capabilities: unknown }
+						| undefined;
+					if (!prev) return prev;
+					return {
+						...prev,
+						documents: prev.documents.filter(
+							(d) => !d.id.startsWith("optimistic-"),
+						),
+					};
+				},
+			);
+		} finally {
+			setUploadProgress(null);
+			setOptimistic(null);
 		}
 	}
 
@@ -271,8 +337,33 @@ export function DocsTab() {
 						const canRequest =
 							document?.status === "owner_reviewed" && !request;
 						const canUploadReplacement = request?.status === "approved";
+						const isOptimistic = optimistic?.documentType === type;
 						return (
-							<div key={type} className="rounded-xl border bg-background p-4">
+							<div
+								key={type}
+								className={cn(
+									"relative overflow-hidden rounded-xl border bg-background p-4",
+									isOptimistic && "opacity-60 blur-[0.5px]",
+								)}
+							>
+								{isOptimistic &&
+									uploadProgress !== null &&
+									uploadProgress > 0 && (
+										<div className="absolute inset-x-0 top-0 h-1 bg-muted">
+											<div
+												className="h-full bg-primary transition-all"
+												style={{ width: `${uploadProgress}%` }}
+											/>
+										</div>
+									)}
+								{isOptimistic && (
+									<div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 font-semibold text-[10px] text-primary-foreground">
+										<div className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+										{uploadProgress !== null && uploadProgress > 0
+											? `${uploadProgress}%`
+											: "Uploading…"}
+									</div>
+								)}
 								<div className="flex items-start gap-3">
 									<div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10 text-primary">
 										<IconFileText className="h-5 w-5" />
@@ -406,7 +497,7 @@ export function DocsTab() {
 										its card.
 									</p>
 								)}
-								{!document && enabled(type) && (
+								{(!document || document.purgedAt || document.status === "expired" || document.status === "rejected") && enabled(type) && !isOptimistic && (
 									<Button
 										className="mt-3 w-full"
 										size="sm"
@@ -415,7 +506,7 @@ export function DocsTab() {
 											fileRef.current?.click();
 										}}
 									>
-										Upload
+										{document?.purgedAt ? "Upload again" : "Upload"}
 									</Button>
 								)}
 							</div>
@@ -453,27 +544,71 @@ export function DocsTab() {
 										id="aadhaar-last-four"
 										inputMode="numeric"
 										maxLength={4}
+										value={aadhaarLastFour}
+										onChange={(e) =>
+											setAadhaarLastFour(
+												e.target.value.replace(/\D/g, "").slice(0, 4),
+											)
+										}
+										placeholder="e.g. 1234"
 									/>
 								</div>
 								<label className="flex items-start gap-2 text-sm">
-									<input id="aadhaar-masked" type="checkbox" className="mt-1" />{" "}
+									<input
+										id="aadhaar-masked"
+										type="checkbox"
+										className="mt-1"
+										checked={maskedConfirmed}
+										onChange={(e) => setMaskedConfirmed(e.target.checked)}
+									/>{" "}
 									This Aadhaar copy is masked.
 								</label>
 							</>
 						)}
 						<label className="flex items-start gap-2 text-sm">
-							<input id="document-consent" type="checkbox" className="mt-1" /> I
-							consent to sharing this document with my owner for review.
+							<input
+								id="document-consent"
+								type="checkbox"
+								className="mt-1"
+								checked={consentChecked}
+								onChange={(e) => setConsentChecked(e.target.checked)}
+							/>{" "}
+							I consent to sharing this document with my owner for review.
 						</label>
+						{uploadProgress !== null && upload.file.size > 2 * 1024 * 1024 && (
+							<div className="space-y-1">
+								<div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+									<div
+										className="h-full bg-primary transition-all"
+										style={{ width: `${uploadProgress}%` }}
+									/>
+								</div>
+								<p className="text-muted-foreground text-xs">
+									{uploadProgress}% uploaded
+								</p>
+							</div>
+						)}
 						<div className="flex justify-end gap-2">
 							<Button
 								variant="outline"
-								onClick={() => setUpload({ type: upload.type })}
+								disabled={actions.isPending}
+								onClick={() => {
+									setUpload({ type: upload.type });
+									setConsentChecked(false);
+									setAadhaarLastFour("");
+									setMaskedConfirmed(false);
+									setUploadProgress(null);
+									setOptimistic(null);
+								}}
 							>
 								Cancel
 							</Button>
 							<Button onClick={submitUpload} disabled={actions.isPending}>
-								Submit
+								{actions.isPending
+									? uploadProgress !== null && uploadProgress > 0
+										? `${uploadProgress}%`
+										: "Uploading…"
+									: "Submit"}
 							</Button>
 						</div>
 					</div>

@@ -16,7 +16,7 @@ import {
 	units,
 	utilities,
 } from "@rently/db/schema/schema";
-import { and, count, desc, eq, gte, lt } from "drizzle-orm";
+import { and, count, desc, eq, gte, lt, sql } from "drizzle-orm";
 import z from "zod";
 import { sendAutomaticUtilityBillEmail } from "../helpers/automatic-emails";
 
@@ -359,7 +359,7 @@ export const submitMyReading = protectedProcedure
 			});
 		}
 
-		// Step2- Duplicate Monthly submission guard
+		// Step2- Duplicate Monthly submission guard — race-safe via tx + FOR UPDATE
 		const readingDate = new Date(input.readingDate);
 		const monthStart = new Date(
 			readingDate.getFullYear(),
@@ -372,83 +372,85 @@ export const submitMyReading = protectedProcedure
 			1,
 		);
 
-		const [existingThisMonth] = await db
-			.select({ id: utilities.id, currentReading: utilities.currentReading })
-			.from(utilities)
-			.where(
-				and(
-					eq(utilities.leaseId, activeLease.id),
-					// WHY filter by utilityType: a maintenance charge for this month
-					// should NOT block a meter reading. They're different types.
-					eq(utilities.utilityType, "electricity"),
-					gte(utilities.currentReadingDate, monthStart),
-					// WHY lt not lte: monthEnd is the FIRST of next month.
-					// lt correctly captures everything before midnight of that day.
-					lt(utilities.currentReadingDate, monthEnd),
-				),
-			)
-			.limit(1);
+		const utility = await db.transaction(async (tx) => {
+			// Lock the lease row to serialize concurrent submissions for same tenant (C-06)
+			await tx.execute(
+				sql`select 1 from ${leases} where ${leases.id} = ${activeLease.id} for update`,
+			);
 
-		if (existingThisMonth) {
-			throw new ORPCError("CONFLICT", {
-				message:
-					`A reading of ${existingThisMonth.currentReading} kWh was already ` +
-					"submitted for this month. Contact your landlord to correct it.",
-			});
-		}
+			const [existingThisMonth] = await tx
+				.select({ id: utilities.id, currentReading: utilities.currentReading })
+				.from(utilities)
+				.where(
+					and(
+						eq(utilities.leaseId, activeLease.id),
+						eq(utilities.utilityType, "electricity"),
+						gte(utilities.currentReadingDate, monthStart),
+						lt(utilities.currentReadingDate, monthEnd),
+					),
+				)
+				.limit(1);
 
-		// STEP 3: Get the previous electricity reading for this lease
-		// WHY: We look up the most recent electricity reading to compute unitsUsed
-		// and carry forward the rate the owner configured.
-		const [lastReading] = await db
-			.select({
-				currentReading: utilities.currentReading,
-				currentReadingDate: utilities.currentReadingDate,
-				ratePerUnit: utilities.ratePerUnit,
-				fixedCharge: utilities.fixedCharge,
-			})
-			.from(utilities)
-			.where(
-				and(
-					eq(utilities.leaseId, activeLease.id),
-					eq(utilities.utilityType, "electricity"),
-				),
-			)
-			.orderBy(desc(utilities.currentReadingDate))
-			.limit(1);
+			if (existingThisMonth) {
+				throw new ORPCError("CONFLICT", {
+					message:
+						`A reading of ${existingThisMonth.currentReading} kWh was already ` +
+						"submitted for this month. Contact your landlord to correct it.",
+				});
+			}
 
-		const previousReading = lastReading?.currentReading ?? 0;
-		const previousReadingDate = lastReading?.currentReadingDate ?? null;
+			// STEP 3: Get the previous electricity reading for this lease
+			const [lastReading] = await tx
+				.select({
+					currentReading: utilities.currentReading,
+					currentReadingDate: utilities.currentReadingDate,
+					ratePerUnit: utilities.ratePerUnit,
+					fixedCharge: utilities.fixedCharge,
+				})
+				.from(utilities)
+				.where(
+					and(
+						eq(utilities.leaseId, activeLease.id),
+						eq(utilities.utilityType, "electricity"),
+					),
+				)
+				.orderBy(desc(utilities.currentReadingDate))
+				.limit(1);
 
-		// GOTCHA: currentReading must be >= previousReading
-		if (input.currentReading < (previousReading ?? 0)) {
-			throw new ORPCError("BAD_REQUEST", {
-				message: `Current reading (${input.currentReading}) cannot be less than previous reading (${previousReading}).`,
-			});
-		}
+			const previousReading = lastReading?.currentReading ?? 0;
+			const previousReadingDate = lastReading?.currentReadingDate ?? null;
 
-		const unitsUsed = input.currentReading - (previousReading ?? 0);
-		const ratePerUnit = lastReading?.ratePerUnit ?? RATEPERUNIT;
-		const fixedCharge = lastReading?.fixedCharge ?? FIXEDCHARGE;
-		const totalAmount = Math.round(unitsUsed * ratePerUnit + fixedCharge);
+			if (input.currentReading < (previousReading ?? 0)) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: `Current reading (${input.currentReading}) cannot be less than previous reading (${previousReading}).`,
+				});
+			}
 
-		const [utility] = await db
-			.insert(utilities)
-			.values({
-				leaseId: activeLease.id,
-				utilityType: "electricity",
-				previousReading: previousReading ?? null,
-				currentReading: input.currentReading,
-				previousReadingDate,
-				currentReadingDate: new Date(input.readingDate),
-				unitsUsed,
-				ratePerUnit,
-				fixedCharge,
-				totalAmount,
-				description: input.notes ?? null,
-				isPaid: false,
-			})
-			.returning();
+			const unitsUsed = input.currentReading - (previousReading ?? 0);
+			const ratePerUnit = lastReading?.ratePerUnit ?? RATEPERUNIT;
+			const fixedCharge = lastReading?.fixedCharge ?? FIXEDCHARGE;
+			const totalAmount = Math.round(unitsUsed * ratePerUnit + fixedCharge);
+
+			const [created] = await tx
+				.insert(utilities)
+				.values({
+					leaseId: activeLease.id,
+					utilityType: "electricity",
+					previousReading: previousReading ?? null,
+					currentReading: input.currentReading,
+					previousReadingDate,
+					currentReadingDate: new Date(input.readingDate),
+					unitsUsed,
+					ratePerUnit,
+					fixedCharge,
+					totalAmount,
+					description: input.notes ?? null,
+					isPaid: false,
+				})
+				.returning();
+
+			return created;
+		});
 
 		try {
 			const [leaseInfo] = await db

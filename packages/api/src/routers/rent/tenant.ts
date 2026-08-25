@@ -23,7 +23,7 @@ import {
 	TenantListItemSchema,
 	UpdateTenantProfileSchema,
 } from "@rently/validators";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import z from "zod";
 import { queryOverdueLeases } from "../helpers/overdue-query";
 import { createPendingTenantInvite } from "./invite-service";
@@ -190,6 +190,7 @@ export const getTenantById = ownerProcedure
 				emailVerified: user.emailVerified,
 				userPhone: user.phone,
 				avatarUrl: user.image,
+				invitedId: tenantProfiles.invitedId,
 				// TenantProfile fields (all nullable if no profile row — shouldn't
 				// happen before an invitation is accepted, but LEFT JOIN is safer)
 				profileAddress: tenantProfiles.address,
@@ -229,9 +230,49 @@ export const getTenantById = ownerProcedure
 
 		const [result] = results;
 
-		// Zero rows means either: tenant doesn't exist, OR belongs to another owner.
-		// NOT_FOUND for both — don't reveal which, prevents enumeration.
+		// Zero rows: check if it's a pending invite (no tenantProfiles yet) — owner created via invite but not yet accepted
+		// NOT_FOUND for both missing and cross-owner to prevent enumeration, but pending invite should be visible as tenant with status pending
 		if (!result) {
+			const [invite] = await db
+				.select({
+					id: tenantInvites.id,
+					name: tenantInvites.name,
+					email: tenantInvites.email,
+					phone: tenantInvites.phone,
+					status: tenantInvites.status,
+					createdAt: tenantInvites.createdAt,
+					updatedAt: tenantInvites.updatedAt,
+				})
+				.from(tenantInvites)
+				.where(
+					and(
+						eq(tenantInvites.id, input.id),
+						eq(tenantInvites.invitedById, authUser.id),
+						isNull(tenantInvites.deletedAt),
+					),
+				)
+				.limit(1);
+
+			if (invite) {
+				return {
+					tenant: {
+						id: invite.id,
+						inviteId: invite.id,
+						name: invite.name,
+						email: invite.email,
+						emailVerified: false,
+						phone: invite.phone,
+						avatarUrl: null,
+						status: invite.status,
+						profile: null,
+						createdAt: invite.createdAt,
+						updatedAt: invite.updatedAt,
+						activeLeases: [],
+						currentLease: null,
+					},
+				};
+			}
+
 			throw new ORPCError("NOT_FOUND", {
 				message: "Tenant not found",
 			});
@@ -259,16 +300,33 @@ export const getTenantById = ownerProcedure
 				overdue: null,
 			}));
 
+		// Option-A: if linked invite is still pending, tenant is pending (provisional profile exists so owner can upload/docs/lease before accept)
+		let status: "pending" | "accepted" | "expired" = "accepted";
+		let inviteId: string | null = null;
+		if (result.invitedId) {
+			const [invite] = await db
+				.select({ status: tenantInvites.status, id: tenantInvites.id })
+				.from(tenantInvites)
+				.where(eq(tenantInvites.id, result.invitedId))
+				.limit(1);
+			if (invite) {
+				inviteId = invite.id;
+				if (invite.status === "pending") status = "pending";
+				else if (invite.status === "expired") status = "expired";
+				else status = "accepted";
+			}
+		}
+
 		return {
 			tenant: {
 				id: result.tenantId,
-				inviteId: null,
+				inviteId,
 				name: result.name,
 				email: result.email,
 				emailVerified: result.emailVerified,
 				phone: result.userPhone,
 				avatarUrl: result.avatarUrl,
-				status: "accepted" as const,
+				status,
 				profile,
 				createdAt: result.createdAt,
 				updatedAt: result.updatedAt,

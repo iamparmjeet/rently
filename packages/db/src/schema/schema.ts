@@ -196,7 +196,7 @@ export const billCredits = pgTable(
 		...auditColumns(),
 	},
 	(t) => [
-		check("bill_credits_amount_negative_check", sql`${t.amount} < 0`),
+		check("bill_credits_amount_check", sql`${t.amount} != 0`),
 		check(
 			"bill_credits_reason_length_check",
 			sql`char_length(${t.reason}) >= 10`,

@@ -3,10 +3,24 @@
 import { useTenantLease, useTenantUtilities } from "@/hooks/tenant-portal";
 import { fmtDate, fmtMonth, rupeesCompact } from "@/utils/format";
 
-function latestByType<T extends { utilityType: string }>(
-	items: T[],
-): Record<string, T> {
-	return items.reduce<Record<string, T>>((acc, u) => {
+function latestByType<
+	T extends {
+		utilityType: string;
+		currentReadingDate?: string | Date | null;
+		createdAt?: string | Date | null;
+	},
+>(items: T[]): Record<string, T> {
+	// Sort desc by currentReadingDate then createdAt so first per type is truly latest
+	const sorted = [...items].sort((a, b) => {
+		const aTime = new Date(
+			(a.currentReadingDate ?? a.createdAt ?? 0) as string | number | Date,
+		).getTime();
+		const bTime = new Date(
+			(b.currentReadingDate ?? b.createdAt ?? 0) as string | number | Date,
+		).getTime();
+		return bTime - aTime;
+	});
+	return sorted.reduce<Record<string, T>>((acc, u) => {
 		if (!acc[u.utilityType]) acc[u.utilityType] = u;
 		return acc;
 	}, {});
@@ -108,26 +122,20 @@ export function BillTab() {
 			</div>
 
 			{/* Actions */}
-			<div className="grid grid-cols-2 gap-2.5">
+			<div className="flex gap-2.5">
 				<button
 					type="button"
 					onClick={() => {
 						const msg = encodeURIComponent(
 							`KeyHQ Bill — ${currentMonth}\n\n${lineItems
 								.map((i) => `${i.emoji} ${i.label}: ${rupeesCompact(i.amount)}`)
-								.join("\n")}\n\n💰 Total Due: ${rupeesCompact(totalDue)}`,
+								.join("\n")}\n\nTotal Due: ${rupeesCompact(totalDue)}`,
 						);
 						window.open(`https://wa.me/?text=${msg}`, "_blank");
 					}}
-					className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#25D366] bg-[#25D366] font-medium text-sm text-white transition-colors hover:bg-[#1ebe5d]"
+					className="flex h-11 flex-1 cursor-pointer items-center justify-center gap-2 rounded-lg border border-[#25D366] bg-[#25D366] font-medium text-sm text-white transition-colors hover:bg-[#1ebe5d]"
 				>
-					📲 Share on WhatsApp
-				</button>
-				<button
-					type="button"
-					className="flex h-11 cursor-pointer items-center justify-center gap-2 rounded-lg border bg-background font-medium text-sm transition-colors hover:bg-muted"
-				>
-					⬇️ Download PDF
+					Share on WhatsApp
 				</button>
 			</div>
 

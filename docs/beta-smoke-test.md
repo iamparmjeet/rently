@@ -44,6 +44,8 @@ secrets.
 | 15 | Request an owner password reset. | [ ] Pass [ ] Fail | |
 | 16 | Complete the password reset from the email and log in with the new password. | [ ] Pass [ ] Fail | |
 | 17 | Verify cross-app routing between Web, Dashboard, and Tenant Portal. | [ ] Pass [ ] Fail | |
+| 18 | Verify **Aadhaar blocked** — tenant masked Aadhaar upload attempt must return `AADHAAR_UPLOAD_DISABLED` (`env AADHAAR_UPLOADS_ENABLED=false` `wrangler.json:23` + `tenant-document.ts:89 assertEnabled`). | [ ] Pass [ ] Fail | |
+| 19 | Upload non-Aadhaar document (PAN `image/png` or `application/pdf`) via presigned URL and verify private viewer/preview (tab-only cache, no public URL) | [ ] Pass [ ] Fail | |
 
 ## Evidence record
 

@@ -22,20 +22,14 @@ import {
 	PaymentSelectSchema,
 	UpdatePaymentSchema,
 } from "@rently/validators";
-import { and, desc, eq } from "drizzle-orm";
+import { and, desc, eq, isNull } from "drizzle-orm";
 import z from "zod";
 import { isLeaseOwner } from "../helpers";
 import { sendAutomaticPaymentReceipt } from "../helpers/automatic-emails";
-
-type BatchCapableDatabase = Database & {
-	batch<T extends readonly unknown[]>(
-		queries: T,
-	): Promise<{ [K in keyof T]: Awaited<T[K]> }>;
-};
-
-function supportsBatch(db: Database): db is BatchCapableDatabase {
-	return typeof (db as { batch?: unknown }).batch === "function";
-}
+import {
+	getAmountDueForRent,
+	getAmountDueForUtility,
+} from "../helpers/credit.helpers";
 
 // ─── Shared helper ─────
 function assertMethodAllowedForRole(
@@ -96,7 +90,7 @@ async function getOwnedPayment(
 	return row;
 }
 
-// Create
+// Create — GST-safe: amount must equal derived amountDue, isPaid derived, reversal blocked via Zod
 export const createPayment = ownerProcedure
 	.route({
 		method: "POST",
@@ -108,6 +102,12 @@ export const createPayment = ownerProcedure
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
+		if (input.type === PAYMENT_TYPES.REVERSAL) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Reversal payments must use voidPayment",
+			});
+		}
+
 		const ownsLease = await isLeaseOwner(db, authUser.id, input.leaseId);
 		if (!ownsLease) {
 			throw new ORPCError("FORBIDDEN", {
@@ -117,58 +117,65 @@ export const createPayment = ownerProcedure
 
 		assertMethodAllowedForRole(input.paymentMethods, "owner");
 
-		const createPaymentQuery = db
-			.insert(payments)
-			.values({
-				leaseId: input.leaseId,
-				amount: input.amount,
-				paymentDate: input.paymentDate,
-				type: input.type ?? PAYMENT_TYPES.RENT,
-				paymentMethods: input.paymentMethods ?? null,
-				referenceNumber: input.referenceNumber ?? null,
-				description: input.description ?? null,
-				utilityId: input.utilityId ?? null,
-			})
-			.returning();
-
-		let payment: Awaited<typeof createPaymentQuery>[number] | undefined;
 		const utilityId = input.utilityId ?? null;
 
-		if (!utilityId) {
-			[payment] = await createPaymentQuery;
-		} else if (supportsBatch(db)) {
-			const [createdPayments] = await db.batch([
-				createPaymentQuery,
-				db
-					.update(utilities)
-					.set({ isPaid: true })
-					.where(eq(utilities.id, utilityId)),
-			]);
-			payment = createdPayments[0];
-		} else {
-			payment = await db.transaction(async (tx) => {
-				const [newPayment] = await tx
-					.insert(payments)
-					.values({
-						leaseId: input.leaseId,
-						amount: input.amount,
-						paymentDate: input.paymentDate,
-						type: input.type ?? PAYMENT_TYPES.RENT,
-						paymentMethods: input.paymentMethods ?? null,
-						referenceNumber: input.referenceNumber ?? null,
-						description: input.description ?? null,
-						utilityId,
-					})
-					.returning();
+		// Validate utility belongs to lease when provided
+		if (utilityId) {
+			const [util] = await db
+				.select({ id: utilities.id, leaseId: utilities.leaseId })
+				.from(utilities)
+				.where(eq(utilities.id, utilityId))
+				.limit(1);
+			if (!util || util.leaseId !== input.leaseId) {
+				throw new ORPCError("BAD_REQUEST", {
+					message: "Utility does not belong to this lease",
+				});
+			}
+		}
 
+		// Single tx: validate amount === derived due and keep isPaid compat
+		const payment = await db.transaction(async (tx) => {
+			if (utilityId) {
+				const due = await getAmountDueForUtility(tx, utilityId);
+				if (input.amount !== due) {
+					throw new ORPCError("BAD_REQUEST", {
+						message: `Amount must equal outstanding amountDue (${due}) for this utility`,
+					});
+				}
+			} else if (input.type === PAYMENT_TYPES.RENT) {
+				const due = await getAmountDueForRent(tx, input.leaseId);
+				if (input.amount !== due) {
+					throw new ORPCError("BAD_REQUEST", {
+						message: `Amount must equal outstanding rent due (${due})`,
+					});
+				}
+			}
+
+			const [newPayment] = await tx
+				.insert(payments)
+				.values({
+					leaseId: input.leaseId,
+					amount: input.amount,
+					paymentDate: input.paymentDate,
+					type: input.type ?? PAYMENT_TYPES.RENT,
+					paymentMethods: input.paymentMethods ?? null,
+					referenceNumber: input.referenceNumber ?? null,
+					description: input.description ?? null,
+					utilityId,
+				})
+				.returning();
+
+			// Keep boolean isPaid in sync for legacy reads — derived is amountDue<=0
+			if (utilityId) {
+				const dueAfter = await getAmountDueForUtility(tx, utilityId);
 				await tx
 					.update(utilities)
-					.set({ isPaid: true })
+					.set({ isPaid: dueAfter <= 0 })
 					.where(eq(utilities.id, utilityId));
+			}
 
-				return newPayment;
-			});
-		}
+			return newPayment;
+		});
 
 		if (!payment) {
 			throw new ORPCError("INTERNAL_SERVER_ERROR", {
@@ -181,7 +188,7 @@ export const createPayment = ownerProcedure
 		return { payment };
 	});
 
-// Update
+// Update — re-validate utility linkage and block reversal via update
 export const updatePayment = ownerProcedure
 	.route({ method: "PATCH", path: "/rent/payment/update" })
 	.input(z.object({ id: z.string(), data: UpdatePaymentSchema }))
@@ -189,12 +196,46 @@ export const updatePayment = ownerProcedure
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
-		// getOwnedPayment does find + auth check
-		await getOwnedPayment(db, input.id, authUser.id);
+		const existing = await getOwnedPayment(db, input.id, authUser.id);
+
+		if (existing.type === PAYMENT_TYPES.REVERSAL) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Cannot update a reversal payment",
+			});
+		}
+		if (input.data.type === PAYMENT_TYPES.REVERSAL) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Use voidPayment to create reversals",
+			});
+		}
 
 		// Recheck role restriction
 		if (input.data.paymentMethods) {
 			assertMethodAllowedForRole(input.data.paymentMethods, "owner");
+		}
+
+		// If caller changes utilityId, re-verify ownership of that utility's lease
+		const nextUtilityId = (input.data as { utilityId?: string | null })
+			.utilityId;
+		if (nextUtilityId !== undefined && nextUtilityId !== null) {
+			const [util] = await db
+				.select({ leaseId: utilities.leaseId })
+				.from(utilities)
+				.where(eq(utilities.id, nextUtilityId))
+				.limit(1);
+			if (!util) {
+				throw new ORPCError("NOT_FOUND", { message: "Utility not found" });
+			}
+			const ownsUtilityLease = await isLeaseOwner(
+				db,
+				authUser.id,
+				util.leaseId,
+			);
+			if (!ownsUtilityLease) {
+				throw new ORPCError("FORBIDDEN", {
+					message: "You do not own the lease for this utility",
+				});
+			}
 		}
 
 		const [updated] = await db
@@ -260,7 +301,13 @@ export const listPayments = ownerProcedure
 			.innerJoin(properties, eq(units.propertyId, properties.id))
 			.innerJoin(user, eq(leases.tenantId, user.id))
 			.leftJoin(tenantProfiles, eq(tenantProfiles.userId, user.id))
-			.where(eq(properties.ownerId, authUser.id))
+			.where(
+				and(
+					eq(properties.ownerId, authUser.id),
+					isNull(properties.deletedAt),
+					isNull(units.deletedAt),
+				),
+			)
 			.orderBy(
 				desc(payments.paymentDate),
 				desc(payments.createdAt),
@@ -270,7 +317,7 @@ export const listPayments = ownerProcedure
 		return { payments: results };
 	});
 
-// Remove
+// Remove — void creates negative reversal, preserves utilityId, blocks duplicate void
 export const voidPayment = ownerProcedure
 	.route({ method: "DELETE", path: "/rent/payment/void" })
 	.input(z.object({ id: z.string(), reason: z.string().optional() }))
@@ -278,59 +325,57 @@ export const voidPayment = ownerProcedure
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
-		// need UtilityId before deleting
 		const existing = await getOwnedPayment(db, input.id, authUser.id);
 
-		const createReversalQuery = db
-			.insert(payments)
-			.values({
-				leaseId: existing.leaseId,
-				amount: -existing.amount,
-				paymentDate: new Date(),
-				type: "reversal",
-				description: input.reason ?? `Reversal of payment ${existing.id}`,
-				referenceNumber: existing.id,
-				utilityId: null,
-			})
-			.returning();
-
-		let reversal: Awaited<typeof createReversalQuery>[number] | undefined;
-		const utilityId = existing.utilityId;
-
-		if (!utilityId) {
-			[reversal] = await createReversalQuery;
-		} else if (supportsBatch(db)) {
-			const [reversalRows] = await db.batch([
-				createReversalQuery,
-				db
-					.update(utilities)
-					.set({ isPaid: false })
-					.where(eq(utilities.id, utilityId)),
-			]);
-			reversal = reversalRows[0];
-		} else {
-			reversal = await db.transaction(async (tx) => {
-				const [reversalRow] = await tx
-					.insert(payments)
-					.values({
-						leaseId: existing.leaseId,
-						amount: -existing.amount,
-						paymentDate: new Date(),
-						type: "reversal",
-						description: input.reason ?? `Reversal of payment ${existing.id}`,
-						referenceNumber: existing.id,
-						utilityId: null,
-					})
-					.returning();
-
-				await tx
-					.update(utilities)
-					.set({ isPaid: false })
-					.where(eq(utilities.id, utilityId));
-
-				return reversalRow;
+		if (existing.type === PAYMENT_TYPES.REVERSAL) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Cannot void a reversal payment",
 			});
 		}
+
+		// Duplicate-void guard: one reversal per original payment
+		const [alreadyReversed] = await db
+			.select({ id: payments.id })
+			.from(payments)
+			.where(
+				and(
+					eq(payments.type, PAYMENT_TYPES.REVERSAL),
+					eq(payments.referenceNumber, existing.id),
+				),
+			)
+			.limit(1);
+		if (alreadyReversed) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Payment already voided",
+			});
+		}
+
+		const utilityId = existing.utilityId;
+
+		const reversal = await db.transaction(async (tx) => {
+			const [reversalRow] = await tx
+				.insert(payments)
+				.values({
+					leaseId: existing.leaseId,
+					amount: -existing.amount,
+					paymentDate: new Date(),
+					type: PAYMENT_TYPES.REVERSAL,
+					description: input.reason ?? `Reversal of payment ${existing.id}`,
+					referenceNumber: existing.id,
+					utilityId, // preserve linkage — audit keeps bill relation
+				})
+				.returning();
+
+			if (utilityId) {
+				const dueAfter = await getAmountDueForUtility(tx, utilityId);
+				await tx
+					.update(utilities)
+					.set({ isPaid: dueAfter <= 0 })
+					.where(eq(utilities.id, utilityId));
+			}
+
+			return reversalRow;
+		});
 
 		if (!reversal) {
 			throw new ORPCError("INTERNAL_SERVER_ERROR", {

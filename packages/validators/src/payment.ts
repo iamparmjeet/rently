@@ -22,6 +22,9 @@ export const CreatePaymentSchema = PaymentInsertSchema.omit({
 	createdAt: true,
 	updatedAt: true,
 }).extend({
+	leaseId: z.string({ error: "Please select a lease" }).min(1, {
+		error: "Please select a lease",
+	}),
 	// amount must be positive — reversals go via voidPayment only (also enforced in handler)
 	amount: z.number().int().positive({ error: "Amount must be > 0" }),
 });

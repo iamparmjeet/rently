@@ -33,6 +33,9 @@ import { entityLabel } from "@/utils/display";
 // We maintain a parallel form schema where `amount` is rupees (number),
 // then convert on submit. This is the "anti-corruption layer" for monetary values.
 const PaymentFormSchema = CreatePaymentSchema.extend({
+	leaseId: z.string({ error: "Please select a lease" }).min(1, {
+		error: "Please select a lease",
+	}),
 	amount: z
 		.number({ error: "Amount is required" })
 		.positive({ error: "Amount must be greater than 0" }),
@@ -120,7 +123,23 @@ export function PaymentForm({
 								</Select>
 							)}
 						/>
-						<FieldError errors={[errors.leaseId]} />
+						{leases.length === 0 ? (
+							<FieldError
+								errors={[
+									{
+										message:
+											"No active leases - create a lease first. Go to Properties > Units > Leases to add a lease, then record payment.",
+									} as never,
+								]}
+							/>
+						) : (
+							<FieldError errors={[errors.leaseId]} />
+						)}
+						{leases.length === 0 && (
+							<p className="text-muted-foreground text-xs">
+								You need an active lease before recording a payment.
+							</p>
+						)}
 					</Field>
 				</FieldGroup>
 			</FieldSet>
@@ -246,7 +265,12 @@ export function PaymentForm({
 				</FieldGroup>
 			</FieldSet>
 			{!formId && (
-				<Button type="submit" disabled={isSubmitting} className="w-full">
+				<Button
+					type="submit"
+					disabled={isSubmitting || leases.length === 0}
+					className="w-full"
+					title={leases.length === 0 ? "Create a lease first" : undefined}
+				>
 					{isSubmitting ? "Saving..." : submitLabel}
 				</Button>
 			)}

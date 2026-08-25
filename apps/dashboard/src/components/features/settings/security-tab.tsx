@@ -16,10 +16,15 @@ import { Input } from "@rently/ui/components/input";
 import {
 	IconBrandGithub,
 	IconBrandGoogle,
+	IconClock,
+	IconDeviceDesktop,
 	IconDeviceMobile,
-	IconDevices,
+	IconDeviceTablet,
 	IconKey,
 	IconLink,
+	IconMapPin,
+	IconShieldCheck,
+	IconWorld,
 } from "@tabler/icons-react";
 import { useEffect, useMemo, useState } from "react";
 import { useForm } from "react-hook-form";
@@ -70,16 +75,81 @@ type SessionItem = {
 	userId: string;
 };
 
-function parseUserAgent(ua?: string | null) {
-	if (!ua) return "Unknown device";
+function getDeviceInfo(ua?: string | null) {
+	if (!ua)
+		return {
+			label: "Unknown device",
+			os: "Unknown",
+			browser: "Unknown",
+			icon: IconWorld,
+			kind: "unknown" as const,
+		};
 	const lower = ua.toLowerCase();
-	if (lower.includes("iphone") || lower.includes("ipad"))
-		return "iPhone / iPad";
-	if (lower.includes("android")) return "Android device";
-	if (lower.includes("windows")) return "Windows";
-	if (lower.includes("macintosh") || lower.includes("mac os")) return "macOS";
-	if (lower.includes("linux")) return "Linux";
-	return ua.slice(0, 60);
+	// Browser
+	let browser = "Browser";
+	if (lower.includes("edg/")) browser = "Edge";
+	else if (lower.includes("chrome") && !lower.includes("chromium"))
+		browser = "Chrome";
+	else if (lower.includes("safari") && !lower.includes("chrome"))
+		browser = "Safari";
+	else if (lower.includes("firefox")) browser = "Firefox";
+	else if (lower.includes("opera") || lower.includes("opr/")) browser = "Opera";
+	// OS + device kind
+	if (lower.includes("iphone"))
+		return {
+			label: "iPhone",
+			os: "iOS",
+			browser,
+			icon: IconDeviceMobile,
+			kind: "mobile" as const,
+		};
+	if (lower.includes("ipad"))
+		return {
+			label: "iPad",
+			os: "iPadOS",
+			browser,
+			icon: IconDeviceTablet,
+			kind: "tablet" as const,
+		};
+	if (lower.includes("android"))
+		return {
+			label: "Android",
+			os: "Android",
+			browser,
+			icon: IconDeviceMobile,
+			kind: "mobile" as const,
+		};
+	if (lower.includes("windows"))
+		return {
+			label: "Windows PC",
+			os: "Windows",
+			browser,
+			icon: IconDeviceDesktop,
+			kind: "desktop" as const,
+		};
+	if (lower.includes("macintosh") || lower.includes("mac os"))
+		return {
+			label: "Mac",
+			os: "macOS",
+			browser,
+			icon: IconDeviceDesktop,
+			kind: "desktop" as const,
+		};
+	if (lower.includes("linux"))
+		return {
+			label: "Linux",
+			os: "Linux",
+			browser,
+			icon: IconDeviceDesktop,
+			kind: "desktop" as const,
+		};
+	return {
+		label: browser,
+		os: "Unknown",
+		browser,
+		icon: IconWorld,
+		kind: "unknown" as const,
+	};
 }
 
 function formatDate(d: string | Date) {
@@ -91,6 +161,18 @@ function formatDate(d: string | Date) {
 		hour: "2-digit",
 		minute: "2-digit",
 	});
+}
+
+function timeAgo(d: string | Date) {
+	const diff = Date.now() - new Date(d).getTime();
+	const mins = Math.floor(diff / 60000);
+	if (mins < 1) return "just now";
+	if (mins < 60) return `${mins}m ago`;
+	const hrs = Math.floor(mins / 60);
+	if (hrs < 24) return `${hrs}h ago`;
+	const days = Math.floor(hrs / 24);
+	if (days < 7) return `${days}d ago`;
+	return formatDate(d);
 }
 
 export function SecurityTab() {
@@ -599,79 +681,168 @@ export function SecurityTab() {
 					</CardContent>
 				</Card>
 
-				{/* ── Sessions & Devices ───────────────────────────────────────── */}
-				<Card>
+				{/* ── Sessions & Devices — polished ─────────────────────────────── */}
+				<Card className="overflow-hidden">
 					<CardContent className="space-y-4 pt-6">
-						<div className="flex items-center justify-between">
-							<p className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
-								Sessions & Devices
-							</p>
+						<div className="flex items-center justify-between gap-4">
+							<div>
+								<p className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
+									Sessions & Devices
+								</p>
+								<p className="text-muted-foreground text-xs">
+									{loadingSessions
+										? "Checking devices…"
+										: `${sessions.length} active ${sessions.length === 1 ? "session" : "sessions"}`}{" "}
+									· Manage where you’re signed in
+								</p>
+							</div>
 							<Button
-								variant="destructive"
+								variant="outline"
 								size="sm"
 								onClick={handleRevokeAllSessions}
 								disabled={isRevokingAll || sessions.length <= 1}
+								className="shrink-0"
 							>
-								{isRevokingAll ? "Revoking..." : "Revoke Others"}
+								{isRevokingAll ? "Revoking…" : "Revoke others"}
 							</Button>
 						</div>
+
 						{loadingSessions ? (
-							<p className="text-muted-foreground text-xs">
-								Loading sessions...
-							</p>
+							<div className="space-y-3">
+								{[1, 2].map((i) => (
+									<div key={i} className="animate-pulse rounded-xl border p-4">
+										<div className="flex gap-3">
+											<div className="size-10 rounded-full bg-muted" />
+											<div className="flex-1 space-y-2">
+												<div className="h-3 w-32 rounded bg-muted" />
+												<div className="h-2 w-48 rounded bg-muted" />
+											</div>
+										</div>
+									</div>
+								))}
+							</div>
 						) : sessions.length === 0 ? (
-							<p className="text-muted-foreground text-xs">
-								No active sessions found.
-							</p>
+							<div className="rounded-xl border border-dashed p-8 text-center">
+								<IconShieldCheck className="mx-auto size-8 text-muted-foreground/60" />
+								<p className="mt-2 font-medium text-sm">No active sessions</p>
+								<p className="text-muted-foreground text-xs">
+									You’ll see your devices here once you sign in.
+								</p>
+							</div>
 						) : (
-							<div className="space-y-2">
-								{sessions.map((s) => {
-									const isCurrent = s.token === currentToken;
-									return (
-										<div
-											key={s.id}
-											className="flex items-center justify-between rounded-md border px-3 py-2"
-										>
-											<div className="flex items-start gap-3">
-												<IconDevices className="mt-0.5 size-5 text-muted-foreground" />
-												<div>
-													<p className="flex items-center gap-2 font-medium text-sm">
-														{parseUserAgent(s.userAgent)}{" "}
-														{isCurrent && (
-															<Badge variant="outline" className="text-[10px]">
-																This device
+							<div className="space-y-3">
+								{sessions
+									.slice()
+									.sort((a, b) =>
+										a.token === currentToken
+											? -1
+											: b.token === currentToken
+												? 1
+												: new Date(b.createdAt).getTime() -
+													new Date(a.createdAt).getTime(),
+									)
+									.map((s) => {
+										const isCurrent = s.token === currentToken;
+										const info = getDeviceInfo(s.userAgent);
+										const Icon = info.icon;
+										return (
+											<div
+												key={s.id}
+												className={`group relative rounded-xl border p-4 transition-colors ${isCurrent ? "border-emerald-200 bg-emerald-50/60 dark:border-emerald-900 dark:bg-emerald-950/20" : "bg-card hover:bg-muted/40"}`}
+											>
+												<div className="flex gap-3">
+													<div
+														className={`flex size-10 shrink-0 items-center justify-center rounded-full ${isCurrent ? "bg-emerald-500 text-white shadow-sm" : info.kind === "mobile" ? "bg-sky-500 text-white" : info.kind === "tablet" ? "bg-violet-500 text-white" : "bg-zinc-900 text-white dark:bg-zinc-100 dark:text-zinc-900"}`}
+													>
+														<Icon className="size-5" />
+													</div>
+													<div className="min-w-0 flex-1">
+														<div className="flex flex-wrap items-center gap-2">
+															<span className="font-medium text-sm">
+																{info.label} · {info.browser}
+															</span>
+															{isCurrent ? (
+																<span className="inline-flex items-center gap-1.5 rounded-full bg-emerald-500 px-2 py-0.5 font-medium text-[11px] text-white">
+																	<span className="size-1.5 animate-pulse rounded-full bg-white" />{" "}
+																	This device
+																</span>
+															) : (
+																<Badge
+																	variant="secondary"
+																	className="rounded-full px-2 py-0 font-normal text-[10px]"
+																>
+																	Active
+																</Badge>
+															)}
+															<Badge
+																variant="outline"
+																className="rounded-full px-2 py-0 font-normal text-[10px]"
+															>
+																{info.os}
 															</Badge>
+														</div>
+
+														<div className="mt-2 flex flex-wrap gap-2">
+															<span className="inline-flex items-center gap-1.5 rounded-full border bg-muted/60 px-2.5 py-1 text-[11px]">
+																<IconMapPin className="size-3" />{" "}
+																{s.ipAddress ?? "Unknown IP"}{" "}
+																<span className="text-muted-foreground">
+																	· IP
+																</span>
+															</span>
+															<span className="inline-flex items-center gap-1.5 rounded-full border bg-muted/60 px-2.5 py-1 text-[11px]">
+																<IconClock className="size-3" />{" "}
+																{timeAgo(s.createdAt)}{" "}
+																<span className="text-muted-foreground">
+																	· {formatDate(s.createdAt)}
+																</span>
+															</span>
+														</div>
+
+														<p className="mt-2 line-clamp-1 text-[11px] text-muted-foreground">
+															{info.browser} on {info.os} · Expires{" "}
+															{formatDate(s.expiresAt)} ·{" "}
+															<span className="hidden sm:inline">
+																{s.userAgent?.slice(0, 80) ?? "no user agent"}
+															</span>
+														</p>
+													</div>
+
+													<div className="flex shrink-0 flex-col items-end gap-2">
+														<Button
+															variant={isCurrent ? "ghost" : "outline"}
+															size="sm"
+															onClick={() => handleRevokeOne(s.token)}
+															disabled={isCurrent || revokingToken === s.token}
+															className={`h-8 rounded-full px-4 text-xs ${isCurrent ? "text-muted-foreground" : "hover:border-red-200 hover:bg-red-50 hover:text-red-600 dark:hover:bg-red-950/30"}`}
+														>
+															{revokingToken === s.token
+																? "…"
+																: isCurrent
+																	? "Current"
+																	: "Revoke"}
+														</Button>
+														{isCurrent && (
+															<span className="text-[10px] text-emerald-600 dark:text-emerald-400">
+																Can’t revoke current
+															</span>
 														)}
-													</p>
-													<p className="text-muted-foreground text-xs">
-														IP: {s.ipAddress ?? "unknown"} ·{" "}
-														{formatDate(s.createdAt)} · Expires{" "}
-														{formatDate(s.expiresAt)}
-													</p>
+													</div>
 												</div>
 											</div>
-											<Button
-												variant="ghost"
-												size="sm"
-												onClick={() => handleRevokeOne(s.token)}
-												disabled={isCurrent || revokingToken === s.token}
-											>
-												{revokingToken === s.token
-													? "..."
-													: isCurrent
-														? "Current"
-														: "Revoke"}
-											</Button>
-										</div>
-									);
-								})}
+										);
+									})}
 							</div>
 						)}
-						<p className="flex items-center gap-1 text-[11px] text-muted-foreground">
-							<IconDeviceMobile className="size-3" /> Location is IP-based.
-							Detailed city requires a geo lookup (deferred — IP shown only in
-							beta).
-						</p>
+
+						<div className="flex items-start gap-2 rounded-lg bg-muted/50 px-3 py-2.5 text-[11px] text-muted-foreground">
+							<IconShieldCheck className="mt-0.5 size-3.5 shrink-0" />
+							<span>
+								Location is IP-based for beta. City-level lookup (ipapi)
+								deferred — IP shown only. Revoking a session signs that device
+								out immediately.
+							</span>
+						</div>
 					</CardContent>
 				</Card>
 

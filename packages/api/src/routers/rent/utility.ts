@@ -31,6 +31,7 @@ import {
 	sendAutomaticPaymentReceipt,
 	sendAutomaticUtilityBillEmail,
 } from "../helpers/automatic-emails";
+import { getAmountDueForUtility } from "../helpers/credit.helpers";
 
 // ******** Shared Helper ************
 type ComputeTotalInput = {
@@ -462,14 +463,17 @@ export const recordUtilityPayment = ownerProcedure
 				message: "This utility bill is already paid",
 			});
 		}
-		if (input.amount !== utility.totalAmount) {
-			throw new ORPCError("BAD_REQUEST", {
-				message: "Payment amount must match the utility bill total",
-			});
-		}
 
 		// transaction
 		const [payment] = await db.transaction(async (tx) => {
+			const due = await getAmountDueForUtility(tx, input.utilityId);
+			if (due <= 0)
+				throw new ORPCError("CONFLICT", { message: "Already paid/discounted" });
+			if (input.amount !== due)
+				throw new ORPCError("BAD_REQUEST", {
+					message: `Payment must match amountDue: ${due}`,
+				});
+
 			const inserted = await tx
 				.insert(payments)
 				.values({

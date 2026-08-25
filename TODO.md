@@ -250,7 +250,8 @@
 
 ## P3 — Post-Launch Backlog
 
-- [ ] **Two-factor authentication** — Better Auth supports TOTP; SecurityTab already has disabled placeholder buttons
+- [x] **Two-factor authentication — DEFERRED** — `feat/2FA` evaluated 2026-08-25 on `feat/account-linking-security` (branch `feat/account-linking-security @ 7d8a1b9`). Deferred for Indian owner segment (low tech-savvy, high friction); Google's own 2FA + email verification mitigates leaked-password risk. Revisit only after 20+ paying owners request it. See `docs/Feature-2FA-deferred.md` + `Deferred / Decided Against` row.
+- [ ] **Account linking polish + Security sessions (ACTIVE — replaces 2FA, `feat/account-linking-security`)** — Google `linkSocial`/`unlinkAccount` + `setPassword` for OAuth-only users + `listSessions`/`revokeSession` device list in `SecurityTab` (`security-tab.tsx:38`). Slices: S1 linked accounts, S2 password for OAuth, S3 sessions/devices, S4 cross-app parity. No DB migration.
 - [ ] **Owner-domain mutation auditing** — separately track owner changes for tenant disputes; do not mix this broader concern with the completed admin-operation audit trail.
 - [ ] **Tenant communication history** — store sent emails in a `tenantMessages` table so owners can see past correspondence
 - [ ] **Multi-property analytics** — per-property revenue breakdown, occupancy rate over time, vacancy duration tracking
@@ -279,6 +280,7 @@
 | Separate `/new` and `/edit` routes         | All CRUD uses inline `FormDialog` pattern — keep consistent                                                                                     |
 | Cron for in-app lease-expiry notifications | Lazy creation inside `listNotifications` — cron only needed for the _email_ channel (P1)                                                        |
 | Referral system                            | Dormant during beta. Revisit only when referrals become an intentional acquisition channel.                                                   |
+| TOTP 2FA / Passkey (`SecurityTab` placeholder `security-tab.tsx:168`) | Deferred 2026-08-25 — high friction for Indian owners; password + Google link + email verification covers beta. Revisit after 20+ paying owners or admin high-value accounts request it. Passkey (`@better-auth/passkey`) evaluated as alternative — also deferred (device/recovery friction). |
 
 ---
 

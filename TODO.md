@@ -251,7 +251,7 @@
 ## P3 — Post-Launch Backlog
 
 - [x] **Two-factor authentication — DEFERRED** — `feat/2FA` evaluated 2026-08-25 on `feat/account-linking-security` (branch `feat/account-linking-security @ 7d8a1b9`). Deferred for Indian owner segment (low tech-savvy, high friction); Google's own 2FA + email verification mitigates leaked-password risk. Revisit only after 20+ paying owners request it. See `docs/Feature-2FA-deferred.md` + `Deferred / Decided Against` row.
-- [ ] **Account linking polish + Security sessions (ACTIVE — replaces 2FA, `feat/account-linking-security`)** — Google `linkSocial`/`unlinkAccount` + `setPassword` for OAuth-only users + `listSessions`/`revokeSession` device list in `SecurityTab` (`security-tab.tsx:38`). Slices: S1 linked accounts, S2 password for OAuth, S3 sessions/devices, S4 cross-app parity. No DB migration.
+- [x] **Account linking polish + Security sessions (DONE `feat/account-linking-security` 6489ee1 → `main`)** — Google `linkSocial`/`unlinkAccount` + `setPassword` for OAuth-only users + `listSessions`/`revokeSession` beautiful device cards in `SecurityTab` (`security-tab.tsx:38`), hydration guard (`mounted`). No DB migration. `check-types` 6/6, `build` 5/5.
 - [ ] **Owner-domain mutation auditing** — separately track owner changes for tenant disputes; do not mix this broader concern with the completed admin-operation audit trail.
 - [ ] **Tenant communication history** — store sent emails in a `tenantMessages` table so owners can see past correspondence
 - [ ] **Multi-property analytics** — per-property revenue breakdown, occupancy rate over time, vacancy duration tracking

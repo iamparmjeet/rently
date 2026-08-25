@@ -78,14 +78,15 @@ function UserButton() {
 				render={
 					<Button
 						nativeButton
-						className="group relative flex h-12 w-12 items-center justify-center rounded-[calc(var(--radius)*1.8)] bg-linear-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:scale-105 hover:shadow-primary/30 hover:shadow-xl"
+						className="group relative flex h-12 w-12 items-center justify-center overflow-hidden rounded-[calc(var(--radius)*1.8)] bg-linear-to-br from-primary to-primary/80 text-primary-foreground shadow-lg shadow-primary/25 transition-all hover:scale-105 hover:shadow-primary/30 hover:shadow-xl"
 					>
 						{session.user.image ? (
 							<Image
 								src={session.user.image}
 								alt="user image"
 								fill
-								className="cursor-pointer rounded-sm object-cover"
+								className="cursor-pointer object-cover"
+								sizes="48px"
 							/>
 						) : (
 							<span className="font-bold text-lg">
@@ -100,13 +101,14 @@ function UserButton() {
 				<DropdownMenuGroup>
 					<DropdownMenuLabel>
 						<div className="flex items-center gap-3">
-							<div className="flex h-12 w-12 items-center justify-center rounded-[calc(var(--radius)*1.8)] bg-linear-to-br from-primary to-primary/80 text-primary-foreground">
+							<div className="relative flex h-12 w-12 shrink-0 items-center justify-center overflow-hidden rounded-[calc(var(--radius)*1.8)] bg-linear-to-br from-primary to-primary/80 text-primary-foreground">
 								{session.user.image ? (
 									<Image
 										src={session.user.image}
 										alt="user image"
 										fill
-										className="rounded-sm object-cover"
+										className="object-cover"
+										sizes="48px"
 									/>
 								) : (
 									<span className="font-bold text-lg">

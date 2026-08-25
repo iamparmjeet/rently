@@ -33,6 +33,7 @@ export function UtilityGrid({
 	if (utilities.length === 0) {
 		return (
 			<EmptyState
+				className="rounded-xl border border-dashed bg-card"
 				icon={IconBolt}
 				title={
 					allUtilities.length === 0

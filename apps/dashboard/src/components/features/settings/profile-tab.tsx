@@ -133,7 +133,7 @@ export function ProfileTab() {
 					<CardContent className="pt-6">
 						<div className="flex items-center gap-4">
 							{/* Initials avatar — R2 photo upload is a future enhancement */}
-							<div className="flex h-16 w-16 items-center justify-center rounded-xl bg-primary font-semibold text-primary-foreground text-xl">
+							<div className="relative flex h-16 w-16 items-center justify-center overflow-hidden rounded-xl bg-primary font-semibold text-primary-foreground text-xl">
 								{!mounted ? (
 									// Server + client first paint: identical output — no mismatch possible
 									<span>?</span>

@@ -1,6 +1,11 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@rently/db";
-import { billCredits, leases, utilities } from "@rently/db/schema/schema";
+import {
+	billCredits,
+	leases,
+	payments,
+	utilities,
+} from "@rently/db/schema/schema";
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 export type DbTx = Parameters<Parameters<Database["transaction"]>[0]>[0];
@@ -16,7 +21,7 @@ export async function getAmountDueForUtility(tx: DbTx, utilityId: string) {
 	if (!utility)
 		throw new ORPCError("NOT_FOUND", { message: "Utility not found" });
 
-	// 2. Sum all active discounts for this bill
+	// 2. Sum all active discounts for this bill (negative only, reversed excluded)
 	const [credits] = await tx
 		.select({ sum: sql<number>`coalesce(sum(${billCredits.amount}), 0)` })
 		.from(billCredits)
@@ -24,13 +29,18 @@ export async function getAmountDueForUtility(tx: DbTx, utilityId: string) {
 			and(eq(billCredits.utilityId, utilityId), isNull(billCredits.reversedAt)),
 		);
 
-	// 3. Due = total + negative credits
-	// return utility.totalAmount + credits.sum;
-	return utility.totalAmount + (credits?.sum ?? 0);
+	// 3. Sum all payments already recorded against this utility (reversal is negative, naturally nets)
+	const [paid] = await tx
+		.select({ sum: sql<number>`coalesce(sum(${payments.amount}), 0)` })
+		.from(payments)
+		.where(eq(payments.utilityId, utilityId));
+
+	// 4. Due = total + negative credits − paid (GST-safe: total immutable, credits separate rows)
+	return utility.totalAmount + (credits?.sum ?? 0) - (paid?.sum ?? 0);
 }
 
 export async function getAmountDueForRent(tx: DbTx, leaseId: string) {
-	// 1. Get rent
+	// 1. Get rent (beta: simple outstanding = lease.rent − paid − credits; period-aware ledger follows later)
 	const [lease] = await tx
 		.select({ rent: leases.rent })
 		.from(leases)
@@ -39,7 +49,7 @@ export async function getAmountDueForRent(tx: DbTx, leaseId: string) {
 
 	if (!lease) throw new ORPCError("NOT_FOUND", { message: "Lease not found" });
 
-	// 2. Sum all active discounts for this bill
+	// 2. Sum all active rent/general credits (utilityId null, negative only)
 	const [credits] = await tx
 		.select({ sum: sql<number>`coalesce(sum(${billCredits.amount}), 0)` })
 		.from(billCredits)
@@ -51,6 +61,17 @@ export async function getAmountDueForRent(tx: DbTx, leaseId: string) {
 			),
 		);
 
-	// 3. Due = total + negative credits
-	return lease.rent + (credits?.sum ?? 0);
+	// 3. Sum all rent payments for this lease (utilityId null → rent/general). Reversal is negative and nets.
+	const [paid] = await tx
+		.select({ sum: sql<number>`coalesce(sum(${payments.amount}), 0)` })
+		.from(payments)
+		.where(and(eq(payments.leaseId, leaseId), isNull(payments.utilityId)));
+
+	// 4. Due = rent + credits − paid; isPaidDerived = amountDue <= 0 (beta simple, no period key)
+	return lease.rent + (credits?.sum ?? 0) - (paid?.sum ?? 0);
+}
+
+// Helper for UI/API: derived paid check without extra query when amountDue already computed
+export function isPaidDerived(amountDue: number): boolean {
+	return amountDue <= 0;
 }

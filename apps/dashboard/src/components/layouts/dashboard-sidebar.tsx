@@ -81,6 +81,12 @@ export function DashbaordSidebar() {
 							{overviewLinks.map((item) => (
 								<SidebarMenuItem key={item.name}>
 									<SidebarMenuButton
+										render={
+											<Link
+												href={item.href}
+												className="flex w-full items-center gap-2"
+											/>
+										}
 										isActive={
 											pathname === item.href ||
 											pathname.startsWith(`${item.href}/`)
@@ -88,13 +94,8 @@ export function DashbaordSidebar() {
 										tooltip={item.name}
 										className="h-9 rounded-lg px-2.5 text-sm data-active:bg-primary data-active:text-primary-foreground data-active:shadow-sm data-active:hover:bg-primary data-active:hover:text-primary-foreground"
 									>
-										<Link
-											href={item.href}
-											className="flex w-full items-center gap-2"
-										>
-											<item.icon className="size-4 shrink-0" />
-											<span className="text-sm">{item.name}</span>
-										</Link>
+										<item.icon className="size-4 shrink-0" />
+										<span className="text-sm">{item.name}</span>
 									</SidebarMenuButton>
 								</SidebarMenuItem>
 							))}
@@ -118,6 +119,12 @@ export function DashbaordSidebar() {
 								return (
 									<SidebarMenuItem key={item.name}>
 										<SidebarMenuButton
+											render={
+												<Link
+													href={item.href}
+													className="flex w-full items-center gap-2"
+												/>
+											}
 											isActive={isRouteActive}
 											tooltip={item.name}
 											className={
@@ -126,44 +133,39 @@ export function DashbaordSidebar() {
 													: "h-9 rounded-lg px-2.5 text-sm"
 											}
 										>
-											<Link
-												href={item.href}
-												className="flex w-full items-center gap-2"
-											>
-												<item.icon className="size-5" />
-												<span className="text-base">{item.name}</span>
-												{isSubscription && subscriptionData && (
+											<item.icon className="size-5" />
+											<span className="text-base">{item.name}</span>
+											{isSubscription && subscriptionData && (
+												<span
+													className={`ml-auto flex shrink-0 items-center gap-1.5 font-medium text-[11px] group-data-[collapsible=icon]:hidden ${
+														isRouteActive
+															? "text-slate-200/75"
+															: "text-muted-foreground"
+													}`}
+												>
 													<span
-														className={`ml-auto flex shrink-0 items-center gap-1.5 font-medium text-[11px] group-data-[collapsible=icon]:hidden ${
-															isRouteActive
-																? "text-slate-200/75"
-																: "text-muted-foreground"
+														aria-hidden="true"
+														className={`size-1.5 rounded-full shadow-[0_0_0_2px] ${
+															isSubscriptionActive
+																? "bg-emerald-500 shadow-emerald-500/15"
+																: "bg-amber-500 shadow-amber-500/15"
 														}`}
-													>
-														<span
-															aria-hidden="true"
-															className={`size-1.5 rounded-full shadow-[0_0_0_2px] ${
-																isSubscriptionActive
-																	? "bg-emerald-500 shadow-emerald-500/15"
-																	: "bg-amber-500 shadow-amber-500/15"
-															}`}
-														/>
-														{subscriptionData.subscription?.plan.name ??
-															"Starter"}
-													</span>
-												)}
-												{isSubscription && subscriptionError && (
-													<span
-														className={`ml-auto shrink-0 text-[11px] group-data-[collapsible=icon]:hidden ${
-															isRouteActive
-																? "text-slate-200/75"
-																: "text-muted-foreground"
-														}`}
-													>
-														Unavailable
-													</span>
-												)}
-											</Link>
+													/>
+													{subscriptionData.subscription?.plan.name ??
+														"Starter"}
+												</span>
+											)}
+											{isSubscription && subscriptionError && (
+												<span
+													className={`ml-auto shrink-0 text-[11px] group-data-[collapsible=icon]:hidden ${
+														isRouteActive
+															? "text-slate-200/75"
+															: "text-muted-foreground"
+													}`}
+												>
+													Unavailable
+												</span>
+											)}
 										</SidebarMenuButton>
 									</SidebarMenuItem>
 								);

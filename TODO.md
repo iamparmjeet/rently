@@ -3,7 +3,7 @@
 > Single source of truth for build progress.
 > Update this file as items are completed or priorities shift.
 > Tiers: **P0** = must ship before public launch · **P1** = core product gaps · **P2** = growth features · **P3** = post-launch backlog
-> Last audited: 2026-08-14 (current automated release checks passed; V1 production gate reviewed)
+> Last audited: 2026-08-26 (fix/beta-bugfix-audit-2026-08-26 - 13 pushes S1-S10 + Option-A provisional + payment/tenant/lcp fixes, check-types 6/6, R2 P0 and smoke remain)
 > Cost policy: prefer services with a suitable free tier. Move to a paid tier only when measured usage or a required capability exceeds its documented free limits.
 
 ---
@@ -20,6 +20,35 @@
 - [ ] **P0 — deploy the beta configuration with `AADHAAR_UPLOADS_ENABLED=false` and run a production smoke test** for signup/verification, owner and tenant onboarding, payments/receipts, password reset, admin access, and non-Aadhaar document flow.
 
 **Release sequence:** close the P0 items above → deploy as `0.1.0-beta.3` → operate with real beta users and support monitoring → decide v1 only after the production smoke test and an uneventful beta observation window. P1–P3 feature ideas are not v1 blockers.
+
+---
+
+## Active Branch — fix/beta-bugfix-audit-2026-08-26 (2026-08-26, 13 pushes, no emoji after 2026-08-26 20:00 per owner)
+
+> Ship-loop 10 slices + Option-A provisional + follow-ups. Each push `check-types 6/6` + `biome`. R2 `TODO.md:127-128` excluded per owner — separate infra ticket. `AADHAAR_UPLOADS_ENABLED=false` remains beta default `wrangler.json:23` + `env/server.ts:44`, `tenant-document.ts:89` gates per-type.
+
+**Done on branch (pushed to origin):**
+- [x] S1 `c45a3ec` XSS `email/src/index.ts:385` `escapeHtml` + `removeUtility` GST guard `utility.ts:392` + `owner-profile.ts:45` validator
+- [x] S2 `608eee4` `credit.helpers.ts:8` derived `amountDue = total + credits - payments` + `isPaidDerived`
+- [x] S3 `555f938` `payment.ts:100` `createPayment` `amount===due` + `voidPayment` preserve `utilityId` + duplicate guard, `validators/payment.ts:23` `amount positive`
+- [x] S4 `ce5f26d` `schema.ts:199` `amount !=0` + `0017` migration + `credit.ts:104` `+abs` reversal with `reversesCreditId`
+- [x] S5 `38d27ac` `lease.ts:255` active editable + `FOR UPDATE` `credit.ts:71` + `tenant-portal.ts:346` tx for readings (C-06/C-07)
+- [x] S6 `93c0c84` `isNull(deletedAt)` `lease.ts:332/378` `utility.ts:336` `payment.ts:275` + `scheduled-reminders.ts:57` credit-aware + `FAILED` retry + `rent-cycle.ts:12` `effectiveRent`
+- [x] S7 `b5bce9e` `beta-smoke-test.md:18` Aadhaar `AADHAAR_UPLOAD_DISABLED` negative + PAN viewer, env default `false`
+- [x] S8 `1e8b6ec` `page-loader.tsx:7` sibling + `7afb1ed` `dashboard-sidebar.tsx:91` `render={<Link>}` + `use-mobile.ts:5` `useSyncExternalStore`
+- [x] S9 `8468fef` `reading-tab.tsx:42` `parseFloat`/`hasRate` + `bill-tab.tsx:6` sort + `receipts` `fonts.ready` + `use-notifications.ts:7` `5min` + `d27d771` `use-private-document-url-cache.ts:14` `revoke` + `docs-tab.tsx:90` controlled + `bottom-nav.tsx:34` `safe-area` + `credit-notes/utilities` print
+- [x] S10 `2560354` `.github/workflows/ci.yml` github-centric (no `wrangler deploy`)
+- [x] Option-A `7d875d7` provisional `user/profile` `invite-service.ts:130` for `owner_prepared` so owner can upload/docs/lease/email/whatsapp while tenant `pending` (backfilled `01a03a6a` Parm Tenant), `tenant.ts:176` pending `invite` fallback + `documents-tab.tsx:199` pending banner
+- [x] Follow-ups `e552e55` `CreatePaymentSchema` extendable, `fdd5dee` readable `Please select a lease` + helper, `91a933c` LCP `priority` `dashboard-header.tsx:84`, `dfa6a30` `getTenantById` pending fallback, `210b903` `listTenantDocuments` pending 200 + `documents-tab` pending UI, `01a03...` backfilled
+
+**In-progress / Next on branch:**
+- [ ] Ship `C+A` hybrid `blur` optimistic + `XHR` `putWithProgress` `>2MB` `useTenantDocuments` + `useTenantDocumentAction` already has `putWithProgress` `use-tenant-documents.ts:22`, UI `uploadProgress` state added `docs-tab.tsx:174` but `blur` card render + owner `documents-tab.tsx:136` `PUT` progress not yet pushed — you are not seeing hybrid because still local
+- [ ] Owner `Delete` for pending docs `DELETE /rent/tenant-document/delete` `where ownerId + status in (upload_pending, pending_review, awaiting_tenant_consent)` + `R2 deleteObject` + soft `deletedAt` + `Button Delete` `documents-tab:246`
+- [ ] Final `check-types` + `bun run test` `rently_test` + `bun run build` 5/5 + manual `beta-smoke-test.md:18` `AADHAAR` blocked + `PAN` viewer after server restart (`AADHAAR_UPLOADS_ENABLED=true` in both `.env` and `wrangler.json` vars then restart)
+
+**P0 still open (not in this branch per owner):**
+- [ ] Private R2 operational checks `cors.json` `r2 bucket cors list`, unauth denial, presigned expiry — separate infra ticket
+- [ ] Beta smoke `AADHAAR_UPLOADS_ENABLED=false` config + full `beta-smoke-test.md` 1-19
 
 ---
 

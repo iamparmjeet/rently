@@ -1,7 +1,7 @@
-# Handover — 2026-08-26 01:00 — model: muse-spark-1.2 — branch: fix/beta-bugfix-audit-2026-08-26
+# Handover — 2026-08-26 18:30 — model: muse-spark-1.2 — branch: fix/beta-bugfix-audit-2026-08-26
 
-Done: `main@b2ed822` merged account-linking-security (6489ee1). Audit + plan `docs/Bug-2026-08-26-beta-audit.md` with 10 slices + Constraints github-centric.
-In-progress: Awaiting approval for S1 (XSS+GST `escapeHtml` + `removeUtility` guard). No code yet.
-Broken: R2 bucket CORS/smoke `TODO.md:127-128` excluded — separate infra ticket. No local `wrangler deploy`.
-Avoid: no batch slices; no `utilities.discount`; no admin property writes; no R2 CORS mutation; no `wrangler push` outside CI.
-Next: Approve S1 plan → implement S1 → `check-types`+`biome`+`vitest packages/email` evidence → commit. Repeat S1-S10. Rollback `b2ed822`.
+Done: 13 pushes S1-S10 + Option-A provisional (01a03a6a backfilled) + follow-ups, check-types 6/6, TODO M1a tenant soft.
+In-progress: C+A hybrid blur+XHR progress not yet pushed (tenant hook has putWithProgress, UI blur pending), owner Delete pending docs not yet.
+Broken: R2 P0 separate, Aadhaar flag needs both .env and wrangler.json true + restart.
+Avoid: no batch, no emoji, no wrangler push.
+Next: Finish C+A owner+tenant blur+progress + Delete pending docs -> check-types -> push 2 commits -> test -> PR.

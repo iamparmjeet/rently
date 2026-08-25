@@ -14,6 +14,7 @@ import {
 	IconCheck,
 	IconDroplet,
 	IconMail,
+	IconTag,
 	IconTool,
 } from "@tabler/icons-react";
 import { format } from "date-fns";
@@ -25,6 +26,7 @@ export interface UtilityCardProps {
 	onWhatsApp?: () => void;
 	onEmail?: () => void;
 	onMarkPaid?: () => void;
+	onDiscount?: () => void;
 	onViewDetail?: () => void;
 }
 
@@ -56,6 +58,7 @@ export function UtilityCard({
 	onWhatsApp,
 	onEmail,
 	onMarkPaid,
+	onDiscount,
 	onViewDetail,
 }: UtilityCardProps) {
 	const config = TYPE_CONFIG[u.utilityType] ?? TYPE_CONFIG.electricity;
@@ -232,6 +235,20 @@ export function UtilityCard({
 							title="Send via Email"
 						>
 							<IconMail className="size-3.5" />
+						</button>
+					)}
+					{onDiscount && (
+						<button
+							type="button"
+							className="flex size-7 items-center justify-center rounded-md text-amber-600 transition-colors hover:bg-muted"
+							onClick={(e) => {
+								e.preventDefault();
+								e.stopPropagation();
+								onDiscount();
+							}}
+							title="Add discount / credit note"
+						>
+							<IconTag className="size-3.5" />
 						</button>
 					)}
 					{onMarkPaid && !u.isPaid && (

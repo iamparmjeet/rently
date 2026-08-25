@@ -9,6 +9,7 @@ import {
 import { UTILITY_TYPES } from "@rently/db/constants/rent-constants";
 import { user } from "@rently/db/schema/auth";
 import {
+	billCredits,
 	leases,
 	ownerProfiles,
 	payments,
@@ -213,6 +214,46 @@ export const updateUtility = ownerProcedure
 
 		// getOwnedUtility
 		const existing = await getOwnedUtility(db, input.id, authUser.id);
+
+		// GST-safe guard: immutable totalAmount once financial history exists
+		const touchesFinancial =
+			input.data.utilityType !== undefined ||
+			input.data.previousReading !== undefined ||
+			input.data.currentReading !== undefined ||
+			input.data.ratePerUnit !== undefined ||
+			input.data.fixedCharge !== undefined ||
+			(input.data as { unitsUsed?: unknown }).unitsUsed !== undefined;
+		if (touchesFinancial) {
+			const [ownerProfile] = await db
+				.select({ gstEnabled: ownerProfiles.gstEnabled })
+				.from(ownerProfiles)
+				.where(eq(ownerProfiles.userId, authUser.id))
+				.limit(1);
+			const gstEnabled = ownerProfile?.gstEnabled ?? false;
+
+			const [payment] = await db
+				.select({ id: payments.id })
+				.from(payments)
+				.where(eq(payments.utilityId, input.id))
+				.limit(1);
+			const [credit] = await db
+				.select({ id: billCredits.id })
+				.from(billCredits)
+				.where(
+					and(
+						eq(billCredits.utilityId, input.id),
+						isNull(billCredits.reversedAt),
+					),
+				)
+				.limit(1);
+
+			if (gstEnabled || payment || credit) {
+				throw new ORPCError("BAD_REQUEST", {
+					message:
+						"Bill is locked — use a credit note for adjustments. Financial fields cannot be edited after GST is enabled or payments/credits exist.",
+				});
+			}
+		}
 
 		// Recalculate totalAmount — always recompute from final merged values
 		const finalType = input.data.utilityType ?? existing.utilityType;

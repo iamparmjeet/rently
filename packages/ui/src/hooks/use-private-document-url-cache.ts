@@ -3,6 +3,28 @@
 type PreviewLoader = () => Promise<string>;
 const previewCache = new Map<string, string | Promise<string>>();
 
+// Revoke all cached object URLs and clear map — call on logout or viewer unmount
+export function clearPreviewCache(): void {
+	for (const value of previewCache.values()) {
+		if (typeof value === "string") {
+			try {
+				URL.revokeObjectURL(value);
+			} catch {}
+		}
+	}
+	previewCache.clear();
+}
+
+export function revokePreviewUrl(documentId: string): void {
+	const value = previewCache.get(documentId);
+	if (typeof value === "string") {
+		try {
+			URL.revokeObjectURL(value);
+		} catch {}
+	}
+	previewCache.delete(documentId);
+}
+
 async function loadPreview(
 	documentId: string,
 	loader: PreviewLoader,
@@ -39,5 +61,7 @@ async function loadPreview(
 export function usePrivateDocumentUrlCache() {
 	return {
 		getPreviewUrl: loadPreview,
+		clearCache: clearPreviewCache,
+		revokeUrl: revokePreviewUrl,
 	};
 }

@@ -92,6 +92,9 @@ export function DocsTab() {
 		requestId?: string;
 		file?: File;
 	}>({ type: TENANT_DOCUMENT_TYPES.PAN });
+	const [consentChecked, setConsentChecked] = useState(false);
+	const [aadhaarLastFour, setAadhaarLastFour] = useState("");
+	const [maskedConfirmed, setMaskedConfirmed] = useState(false);
 	const fileRef = useRef<HTMLInputElement>(null);
 	const documentUrlCache = usePrivateDocumentUrlCache();
 	const [viewer, setViewer] = useState<{
@@ -169,10 +172,7 @@ export function DocsTab() {
 
 	async function submitUpload() {
 		if (!upload.file || !data) return;
-		if (
-			!(document.querySelector("#document-consent") as HTMLInputElement)
-				?.checked
-		) {
+		if (!consentChecked) {
 			toast.error("Please confirm document consent before submitting.");
 			return;
 		}
@@ -188,6 +188,14 @@ export function DocsTab() {
 			toast.error("Only PDF, JPEG, and PNG files are allowed.");
 			return;
 		}
+		if (
+			upload.type === TENANT_DOCUMENT_TYPES.AADHAAR &&
+			aadhaarLastFour &&
+			!/^\d{4}$/.test(aadhaarLastFour)
+		) {
+			toast.error("Last four digits must be 4 numbers");
+			return;
+		}
 		try {
 			await actions.mutateAsync({
 				file: upload.file,
@@ -200,18 +208,18 @@ export function DocsTab() {
 					: { kind: "initial" },
 				aadhaarLastFour:
 					upload.type === TENANT_DOCUMENT_TYPES.AADHAAR
-						? (document.querySelector("#aadhaar-last-four") as HTMLInputElement)
-								?.value
+						? aadhaarLastFour || undefined
 						: undefined,
 				maskedAadhaarConfirmed:
-					upload.type === TENANT_DOCUMENT_TYPES.AADHAAR &&
-					(document.querySelector("#aadhaar-masked") as HTMLInputElement)
-						?.checked
+					upload.type === TENANT_DOCUMENT_TYPES.AADHAAR && maskedConfirmed
 						? true
 						: undefined,
 			} as never);
 			toast.success("Document submitted for owner review.");
 			setUpload({ type: TENANT_DOCUMENT_TYPES.PAN });
+			setConsentChecked(false);
+			setAadhaarLastFour("");
+			setMaskedConfirmed(false);
 		} catch (error) {
 			toast.error(
 				error instanceof Error
@@ -453,22 +461,46 @@ export function DocsTab() {
 										id="aadhaar-last-four"
 										inputMode="numeric"
 										maxLength={4}
+										value={aadhaarLastFour}
+										onChange={(e) =>
+											setAadhaarLastFour(
+												e.target.value.replace(/\D/g, "").slice(0, 4),
+											)
+										}
+										placeholder="e.g. 1234"
 									/>
 								</div>
 								<label className="flex items-start gap-2 text-sm">
-									<input id="aadhaar-masked" type="checkbox" className="mt-1" />{" "}
+									<input
+										id="aadhaar-masked"
+										type="checkbox"
+										className="mt-1"
+										checked={maskedConfirmed}
+										onChange={(e) => setMaskedConfirmed(e.target.checked)}
+									/>{" "}
 									This Aadhaar copy is masked.
 								</label>
 							</>
 						)}
 						<label className="flex items-start gap-2 text-sm">
-							<input id="document-consent" type="checkbox" className="mt-1" /> I
-							consent to sharing this document with my owner for review.
+							<input
+								id="document-consent"
+								type="checkbox"
+								className="mt-1"
+								checked={consentChecked}
+								onChange={(e) => setConsentChecked(e.target.checked)}
+							/>{" "}
+							I consent to sharing this document with my owner for review.
 						</label>
 						<div className="flex justify-end gap-2">
 							<Button
 								variant="outline"
-								onClick={() => setUpload({ type: upload.type })}
+								onClick={() => {
+									setUpload({ type: upload.type });
+									setConsentChecked(false);
+									setAadhaarLastFour("");
+									setMaskedConfirmed(false);
+								}}
 							>
 								Cancel
 							</Button>

@@ -196,6 +196,22 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 		}
 	}
 
+	// Pending invite (no profile yet) — documents not available until tenant accepts
+	if (tenant.status !== "accepted") {
+		return (
+			<div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center">
+				<p className="font-semibold text-amber-800 text-sm">
+					Tenant has not accepted invite yet
+				</p>
+				<p className="mt-1 text-amber-700 text-xs">
+					Invite is {tenant.status}. Documents will be available after the
+					tenant accepts the invite and creates their account. You can resend
+					the invite from the tenant list.
+				</p>
+			</div>
+		);
+	}
+
 	return (
 		<div>
 			<div className="mb-6">

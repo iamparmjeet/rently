@@ -23,6 +23,8 @@ export type RentCycleRow = {
 	rentDueDate: number | null;
 	leaseStatus: "active" | "expired" | "terminated";
 	paidAmount: number;
+	/** Sum of rent/general bill_credits (negative discounts + positive reversals net) */
+	creditAmount: number;
 	leaseExpiryAlert: boolean;
 	rentDueReminder: boolean;
 	overdueAlert: boolean;
@@ -135,11 +137,13 @@ export function computeRentCycleItem(
 		}
 	}
 
+	// Effective rent after discounts/credits (rent + negative credits + positive reversals)
+	const effectiveRent = row.rent + (row.creditAmount ?? 0);
 	if (
 		row.rentDueDate === null ||
 		row.rentDueDate < 1 ||
 		row.rentDueDate > 31 ||
-		row.paidAmount >= row.rent
+		row.paidAmount >= effectiveRent
 	)
 		return items;
 

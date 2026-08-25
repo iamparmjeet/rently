@@ -333,13 +333,15 @@ export const listUtilities = ownerProcedure
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
-		// This is one query vs N+1 separate lookups per throw
+		// Soft-delete aware: hide utilities for deleted properties/units
+		const baseFilter = and(
+			eq(properties.ownerId, authUser.id),
+			isNull(properties.deletedAt),
+			isNull(units.deletedAt),
+		);
 		const whereClause = input.leaseId
-			? and(
-					eq(properties.ownerId, authUser.id),
-					eq(utilities.leaseId, input.leaseId),
-				)
-			: eq(properties.ownerId, authUser.id);
+			? and(baseFilter, eq(utilities.leaseId, input.leaseId))
+			: baseFilter;
 
 		const results = await db
 			.select({

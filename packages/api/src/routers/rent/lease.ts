@@ -349,7 +349,13 @@ export const getLeaseById = ownerProcedure
 			.from(leases)
 			.innerJoin(units, eq(leases.unitId, units.id))
 			.innerJoin(properties, eq(units.propertyId, properties.id))
-			.where(eq(leases.id, input.id))
+			.where(
+				and(
+					eq(leases.id, input.id),
+					isNull(properties.deletedAt),
+					isNull(units.deletedAt),
+				),
+			)
 			.limit(1);
 
 		if (!result) {
@@ -406,6 +412,8 @@ export const listLeases = ownerProcedure
 			.where(
 				and(
 					eq(properties.ownerId, authUser.id),
+					isNull(properties.deletedAt),
+					isNull(units.deletedAt),
 					input.status ? eq(leases.status, input.status) : undefined,
 				),
 			)

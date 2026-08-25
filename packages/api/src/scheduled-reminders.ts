@@ -11,6 +11,7 @@ import {
 } from "@rently/db/constants/workspace-modes";
 import { user } from "@rently/db/schema/auth";
 import {
+	billCredits,
 	leases,
 	notificationPreferences,
 	payments,
@@ -24,7 +25,7 @@ import {
 	sendOverdueRentReminderEmail,
 	sendRentDueReminderEmail,
 } from "@rently/email";
-import { and, asc, eq, inArray } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import {
 	computeRentCycleItem,
@@ -88,6 +89,8 @@ export async function queryRentCycleRows(
 				eq(leases.status, "active"),
 				eq(user.accountMode, ACCOUNT_MODES.STANDARD),
 				eq(user.workspaceMode, WORKSPACE_MODES.LIVE),
+				isNull(properties.deletedAt),
+				isNull(units.deletedAt),
 				ownerId ? eq(properties.ownerId, ownerId) : undefined,
 			),
 		)
@@ -121,6 +124,27 @@ export async function queryRentCycleRows(
 		);
 	}
 
+	// Rent/general credits (utilityId null) net against rent — negative discounts + positive reversals
+	const creditRows = await database
+		.select({
+			leaseId: billCredits.leaseId,
+			amount: billCredits.amount,
+		})
+		.from(billCredits)
+		.where(
+			and(
+				inArray(billCredits.leaseId, leaseIds),
+				isNull(billCredits.utilityId),
+			),
+		);
+	const creditByLease = new Map<string, number>();
+	for (const row of creditRows) {
+		creditByLease.set(
+			row.leaseId,
+			(creditByLease.get(row.leaseId) ?? 0) + row.amount,
+		);
+	}
+
 	const suppressions = await database
 		.select({
 			leaseId: rentReminderSuppressions.leaseId,
@@ -136,6 +160,7 @@ export async function queryRentCycleRows(
 	return rows.map((row) => ({
 		...row,
 		paidAmount: paidByLease.get(row.leaseId) ?? 0,
+		creditAmount: creditByLease.get(row.leaseId) ?? 0,
 		leaseExpiryAlert: row.leaseExpiryAlert ?? true,
 		rentDueReminder: row.rentDueReminder ?? true,
 		overdueAlert: row.overdueAlert ?? true,
@@ -238,7 +263,44 @@ async function claimDelivery(
 		throw error;
 	}
 
-	return claim ? { state: "claimed", id: claim.id } : { state: "duplicate" };
+	if (claim) return { state: "claimed", id: claim.id };
+
+	// Duplicate — check if prior FAILED and older than 1h allows retry (H-06)
+	const [existing] = await database
+		.select({
+			id: scheduledEmailDeliveries.id,
+			status: scheduledEmailDeliveries.status,
+			updatedAt: scheduledEmailDeliveries.updatedAt,
+		})
+		.from(scheduledEmailDeliveries)
+		.where(
+			and(
+				eq(scheduledEmailDeliveries.ownerId, item.row.ownerId),
+				eq(scheduledEmailDeliveries.leaseId, item.row.leaseId),
+				eq(scheduledEmailDeliveries.type, item.type),
+				eq(scheduledEmailDeliveries.periodKey, item.periodKey),
+				eq(scheduledEmailDeliveries.thresholdDays, item.thresholdDays),
+			),
+		)
+		.limit(1);
+
+	if (
+		existing?.status === SCHEDULED_EMAIL_DELIVERY_STATUSES.FAILED &&
+		existing.updatedAt &&
+		Date.now() - new Date(existing.updatedAt).getTime() > 60 * 60 * 1000
+	) {
+		const [retried] = await database
+			.update(scheduledEmailDeliveries)
+			.set({
+				status: SCHEDULED_EMAIL_DELIVERY_STATUSES.CLAIMED,
+				updatedAt: new Date(),
+			})
+			.where(eq(scheduledEmailDeliveries.id, existing.id))
+			.returning();
+		if (retried) return { state: "claimed", id: retried.id };
+	}
+
+	return { state: "duplicate" };
 }
 
 export async function runScheduledReminderJob(

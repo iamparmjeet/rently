@@ -55,14 +55,15 @@
 
 ## Completed Milestone — M1: Hard Email Verification and Unified Onboarding
 
-### M1a — Hard email verification
+### M1a — Hard email verification (owner) + soft for owner-created tenants (restored 2026-08-26)
 
-- [x] Configure Better Auth to send verification email on signup and on unverified password sign-in.
-- [x] Require verified email for password login; existing unverified accounts must verify at their next login.
-- [x] Add a dedicated verification-required screen with resend feedback and a safe return path.
+- [x] Configure Better Auth `requireEmailVerification:true` to send verification email on owner signup and on unverified password sign-in.
+- [x] Require verified email for **owner** password login; existing unverified owner accounts must verify at next login.
+- [x] **Restored: owner-created tenants are auto-verified** — `acceptInvite` sets `user.emailVerified=true` for both `owner_prepared` and `tenant_completed` (invite email is trust signal). Tenant gets invite message but does not need hard verification at that instant; rest of features (portal, bills, readings, docs) enabled immediately. `invite.ts:423,433` + `packages/auth/src/index.ts:48` hard gate applies to owners, tenant auto-verified bypasses it.
+- [x] Add a dedicated verification-required screen with resend feedback and a safe return path (owner flow).
 - [x] Automatically establish the session after a successful verification.
-- [x] Defer beta-code redemption until a verified session exists; beta-code signups land on `/subscriptions` after verification, with no code persisted in URLs or browser storage.
-- [x] Test signup delivery, unverified-login blocking, successful verification, resend state, and redirect behavior.
+- [x] Defer beta-code redemption until a verified owner session exists; beta-code signups land on `/subscriptions` after verification, with no code persisted in URLs or browser storage.
+- [x] Test owner signup delivery, unverified-login blocking, successful verification, resend state, and redirect behavior + tenant auto-verified acceptance (invite suite `invite.test.ts:495,503` expects `emailVerified:true` after `acceptInvite`).
 
 ### M1b — Unified tenant onboarding
 

@@ -389,7 +389,7 @@ export const listUtilities = ownerProcedure
 		};
 	});
 
-// 5. Remove
+// 5. Remove — GST-safe: block delete when financial history exists (mirrors updateUtility guard)
 export const removeUtility = ownerProcedure
 	.route({ method: "DELETE", path: "/rent/utility/remove" })
 	.input(z.object({ id: z.string() }))
@@ -397,8 +397,50 @@ export const removeUtility = ownerProcedure
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
-		await getOwnedUtility(db, input.id, authUser.id);
-		await db.delete(utilities).where(eq(utilities.id, input.id));
+		const existing = await getOwnedUtility(db, input.id, authUser.id);
+
+		// GST-safe guard: keep immutable totalAmount, force credit-note path once history exists
+		const [ownerProfile] = await db
+			.select({ gstEnabled: ownerProfiles.gstEnabled })
+			.from(ownerProfiles)
+			.where(eq(ownerProfiles.userId, authUser.id))
+			.limit(1);
+		const gstEnabled = ownerProfile?.gstEnabled ?? false;
+		if (gstEnabled) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"Cannot delete a billed utility when GST is enabled — use a credit note instead.",
+			});
+		}
+		const [payment] = await db
+			.select({ id: payments.id })
+			.from(payments)
+			.where(eq(payments.utilityId, existing.id))
+			.limit(1);
+		if (payment) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"Cannot delete a utility with recorded payments — use a credit note or void the payment.",
+			});
+		}
+		const [credit] = await db
+			.select({ id: billCredits.id })
+			.from(billCredits)
+			.where(
+				and(
+					eq(billCredits.utilityId, existing.id),
+					isNull(billCredits.reversedAt),
+				),
+			)
+			.limit(1);
+		if (credit) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"Cannot delete a utility with active credits — reverse the credit first.",
+			});
+		}
+
+		await db.delete(utilities).where(eq(utilities.id, existing.id));
 
 		return { success: true };
 	});

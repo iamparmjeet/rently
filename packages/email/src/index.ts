@@ -378,11 +378,11 @@ export async function sendCustomEmailToTenant({
 		subject,
 		html: emailWrapper(`
       <p style="color:#555;font-size:14px;margin-bottom:4px;">
-        Message from your landlord, <strong>${ownerName}</strong>
+        Message from your landlord, <strong>${escapeHtml(ownerName)}</strong>
       </p>
-      <p>Hi ${tenantName},</p>
+      <p>Hi ${escapeHtml(tenantName)},</p>
       <hr style="border:none;border-top:1px solid #eee;margin:16px 0;" />
-      <p style="color:#111;line-height:1.7;white-space:pre-wrap;">${message}</p>
+      <p style="color:#111;line-height:1.7;white-space:pre-wrap;">${escapeHtml(message)}</p>
     `),
 	});
 

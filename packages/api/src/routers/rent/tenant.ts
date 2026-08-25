@@ -23,7 +23,7 @@ import {
 	TenantListItemSchema,
 	UpdateTenantProfileSchema,
 } from "@rently/validators";
-import { and, desc, eq, inArray } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull } from "drizzle-orm";
 import z from "zod";
 import { queryOverdueLeases } from "../helpers/overdue-query";
 import { createPendingTenantInvite } from "./invite-service";
@@ -229,9 +229,49 @@ export const getTenantById = ownerProcedure
 
 		const [result] = results;
 
-		// Zero rows means either: tenant doesn't exist, OR belongs to another owner.
-		// NOT_FOUND for both — don't reveal which, prevents enumeration.
+		// Zero rows: check if it's a pending invite (no tenantProfiles yet) — owner created via invite but not yet accepted
+		// NOT_FOUND for both missing and cross-owner to prevent enumeration, but pending invite should be visible as tenant with status pending
 		if (!result) {
+			const [invite] = await db
+				.select({
+					id: tenantInvites.id,
+					name: tenantInvites.name,
+					email: tenantInvites.email,
+					phone: tenantInvites.phone,
+					status: tenantInvites.status,
+					createdAt: tenantInvites.createdAt,
+					updatedAt: tenantInvites.updatedAt,
+				})
+				.from(tenantInvites)
+				.where(
+					and(
+						eq(tenantInvites.id, input.id),
+						eq(tenantInvites.invitedById, authUser.id),
+						isNull(tenantInvites.deletedAt),
+					),
+				)
+				.limit(1);
+
+			if (invite) {
+				return {
+					tenant: {
+						id: invite.id,
+						inviteId: invite.id,
+						name: invite.name,
+						email: invite.email,
+						emailVerified: false,
+						phone: invite.phone,
+						avatarUrl: null,
+						status: invite.status,
+						profile: null,
+						createdAt: invite.createdAt,
+						updatedAt: invite.updatedAt,
+						activeLeases: [],
+						currentLease: null,
+					},
+				};
+			}
+
 			throw new ORPCError("NOT_FOUND", {
 				message: "Tenant not found",
 			});

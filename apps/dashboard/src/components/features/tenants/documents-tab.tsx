@@ -507,7 +507,7 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 									</Button>
 								)}
 							</div>
-							{!doc && enabled(type) && (
+							{(!doc || doc.purgedAt || doc.status === "expired" || doc.status === "rejected") && enabled(type) && !isOptimistic && (
 								<Button
 									className="mt-4 w-full"
 									size="sm"
@@ -516,7 +516,7 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 										fileRef.current?.click();
 									}}
 								>
-									Upload on behalf
+									{doc?.purgedAt ? "Upload again" : "Upload on behalf"}
 								</Button>
 							)}
 							{!enabled(type) && type === TENANT_DOCUMENT_TYPES.AADHAAR && (

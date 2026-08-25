@@ -497,7 +497,7 @@ export function DocsTab() {
 										its card.
 									</p>
 								)}
-								{!document && enabled(type) && (
+								{(!document || document.purgedAt || document.status === "expired" || document.status === "rejected") && enabled(type) && !isOptimistic && (
 									<Button
 										className="mt-3 w-full"
 										size="sm"
@@ -506,7 +506,7 @@ export function DocsTab() {
 											fileRef.current?.click();
 										}}
 									>
-										Upload
+										{document?.purgedAt ? "Upload again" : "Upload"}
 									</Button>
 								)}
 							</div>

@@ -21,13 +21,11 @@ export async function getAmountDueForUtility(tx: DbTx, utilityId: string) {
 	if (!utility)
 		throw new ORPCError("NOT_FOUND", { message: "Utility not found" });
 
-	// 2. Sum all active discounts for this bill (negative only, reversed excluded)
+	// 2. Sum all discounts for this bill (negative credits + positive reversals net; reversedAt is audit only)
 	const [credits] = await tx
 		.select({ sum: sql<number>`coalesce(sum(${billCredits.amount}), 0)` })
 		.from(billCredits)
-		.where(
-			and(eq(billCredits.utilityId, utilityId), isNull(billCredits.reversedAt)),
-		);
+		.where(eq(billCredits.utilityId, utilityId));
 
 	// 3. Sum all payments already recorded against this utility (reversal is negative, naturally nets)
 	const [paid] = await tx
@@ -49,16 +47,12 @@ export async function getAmountDueForRent(tx: DbTx, leaseId: string) {
 
 	if (!lease) throw new ORPCError("NOT_FOUND", { message: "Lease not found" });
 
-	// 2. Sum all active rent/general credits (utilityId null, negative only)
+	// 2. Sum all rent/general credits (negative + positive reversals net)
 	const [credits] = await tx
 		.select({ sum: sql<number>`coalesce(sum(${billCredits.amount}), 0)` })
 		.from(billCredits)
 		.where(
-			and(
-				eq(billCredits.leaseId, leaseId),
-				isNull(billCredits.utilityId),
-				isNull(billCredits.reversedAt),
-			),
+			and(eq(billCredits.leaseId, leaseId), isNull(billCredits.utilityId)),
 		);
 
 	// 3. Sum all rent payments for this lease (utilityId null → rent/general). Reversal is negative and nets.

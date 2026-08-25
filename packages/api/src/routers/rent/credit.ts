@@ -100,7 +100,7 @@ export const createCredit = ownerProcedure
 		});
 	});
 
-// 2) Reverse Credit
+// 2) Reverse Credit — never delete, insert +abs reversal with reversesCreditId + set reversedAt on original
 export const reverseCredit = ownerProcedure
 	.route({
 		method: "POST",
@@ -122,16 +122,51 @@ export const reverseCredit = ownerProcedure
 
 		if (existing.reversedAt)
 			throw new ORPCError("CONFLICT", { message: "Already reversed" });
-		const [updated] = await db
-			.update(billCredits)
-			.set({
-				reversedAt: new Date(),
-				updatedAt: new Date(),
-			})
-			.where(eq(billCredits.id, input.creditId))
-			.returning();
 
-		return { credit: updated };
+		// Guard: only negative credits can be reversed (positive are already reversals)
+		if (existing.amount >= 0) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Only discount/write-off credits can be reversed",
+			});
+		}
+
+		return db.transaction(async (tx) => {
+			const reversalAmount = Math.abs(existing.amount); // positive to net the negative
+			const reversalId = generatedId();
+			const reversalNoteNo = getCreditNoteNo(reversalId);
+
+			const [reversal] = await tx
+				.insert(billCredits)
+				.values({
+					id: reversalId,
+					leaseId: existing.leaseId,
+					utilityId: existing.utilityId,
+					ownerId: user.id,
+					type: existing.type,
+					amount: reversalAmount, // positive — allowed via amount != 0 check
+					reason:
+						`Reversal of ${existing.creditNoteNo}: ${existing.reason}`.slice(
+							0,
+							500,
+						),
+					creditNoteNo: reversalNoteNo,
+					appliedAs: existing.appliedAs,
+					reversesCreditId: existing.id,
+					createdBy: user.id,
+				})
+				.returning();
+
+			const [updated] = await tx
+				.update(billCredits)
+				.set({
+					reversedAt: new Date(),
+					updatedAt: new Date(),
+				})
+				.where(eq(billCredits.id, input.creditId))
+				.returning();
+
+			return { credit: updated, reversal };
+		});
 	});
 
 // 3) List Credits

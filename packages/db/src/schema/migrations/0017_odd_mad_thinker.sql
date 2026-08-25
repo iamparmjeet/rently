@@ -1,0 +1,2 @@
+ALTER TABLE "bill_credits" DROP CONSTRAINT "bill_credits_amount_negative_check";--> statement-breakpoint
+ALTER TABLE "bill_credits" ADD CONSTRAINT "bill_credits_amount_check" CHECK ("bill_credits"."amount" != 0);

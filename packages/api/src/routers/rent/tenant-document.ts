@@ -1106,6 +1106,40 @@ export const submitApprovedDocumentUpdate = protectedProcedure
 		return { success: true };
 	});
 
+export const deletePendingDocument = ownerProcedure
+	.route({ method: "DELETE", path: "/rent/tenant-document/delete" })
+	.input(z.object({ documentId: z.uuid() }))
+	.output(submitOutput)
+	.handler(async ({ context, input }) => {
+		const row = await findDocumentForActor(
+			context.db,
+			context.user,
+			input.documentId,
+		);
+		const doc = row.document;
+		if (
+			![
+				TENANT_DOCUMENT_STATUSES.UPLOAD_PENDING,
+				TENANT_DOCUMENT_STATUSES.PENDING_REVIEW,
+				TENANT_DOCUMENT_STATUSES.AWAITING_TENANT_CONSENT,
+			].includes(doc.status as never)
+		) {
+			fail("CONFLICT", "CONFLICT");
+		}
+		const storage = documentStorage();
+		await storage.deleteObject(doc.storageKey).catch(() => undefined);
+		await context.db
+			.update(tenantDocuments)
+			.set({
+				status: TENANT_DOCUMENT_STATUSES.EXPIRED,
+				purgedAt: new Date(),
+				purgeAfter: new Date(),
+				updatedAt: new Date(),
+			})
+			.where(eq(tenantDocuments.id, doc.id));
+		return { success: true };
+	});
+
 export const tenantDocument = {
 	listMyDocuments,
 	listTenantDocuments,
@@ -1117,4 +1151,5 @@ export const tenantDocument = {
 	createDocumentUpdateRequest,
 	reviewDocumentUpdateRequest,
 	submitApprovedDocumentUpdate,
+	deletePendingDocument,
 };

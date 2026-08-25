@@ -11,10 +11,11 @@ import { PrivateDocumentViewer } from "@rently/ui/components/private-document-vi
 import { usePrivateDocumentUrlCache } from "@rently/ui/hooks/use-private-document-url-cache";
 import type { TenantDetail } from "@rently/validators";
 import { IconDownload, IconEye, IconFileText } from "@tabler/icons-react";
+import { useQueryClient } from "@tanstack/react-query";
 import { useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTenantDocumentAction, useTenantDocuments } from "@/hooks/tenants";
-import { client } from "@/utils/orpc";
+import { client, orpc } from "@/utils/orpc";
 
 const DOCUMENTS: Array<{ type: TenantDocumentType; label: string }> = [
 	{ type: TENANT_DOCUMENT_TYPES.AADHAAR, label: "Aadhaar" },
@@ -28,6 +29,29 @@ const DOCUMENTS: Array<{ type: TenantDocumentType; label: string }> = [
 	{ type: TENANT_DOCUMENT_TYPES.VOTER_ID, label: "Voter ID" },
 ];
 const ACCEPT = "application/pdf,image/jpeg,image/png";
+
+function putWithProgress(
+	url: string,
+	file: File,
+	headers: Record<string, string>,
+	onProgress?: (pct: number) => void,
+): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const xhr = new XMLHttpRequest();
+		xhr.open("PUT", url, true);
+		for (const [k, v] of Object.entries(headers)) { xhr.setRequestHeader(k, v); }
+		xhr.upload.onprogress = (e) => {
+			if (e.lengthComputable && onProgress)
+				onProgress(Math.round((e.loaded / e.total) * 100));
+		};
+		xhr.onload = () =>
+			xhr.status >= 200 && xhr.status < 300
+				? resolve()
+				: reject(new Error(`Upload failed (${xhr.status})`));
+		xhr.onerror = () => reject(new Error("Upload failed"));
+		xhr.send(file);
+	});
+}
 
 function statusLabel(doc: DocumentSummary): string {
 	if (doc.updateRequest?.status === "pending") return "Replacement requested";
@@ -55,11 +79,18 @@ type DocumentSummary = Awaited<
 export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 	const { data, isLoading } = useTenantDocuments(tenant.id);
 	const actions = useTenantDocumentAction(tenant.id);
+	const queryClient = useQueryClient();
 	const [upload, setUpload] = useState<{
 		type: TenantDocumentType;
 		requestId?: string;
 		file?: File;
 	}>({ type: TENANT_DOCUMENT_TYPES.PAN });
+	const [uploadProgress, setUploadProgress] = useState<number | null>(null);
+	const [optimistic, setOptimistic] = useState<DocumentSummary | null>(null);
+	const isUploading =
+		actions.begin.isPending ||
+		actions.submitInitial.isPending ||
+		actions.submitUpdate.isPending;
 	const fileRef = useRef<HTMLInputElement>(null);
 	const documentUrlCache = usePrivateDocumentUrlCache();
 	const [viewer, setViewer] = useState<{
@@ -157,6 +188,38 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 				?.checked
 				? true
 				: undefined;
+		// C+A: optimistic blur in <200ms before network
+		const optimisticDoc = {
+			id: `optimistic-${upload.type}-${Date.now()}`,
+			documentType: upload.type,
+			version: 1,
+			status: "upload_pending",
+			contentType: contentType as string,
+			sizeBytes: upload.file.size,
+			identifierHint: null,
+			submissionSource: "owner",
+			submittedAt: new Date().toISOString() as unknown as Date,
+			consentExpiresAt: null,
+			reviewedAt: null,
+			reviewNote: null,
+			purgeAfter: null,
+			purgedAt: null,
+			updateRequest: null,
+		} as unknown as DocumentSummary;
+		setOptimistic(optimisticDoc);
+		queryClient.setQueryData(
+			orpc.rent.tenantDocument.listTenantDocuments.key({
+				input: { tenantId: tenant.id },
+			}),
+			(old: unknown) => {
+				const prev = old as
+					| { documents: DocumentSummary[]; capabilities: unknown }
+					| undefined;
+				if (!prev) return prev;
+				return { ...prev, documents: [optimisticDoc, ...prev.documents] };
+			},
+		);
+		setUploadProgress(0);
 		try {
 			const signed = await actions.begin.mutateAsync({
 				tenantId: tenant.id,
@@ -167,12 +230,22 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 					? { kind: "replacement", requestId: upload.requestId }
 					: { kind: "initial" },
 			});
-			const response = await fetch(signed.uploadUrl, {
-				method: "PUT",
-				body: upload.file,
-				headers: signed.requiredHeaders,
-			});
-			if (!response.ok) throw new Error(`Upload failed (${response.status})`);
+			// C+A hybrid: XHR progress for >2MB, fetch spinner otherwise
+			if (upload.file.size > 2 * 1024 * 1024) {
+				await putWithProgress(
+					signed.uploadUrl,
+					upload.file,
+					signed.requiredHeaders as Record<string, string>,
+					(pct) => setUploadProgress(pct),
+				);
+			} else {
+				const response = await fetch(signed.uploadUrl, {
+					method: "PUT",
+					body: upload.file,
+					headers: signed.requiredHeaders,
+				});
+				if (!response.ok) throw new Error(`Upload failed (${response.status})`);
+			}
 			if (upload.requestId)
 				await actions.submitUpdate.mutateAsync({
 					documentId: signed.documentId,
@@ -193,6 +266,26 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 					? error.message
 					: "Document upload failed. Retry while the upload session is valid.",
 			);
+			queryClient.setQueryData(
+				orpc.rent.tenantDocument.listTenantDocuments.key({
+					input: { tenantId: tenant.id },
+				}),
+				(old: unknown) => {
+					const prev = old as
+						| { documents: DocumentSummary[]; capabilities: unknown }
+						| undefined;
+					if (!prev) return prev;
+					return {
+						...prev,
+						documents: prev.documents.filter(
+							(d) => !d.id.startsWith("optimistic-"),
+						),
+					};
+				},
+			);
+		} finally {
+			setUploadProgress(null);
+			setOptimistic(null);
 		}
 	}
 
@@ -226,8 +319,28 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 								item.documentType === type && item.status !== "superseded",
 						) ?? null;
 					const request = doc?.updateRequest;
+					const isOptimistic = optimistic?.documentType === type;
 					return (
-						<div key={type} className="rounded-xl border bg-card p-5">
+						<div
+							key={type}
+							className={`relative overflow-hidden rounded-xl border bg-card p-5 ${isOptimistic ? "opacity-60 blur-[0.5px]" : ""}`}
+						>
+							{isOptimistic && uploadProgress !== null && (
+								<div className="absolute inset-x-0 top-0 h-1 bg-muted">
+									<div
+										className="h-full bg-primary transition-all"
+										style={{ width: `${uploadProgress}%` }}
+									/>
+								</div>
+							)}
+							{isOptimistic && (
+								<div className="absolute top-2 right-2 flex items-center gap-1 rounded-full bg-primary px-2 py-0.5 font-semibold text-[10px] text-primary-foreground">
+									<div className="h-3 w-3 animate-spin rounded-full border-2 border-primary-foreground border-t-transparent" />
+									{uploadProgress !== null && uploadProgress > 0
+										? `${uploadProgress}%`
+										: "Uploading…"}
+								</div>
+							)}
 							<div className="flex items-start gap-3">
 								<div className="flex size-11 items-center justify-center rounded-lg bg-primary/10 text-primary">
 									<IconFileText className="size-5" />
@@ -283,6 +396,30 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 										</Button>
 									</>
 								)}
+								{doc &&
+									[
+										"upload_pending",
+										"pending_review",
+										"awaiting_tenant_consent",
+									].includes(doc.status) &&
+									!doc.purgedAt && (
+										<Button
+											size="sm"
+											variant="ghost"
+											disabled={actions.deletePending.isPending}
+											onClick={() => {
+												if (
+													window.confirm(
+														`Delete ${label}? This keeps audit via deletedAt.`,
+													)
+												) {
+													actions.deletePending.mutate({ documentId: doc.id });
+												}
+											}}
+										>
+											Delete
+										</Button>
+									)}
 								{doc?.status === "pending_review" && (
 									<>
 										<Button
@@ -436,22 +573,37 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 								</label>
 							</>
 						)}
+						{uploadProgress !== null && upload.file.size > 2 * 1024 * 1024 && (
+							<div className="space-y-1">
+								<div className="h-1.5 w-full overflow-hidden rounded-full bg-muted">
+									<div
+										className="h-full bg-primary transition-all"
+										style={{ width: `${uploadProgress}%` }}
+									/>
+								</div>
+								<p className="text-muted-foreground text-xs">
+									{uploadProgress}% uploaded
+								</p>
+							</div>
+						)}
 						<div className="flex justify-end gap-2">
 							<Button
 								variant="outline"
-								onClick={() => setUpload({ type: upload.type })}
+								disabled={isUploading}
+								onClick={() => {
+									setUpload({ type: upload.type });
+									setUploadProgress(null);
+									setOptimistic(null);
+								}}
 							>
 								Cancel
 							</Button>
-							<Button
-								onClick={submitUpload}
-								disabled={
-									actions.begin.isPending ||
-									actions.submitInitial.isPending ||
-									actions.submitUpdate.isPending
-								}
-							>
-								Upload
+							<Button onClick={submitUpload} disabled={isUploading}>
+								{isUploading
+									? uploadProgress !== null && uploadProgress > 0
+										? `${uploadProgress}%`
+										: "Uploading…"
+									: "Upload"}
 							</Button>
 						</div>
 					</div>

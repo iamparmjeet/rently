@@ -13,6 +13,30 @@ export function useTenantDocuments() {
 	return useQuery(orpc.rent.tenantDocument.listMyDocuments.queryOptions());
 }
 
+function putWithProgress(
+	url: string,
+	file: File,
+	headers: Record<string, string>,
+	onProgress?: (pct: number) => void,
+): Promise<void> {
+	return new Promise((resolve, reject) => {
+		const xhr = new XMLHttpRequest();
+		xhr.open("PUT", url, true);
+		for (const [k, v] of Object.entries(headers)) { xhr.setRequestHeader(k, v); }
+		xhr.upload.onprogress = (e) => {
+			if (e.lengthComputable && onProgress) {
+				onProgress(Math.round((e.loaded / e.total) * 100));
+			}
+		};
+		xhr.onload = () => {
+			if (xhr.status >= 200 && xhr.status < 300) resolve();
+			else reject(new Error(`Upload failed (${xhr.status})`));
+		};
+		xhr.onerror = () => reject(new Error("Upload failed"));
+		xhr.send(file);
+	});
+}
+
 export function useTenantDocumentAction() {
 	const queryClient = useQueryClient();
 	const invalidate = () =>
@@ -20,17 +44,34 @@ export function useTenantDocumentAction() {
 			queryKey: orpc.rent.tenantDocument.listMyDocuments.key(),
 		});
 	const upload = useMutation({
-		mutationFn: async (input: UploadActionInput) => {
-			const { file, aadhaarLastFour, maskedAadhaarConfirmed, ...request } =
-				input;
+		mutationFn: async (
+			input: UploadActionInput & { onProgress?: (pct: number) => void },
+		) => {
+			const {
+				file,
+				aadhaarLastFour,
+				maskedAadhaarConfirmed,
+				onProgress,
+				...request
+			} = input;
 			const signed =
 				await client.rent.tenantDocument.beginTenantDocumentUpload(request);
-			const upload = await fetch(signed.uploadUrl, {
-				method: "PUT",
-				body: file,
-				headers: signed.requiredHeaders,
-			});
-			if (!upload.ok) throw new Error(`Upload failed (${upload.status})`);
+			// C+A hybrid: progress for >2MB, else instant spinner via isPending
+			if (file.size > 2 * 1024 * 1024 && onProgress) {
+				await putWithProgress(
+					signed.uploadUrl,
+					file,
+					signed.requiredHeaders as Record<string, string>,
+					onProgress,
+				);
+			} else {
+				const upload = await fetch(signed.uploadUrl, {
+					method: "PUT",
+					body: file,
+					headers: signed.requiredHeaders,
+				});
+				if (!upload.ok) throw new Error(`Upload failed (${upload.status})`);
+			}
 			if (request.target.kind === "replacement") {
 				return client.rent.tenantDocument.submitApprovedDocumentUpdate({
 					documentId: signed.documentId,

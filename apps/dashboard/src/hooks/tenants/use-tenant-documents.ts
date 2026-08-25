@@ -75,5 +75,13 @@ export function useTenantDocumentAction(tenantId: string) {
 			) => client.rent.tenantDocument.submitApprovedDocumentUpdate(input),
 			onSettled: invalidate,
 		}),
+		deletePending: useMutation({
+			mutationFn: (
+				input: Parameters<
+					typeof client.rent.tenantDocument.deletePendingDocument
+				>[0],
+			) => client.rent.tenantDocument.deletePendingDocument(input),
+			onSettled: invalidate,
+		}),
 	};
 }

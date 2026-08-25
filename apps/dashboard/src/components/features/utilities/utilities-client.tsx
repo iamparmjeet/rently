@@ -476,7 +476,7 @@ export default function UtilitiesClient() {
 								onCreate={createDialog.openDialog}
 							/>
 						) : filtered.length === 0 ? (
-							<div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
+							<div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-card py-16 text-center">
 								<p className="text-muted-foreground">
 									No readings found.
 									{search ? " Try clearing the search." : ""}
@@ -539,7 +539,7 @@ export default function UtilitiesClient() {
 						</div>
 
 						{filteredCombinedGroups.length === 0 ? (
-							<div className="flex flex-col items-center justify-center rounded-xl border border-dashed py-16 text-center">
+							<div className="flex flex-col items-center justify-center rounded-xl border border-dashed bg-card py-16 text-center">
 								<p className="text-muted-foreground">
 									{combinedGroups.length === 0
 										? "No utility data yet. Add readings to see combined bills."

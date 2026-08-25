@@ -1,72 +1,23 @@
 import { ORPCError } from "@orpc/server";
 import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
-import type { Database } from "@rently/db";
 import {
 	APPLIED_AS_VALUES,
 	CREDIT_TYPE_VALUES,
 } from "@rently/db/constants/payment-constants";
-import { billCredits, leases, utilities } from "@rently/db/schema/schema";
+import { billCredits, utilities } from "@rently/db/schema/schema";
 import { generatedId } from "@rently/db/utils/id";
 import { and, eq, isNull, sql } from "drizzle-orm";
 import z from "zod";
 import { isLeaseOwner } from "../helpers";
+import {
+	getAmountDueForRent,
+	getAmountDueForUtility,
+} from "../helpers/credit.helpers";
 
 // *********** Helper **********************
 const getCreditNoteNo = (id: string) =>
 	`KQ-CN-${id.replaceAll("-", "").slice(-12).toUpperCase()}`;
-
-type DbTx = Parameters<Parameters<Database["transaction"]>[0]>[0];
-
-async function getAmountDueForUtility(tx: DbTx, utilityId: string) {
-	// 1. Get bill total
-	const [utility] = await tx
-		.select({ totalAmount: utilities.totalAmount })
-		.from(utilities)
-		.where(eq(utilities.id, utilityId))
-		.limit(1);
-
-	if (!utility)
-		throw new ORPCError("NOT_FOUND", { message: "Utility not found" });
-
-	// 2. Sum all active discounts for this bill
-	const [credits] = await tx
-		.select({ sum: sql<number>`coalesce(sum(${billCredits.amount}), 0)` })
-		.from(billCredits)
-		.where(
-			and(eq(billCredits.utilityId, utilityId), isNull(billCredits.reversedAt)),
-		);
-
-	// 3. Due = total + negative credits
-	// return utility.totalAmount + credits.sum;
-	return utility.totalAmount + (credits?.sum ?? 0);
-}
-
-async function getAmountDueForRent(tx: DbTx, leaseId: string) {
-	// 1. Get rent
-	const [lease] = await tx
-		.select({ rent: leases.rent })
-		.from(leases)
-		.where(eq(leases.id, leaseId))
-		.limit(1);
-
-	if (!lease) throw new ORPCError("NOT_FOUND", { message: "Lease not found" });
-
-	// 2. Sum all active discounts for this bill
-	const [credits] = await tx
-		.select({ sum: sql<number>`coalesce(sum(${billCredits.amount}), 0)` })
-		.from(billCredits)
-		.where(
-			and(
-				eq(billCredits.leaseId, leaseId),
-				isNull(billCredits.utilityId),
-				isNull(billCredits.reversedAt),
-			),
-		);
-
-	// 3. Due = total + negative credits
-	return lease.rent + (credits?.sum ?? 0);
-}
 
 // *********** Helper Ends **********************
 

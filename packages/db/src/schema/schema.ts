@@ -42,7 +42,12 @@ import {
 	uuid,
 } from "drizzle-orm/pg-core";
 import { NOTIFICATION_TYPE_VALUES } from "../constants/notification-constants";
-import { PAYMENT_METHOD_VALUES } from "../constants/payment-constants";
+import {
+	APPLIED_AS_VALUES,
+	CREDIT_TYPE_VALUES,
+	CREDIT_TYPES,
+	PAYMENT_METHOD_VALUES,
+} from "../constants/payment-constants";
 import {
 	DOCUMENT_FIELDS_VALUES,
 	DOCUMENT_REQUEST_STATUS_VALUES,
@@ -154,6 +159,50 @@ export const payments = pgTable("payments", {
 	utilityId: uuid("utility_id").references(() => utilities.id),
 	...auditColumns(),
 });
+
+export const billCredits = pgTable(
+	"bill_credits",
+	{
+		...idColumn(),
+		leaseId: uuid("lease_id")
+			.notNull()
+			.references(() => leases.id, {
+				onDelete: "restrict",
+			}),
+		utilityId: uuid("utility_id").references(() => utilities.id, {
+			onDelete: "restrict",
+		}),
+		ownerId: uuid("owner_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "restrict" }),
+		type: text("type", {
+			enum: CREDIT_TYPE_VALUES,
+		})
+			.notNull()
+			.default(CREDIT_TYPES.WRITE_OFF),
+		amount: integer("amount").notNull(),
+		reason: text("reason").notNull(),
+		creditNoteNo: text("credit_note_no").notNull().unique(),
+		appliedAs: text("applied_as", { enum: APPLIED_AS_VALUES })
+			.notNull()
+			.default("adjust"),
+		reversesCreditId: uuid("reverses_credit_id").references(
+			(): AnyPgColumn => billCredits.id,
+		),
+		reversedAt: timestamp("reversed_at"),
+		createdBy: uuid("created_by")
+			.notNull()
+			.references(() => user.id, { onDelete: "restrict" }),
+		...auditColumns(),
+	},
+	(t) => [
+		check("bill_credits_amount_negative_check", sql`${t.amount} < 0`),
+		check(
+			"bill_credits_reason_length_check",
+			sql`char_length(${t.reason}) >= 10`,
+		),
+	],
+);
 
 // ═══════════════════════════════════════════════════════════
 // TENANCY: Invites, Profiles
@@ -389,18 +438,34 @@ export const legacyDocumentUpdateRequests = pgTable(
 	},
 );
 
-export const ownerProfiles = pgTable("owner_profiles", {
-	...idColumn(),
-	userId: uuid("user_id")
-		.notNull()
-		.references(() => user.id, { onDelete: "restrict" }),
-	companyName: text("company_name").notNull(),
-	address: text("address"),
-	gstNumber: text("gst_number"),
-	upiId: text("upi_id"),
-	...auditColumns(),
-	...softDeleteColumn(),
-});
+export const ownerProfiles = pgTable(
+	"owner_profiles",
+	{
+		...idColumn(),
+		userId: uuid("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "restrict" }),
+		companyName: text("company_name").notNull(),
+		address: text("address"),
+		gstNumber: text("gst_number"),
+		gstEnabled: boolean("gst_enabled").notNull().default(false),
+		gstRateRent: integer("gst_rate_rent").notNull().default(0),
+		gstRateMaintenance: integer("gst_rate_maintenance").notNull().default(0),
+		upiId: text("upi_id"),
+		...auditColumns(),
+		...softDeleteColumn(),
+	},
+	(table) => [
+		check(
+			"owner_profiles_gst_rate_rent_check",
+			sql`${table.gstRateRent} IN (0,5,12,18)`,
+		),
+		check(
+			"owner_profiles_gst_rate_maintenance_check",
+			sql`${table.gstRateMaintenance} IN (0,5,12,18)`,
+		),
+	],
+);
 
 export const referrers = pgTable("referrers", {
 	...idColumn(),

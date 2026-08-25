@@ -8,11 +8,18 @@ import { CurrencyTab } from "./currency-tab";
 import { NotificationsTab } from "./notifications-tab";
 import { ProfileTab } from "./profile-tab";
 import { SecurityTab } from "./security-tab";
+import { TaxGstTab } from "./tax-gst-tab";
 
 // ── Tab definition
 // WHY a data structure (not JSX): keeps the tab nav and panel rendering DRY.
 // Adding a new tab is one array entry, not changes in two places.
-type TabId = "profile" | "security" | "currency" | "notifications" | "billing";
+type TabId =
+	| "profile"
+	| "security"
+	| "currency"
+	| "notifications"
+	| "billing"
+	| "tax";
 
 type Tab = {
 	id: TabId;
@@ -25,6 +32,7 @@ const TABS: Tab[] = [
 	{ id: "currency", label: "Currency" },
 	{ id: "notifications", label: "Notifications" },
 	{ id: "billing", label: "Billing" },
+	{ id: "tax", label: "Tax & GST" },
 ];
 
 // ── Profile tab skeleton — shown while useSuspenseOwnerProfile resolves
@@ -95,6 +103,11 @@ export function SettingsClient() {
 			{activeTab === "currency" && <CurrencyTab />}
 			{activeTab === "notifications" && <NotificationsTab />}
 			{activeTab === "billing" && <BillingTab />}
+			{activeTab === "tax" && (
+				<Suspense fallback={<ProfileTabSkeleton />}>
+					<TaxGstTab />
+				</Suspense>
+			)}
 		</div>
 	);
 }

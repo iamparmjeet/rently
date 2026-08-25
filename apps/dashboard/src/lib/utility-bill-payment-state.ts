@@ -1,13 +1,16 @@
 export function getUtilityBillPaymentState({
-	isPaid,
+	amountDue,
 	hasPaymentReceipt,
+	isPaid,
 }: {
-	isPaid: boolean;
+	amountDue?: number;
 	hasPaymentReceipt: boolean;
+	isPaid?: boolean;
 }) {
+	const paid = amountDue !== undefined ? amountDue <= 0 : Boolean(isPaid);
 	return {
-		amountLabel: isPaid ? "Amount paid" : "Total due",
-		statusLabel: isPaid
+		amountLabel: paid ? "Amount paid" : "Total due",
+		statusLabel: paid
 			? hasPaymentReceipt
 				? "Paid · Payment receipt available"
 				: "Marked as paid"

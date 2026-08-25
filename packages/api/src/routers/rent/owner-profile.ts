@@ -54,6 +54,10 @@ export const upsertOwnerProfile = ownerProcedure
 					companyName: input.companyName ?? existing.companyName,
 					address: input.address ?? existing.address,
 					gstNumber: input.gstNumber ?? existing.gstNumber,
+					gstEnabled: input.gstEnabled ?? existing.gstEnabled,
+					gstRateRent: input.gstRateRent ?? existing.gstRateRent,
+					gstRateMaintenance:
+						input.gstRateMaintenance ?? existing.gstRateMaintenance,
 					upiId: input.upiId ?? existing.upiId,
 				})
 				.where(eq(ownerProfiles.id, existing.id))
@@ -79,6 +83,9 @@ export const upsertOwnerProfile = ownerProcedure
 				companyName: input.companyName ?? "",
 				address: input.address ?? null,
 				gstNumber: input.gstNumber ?? null,
+				gstEnabled: input.gstEnabled ?? false,
+				gstRateRent: input.gstRateRent ?? 0,
+				gstRateMaintenance: input.gstRateMaintenance ?? 0,
 				upiId: input.upiId ?? null,
 			})
 			.returning();

@@ -11,12 +11,14 @@ import type {
 	UtilityBatchFormValues,
 	UtilityListItem,
 } from "@rently/validators";
+import { useState } from "react";
 import { UtilityForm } from "@/components/forms/utility-form";
 import { ActionsMenu } from "@/components/shared/action-menu";
 import {
 	useOptimisticRemoveUtility,
 	useOptimisticUpdateUtility,
 } from "@/hooks/utilities";
+import { DiscountDialog } from "./discount-dialog";
 import { UtilityCard } from "./utility-card";
 
 interface UtilityCardActionsProps {
@@ -32,6 +34,7 @@ export function UtilityCardActions({
 }: UtilityCardActionsProps) {
 	const editDialog = useFormDialog();
 	const deleteDialog = useFormDialog();
+	const [discountOpen, setDiscountOpen] = useState(false);
 
 	const updateUtility = useOptimisticUpdateUtility();
 	const removeUtility = useOptimisticRemoveUtility();
@@ -127,6 +130,7 @@ export function UtilityCardActions({
 				onWhatsApp={utility.tenantPhone ? handleWhatsApp : undefined}
 				onEmail={utility.tenantEmail ? handleEmail : undefined}
 				onMarkPaid={onMarkPaid}
+				onDiscount={() => setDiscountOpen(true)}
 				onViewDetail={onViewDetail}
 			/>
 
@@ -159,6 +163,15 @@ export function UtilityCardActions({
 				destructive
 				onConfirm={handleDelete}
 				isLoading={removeUtility.isPending}
+			/>
+
+			<DiscountDialog
+				leaseId={utility.leaseId}
+				utilityId={utility.id}
+				open={discountOpen}
+				onOpenChange={setDiscountOpen}
+				amountDue={utility.totalAmount}
+				totalAmount={utility.totalAmount}
 			/>
 		</>
 	);

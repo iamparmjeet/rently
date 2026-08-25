@@ -1,3 +1,4 @@
+import * as creditProcedures from "./credit";
 import * as inviteProcedures from "./invite";
 import * as leaseProcedures from "./lease";
 import * as ownerProfile from "./owner-profile";
@@ -23,6 +24,7 @@ export const rentRouter = {
 		...paymentExportProcedures,
 		getPaymentReceiptData: receiptProcedures.getPaymentReceiptData,
 	},
+	credit: creditProcedures,
 	utility: utilityProcedures,
 	stats: statsProcedures,
 	ownerProfile,

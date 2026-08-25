@@ -190,6 +190,7 @@ export const getTenantById = ownerProcedure
 				emailVerified: user.emailVerified,
 				userPhone: user.phone,
 				avatarUrl: user.image,
+				invitedId: tenantProfiles.invitedId,
 				// TenantProfile fields (all nullable if no profile row — shouldn't
 				// happen before an invitation is accepted, but LEFT JOIN is safer)
 				profileAddress: tenantProfiles.address,
@@ -299,16 +300,33 @@ export const getTenantById = ownerProcedure
 				overdue: null,
 			}));
 
+		// Option-A: if linked invite is still pending, tenant is pending (provisional profile exists so owner can upload/docs/lease before accept)
+		let status: "pending" | "accepted" | "expired" = "accepted";
+		let inviteId: string | null = null;
+		if (result.invitedId) {
+			const [invite] = await db
+				.select({ status: tenantInvites.status, id: tenantInvites.id })
+				.from(tenantInvites)
+				.where(eq(tenantInvites.id, result.invitedId))
+				.limit(1);
+			if (invite) {
+				inviteId = invite.id;
+				if (invite.status === "pending") status = "pending";
+				else if (invite.status === "expired") status = "expired";
+				else status = "accepted";
+			}
+		}
+
 		return {
 			tenant: {
 				id: result.tenantId,
-				inviteId: null,
+				inviteId,
 				name: result.name,
 				email: result.email,
 				emailVerified: result.emailVerified,
 				phone: result.userPhone,
 				avatarUrl: result.avatarUrl,
-				status: "accepted" as const,
+				status,
 				profile,
 				createdAt: result.createdAt,
 				updatedAt: result.updatedAt,

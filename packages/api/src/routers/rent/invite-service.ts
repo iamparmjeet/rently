@@ -6,7 +6,9 @@ import {
 	type InviteDeliveryErrorCode,
 	type TenantOnboardingMode,
 } from "@rently/db/constants/rent-constants";
-import { tenantInvites } from "@rently/db/schema/schema";
+import { USER_ROLES } from "@rently/db/constants/user-roles";
+import { user } from "@rently/db/schema/auth";
+import { tenantInvites, tenantProfiles } from "@rently/db/schema/schema";
 import { sendInviteEmail } from "@rently/email";
 import { and, eq, isNull } from "drizzle-orm";
 import { enforceSubscriptionLimit } from "../helpers";
@@ -180,6 +182,64 @@ export async function createPendingTenantInvite(
 		throw new ORPCError("INTERNAL_SERVER_ERROR", {
 			message: "Failed to create invitation.",
 		});
+	}
+
+	// Option-A: owner_prepared gets provisional tenantProfiles (+ user) immediately so owner can upload docs / create lease / send email/whatsapp while tenant is still pending
+	// Tenant will later claim this provisional identity in acceptInvite (claimsOwnerPreparedIdentity)
+	if (input.onboardingMode === "owner_prepared") {
+		const [existingUser] = await db
+			.select({ id: user.id })
+			.from(user)
+			.where(eq(user.email, email))
+			.limit(1);
+
+		if (!existingUser) {
+			// No user yet — create provisional user with id = invite.id and profile linked to invite
+			await db.insert(user).values({
+				id: invite.id,
+				name: input.name,
+				email,
+				emailVerified: false,
+				role: USER_ROLES.TENANT,
+				phone: input.phone ?? null,
+			});
+			await db.insert(tenantProfiles).values({
+				userId: invite.id,
+				email,
+				phone: input.phone ?? null,
+				address: input.address ?? null,
+				emergencyContact: input.emergencyContact ?? null,
+				emergencyContactName: input.emergencyContactName ?? null,
+				emergencyContactLocation: input.emergencyContactLocation ?? null,
+				invitedId: invite.id,
+				createdById: ownerId,
+			});
+		} else {
+			// User already exists (e.g. previous tenant) — ensure a profile for this invite exists so owner can act
+			const [existingProfile] = await db
+				.select({ id: tenantProfiles.id })
+				.from(tenantProfiles)
+				.where(
+					and(
+						eq(tenantProfiles.userId, existingUser.id),
+						eq(tenantProfiles.invitedId, invite.id),
+					),
+				)
+				.limit(1);
+			if (!existingProfile) {
+				await db.insert(tenantProfiles).values({
+					userId: existingUser.id,
+					email,
+					phone: input.phone ?? null,
+					address: input.address ?? null,
+					emergencyContact: input.emergencyContact ?? null,
+					emergencyContactName: input.emergencyContactName ?? null,
+					emergencyContactLocation: input.emergencyContactLocation ?? null,
+					invitedId: invite.id,
+					createdById: ownerId,
+				});
+			}
+		}
 	}
 
 	if (suppressDelivery) {

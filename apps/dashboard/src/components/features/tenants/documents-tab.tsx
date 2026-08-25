@@ -196,22 +196,6 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 		}
 	}
 
-	// Pending invite (no profile yet) — documents not available until tenant accepts
-	if (tenant.status !== "accepted") {
-		return (
-			<div className="rounded-xl border border-amber-200 bg-amber-50 p-6 text-center">
-				<p className="font-semibold text-amber-800 text-sm">
-					Tenant has not accepted invite yet
-				</p>
-				<p className="mt-1 text-amber-700 text-xs">
-					Invite is {tenant.status}. Documents will be available after the
-					tenant accepts the invite and creates their account. You can resend
-					the invite from the tenant list.
-				</p>
-			</div>
-		);
-	}
-
 	return (
 		<div>
 			<div className="mb-6">
@@ -221,6 +205,19 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 					owner-submitted files before review.
 				</p>
 			</div>
+			{tenant.status !== "accepted" && (
+				<div className="mb-4 rounded-xl border border-amber-200 bg-amber-50 p-4">
+					<p className="font-semibold text-amber-800 text-sm">
+						Tenant invite is {tenant.status} — you can still upload documents
+						and create a lease
+					</p>
+					<p className="mt-1 text-amber-700 text-xs">
+						Invite not yet accepted. Owner can upload documents, create lease
+						and send email/WhatsApp now. Tenant will confirm documents after
+						accepting — remind them to check email for the invite link.
+					</p>
+				</div>
+			)}
 			<div className="grid grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-3">
 				{DOCUMENTS.map(({ type, label }) => {
 					const doc =

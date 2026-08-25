@@ -64,18 +64,40 @@ export default function UtilityBillPage({
 	const readingPeriod = utility.previousReadingDate
 		? `${formatDate(utility.previousReadingDate)} – ${formatDate(utility.currentReadingDate)}`
 		: formatDate(utility.currentReadingDate);
+	const credits = (
+		utility as unknown as {
+			credits?: {
+				amount: number;
+				reason: string;
+				creditNoteNo: string;
+				type?: string;
+			}[];
+			amountDue?: number;
+		}
+	).credits;
+	const amountDue =
+		(utility as unknown as { amountDue?: number }).amountDue ??
+		(credits?.length
+			? utility.totalAmount + credits.reduce((s, c) => s + c.amount, 0)
+			: utility.isPaid
+				? 0
+				: utility.totalAmount);
 	const paymentState = getUtilityBillPaymentState({
-		isPaid: utility.isPaid,
+		amountDue,
 		hasPaymentReceipt: utility.receiptPaymentId !== null,
+		isPaid: utility.isPaid,
 	});
-	const chargeLines = getUtilityBillChargeLines(utility);
+	const chargeLines = getUtilityBillChargeLines({
+		...utility,
+		credits,
+	} as never);
 	const meterReading = `${Number(utility.previousReading ?? 0).toFixed(2)} → ${Number(
 		utility.currentReading ?? 0,
 	).toFixed(2)}`;
 	const issuerName = utility.companyName?.trim() || utility.ownerName;
 	const statusDescription = utility.receiptPaymentId
 		? "Payment received. The payment receipt is available separately."
-		: utility.isPaid
+		: amountDue <= 0
 			? "This bill was marked as paid without a recorded payment receipt."
 			: "Payment is pending for this bill.";
 
@@ -151,7 +173,7 @@ export default function UtilityBillPage({
 					<div className="sm:text-right">
 						<p
 							className={`mb-2 inline-flex rounded-full px-2.5 py-1 font-bold text-[10px] uppercase tracking-wider ${
-								utility.isPaid
+								amountDue <= 0
 									? "bg-emerald-50 text-emerald-700"
 									: "bg-amber-50 text-amber-700"
 							}`}
@@ -273,9 +295,14 @@ export default function UtilityBillPage({
 							<p className="mt-1 font-semibold text-sm">
 								{paymentState.statusLabel}
 							</p>
+							{credits?.length ? (
+								<p className="mt-1 text-slate-500 text-xs line-through">
+									Original {formatRupees(utility.totalAmount)}
+								</p>
+							) : null}
 						</div>
 						<p className="font-extrabold text-2xl tabular-nums sm:text-3xl">
-							{formatRupees(utility.totalAmount)}
+							{formatRupees(amountDue)}
 						</p>
 					</div>
 					<p className="mt-4 border-slate-200 border-t pt-3 text-slate-500 text-xs">

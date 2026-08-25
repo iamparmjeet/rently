@@ -69,6 +69,17 @@ export const createCredit = ownerProcedure
 		}
 
 		return db.transaction(async (tx) => {
+			// Row-level lock to prevent concurrent over-discount (C-07): lock the billed entity
+			if (input.utilityId) {
+				await tx.execute(
+					sql`select 1 from ${utilities} where ${utilities.id} = ${input.utilityId} for update`,
+				);
+			} else {
+				await tx.execute(
+					sql`select 1 from ${leases} where ${leases.id} = ${input.leaseId} for update`,
+				);
+			}
+
 			const due = input.utilityId
 				? await getAmountDueForUtility(tx, input.utilityId)
 				: await getAmountDueForRent(tx, input.leaseId);

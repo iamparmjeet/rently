@@ -252,13 +252,8 @@ export const updateLease = ownerProcedure
 			});
 		}
 
-		if (ownership.status === "active") {
-			throw new ORPCError("BAD_REQUEST", {
-				message:
-					"Active leases cannot be edited. Terminate the lease and create a new one to make changes.",
-			});
-		}
-
+		// Active leases are editable (rent, deposit, notice, description, dates).
+		// Only terminated/expired are immutable — they represent closed periods.
 		if (ownership.status === "terminated" || ownership.status === "expired") {
 			throw new ORPCError("BAD_REQUEST", {
 				message: "Terminated or expired leases cannot be edited.",

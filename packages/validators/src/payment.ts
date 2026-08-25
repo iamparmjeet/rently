@@ -1,8 +1,5 @@
 import { PAYMENT_METHOD_VALUES } from "@rently/db/constants/payment-constants";
-import {
-	PAYMENT_TYPE_VALUES,
-	PAYMENT_TYPES,
-} from "@rently/db/constants/rent-constants";
+import { PAYMENT_TYPE_VALUES } from "@rently/db/constants/rent-constants";
 import { payments } from "@rently/db/schema/schema";
 import {
 	createInsertSchema,
@@ -24,20 +21,10 @@ export const CreatePaymentSchema = PaymentInsertSchema.omit({
 	id: true,
 	createdAt: true,
 	updatedAt: true,
-})
-	.extend({
-		// amount must be positive — reversals go via voidPayment only
-		amount: z.number().int().positive({ error: "Amount must be > 0" }),
-	})
-	.superRefine((v, ctx) => {
-		if (v.type === PAYMENT_TYPES.REVERSAL) {
-			ctx.addIssue({
-				code: "custom",
-				path: ["type"],
-				message: "Reversal payments must use voidPayment",
-			});
-		}
-	});
+}).extend({
+	// amount must be positive — reversals go via voidPayment only (also enforced in handler)
+	amount: z.number().int().positive({ error: "Amount must be > 0" }),
+});
 
 export const UpdatePaymentSchema = createUpdateSchema(payments).pick({
 	amount: true,

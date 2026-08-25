@@ -5,7 +5,7 @@ import { NotFoundState } from "@rently/ui/shared/not-found-state";
 import { PageLoader } from "@rently/ui/shared/page-loader";
 import { RentReceipt } from "@rently/ui/shared/rent-receipt";
 import { IconArrowLeft, IconPrinter } from "@tabler/icons-react";
-import { useSearchParams } from "next/navigation";
+import { useRouter, useSearchParams } from "next/navigation";
 import { use, useEffect, useRef } from "react";
 import { useMyPaymentReceipt } from "@/hooks/tenant-portal";
 
@@ -16,16 +16,35 @@ export default function TenantPaymentReceiptPage({
 }) {
 	const { paymentId } = use(params);
 	const searchParams = useSearchParams();
+	const router = useRouter();
 	const { data, isError, isLoading } = useMyPaymentReceipt(paymentId);
 	const printed = useRef(false);
 	const shouldPrint = searchParams.get("print") === "true";
+
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset printed on paymentId change
+	useEffect(() => {
+		printed.current = false;
+	}, [paymentId]);
 
 	useEffect(() => {
 		if (!shouldPrint || !data?.receipt || printed.current) return;
 
 		printed.current = true;
-		const timer = window.setTimeout(() => window.print(), 0);
-		return () => window.clearTimeout(timer);
+		let cancelled = false;
+		const doPrint = async () => {
+			try {
+				if (document.fonts?.ready) await document.fonts.ready;
+			} catch {}
+			if (cancelled) return;
+			window.requestAnimationFrame(() => {
+				if (!cancelled) window.print();
+			});
+		};
+		const timer = window.setTimeout(doPrint, 100);
+		return () => {
+			cancelled = true;
+			window.clearTimeout(timer);
+		};
 	}, [data?.receipt, shouldPrint]);
 
 	if (isLoading) return <PageLoader rows={2} />;
@@ -50,7 +69,13 @@ export default function TenantPaymentReceiptPage({
 			`}</style>
 
 			<div className="receipt-screen-only mx-auto mb-4 flex w-full max-w-210 justify-between gap-3">
-				<Button variant="outline" onClick={() => window.history.back()}>
+				<Button
+					variant="outline"
+					onClick={() => {
+						if (window.history.length > 1) window.history.back();
+						else router.push("/");
+					}}
+				>
 					<IconArrowLeft className="size-4" />
 					Back to payments
 				</Button>

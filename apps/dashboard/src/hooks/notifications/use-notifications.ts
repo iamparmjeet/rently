@@ -4,16 +4,14 @@ import { useQuery } from "@tanstack/react-query";
 import { orpc } from "@/utils/orpc";
 
 const MINUTES = (n: number) => n * 60 * 1_000;
-const POLL_INTERVAL = MINUTES(360); // 6 Hours
+const POLL_INTERVAL = MINUTES(5); // 5 minutes — was 6h, badge stale (audit P2)
 
 export function useNotifications(enabled = false) {
 	return useQuery({
 		...orpc.notification.listNotifications.queryOptions(),
 		enabled,
-		// considered stale and re-fetched on window focus. Prevents over-fetching
-		// when the user switches tabs frequently.
 		staleTime: POLL_INTERVAL,
-		refetchOnWindowFocus: false,
+		refetchOnWindowFocus: true,
 	});
 }
 
@@ -22,7 +20,8 @@ export function useUnreadCount() {
 		...orpc.notification.getUnreadCount.queryOptions(),
 		refetchInterval: POLL_INTERVAL,
 		staleTime: POLL_INTERVAL,
-		refetchIntervalInBackground: false,
+		refetchIntervalInBackground: true,
+		refetchOnWindowFocus: true,
 	});
 }
 

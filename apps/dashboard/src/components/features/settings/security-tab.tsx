@@ -181,6 +181,9 @@ export function SecurityTab() {
 		sessionData as unknown as { session?: { token: string } }
 	)?.session?.token;
 
+	const [mounted, setMounted] = useState(false);
+	useEffect(() => setMounted(true), []);
+
 	const [accounts, setAccounts] = useState<LinkedAccount[]>([]);
 	const [sessions, setSessions] = useState<SessionItem[]>([]);
 	const [loadingAccounts, setLoadingAccounts] = useState(true);
@@ -689,8 +692,11 @@ export function SecurityTab() {
 								<p className="font-semibold text-muted-foreground text-xs uppercase tracking-wider">
 									Sessions & Devices
 								</p>
-								<p className="text-muted-foreground text-xs">
-									{loadingSessions
+								<p
+									className="text-muted-foreground text-xs"
+									suppressHydrationWarning
+								>
+									{!mounted || loadingSessions
 										? "Checking devices…"
 										: `${sessions.length} active ${sessions.length === 1 ? "session" : "sessions"}`}{" "}
 									· Manage where you’re signed in
@@ -707,7 +713,7 @@ export function SecurityTab() {
 							</Button>
 						</div>
 
-						{loadingSessions ? (
+						{!mounted || loadingSessions ? (
 							<div className="space-y-3">
 								{[1, 2].map((i) => (
 									<div key={i} className="animate-pulse rounded-xl border p-4">
@@ -730,19 +736,19 @@ export function SecurityTab() {
 								</p>
 							</div>
 						) : (
-							<div className="space-y-3">
+							<div className="space-y-3" suppressHydrationWarning>
 								{sessions
 									.slice()
 									.sort((a, b) =>
-										a.token === currentToken
+										mounted && a.token === currentToken
 											? -1
-											: b.token === currentToken
+											: mounted && b.token === currentToken
 												? 1
 												: new Date(b.createdAt).getTime() -
 													new Date(a.createdAt).getTime(),
 									)
 									.map((s) => {
-										const isCurrent = s.token === currentToken;
+										const isCurrent = mounted && s.token === currentToken;
 										const info = getDeviceInfo(s.userAgent);
 										const Icon = info.icon;
 										return (
@@ -790,18 +796,24 @@ export function SecurityTab() {
 																	· IP
 																</span>
 															</span>
-															<span className="inline-flex items-center gap-1.5 rounded-full border bg-muted/60 px-2.5 py-1 text-[11px]">
+															<span
+																className="inline-flex items-center gap-1.5 rounded-full border bg-muted/60 px-2.5 py-1 text-[11px]"
+																suppressHydrationWarning
+															>
 																<IconClock className="size-3" />{" "}
-																{timeAgo(s.createdAt)}{" "}
+																{mounted ? timeAgo(s.createdAt) : "… "}{" "}
 																<span className="text-muted-foreground">
-																	· {formatDate(s.createdAt)}
+																	· {mounted ? formatDate(s.createdAt) : "…"}
 																</span>
 															</span>
 														</div>
 
-														<p className="mt-2 line-clamp-1 text-[11px] text-muted-foreground">
+														<p
+															className="mt-2 line-clamp-1 text-[11px] text-muted-foreground"
+															suppressHydrationWarning
+														>
 															{info.browser} on {info.os} · Expires{" "}
-															{formatDate(s.expiresAt)} ·{" "}
+															{mounted ? formatDate(s.expiresAt) : "…"} ·{" "}
 															<span className="hidden sm:inline">
 																{s.userAgent?.slice(0, 80) ?? "no user agent"}
 															</span>

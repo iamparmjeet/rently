@@ -2,6 +2,7 @@ const benefits = [
 	"Manage properties, units, tenants, and leases in one workspace",
 	"Track rent payments and review payment history",
 	"Create and manage utility charges alongside rent",
+	"Issue GST-safe discounts and KQ-CN credit notes without editing the original invoice",
 	"Review important rental activity through in-app notifications",
 	"Give tenants access through a dedicated web portal",
 ];
@@ -10,6 +11,7 @@ const betaCapabilities = [
 	{ label: "Properties and units", value: "Included" },
 	{ label: "Lease tracking", value: "Included" },
 	{ label: "Utility billing", value: "Included" },
+	{ label: "GST & credit notes", value: "Included" },
 	{ label: "Tenant portal", value: "Included" },
 ];
 

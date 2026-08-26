@@ -63,6 +63,40 @@ const features = [
 		description:
 			"Set up electricity, water, and fixed charges with calculated consumption and billing.",
 	},
+	{
+		icon: (
+			<svg
+				viewBox="0 0 24 24"
+				className="size-5.5 fill-none stroke-primary"
+				strokeWidth={2}
+			>
+				<title>GST billing</title>
+				<rect x="3" y="4" width="18" height="16" rx="2" />
+				<path d="M7 8h10M7 12h10M7 16h6" />
+			</svg>
+		),
+		title: "GST Billing",
+		description:
+			"Configure GST rates (0/5/12/18) by rent and maintenance, with GSTIN-gated invoices and CA-friendly exports.",
+	},
+	{
+		icon: (
+			<svg
+				viewBox="0 0 24 24"
+				className="size-5.5 fill-none stroke-primary"
+				strokeWidth={2}
+			>
+				<title>Discounts and credit notes</title>
+				<path d="M14 2H7a2 2 0 0 0-2 2v16a2 2 0 0 0 2 2h10a2 2 0 0 0 2-2V8z" />
+				<polyline points="14 2 14 8 20 8" />
+				<line x1="9" y1="13" x2="15" y2="13" />
+				<line x1="9" y1="17" x2="15" y2="17" />
+			</svg>
+		),
+		title: "Discounts & Credit Notes",
+		description:
+			"Issue GST-safe discounts and KQ-CN credit notes on rent or utilities — original invoice stays intact, fully reversible.",
+	},
 ];
 
 export function Features() {
@@ -82,7 +116,7 @@ export function Features() {
 					</p>
 				</div>
 
-				<div className="mt-13.5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-4">
+				<div className="mt-13.5 grid grid-cols-1 gap-5 sm:grid-cols-2 lg:grid-cols-3">
 					{features.map((feature) => (
 						<div
 							key={feature.title}

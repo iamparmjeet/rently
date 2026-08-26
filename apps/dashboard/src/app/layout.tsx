@@ -11,16 +11,25 @@ import { DashboardORPCProvider } from "@/components/providers/orpc-provider";
 import { QueryProvider } from "@/components/providers/query-provider";
 import { WorkspaceExperienceProvider } from "@/components/providers/workspace-experience-provider";
 
-const inter = Inter({ subsets: ["latin"], variable: "--font-sans" });
+const inter = Inter({
+	subsets: ["latin"],
+	variable: "--font-sans",
+	display: "swap",
+	preload: false,
+});
 
 const geistSans = Geist({
 	variable: "--font-geist-sans",
 	subsets: ["latin"],
+	display: "swap",
+	preload: false,
 });
 
 const geistMono = Geist_Mono({
 	variable: "--font-geist-mono",
 	subsets: ["latin"],
+	display: "swap",
+	preload: false,
 });
 
 export const metadata: Metadata = {

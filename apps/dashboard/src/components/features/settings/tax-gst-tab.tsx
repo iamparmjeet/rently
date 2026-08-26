@@ -44,6 +44,7 @@ export function TaxGstTab() {
 	});
 
 	const gstEnabled = form.watch("gstEnabled") ?? false;
+	const canEdit = hasGstNumber;
 
 	function handleSubmit(values: UpsertOwnerProfileInput) {
 		// preserve existing profile fields — only update GST slice
@@ -94,7 +95,7 @@ export function TaxGstTab() {
 										</div>
 										<Switch
 											checked={gstEnabled}
-											disabled={!hasGstNumber}
+											disabled={!canEdit}
 											onCheckedChange={(v) => form.setValue("gstEnabled", v)}
 										/>
 									</div>
@@ -108,6 +109,7 @@ export function TaxGstTab() {
 										<FieldLabel>Rent GST rate</FieldLabel>
 										<Select
 											value={String(form.watch("gstRateRent") ?? 0)}
+											disabled={!canEdit}
 											onValueChange={(v) =>
 												form.setValue("gstRateRent", Number(v) as never)
 											}
@@ -136,6 +138,7 @@ export function TaxGstTab() {
 										<FieldLabel>Maintenance GST rate</FieldLabel>
 										<Select
 											value={String(form.watch("gstRateMaintenance") ?? 0)}
+											disabled={!canEdit}
 											onValueChange={(v) =>
 												form.setValue("gstRateMaintenance", Number(v) as never)
 											}
@@ -167,7 +170,7 @@ export function TaxGstTab() {
 								</p>
 
 								<div className="flex gap-3 pt-2">
-									<Button type="submit" disabled={isPending}>
+									<Button type="submit" disabled={isPending || !canEdit}>
 										{isPending ? "Saving..." : "Save GST settings"}
 									</Button>
 									<Button

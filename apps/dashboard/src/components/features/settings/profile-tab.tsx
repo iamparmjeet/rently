@@ -71,7 +71,9 @@ export function ProfileTab() {
 
 	const [isSavingPersonal, setIsSavingPersonal] = useState(false);
 
-	const { firstName, lastName } = splitName(session?.user?.name);
+	const { firstName, lastName } = mounted
+		? splitName(session?.user?.name)
+		: { firstName: "", lastName: "" };
 
 	// ── Personal info form (maps to authClient.updateUser) ───
 	const personalForm = useForm<PersonalInfoValues>({
@@ -79,7 +81,7 @@ export function ProfileTab() {
 		values: {
 			firstName,
 			lastName: lastName ?? "",
-			phone: session?.user?.phone ?? "",
+			phone: mounted ? (session?.user?.phone ?? "") : "",
 		},
 	});
 
@@ -172,7 +174,7 @@ export function ProfileTab() {
 								>
 									{isUploading ? "Uploading..." : "Upload Photo"}
 								</Button>
-								{session?.user?.image && (
+								{mounted && session?.user?.image && (
 									<Button
 										type="button"
 										variant="ghost"
@@ -225,9 +227,10 @@ export function ProfileTab() {
 										{/* WHY disabled: changing email requires a verification
 									    email round-trip — build that flow separately */}
 										<Input
-											value={session?.user?.email ?? ""}
+											value={mounted ? (session?.user?.email ?? "") : ""}
 											disabled
 											className="bg-muted text-muted-foreground"
+											suppressHydrationWarning
 										/>
 										<p className="mt-1 text-muted-foreground text-xs">
 											Contact support to change your email

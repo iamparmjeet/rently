@@ -26,6 +26,7 @@ import { useState } from "react";
 import { SubscriptionStatus } from "@/components/features/subscriptions/subscription-status";
 import { Container } from "@/components/shared/container";
 import { useMySubscription, useRedeemBetaCode } from "@/hooks/subscriptions";
+import { useMounted } from "@/hooks/use-mounted";
 
 // ── Loading skeleton
 function SubscriptionPageSkeleton() {
@@ -74,6 +75,7 @@ function BetaCodeRedeemer() {
 
 // ── Main page
 export default function SubscriptionsPage() {
+	const mounted = useMounted();
 	const { data, isLoading } = useMySubscription();
 
 	if (isLoading) {
@@ -100,9 +102,10 @@ export default function SubscriptionsPage() {
 	// Days left — used in the plan card details
 	const expiryDate =
 		subscription?.trialEndsAt ?? subscription?.currentPeriodEnd;
-	const daysRemaining = expiryDate
-		? differenceInDays(new Date(expiryDate), new Date())
-		: null;
+	const daysRemaining =
+		mounted && expiryDate
+			? differenceInDays(new Date(expiryDate), new Date())
+			: null;
 
 	return (
 		<Container>
@@ -167,11 +170,14 @@ export default function SubscriptionsPage() {
 										</div>
 									</div>
 
-									{daysRemaining !== null && (
+									{mounted && daysRemaining !== null && (
 										<div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2.5">
 											<IconSparkles className="size-4 text-muted-foreground" />
 											<div>
-												<p className="font-medium text-xs">
+												<p
+													className="font-medium text-xs"
+													suppressHydrationWarning
+												>
 													{daysRemaining > 0 ? `${daysRemaining}d` : "Expired"}
 												</p>
 												<p className="text-[10px] text-muted-foreground">
@@ -181,11 +187,14 @@ export default function SubscriptionsPage() {
 										</div>
 									)}
 
-									{expiryDate && !isOnTrial && (
+									{mounted && expiryDate && !isOnTrial && (
 										<div className="flex items-center gap-2 rounded-lg bg-muted/50 px-3 py-2.5">
 											<IconSparkles className="size-4 text-muted-foreground" />
 											<div>
-												<p className="font-medium text-xs">
+												<p
+													className="font-medium text-xs"
+													suppressHydrationWarning
+												>
 													{format(new Date(expiryDate), "d MMM yyyy")}
 												</p>
 												<p className="text-[10px] text-muted-foreground">

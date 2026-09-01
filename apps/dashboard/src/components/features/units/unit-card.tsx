@@ -9,6 +9,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
+import { formatRupees } from "@rently/ui/lib/currency";
 
 import { cn } from "@rently/ui/lib/utils";
 import type { UnitDetail } from "@rently/validators";
@@ -79,7 +80,7 @@ export function UnitCard({
 					<div>
 						<p className="text-muted-foreground text-xs">Monthly rent</p>
 						<p className="mt-1 font-semibold text-lg tracking-tight">
-							₹{unit.baseRent.toLocaleString("en-IN")}
+							{formatRupees(unit.baseRent)}
 							<span className="ml-1 font-normal text-muted-foreground text-xs">
 								/mo
 							</span>

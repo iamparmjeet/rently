@@ -1,5 +1,6 @@
 "use client";
 
+import { formatRupees } from "@rently/ui/lib/currency";
 import { NotFoundState } from "@rently/ui/shared/not-found-state";
 import { PageHeader } from "@rently/ui/shared/page-header";
 import {
@@ -74,8 +75,8 @@ export default function UnitsPage() {
 
 				<section className="overflow-hidden rounded-xl border bg-card shadow-sm">
 					<div className="grid divide-y sm:grid-cols-[1.05fr_1fr] sm:divide-x sm:divide-y-0">
-						<div className="relative overflow-hidden bg-gradient-to-br from-primary/[0.08] via-card to-card p-5">
-							<div className="absolute -top-10 -right-10 size-32 rounded-full bg-primary/[0.08] blur-2xl" />
+						<div className="relative overflow-hidden bg-linear-to-br from-primary/8 via-card to-card p-5">
+							<div className="absolute -top-10 -right-10 size-32 rounded-full bg-primary/8 blur-2xl" />
 							<div className="relative">
 								<p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.14em]">
 									Occupancy health
@@ -118,7 +119,7 @@ export default function UnitsPage() {
 							<UnitMetric
 								icon={IconChartBar}
 								label="Monthly rent"
-								value={`₹${pageStats.monthlyRevenue.toLocaleString("en-IN")}`}
+								value={`${formatRupees(pageStats.monthlyRevenue)}`}
 								isLoading={isLoading}
 							/>
 						</div>

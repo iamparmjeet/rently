@@ -1,4 +1,5 @@
 import { Button } from "@rently/ui/components/button";
+import { toPaise } from "@rently/ui/lib/currency";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
 import type { CreateUnit } from "@rently/validators";
 import { IconPlus } from "@tabler/icons-react";
@@ -24,7 +25,10 @@ export function AddUnitButton({
 	const properties = propertyId ? [] : (data?.properties ?? []);
 
 	function handleSubmit(values: CreateUnit) {
-		createUnit.mutate(values, { onSuccess: dialog.closeDialog });
+		createUnit.mutate(
+			{ ...values, baseRent: toPaise(values.baseRent) },
+			{ onSuccess: dialog.closeDialog },
+		);
 	}
 
 	return (

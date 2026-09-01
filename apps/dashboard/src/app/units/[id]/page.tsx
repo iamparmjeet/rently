@@ -9,6 +9,11 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
+import {
+	formatRupees,
+	paiseToFormValue,
+	toPaise,
+} from "@rently/ui/lib/currency";
 import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
 import { EmptyState } from "@rently/ui/shared/empty-state";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
@@ -64,7 +69,14 @@ export default function UnitDetailPage({
 
 	function handleEditSubmit(values: UpdateUnit) {
 		updateUnit.mutate(
-			{ id: unit.id, data: values },
+			{
+				id: unit.id,
+				data: {
+					...values,
+					baseRent:
+						values.baseRent == null ? undefined : toPaise(values.baseRent),
+				},
+			},
 			{ onSuccess: editDialog.closeDialog },
 		);
 	}
@@ -114,7 +126,7 @@ export default function UnitDetailPage({
 								propertyId={unit.propertyId ?? ""}
 								defaultValues={{
 									unitNumber: unit.unitNumber,
-									baseRent: unit.baseRent,
+									baseRent: paiseToFormValue(unit.baseRent),
 									area: unit.area,
 									description: unit.description,
 									furnishing: getInitialFurnishing(unit.furnishing),
@@ -175,7 +187,7 @@ export default function UnitDetailPage({
 							</div>
 							<div className="rounded-lg border border-primary/15 bg-background/70 px-4 py-3">
 								<p className="font-semibold text-xl">
-									₹{unit.baseRent.toLocaleString("en-IN")}
+									{formatRupees(unit.baseRent)}
 									<span className="ml-1 font-normal text-muted-foreground text-xs">
 										/mo
 									</span>
@@ -198,7 +210,7 @@ export default function UnitDetailPage({
 							<UnitStat label="Type" value={formatUnitType(unit.type)} />
 							<UnitStat
 								label="Base rent"
-								value={`₹${unit.baseRent.toLocaleString("en-IN")}/mo`}
+								value={`${formatRupees(unit.baseRent)}/mo`}
 							/>
 							<UnitStat
 								label="Area"
@@ -276,7 +288,7 @@ export default function UnitDetailPage({
 								<div className="grid grid-cols-2 gap-3">
 									<UnitStat
 										label="Lease rent"
-										value={`₹${activeLease.rent.toLocaleString("en-IN")}/mo`}
+										value={`${formatRupees(activeLease.rent)}/mo`}
 									/>
 									<UnitStat
 										label="Started"

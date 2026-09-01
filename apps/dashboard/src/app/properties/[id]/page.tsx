@@ -2,6 +2,7 @@
 
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
+import { formatRupees } from "@rently/ui/lib/currency";
 import { EmptyState } from "@rently/ui/shared/empty-state";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
 import { IconWrapper } from "@rently/ui/shared/icon-wrapper";
@@ -210,7 +211,7 @@ export default function PropertyDetailPage({
 								/>
 								<PropertyMetric
 									label="Monthly revenue"
-									value={`₹${monthlyRevenue.toLocaleString("en-IN")}`}
+									value={`${formatRupees(monthlyRevenue)}`}
 								/>
 							</div>
 						</div>
@@ -340,7 +341,7 @@ function DetailUnitsList({ unit }: { unit: UnitWithLease }) {
 			</div>
 			<div className="text-right">
 				<p className="font-medium text-sm sm:text-base">
-					₹{unit.baseRent.toLocaleString("en-IN")}/mo
+					{formatRupees(unit.baseRent)}/mo
 				</p>
 				<p className="mt-0.5 truncate text-muted-foreground text-xs md:hidden">
 					{tenantName ?? "Available"}

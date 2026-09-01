@@ -1,5 +1,6 @@
 "use client";
 
+import { paiseToFormValue, toPaise } from "@rently/ui/lib/currency";
 import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
 import type { CreateUnit, UnitDetail } from "@rently/validators";
@@ -21,7 +22,7 @@ export function UnitCardActions({ unit }: UnitCardActionsProps) {
 
 	function handleEditSubmit(values: CreateUnit) {
 		updateUnit.mutate(
-			{ id: unit.id, data: values },
+			{ id: unit.id, data: { ...values, baseRent: toPaise(values.baseRent) } },
 			{ onSuccess: editDialog.closeDialog },
 		);
 	}
@@ -64,7 +65,7 @@ export function UnitCardActions({ unit }: UnitCardActionsProps) {
 					formId="edit-unit-form" //  hides internal submit + sets form id
 					defaultValues={{
 						unitNumber: unit.unitNumber,
-						baseRent: unit.baseRent,
+						baseRent: paiseToFormValue(unit.baseRent),
 						area: unit.area,
 						description: unit.description,
 						furnishing: getInitialFurnishing(unit.furnishing),

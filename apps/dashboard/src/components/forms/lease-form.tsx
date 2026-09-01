@@ -21,7 +21,7 @@ import {
 	SelectTrigger,
 	SelectValue,
 } from "@rently/ui/components/select";
-import { paiseToFormValue } from "@rently/ui/lib/currency";
+import { formatRupees, paiseToFormValue } from "@rently/ui/lib/currency";
 import {
 	IconAlertCircle,
 	IconBuildingStore,
@@ -475,7 +475,7 @@ function UnitCard({
 					)}
 					{/* WHY: rent pushed to the right — most prominent decision factor */}
 					<span className="ml-auto font-semibold text-foreground text-xs">
-						₹{unit.baseRent.toLocaleString()}/mo
+						{formatRupees(unit.baseRent)}/mo
 					</span>
 				</div>
 			</div>

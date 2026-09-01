@@ -127,6 +127,20 @@
 			"when": 1787685064157,
 			"tag": "0017_odd_mad_thinker",
 			"breakpoints": true
+		},
+		{
+			"idx": 18,
+			"version": "7",
+			"when": 1788284983156,
+			"tag": "0018_fix_base_rent_paise",
+			"breakpoints": true
+		},
+		{
+			"idx": 19,
+			"version": "7",
+			"when": 1788285418461,
+			"tag": "0019_fix_public_demo_rent_over_scaling",
+			"breakpoints": true
 		}
 	]
 }

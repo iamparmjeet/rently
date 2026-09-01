@@ -50,11 +50,13 @@ import {
 	IconLoader2,
 	IconMail,
 	IconPencil,
+	IconRefresh,
 	IconTrash,
 } from "@tabler/icons-react";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
 import z from "zod";
+import { useResendInvite } from "@/hooks/invites";
 import { useRemoveTenant, useUpdateTenant } from "@/hooks/tenants";
 import { TenantCard } from "./tenant-card";
 
@@ -90,6 +92,7 @@ export function TenantCardActions({ tenant }: TenantCardActionsProps) {
 	const updateTenant = useUpdateTenant();
 	const sendEmail = useSendEmailToTenant();
 	const removeTenant = useRemoveTenant();
+	const resendInvite = useResendInvite();
 
 	// ── Edit form — register pattern, no controller needed
 	const {
@@ -117,6 +120,9 @@ export function TenantCardActions({ tenant }: TenantCardActionsProps) {
 		resolver: zodResolver(sendEmailFormSchema),
 		defaultValues: { subject: "", message: "" },
 	});
+
+	// Pending invites can be re-sent to nudge a tenant who hasn't finished onboarding.
+	const pendingInviteId = tenant.status === "pending" ? tenant.inviteId : null;
 
 	// ── Handlers
 	function onEditSubmit(values: EditTenantForm) {
@@ -167,6 +173,17 @@ export function TenantCardActions({ tenant }: TenantCardActionsProps) {
 							</Button>
 						</DropdownMenuTrigger>
 						<DropdownMenuContent align="end">
+							{pendingInviteId && (
+								<DropdownMenuItem
+									disabled={resendInvite.isPending}
+									onClick={() =>
+										resendInvite.mutate({ inviteId: pendingInviteId })
+									}
+								>
+									<IconRefresh className="mr-2 size-4" />
+									Resend Invitation
+								</DropdownMenuItem>
+							)}
 							<DropdownMenuItem onClick={() => setIsEditOpen(true)}>
 								<IconPencil className="mr-2 size-4" />
 								Edit Profile

@@ -1,6 +1,7 @@
 "use client";
 
 import { zodResolver } from "@hookform/resolvers/zod";
+import { env } from "@rently/env/web";
 import { useAcceptInvite } from "@rently/hooks";
 import { Button } from "@rently/ui/components/button";
 import { Field, FieldError } from "@rently/ui/components/field";
@@ -11,6 +12,7 @@ import {
 	IconCircleCheck,
 	IconEye,
 	IconEyeOff,
+	IconLink,
 	IconLoader2,
 	IconLock,
 } from "@tabler/icons-react";
@@ -18,6 +20,7 @@ import type { Route } from "next";
 import Link from "next/link";
 import { useState } from "react";
 import { useForm } from "react-hook-form";
+import { toast } from "sonner";
 import z from "zod";
 
 const acceptFormSchema = AcceptInviteSchema.omit({
@@ -99,8 +102,21 @@ export function AcceptInviteForm({
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirm, setShowConfirm] = useState(false);
 	const [isSuccess, setIsSuccess] = useState(false);
+	const [linkCopied, setLinkCopied] = useState(false);
 
 	const acceptInvite = useAcceptInvite();
+
+	// Why: the invite link is re-usable until it expires, so if the tenant
+	// closes the tab or forgets to finish, they can come back to this exact URL.
+	const inviteUrl = `${env.NEXT_PUBLIC_WEB_URL}/invite/${token}`;
+
+	function handleCopyLink() {
+		void navigator.clipboard.writeText(inviteUrl).then(() => {
+			setLinkCopied(true);
+			toast.success("Invite link copied. You can finish this later.");
+			setTimeout(() => setLinkCopied(false), 3000);
+		});
+	}
 
 	const {
 		register,
@@ -333,6 +349,22 @@ export function AcceptInviteForm({
 					"Accept & Create Account"
 				)}
 			</Button>
+
+			<div className="rounded-lg border border-dashed px-4 py-3">
+				<p className="text-muted-foreground text-xs">
+					Need to finish this later? Save this link — it stays valid for 7 days.
+				</p>
+				<Button
+					type="button"
+					variant="ghost"
+					size="sm"
+					className="mt-1.5 h-auto cursor-pointer px-0 text-primary"
+					onClick={handleCopyLink}
+				>
+					<IconLink className="mr-1.5 size-3.5" />
+					{linkCopied ? "Invite link copied!" : "Copy my invite link"}
+				</Button>
+			</div>
 		</form>
 	);
 }

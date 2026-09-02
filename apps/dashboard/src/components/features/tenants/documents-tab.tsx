@@ -39,7 +39,9 @@ function putWithProgress(
 	return new Promise((resolve, reject) => {
 		const xhr = new XMLHttpRequest();
 		xhr.open("PUT", url, true);
-		for (const [k, v] of Object.entries(headers)) { xhr.setRequestHeader(k, v); }
+		for (const [k, v] of Object.entries(headers)) {
+			xhr.setRequestHeader(k, v);
+		}
 		xhr.upload.onprogress = (e) => {
 			if (e.lengthComputable && onProgress)
 				onProgress(Math.round((e.loaded / e.total) * 100));
@@ -507,18 +509,23 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 									</Button>
 								)}
 							</div>
-							{(!doc || doc.purgedAt || doc.status === "expired" || doc.status === "rejected") && enabled(type) && !isOptimistic && (
-								<Button
-									className="mt-4 w-full"
-									size="sm"
-									onClick={() => {
-										setUpload({ type });
-										fileRef.current?.click();
-									}}
-								>
-									{doc?.purgedAt ? "Upload again" : "Upload on behalf"}
-								</Button>
-							)}
+							{(!doc ||
+								doc.purgedAt ||
+								doc.status === "expired" ||
+								doc.status === "rejected") &&
+								enabled(type) &&
+								!isOptimistic && (
+									<Button
+										className="mt-4 w-full"
+										size="sm"
+										onClick={() => {
+											setUpload({ type });
+											fileRef.current?.click();
+										}}
+									>
+										{doc?.purgedAt ? "Upload again" : "Upload on behalf"}
+									</Button>
+								)}
 							{!enabled(type) && type === TENANT_DOCUMENT_TYPES.AADHAAR && (
 								<p className="mt-3 text-amber-600 text-xs">
 									Aadhaar uploads are disabled until compliance review is

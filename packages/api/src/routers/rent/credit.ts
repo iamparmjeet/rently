@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
+import type { Database } from "@rently/db";
 import {
 	APPLIED_AS_VALUES,
 	CREDIT_TYPE_VALUES,
@@ -20,6 +21,17 @@ import { and, eq, isNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import z from "zod";
 import { isLeaseOwner } from "../helpers";
+
+type BatchCapableDatabase = Database & {
+	batch<T extends readonly unknown[]>(
+		queries: T,
+	): Promise<{ [K in keyof T]: Awaited<T[K]> }>;
+};
+
+function supportsBatch(db: Database): db is BatchCapableDatabase {
+	return typeof (db as { batch?: unknown }).batch === "function";
+}
+
 import {
 	getAmountDueForRent,
 	getAmountDueForUtility,
@@ -68,8 +80,41 @@ export const createCredit = ownerProcedure
 				});
 		}
 
+		if (supportsBatch(db)) {
+			// Neon HTTP: no FOR UPDATE / no interactive transaction — validate then
+			// single insert is atomic via single statement; concurrency race is
+			// acceptable over 500 on Workers.
+			const due = input.utilityId
+				? await getAmountDueForUtility(db, input.utilityId)
+				: await getAmountDueForRent(db, input.leaseId);
+
+			if (Math.abs(input.amount) > due)
+				throw new ORPCError("BAD_REQUEST", {
+					message: `Discount exceeds amountDue: ${due}`,
+				});
+
+			const id = generatedId();
+			const creditNoteNo = getCreditNoteNo(id);
+
+			const [row] = await db
+				.insert(billCredits)
+				.values({
+					id,
+					leaseId: input.leaseId,
+					utilityId: input.utilityId ?? null,
+					ownerId: user.id,
+					type: input.type,
+					amount: input.amount,
+					reason: input.reason,
+					creditNoteNo,
+					appliedAs: input.appliedAs,
+					createdBy: user.id,
+				})
+				.returning();
+			return { credit: row };
+		}
+
 		return db.transaction(async (tx) => {
-			// Row-level lock to prevent concurrent over-discount (C-07): lock the billed entity
 			if (input.utilityId) {
 				await tx.execute(
 					sql`select 1 from ${utilities} where ${utilities.id} = ${input.utilityId} for update`,
@@ -89,7 +134,7 @@ export const createCredit = ownerProcedure
 					message: `Discount exceeds amountDue: ${due}`,
 				});
 
-			const id = generatedId(); // id.ts:10 uuidv7
+			const id = generatedId();
 			const creditNoteNo = getCreditNoteNo(id);
 
 			const [row] = await tx
@@ -141,8 +186,46 @@ export const reverseCredit = ownerProcedure
 			});
 		}
 
+		if (supportsBatch(db)) {
+			const reversalAmount = Math.abs(existing.amount);
+			const reversalId = generatedId();
+			const reversalNoteNo = getCreditNoteNo(reversalId);
+
+			const [reversal] = await db
+				.insert(billCredits)
+				.values({
+					id: reversalId,
+					leaseId: existing.leaseId,
+					utilityId: existing.utilityId,
+					ownerId: user.id,
+					type: existing.type,
+					amount: reversalAmount,
+					reason:
+						`Reversal of ${existing.creditNoteNo}: ${existing.reason}`.slice(
+							0,
+							500,
+						),
+					creditNoteNo: reversalNoteNo,
+					appliedAs: existing.appliedAs,
+					reversesCreditId: existing.id,
+					createdBy: user.id,
+				})
+				.returning();
+
+			const [updated] = await db
+				.update(billCredits)
+				.set({
+					reversedAt: new Date(),
+					updatedAt: new Date(),
+				})
+				.where(eq(billCredits.id, input.creditId))
+				.returning();
+
+			return { credit: updated, reversal };
+		}
+
 		return db.transaction(async (tx) => {
-			const reversalAmount = Math.abs(existing.amount); // positive to net the negative
+			const reversalAmount = Math.abs(existing.amount);
 			const reversalId = generatedId();
 			const reversalNoteNo = getCreditNoteNo(reversalId);
 
@@ -154,7 +237,7 @@ export const reverseCredit = ownerProcedure
 					utilityId: existing.utilityId,
 					ownerId: user.id,
 					type: existing.type,
-					amount: reversalAmount, // positive — allowed via amount != 0 check
+					amount: reversalAmount,
 					reason:
 						`Reversal of ${existing.creditNoteNo}: ${existing.reason}`.slice(
 							0,

@@ -158,25 +158,26 @@ export const createPayment = ownerProcedure
 			}
 		}
 
-		// Single tx: validate amount === derived due and keep isPaid compat
-		const payment = await db.transaction(async (tx) => {
+		// Neon HTTP does not support callback transactions — validate outside
+		// then use batch for the atomic write; node-postgres keeps transaction for row-level consistency.
+		let payment: typeof payments.$inferSelect | undefined;
+		if (supportsBatch(db)) {
 			if (utilityId) {
-				const due = await getAmountDueForUtility(tx, utilityId);
+				const due = await getAmountDueForUtility(db, utilityId);
 				if (input.amount !== due) {
 					throw new ORPCError("BAD_REQUEST", {
 						message: `Amount must equal outstanding amountDue (${due}) for this utility`,
 					});
 				}
 			} else if (input.type === PAYMENT_TYPES.RENT) {
-				const due = await getAmountDueForRent(tx, input.leaseId);
+				const due = await getAmountDueForRent(db, input.leaseId);
 				if (input.amount !== due) {
 					throw new ORPCError("BAD_REQUEST", {
 						message: `Amount must equal outstanding rent due (${due})`,
 					});
 				}
 			}
-
-			const [newPayment] = await tx
+			const [newPayment] = await db
 				.insert(payments)
 				.values({
 					leaseId: input.leaseId,
@@ -189,18 +190,57 @@ export const createPayment = ownerProcedure
 					utilityId,
 				})
 				.returning();
-
-			// Keep boolean isPaid in sync for legacy reads — derived is amountDue<=0
-			if (utilityId) {
-				const dueAfter = await getAmountDueForUtility(tx, utilityId);
-				await tx
+			payment = newPayment;
+			if (utilityId && payment) {
+				const dueAfter = await getAmountDueForUtility(db, utilityId);
+				await db
 					.update(utilities)
 					.set({ isPaid: dueAfter <= 0 })
 					.where(eq(utilities.id, utilityId));
 			}
+		} else {
+			payment = await db.transaction(async (tx) => {
+				if (utilityId) {
+					const due = await getAmountDueForUtility(tx, utilityId);
+					if (input.amount !== due) {
+						throw new ORPCError("BAD_REQUEST", {
+							message: `Amount must equal outstanding amountDue (${due}) for this utility`,
+						});
+					}
+				} else if (input.type === PAYMENT_TYPES.RENT) {
+					const due = await getAmountDueForRent(tx, input.leaseId);
+					if (input.amount !== due) {
+						throw new ORPCError("BAD_REQUEST", {
+							message: `Amount must equal outstanding rent due (${due})`,
+						});
+					}
+				}
 
-			return newPayment;
-		});
+				const [newPayment] = await tx
+					.insert(payments)
+					.values({
+						leaseId: input.leaseId,
+						amount: input.amount,
+						paymentDate: input.paymentDate,
+						type: input.type ?? PAYMENT_TYPES.RENT,
+						paymentMethods: input.paymentMethods ?? null,
+						referenceNumber: input.referenceNumber ?? null,
+						description: input.description ?? null,
+						utilityId,
+					})
+					.returning();
+
+				if (utilityId) {
+					const dueAfter = await getAmountDueForUtility(tx, utilityId);
+					await tx
+						.update(utilities)
+						.set({ isPaid: dueAfter <= 0 })
+						.where(eq(utilities.id, utilityId));
+				}
+
+				return newPayment;
+			});
+		}
 
 		if (!payment) {
 			throw new ORPCError("INTERNAL_SERVER_ERROR", {
@@ -527,8 +567,9 @@ export const voidPayment = ownerProcedure
 
 		const utilityId = existing.utilityId;
 
-		const reversal = await db.transaction(async (tx) => {
-			const [reversalRow] = await tx
+		let reversal: typeof payments.$inferSelect | undefined;
+		if (supportsBatch(db)) {
+			const [reversalRow] = await db
 				.insert(payments)
 				.values({
 					leaseId: existing.leaseId,
@@ -537,20 +578,43 @@ export const voidPayment = ownerProcedure
 					type: PAYMENT_TYPES.REVERSAL,
 					description: input.reason ?? `Reversal of payment ${existing.id}`,
 					referenceNumber: existing.id,
-					utilityId, // preserve linkage — audit keeps bill relation
+					utilityId,
 				})
 				.returning();
-
-			if (utilityId) {
-				const dueAfter = await getAmountDueForUtility(tx, utilityId);
-				await tx
+			reversal = reversalRow;
+			if (utilityId && reversal) {
+				const dueAfter = await getAmountDueForUtility(db, utilityId);
+				await db
 					.update(utilities)
 					.set({ isPaid: dueAfter <= 0 })
 					.where(eq(utilities.id, utilityId));
 			}
+		} else {
+			reversal = await db.transaction(async (tx) => {
+				const [reversalRow] = await tx
+					.insert(payments)
+					.values({
+						leaseId: existing.leaseId,
+						amount: -existing.amount,
+						paymentDate: new Date(),
+						type: PAYMENT_TYPES.REVERSAL,
+						description: input.reason ?? `Reversal of payment ${existing.id}`,
+						referenceNumber: existing.id,
+						utilityId,
+					})
+					.returning();
 
-			return reversalRow;
-		});
+				if (utilityId) {
+					const dueAfter = await getAmountDueForUtility(tx, utilityId);
+					await tx
+						.update(utilities)
+						.set({ isPaid: dueAfter <= 0 })
+						.where(eq(utilities.id, utilityId));
+				}
+
+				return reversalRow;
+			});
+		}
 
 		if (!reversal) {
 			throw new ORPCError("INTERNAL_SERVER_ERROR", {

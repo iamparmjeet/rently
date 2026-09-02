@@ -34,6 +34,16 @@ import {
 } from "../helpers/automatic-emails";
 import { getAmountDueForUtility } from "../helpers/credit.helpers";
 
+type BatchCapableDatabase = Database & {
+	batch<T extends readonly unknown[]>(
+		queries: T,
+	): Promise<{ [K in keyof T]: Awaited<T[K]> }>;
+};
+
+function supportsBatch(db: Database): db is BatchCapableDatabase {
+	return typeof (db as { batch?: unknown }).batch === "function";
+}
+
 // ******** Shared Helper ************
 type ComputeTotalInput = {
 	utilityType: string;
@@ -549,9 +559,9 @@ export const recordUtilityPayment = ownerProcedure
 			});
 		}
 
-		// transaction
-		const [payment] = await db.transaction(async (tx) => {
-			const due = await getAmountDueForUtility(tx, input.utilityId);
+		let payment: typeof payments.$inferSelect | undefined;
+		if (supportsBatch(db)) {
+			const due = await getAmountDueForUtility(db, input.utilityId);
 			if (due <= 0)
 				throw new ORPCError("CONFLICT", { message: "Already paid/discounted" });
 			if (input.amount !== due)
@@ -559,7 +569,7 @@ export const recordUtilityPayment = ownerProcedure
 					message: `Payment must match amountDue: ${due}`,
 				});
 
-			const inserted = await tx
+			const [inserted] = await db
 				.insert(payments)
 				.values({
 					leaseId: input.leaseId,
@@ -573,12 +583,44 @@ export const recordUtilityPayment = ownerProcedure
 				})
 				.returning();
 
-			await tx
+			await db
 				.update(utilities)
 				.set({ isPaid: true, updatedAt: new Date() })
 				.where(eq(utilities.id, input.utilityId));
-			return inserted;
-		});
+			payment = inserted;
+		} else {
+			[payment] = await db.transaction(async (tx) => {
+				const due = await getAmountDueForUtility(tx, input.utilityId);
+				if (due <= 0)
+					throw new ORPCError("CONFLICT", {
+						message: "Already paid/discounted",
+					});
+				if (input.amount !== due)
+					throw new ORPCError("BAD_REQUEST", {
+						message: `Payment must match amountDue: ${due}`,
+					});
+
+				const inserted = await tx
+					.insert(payments)
+					.values({
+						leaseId: input.leaseId,
+						utilityId: input.utilityId,
+						amount: input.amount,
+						paymentDate: new Date(input.receivedAt),
+						paymentMethods: input.paymentMethod,
+						type: "utility",
+						description: input.notes ?? null,
+						referenceNumber: null,
+					})
+					.returning();
+
+				await tx
+					.update(utilities)
+					.set({ isPaid: true, updatedAt: new Date() })
+					.where(eq(utilities.id, input.utilityId));
+				return inserted;
+			});
+		}
 
 		if (payment) {
 			await sendAutomaticPaymentReceipt(db, user.id, payment.id);

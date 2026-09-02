@@ -1,6 +1,7 @@
 import { ORPCError } from "@orpc/server";
 import { protectedProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
+import type { Database } from "@rently/db";
 import { NOTIFICATION_TYPES } from "@rently/db/constants/notification-constants";
 import {
 	FIXEDCHARGE,
@@ -20,6 +21,16 @@ import {
 import { and, count, desc, eq, gte, lt, sql } from "drizzle-orm";
 import z from "zod";
 import { sendAutomaticUtilityBillEmail } from "../helpers/automatic-emails";
+
+type BatchCapableDatabase = Database & {
+	batch<T extends readonly unknown[]>(
+		queries: T,
+	): Promise<{ [K in keyof T]: Awaited<T[K]> }>;
+};
+
+function supportsBatch(db: Database): db is BatchCapableDatabase {
+	return typeof (db as { batch?: unknown }).batch === "function";
+}
 
 // **************
 const READING_RATE_LIMIT_MAX = 5; // max submissions
@@ -502,13 +513,9 @@ export const submitMyReading = protectedProcedure
 			1,
 		);
 
-		const utility = await db.transaction(async (tx) => {
-			// Lock the lease row to serialize concurrent submissions for same tenant (C-06)
-			await tx.execute(
-				sql`select 1 from ${leases} where ${leases.id} = ${activeLease.id} for update`,
-			);
-
-			const [existingThisMonth] = await tx
+		let utility: typeof utilities.$inferSelect | undefined;
+		if (supportsBatch(db)) {
+			const [existingThisMonth] = await db
 				.select({ id: utilities.id, currentReading: utilities.currentReading })
 				.from(utilities)
 				.where(
@@ -529,8 +536,7 @@ export const submitMyReading = protectedProcedure
 				});
 			}
 
-			// STEP 3: Get the previous electricity reading for this lease
-			const [lastReading] = await tx
+			const [lastReading] = await db
 				.select({
 					currentReading: utilities.currentReading,
 					currentReadingDate: utilities.currentReadingDate,
@@ -561,7 +567,7 @@ export const submitMyReading = protectedProcedure
 			const fixedCharge = lastReading?.fixedCharge ?? FIXEDCHARGE;
 			const totalAmount = Math.round(unitsUsed * ratePerUnit + fixedCharge);
 
-			const [created] = await tx
+			const [created] = await db
 				.insert(utilities)
 				.values({
 					leaseId: activeLease.id,
@@ -579,8 +585,89 @@ export const submitMyReading = protectedProcedure
 				})
 				.returning();
 
-			return created;
-		});
+			utility = created;
+		} else {
+			utility = await db.transaction(async (tx) => {
+				await tx.execute(
+					sql`select 1 from ${leases} where ${leases.id} = ${activeLease.id} for update`,
+				);
+
+				const [existingThisMonth] = await tx
+					.select({
+						id: utilities.id,
+						currentReading: utilities.currentReading,
+					})
+					.from(utilities)
+					.where(
+						and(
+							eq(utilities.leaseId, activeLease.id),
+							eq(utilities.utilityType, "electricity"),
+							gte(utilities.currentReadingDate, monthStart),
+							lt(utilities.currentReadingDate, monthEnd),
+						),
+					)
+					.limit(1);
+
+				if (existingThisMonth) {
+					throw new ORPCError("CONFLICT", {
+						message:
+							`A reading of ${existingThisMonth.currentReading} kWh was already ` +
+							"submitted for this month. Contact your landlord to correct it.",
+					});
+				}
+
+				const [lastReading] = await tx
+					.select({
+						currentReading: utilities.currentReading,
+						currentReadingDate: utilities.currentReadingDate,
+						ratePerUnit: utilities.ratePerUnit,
+						fixedCharge: utilities.fixedCharge,
+					})
+					.from(utilities)
+					.where(
+						and(
+							eq(utilities.leaseId, activeLease.id),
+							eq(utilities.utilityType, "electricity"),
+						),
+					)
+					.orderBy(desc(utilities.currentReadingDate))
+					.limit(1);
+
+				const previousReading = lastReading?.currentReading ?? 0;
+				const previousReadingDate = lastReading?.currentReadingDate ?? null;
+
+				if (input.currentReading < (previousReading ?? 0)) {
+					throw new ORPCError("BAD_REQUEST", {
+						message: `Current reading (${input.currentReading}) cannot be less than previous reading (${previousReading}).`,
+					});
+				}
+
+				const unitsUsed = input.currentReading - (previousReading ?? 0);
+				const ratePerUnit = lastReading?.ratePerUnit ?? RATEPERUNIT;
+				const fixedCharge = lastReading?.fixedCharge ?? FIXEDCHARGE;
+				const totalAmount = Math.round(unitsUsed * ratePerUnit + fixedCharge);
+
+				const [created] = await tx
+					.insert(utilities)
+					.values({
+						leaseId: activeLease.id,
+						utilityType: "electricity",
+						previousReading: previousReading ?? null,
+						currentReading: input.currentReading,
+						previousReadingDate,
+						currentReadingDate: new Date(input.readingDate),
+						unitsUsed,
+						ratePerUnit,
+						fixedCharge,
+						totalAmount,
+						description: input.notes ?? null,
+						isPaid: false,
+					})
+					.returning();
+
+				return created;
+			});
+		}
 
 		try {
 			const [leaseInfo] = await db

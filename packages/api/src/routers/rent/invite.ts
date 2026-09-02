@@ -3,6 +3,7 @@ import { isNonLiveWorkspace } from "@rently/api/modules/sample-workspace";
 import { ownerProcedure, publicProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
 import { auth } from "@rently/auth";
+import { supportsDatabaseBatch } from "@rently/db";
 import { NOTIFICATION_TYPES } from "@rently/db/constants/notification-constants";
 import { USER_ROLES } from "@rently/db/constants/user-roles";
 import { account, user } from "@rently/db/schema/auth";
@@ -273,12 +274,24 @@ export const acceptInvite = publicProcedure
 		const { db } = context;
 		const now = new Date();
 
-		// Hashing happens before the transaction. If this fails, no database state
-		// has been written.
+		// Hashing happens before any DB write. If this fails, no state has been written.
 		const authContext = await auth.$context;
 		const passwordHash = await authContext.password.hash(input.password);
 
-		const acceptedInvite = await db.transaction(async (tx) => {
+		// Core logic extracted so it can run inside a real transaction (local Pg)
+		// or sequentially with manual cleanup (Neon HTTP on Cloudflare Workers).
+		// See packages/db/src/index.ts:12 — neon-http has no callback transaction.
+		const executeAcceptInvite = async (
+			executor: typeof db,
+			tracker?: {
+				tenantUserId?: string;
+				createdUserId?: string;
+				createdAccountId?: string;
+				createdProfileId?: string;
+				claimsOwnerPreparedIdentity?: boolean;
+			},
+		) => {
+			const tx = executor;
 			const [invite] = await tx
 				.select({
 					id: tenantInvites.id,
@@ -415,6 +428,10 @@ export const acceptInvite = publicProcedure
 				invite.onboardingMode === "owner_prepared" ? invite : input;
 
 			const tenantUserId = existingUser?.id ?? generatedId();
+			if (tracker) {
+				tracker.tenantUserId = tenantUserId;
+				tracker.claimsOwnerPreparedIdentity = claimsOwnerPreparedIdentity;
+			}
 
 			if (claimsOwnerPreparedIdentity) {
 				await tx
@@ -434,15 +451,18 @@ export const acceptInvite = publicProcedure
 					role: USER_ROLES.TENANT,
 					phone: profileSource.phone ?? null,
 				});
+				if (tracker) tracker.createdUserId = tenantUserId;
 			}
 
+			const accountId = generatedId();
 			await tx.insert(account).values({
-				id: generatedId(),
+				id: accountId,
 				userId: tenantUserId,
 				accountId: tenantUserId,
 				providerId: "credential",
 				password: passwordHash,
 			});
+			if (tracker) tracker.createdAccountId = accountId;
 
 			if (claimsOwnerPreparedIdentity) {
 				await tx
@@ -452,8 +472,9 @@ export const acceptInvite = publicProcedure
 					})
 					.where(eq(tenantProfiles.userId, tenantUserId));
 			} else {
+				const profileId = generatedId();
 				await tx.insert(tenantProfiles).values({
-					id: generatedId(),
+					id: profileId,
 					userId: tenantUserId,
 					email: invite.email.toLowerCase(),
 					phone: profileSource.phone ?? null,
@@ -465,11 +486,13 @@ export const acceptInvite = publicProcedure
 					invitedId: invite.id,
 					createdById: invite.invitedById,
 				});
+				if (tracker) tracker.createdProfileId = profileId;
 			}
 
 			// Conditional transition protects against a concurrent acceptance or
-			// an invite expiring while this transaction is in progress. Throwing
-			// rolls back the user, credential account, and profile together.
+			// an invite expiring while this transaction is in progress. In the
+			// transactional path throwing rolls back the user/credential/profile.
+			// In the Neon HTTP path we manually clean up (see caller).
 			const [updatedInvite] = await tx
 				.update(tenantInvites)
 				.set({
@@ -500,7 +523,73 @@ export const acceptInvite = publicProcedure
 			}
 
 			return updatedInvite;
-		});
+		};
+
+		let acceptedInvite: Awaited<ReturnType<typeof executeAcceptInvite>>;
+
+		if (supportsDatabaseBatch(db)) {
+			// Neon HTTP: no interactive transaction — run sequentially and
+			// compensate on failure to mimic atomicity.
+			const tracker: {
+				tenantUserId?: string;
+				createdUserId?: string;
+				createdAccountId?: string;
+				createdProfileId?: string;
+				claimsOwnerPreparedIdentity?: boolean;
+			} = {};
+			try {
+				acceptedInvite = await executeAcceptInvite(db, tracker);
+			} catch (error) {
+				// Best-effort rollback of partially created rows.
+				// Order matters: profile -> account -> user (FK restrict on profile).
+				if (tracker.createdProfileId) {
+					await db
+						.delete(tenantProfiles)
+						.where(eq(tenantProfiles.id, tracker.createdProfileId))
+						.catch(() => {});
+				}
+				if (tracker.createdAccountId) {
+					await db
+						.delete(account)
+						.where(eq(account.id, tracker.createdAccountId))
+						.catch(() => {});
+				}
+				if (tracker.createdUserId) {
+					await db
+						.delete(user)
+						.where(eq(user.id, tracker.createdUserId))
+						.catch(() => {});
+				}
+				if (tracker.claimsOwnerPreparedIdentity && tracker.tenantUserId) {
+					// Revert the provisional verification we just applied.
+					// The account delete above already removed the credential we inserted.
+					await db
+						.delete(account)
+						.where(
+							and(
+								eq(account.userId, tracker.tenantUserId),
+								eq(account.providerId, "credential"),
+							),
+						)
+						.catch(() => {});
+					await db
+						.update(user)
+						.set({ emailVerified: false, updatedAt: now })
+						.where(eq(user.id, tracker.tenantUserId))
+						.catch(() => {});
+				}
+				throw error;
+			}
+		} else {
+			// Local Postgres: use real transaction for true atomicity.
+			acceptedInvite = await (
+				db as unknown as {
+					transaction: (
+						fn: (tx: typeof db) => Promise<typeof acceptedInvite>,
+					) => Promise<typeof acceptedInvite>;
+				}
+			).transaction((tx) => executeAcceptInvite(tx as unknown as typeof db));
+		}
 
 		try {
 			await db.insert(notifications).values({

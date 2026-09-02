@@ -1,5 +1,6 @@
 import { ORPCError } from "@orpc/server";
 import { ownerProcedure, publicProcedure } from "@rently/api/procedures";
+import type { Database } from "@rently/db";
 import {
 	BILLING_INTERVAL,
 	PLAN_STATUS,
@@ -27,6 +28,16 @@ import {
 	sql,
 } from "drizzle-orm";
 import z from "zod";
+
+type BatchCapableDatabase = Database & {
+	batch<T extends readonly unknown[]>(
+		queries: T,
+	): Promise<{ [K in keyof T]: Awaited<T[K]> }>;
+};
+
+function supportsBatch(db: Database): db is BatchCapableDatabase {
+	return typeof (db as { batch?: unknown }).batch === "function";
+}
 
 // ── List all plans (public — used on pricing page + upgrade modals)
 export const listPlans = publicProcedure
@@ -113,20 +124,16 @@ export const redeemBetaCode = ownerProcedure
 		const { db, user } = context;
 		const now = new Date();
 
-		// WHY transaction: we read the code, check it, update the subscription, and
 		let planName = "";
 
-		await db.transaction(async (tx) => {
-			// Step 1: Find a valid code with remaining uses
-			const [code] = await tx
+		if (supportsBatch(db)) {
+			const [code] = await db
 				.select()
 				.from(betaAccessCodes)
 				.where(
 					and(
 						eq(betaAccessCodes.code, input.code),
-						// Uses remaining
 						sql`${betaAccessCodes.totalUses} < ${betaAccessCodes.maxUses}`,
-						// Not expired (null = never expires)
 						or(
 							isNull(betaAccessCodes.expiresAt),
 							gt(betaAccessCodes.expiresAt, now),
@@ -142,28 +149,23 @@ export const redeemBetaCode = ownerProcedure
 				});
 			}
 
-			// Step 2: Resolve the target plan
-			const [targetPlan] = await tx
+			const [targetPlan] = await db
 				.select({ id: plans.id, name: plans.name })
 				.from(plans)
 				.where(eq(plans.slug, code.grantsPlanSlug))
 				.limit(1);
 
 			if (!targetPlan) {
-				// Config error — admin issued a code pointing at a non-existent plan slug
 				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: "Beta code configuration error. Please contact support.",
 				});
 			}
 
 			planName = targetPlan.name;
-
-			// Step 3: Compute the access window
 			const periodEnd = new Date(now);
 			periodEnd.setDate(periodEnd.getDate() + code.periodDays);
 
-			// Step 4: Upgrade the subscription
-			const updated = await tx
+			const [updated] = await db
 				.update(subscriptions)
 				.set({
 					planId: targetPlan.id,
@@ -172,12 +174,11 @@ export const redeemBetaCode = ownerProcedure
 					currentPeriodEnd: periodEnd,
 					updatedAt: new Date(),
 				})
-				.where(eq(subscriptions.userId, user.id));
-
-			// Guard: if no subscription row existed (hook failure at registration),
+				.where(eq(subscriptions.userId, user.id))
+				.returning();
 
 			if (!updated) {
-				await tx.insert(subscriptions).values({
+				await db.insert(subscriptions).values({
 					id: generatedId(),
 					userId: user.id,
 					planId: targetPlan.id,
@@ -189,19 +190,88 @@ export const redeemBetaCode = ownerProcedure
 				});
 			}
 
-			// Step 5: Mark the code as used
-			// WHY sql atomic increment: avoids read-modify-write race condition.
-			// The DB does the increment, not the application layer.
-			await tx
+			await db
 				.update(betaAccessCodes)
 				.set({
 					totalUses: sql`${betaAccessCodes.totalUses} + 1`,
-					// For single-use codes, record the user permanently
 					usedByUserId: code.maxUses === 1 ? user.id : code.usedByUserId,
 					usedAt: code.maxUses === 1 ? now : code.usedAt,
 				})
 				.where(eq(betaAccessCodes.id, code.id));
-		});
+		} else {
+			await db.transaction(async (tx) => {
+				const [code] = await tx
+					.select()
+					.from(betaAccessCodes)
+					.where(
+						and(
+							eq(betaAccessCodes.code, input.code),
+							sql`${betaAccessCodes.totalUses} < ${betaAccessCodes.maxUses}`,
+							or(
+								isNull(betaAccessCodes.expiresAt),
+								gt(betaAccessCodes.expiresAt, now),
+							),
+						),
+					)
+					.limit(1);
+
+				if (!code) {
+					throw new ORPCError("NOT_FOUND", {
+						message:
+							"Invalid or expired beta code. Double-check the code and try again.",
+					});
+				}
+
+				const [targetPlan] = await tx
+					.select({ id: plans.id, name: plans.name })
+					.from(plans)
+					.where(eq(plans.slug, code.grantsPlanSlug))
+					.limit(1);
+
+				if (!targetPlan) {
+					throw new ORPCError("INTERNAL_SERVER_ERROR", {
+						message: "Beta code configuration error. Please contact support.",
+					});
+				}
+
+				planName = targetPlan.name;
+				const periodEnd = new Date(now);
+				periodEnd.setDate(periodEnd.getDate() + code.periodDays);
+
+				const updated = await tx
+					.update(subscriptions)
+					.set({
+						planId: targetPlan.id,
+						status: PLAN_STATUS.ACTIVE,
+						currentPeriodStart: now,
+						currentPeriodEnd: periodEnd,
+						updatedAt: new Date(),
+					})
+					.where(eq(subscriptions.userId, user.id));
+
+				if (!updated) {
+					await tx.insert(subscriptions).values({
+						id: generatedId(),
+						userId: user.id,
+						planId: targetPlan.id,
+						status: PLAN_STATUS.ACTIVE,
+						billingInterval: BILLING_INTERVAL.MONTHLY,
+						currentPeriodStart: now,
+						currentPeriodEnd: periodEnd,
+						expired: false,
+					});
+				}
+
+				await tx
+					.update(betaAccessCodes)
+					.set({
+						totalUses: sql`${betaAccessCodes.totalUses} + 1`,
+						usedByUserId: code.maxUses === 1 ? user.id : code.usedByUserId,
+						usedAt: code.maxUses === 1 ? now : code.usedAt,
+					})
+					.where(eq(betaAccessCodes.id, code.id));
+			});
+		}
 
 		return { success: true, planName };
 	});

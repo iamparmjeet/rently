@@ -3,6 +3,7 @@ import { isNonLiveWorkspace } from "@rently/api/modules/sample-workspace";
 import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
 import { auth } from "@rently/auth";
+import { supportsDatabaseBatch } from "@rently/db";
 
 import { user } from "@rently/db/schema/auth";
 import {
@@ -69,7 +70,12 @@ export const listTenants = ownerProcedure
 			.leftJoin(units, eq(leases.unitId, units.id))
 			.leftJoin(properties, eq(units.propertyId, properties.id))
 			// Ownership check: this owner created this tenant
-			.where(eq(tenantProfiles.createdById, authUser.id))
+			.where(
+				and(
+					eq(tenantProfiles.createdById, authUser.id),
+					isNull(tenantProfiles.deletedAt),
+				),
+			)
 			.orderBy(desc(leases.startDate));
 
 		const tenantMap = new Map<string, z.infer<typeof TenantListItemSchema>>();
@@ -120,7 +126,13 @@ export const listTenants = ownerProcedure
 				updatedAt: tenantInvites.updatedAt,
 			})
 			.from(tenantInvites)
-			.where(eq(tenantInvites.invitedById, authUser.id))
+			.where(
+				and(
+					eq(tenantInvites.invitedById, authUser.id),
+					eq(tenantInvites.status, "pending"),
+					isNull(tenantInvites.deletedAt),
+				),
+			)
 			.orderBy(desc(tenantInvites.createdAt));
 
 		for (const invite of pendingInvites) {
@@ -224,7 +236,11 @@ export const getTenantById = ownerProcedure
 				// Both conditions must be true:
 				// 1. This is the tenant being requested
 				// 2. This owner created this tenant (authorization)
-				and(eq(user.id, input.id), eq(tenantProfiles.createdById, authUser.id)),
+				and(
+					eq(user.id, input.id),
+					eq(tenantProfiles.createdById, authUser.id),
+					isNull(tenantProfiles.deletedAt),
+				),
 			)
 			.orderBy(desc(leases.startDate));
 
@@ -373,6 +389,30 @@ export const removeTenant = ownerProcedure
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
+		const [tenantProfile] = await db
+			.select({ id: tenantProfiles.id, inviteId: tenantProfiles.invitedId })
+			.from(tenantProfiles)
+			.where(
+				and(
+					eq(tenantProfiles.userId, input.tenantId),
+					eq(tenantProfiles.createdById, authUser.id),
+					isNull(tenantProfiles.deletedAt),
+				),
+			)
+			.limit(1);
+
+		const [tenantInvite] = await db
+			.select({ id: tenantInvites.id })
+			.from(tenantInvites)
+			.where(
+				and(
+					eq(tenantInvites.id, input.tenantId),
+					eq(tenantInvites.invitedById, authUser.id),
+					isNull(tenantInvites.deletedAt),
+				),
+			)
+			.limit(1);
+
 		// Find All active leases for this tenant on this owner's properties only
 		const activeLeases = await db
 			.select({
@@ -391,45 +431,117 @@ export const removeTenant = ownerProcedure
 				),
 			);
 
-		if (activeLeases.length === 0) {
+		// A tenant can be removed before a lease is created, or after all leases
+		// have already ended. The owner association is the authorization source
+		// in those cases; an active lease is not required.
+		if (activeLeases.length === 0 && !tenantProfile && !tenantInvite) {
 			throw new ORPCError("NOT_FOUND", {
-				message: "No active leases found for this tenant on your properties.",
+				message: "Tenant not found on your properties.",
 			});
 		}
 
 		const leaseIds = activeLeases.map((lease) => lease.leaseId);
 		const unitIds = activeLeases.map((l) => l.unitId);
+		const inviteId = tenantProfile?.inviteId ?? tenantInvite?.id;
+		const now = new Date();
 
-		// Look up email before the transaction
-		const [tenantUser] = await db
-			.select({
-				email: user.email,
-			})
-			.from(user)
-			.where(eq(user.id, input.tenantId))
-			.limit(1);
+		if (supportsDatabaseBatch(db)) {
+			const leaseQueries =
+				leaseIds.length > 0
+					? [
+							db
+								.update(leases)
+								.set({ status: "terminated", updatedAt: now })
+								.where(inArray(leases.id, leaseIds)),
+							db
+								.update(units)
+								.set({ status: "available", updatedAt: now })
+								.where(inArray(units.id, unitIds)),
+						]
+					: [];
 
-		await db.transaction(async (tx) => {
-			// Terminate Leases
-			await tx
-				.update(leases)
-				.set({ status: "terminated", updatedAt: new Date() })
-				.where(inArray(leases.id, leaseIds));
-
-			// Free up units
-			await tx
-				.update(units)
-				.set({ status: "available", updatedAt: new Date() })
-				.where(inArray(units.id, unitIds));
-
-			// Mark Invite as expired so they don't appear in pending invite list
-			if (tenantUser?.email) {
-				await tx
-					.update(tenantInvites)
-					.set({ status: "expired", updatedAt: new Date() })
-					.where(and(eq(tenantInvites.email, tenantUser.email)));
+			if (tenantProfile) {
+				await db.batch([
+					db
+						.update(tenantProfiles)
+						.set({ deletedAt: now, updatedAt: now })
+						.where(eq(tenantProfiles.id, tenantProfile.id)),
+					...leaseQueries,
+					...(inviteId
+						? [
+								db
+									.update(tenantInvites)
+									.set({ status: "expired", updatedAt: now })
+									.where(
+										and(
+											eq(tenantInvites.id, inviteId),
+											eq(tenantInvites.invitedById, authUser.id),
+										),
+									),
+							]
+						: []),
+				]);
+			} else if (tenantInvite) {
+				await db.batch([
+					db
+						.update(tenantInvites)
+						.set({ status: "expired", updatedAt: now })
+						.where(
+							and(
+								eq(tenantInvites.id, tenantInvite.id),
+								eq(tenantInvites.invitedById, authUser.id),
+							),
+						),
+					...leaseQueries,
+				]);
+			} else {
+				await db.batch([
+					db
+						.update(leases)
+						.set({ status: "terminated", updatedAt: now })
+						.where(inArray(leases.id, leaseIds)),
+					db
+						.update(units)
+						.set({ status: "available", updatedAt: now })
+						.where(inArray(units.id, unitIds)),
+				]);
 			}
-		});
+		} else {
+			await db.transaction(async (tx) => {
+				if (leaseIds.length > 0) {
+					// Terminate leases and free their units.
+					await tx
+						.update(leases)
+						.set({ status: "terminated", updatedAt: now })
+						.where(inArray(leases.id, leaseIds));
+
+					await tx
+						.update(units)
+						.set({ status: "available", updatedAt: now })
+						.where(inArray(units.id, unitIds));
+				}
+
+				// Remove only this owner's association; keep the tenant account/history.
+				if (tenantProfile) {
+					await tx
+						.update(tenantProfiles)
+						.set({ deletedAt: now, updatedAt: now })
+						.where(eq(tenantProfiles.id, tenantProfile.id));
+				}
+
+				if (inviteId) {
+					await tx
+						.update(tenantInvites)
+						.set({ status: "expired", updatedAt: now })
+						.where(
+							and(
+								eq(tenantInvites.id, inviteId),
+								eq(tenantInvites.invitedById, authUser.id),
+							),
+						);
+				}
+			});
+		}
 
 		return {
 			success: true,
@@ -581,6 +693,7 @@ export const sendPasswordReset = ownerProcedure
 				and(
 					eq(tenantProfiles.userId, input.tenantId),
 					eq(tenantProfiles.createdById, authUser.id),
+					isNull(tenantProfiles.deletedAt),
 				),
 			)
 			.limit(1);

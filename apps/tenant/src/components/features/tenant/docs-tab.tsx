@@ -497,18 +497,23 @@ export function DocsTab() {
 										its card.
 									</p>
 								)}
-								{(!document || document.purgedAt || document.status === "expired" || document.status === "rejected") && enabled(type) && !isOptimistic && (
-									<Button
-										className="mt-3 w-full"
-										size="sm"
-										onClick={() => {
-											setUpload({ type });
-											fileRef.current?.click();
-										}}
-									>
-										{document?.purgedAt ? "Upload again" : "Upload"}
-									</Button>
-								)}
+								{(!document ||
+									document.purgedAt ||
+									document.status === "expired" ||
+									document.status === "rejected") &&
+									enabled(type) &&
+									!isOptimistic && (
+										<Button
+											className="mt-3 w-full"
+											size="sm"
+											onClick={() => {
+												setUpload({ type });
+												fileRef.current?.click();
+											}}
+										>
+											{document?.purgedAt ? "Upload again" : "Upload"}
+										</Button>
+									)}
 							</div>
 						);
 					})}

@@ -22,7 +22,9 @@ function putWithProgress(
 	return new Promise((resolve, reject) => {
 		const xhr = new XMLHttpRequest();
 		xhr.open("PUT", url, true);
-		for (const [k, v] of Object.entries(headers)) { xhr.setRequestHeader(k, v); }
+		for (const [k, v] of Object.entries(headers)) {
+			xhr.setRequestHeader(k, v);
+		}
 		xhr.upload.onprogress = (e) => {
 			if (e.lengthComputable && onProgress) {
 				onProgress(Math.round((e.loaded / e.total) * 100));

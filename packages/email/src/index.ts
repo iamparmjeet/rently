@@ -90,6 +90,51 @@ export interface PaymentReceiptEmailParams {
 	referenceNumber?: string | null;
 }
 
+export interface AgreementPaymentReceiptAllocation {
+	unitNumber: string;
+	amount: number;
+}
+
+export interface AgreementPaymentReceiptEmailParams {
+	to: string;
+	tenantName: string;
+	ownerName: string;
+	propertyName: string;
+	allocations: AgreementPaymentReceiptAllocation[];
+	paymentDate: Date | string;
+	paymentMethod?: string | null;
+	referenceNumber?: string | null;
+}
+
+export async function sendAgreementPaymentReceiptEmail(
+	params: AgreementPaymentReceiptEmailParams,
+): Promise<void> {
+	const total = params.allocations.reduce((sum, item) => sum + item.amount, 0);
+	const rows = params.allocations
+		.map(
+			(item) => `<tr>
+        <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;">${escapeHtml(item.unitNumber)}</td>
+        <td style="padding:8px 0;border-bottom:1px solid #f1f5f9;text-align:right;font-weight:600;">${escapeHtml(formatAmount(item.amount))}</td>
+      </tr>`,
+		)
+		.join("");
+	await sendKeyHQEmail({
+		to: params.to,
+		subject: `Payment receipt — ${formatAmount(total)}`,
+		html: `
+      <h2 style="margin:0 0 8px;color:#0f172a;">Payment received</h2>
+      <p style="color:#555;line-height:1.6;">Hello ${escapeHtml(params.tenantName)}, ${escapeHtml(params.ownerName)} has recorded one payment for your combined agreement.</p>
+      <p style="color:#64748b;font-size:14px;">${escapeHtml(params.propertyName)} · ${escapeHtml(formatDate(params.paymentDate))}</p>
+      <table role="presentation" style="width:100%;border-collapse:collapse;margin:20px 0;font-size:14px;">
+        <thead><tr><th style="padding:8px 0;text-align:left;color:#64748b;font-weight:500;">Unit</th><th style="padding:8px 0;text-align:right;color:#64748b;font-weight:500;">Allocated amount</th></tr></thead>
+        <tbody>${rows}</tbody>
+        <tfoot><tr><td style="padding:14px 0 0;font-weight:700;">Total received</td><td style="padding:14px 0 0;text-align:right;font-weight:700;">${escapeHtml(formatAmount(total))}</td></tr></tfoot>
+      </table>
+      <p style="color:#555;line-height:1.6;">Method: ${escapeHtml(params.paymentMethod ? formatLabel(params.paymentMethod) : "Not provided")} · Reference: ${escapeHtml(params.referenceNumber ?? "Not provided")}</p>
+    `,
+	});
+}
+
 export async function sendPaymentReceiptEmail(
 	params: PaymentReceiptEmailParams,
 ): Promise<void> {

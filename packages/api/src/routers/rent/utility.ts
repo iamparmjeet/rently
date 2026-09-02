@@ -25,7 +25,7 @@ import {
 	UtilityListItemSchema,
 	UtilitySelectSchema,
 } from "@rently/validators";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import z from "zod";
 import { isLeaseOwner, VerifyLeaseOwnership } from "../helpers";
 import {
@@ -141,7 +141,28 @@ async function getOwnedUtility(
 		});
 	}
 
-	return row;
+	const credits = await db
+		.select({
+			amount: billCredits.amount,
+			reason: billCredits.reason,
+			creditNoteNo: billCredits.creditNoteNo,
+			type: billCredits.type,
+			appliedAs: billCredits.appliedAs,
+		})
+		.from(billCredits)
+		.where(eq(billCredits.utilityId, utilityId))
+		.orderBy(billCredits.createdAt);
+
+	const [paidAgg] = await db
+		.select({ sum: sql<number>`coalesce(sum(${payments.amount}), 0)` })
+		.from(payments)
+		.where(eq(payments.utilityId, utilityId));
+
+	const creditsSum = credits.reduce((s, c) => s + c.amount, 0);
+	const paidSum = paidAgg?.sum ?? 0;
+	const amountDue = row.totalAmount + creditsSum - paidSum;
+
+	return { ...row, credits, amountDue };
 }
 
 // **********************************************
@@ -396,8 +417,61 @@ export const listUtilities = ownerProcedure
 			.where(whereClause)
 			.orderBy(utilities.currentReadingDate);
 
+		if (results.length === 0) return { utilities: [] as never };
+
+		const utilityIds = results.map((r) => r.id);
+
+		const creditRows = await db
+			.select({
+				utilityId: billCredits.utilityId,
+				amount: billCredits.amount,
+				reason: billCredits.reason,
+				creditNoteNo: billCredits.creditNoteNo,
+				type: billCredits.type,
+				appliedAs: billCredits.appliedAs,
+			})
+			.from(billCredits)
+			.where(inArray(billCredits.utilityId, utilityIds))
+			.orderBy(billCredits.createdAt);
+
+		const paymentSums = await db
+			.select({
+				utilityId: payments.utilityId,
+				sum: sql<number>`coalesce(sum(${payments.amount}), 0)`,
+			})
+			.from(payments)
+			.where(inArray(payments.utilityId, utilityIds))
+			.groupBy(payments.utilityId);
+
+		const creditsByUtility = new Map<string, typeof creditRows>();
+		for (const cr of creditRows) {
+			if (!cr.utilityId) continue;
+			const arr = creditsByUtility.get(cr.utilityId) ?? [];
+			arr.push(cr);
+			creditsByUtility.set(cr.utilityId, arr);
+		}
+		const paidByUtility = new Map<string, number>();
+		for (const p of paymentSums) {
+			if (!p.utilityId) continue;
+			paidByUtility.set(p.utilityId, Number(p.sum));
+		}
+
+		const enriched = results.map((r) => {
+			const credits = (creditsByUtility.get(r.id) ?? []).map((c) => ({
+				amount: c.amount,
+				reason: c.reason,
+				creditNoteNo: c.creditNoteNo,
+				type: c.type,
+				appliedAs: c.appliedAs,
+			}));
+			const creditsSum = credits.reduce((s, c) => s + c.amount, 0);
+			const paidSum = paidByUtility.get(r.id) ?? 0;
+			const amountDue = r.totalAmount + creditsSum - paidSum;
+			return { ...r, credits, amountDue };
+		});
+
 		return {
-			utilities: results,
+			utilities: enriched as never,
 		};
 	});
 

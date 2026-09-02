@@ -34,14 +34,16 @@ import {
 	IconReceipt,
 	IconRefreshAlert,
 	IconSearch,
+	IconTag,
 } from "@tabler/icons-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { AddAgreementPaymentButton } from "@/components/features/payments/add-agreement-payment-button";
 import { AddPaymentButton } from "@/components/features/payments/add-payment-button";
 import { PaymentExportDialog } from "@/components/features/payments/payment-export-dialog";
 import { PaymentGrid } from "@/components/features/payments/payment-grid";
 import { getTypeConfig } from "@/components/features/payments/payment-helpers";
 import { Container } from "@/components/shared/container";
+import { useCredits } from "@/hooks/credit";
 import {
 	useDeletePayment,
 	useOwnerPaymentExport,
@@ -340,8 +342,12 @@ function PaymentDetailDialog({
 
 export default function PaymentsPage() {
 	const { data, isLoading } = usePayments();
+	const { data: creditsData, isLoading: creditsLoading } = useCredits();
 	const voidPayment = useDeletePayment();
 	const exportPayments = useOwnerPaymentExport();
+	const [pageTab, setPageTab] = useState<"payments" | "adjustments">(
+		"payments",
+	);
 	const [typeFilter, setTypeFilter] = useState<string>("all");
 	const [search, setSearch] = useState("");
 	const [sort, setSort] = useState<PaymentSort>("payment-date-desc");
@@ -349,8 +355,8 @@ export default function PaymentsPage() {
 	const [voidingId, setVoidingId] = useState<string | null>(null);
 	const [detailId, setDetailId] = useState<string | null>(null);
 	const [exportOpen, setExportOpen] = useState(false);
-
-	if (isLoading) return <PageLoader />;
+	const [adjSearch, setAdjSearch] = useState("");
+	const [adjTypeFilter, setAdjTypeFilter] = useState<string>("all");
 
 	const payments = data?.payments ?? [];
 
@@ -408,6 +414,42 @@ export default function PaymentsPage() {
 	).length;
 
 	const selectedPayment = payments.find((p) => p.id === detailId) ?? null;
+
+	// Adjustments: only after tenant paid (paid utility/rent exists)
+	const allCredits = creditsData?.credits ?? [];
+	const settledCredits = useMemo(() => {
+		const paidUtilityIds = new Set(
+			payments
+				.filter((p) => p.utilityId != null && p.type !== PAYMENT_TYPES.REVERSAL)
+				.map((p) => p.utilityId as string),
+		);
+		const paidRentLeaseIds = new Set(
+			payments
+				.filter((p) => !p.utilityId && p.type === PAYMENT_TYPES.RENT)
+				.map((p) => p.leaseId),
+		);
+		return allCredits.filter((c) => {
+			if (c.utilityId) return paidUtilityIds.has(c.utilityId);
+			return paidRentLeaseIds.has(c.leaseId);
+		});
+	}, [allCredits, payments]);
+
+	const adjFiltered = useMemo(() => {
+		const q = adjSearch.trim().toLowerCase();
+		return settledCredits.filter((c) => {
+			const typeOk = adjTypeFilter === "all" || c.type === adjTypeFilter;
+			const searchOk =
+				q === "" ||
+				c.creditNoteNo.toLowerCase().includes(q) ||
+				c.reason.toLowerCase().includes(q) ||
+				c.leaseId.toLowerCase().includes(q);
+			return typeOk && searchOk;
+		});
+	}, [settledCredits, adjSearch, adjTypeFilter]);
+
+	const adjTotal = adjFiltered.reduce((s, c) => s + c.amount, 0);
+
+	if (isLoading) return <PageLoader />;
 
 	// CSV
 	function handlePaymentExport(range: DateRange) {
@@ -485,152 +527,355 @@ export default function PaymentsPage() {
 					</div>
 				</section>
 
-				{/* ── Filter bar ── */}
-				<div className="flex flex-wrap items-center gap-3">
-					<div className="relative min-w-50 flex-1 sm:max-w-xs">
-						<IconSearch className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
-						<input
-							type="search"
-							placeholder="Search by reference or lease ID…"
-							value={search}
-							onChange={(e) => setSearch(e.target.value)}
-							className="h-9 w-full rounded-lg border border-border bg-background pr-3 pl-9 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
-						/>
-					</div>
-
-					<select
-						value={typeFilter}
-						onChange={(e) => setTypeFilter(e.target.value)}
-						className="h-9 cursor-pointer appearance-none rounded-lg border border-border bg-background px-3 pr-8 text-foreground text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
-						style={{
-							backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
-							backgroundRepeat: "no-repeat",
-							backgroundPosition: "right 10px center",
-						}}
+				{/* ── Tabs: Payments vs Adjustments (write-offs/discounts) ── */}
+				<div
+					role="tablist"
+					aria-label="Payments vs adjustments"
+					className="flex gap-1 rounded-lg border bg-muted/40 p-1"
+				>
+					<button
+						type="button"
+						role="tab"
+						aria-selected={pageTab === "payments"}
+						onClick={() => setPageTab("payments")}
+						className={`flex items-center gap-1.5 rounded-md px-4 py-2 font-medium text-sm transition-all ${pageTab === "payments" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
 					>
-						<option value="all">All Types</option>
-						{Object.values(PAYMENT_TYPES).map((t) => (
-							<option key={t} value={t}>
-								{t.charAt(0).toUpperCase() + t.slice(1)}
-							</option>
-						))}
-					</select>
-
-					<DropdownMenu>
-						<DropdownMenuTrigger
-							render={
-								<button
-									type="button"
-									className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-foreground text-sm transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
-								>
-									<IconArrowsSort className="size-3.5 text-muted-foreground" />
-									<span>{activeSortLabel}</span>
-									<IconChevronDown className="size-3.5 text-muted-foreground" />
-								</button>
-							}
-						/>
-						<DropdownMenuContent align="start">
-							{(Object.keys(PAYMENT_SORT_LABELS) as PaymentSort[]).map(
-								(option) => (
-									<DropdownMenuItem
-										key={option}
-										onClick={() => setSort(option)}
-									>
-										{PAYMENT_SORT_LABELS[option]}
-										{sort === option && <span className="ml-auto">✓</span>}
-									</DropdownMenuItem>
-								),
-							)}
-						</DropdownMenuContent>
-					</DropdownMenu>
-
-					{(typeFilter !== "all" || search.trim() !== "") && (
-						<button
-							type="button"
-							onClick={() => {
-								setTypeFilter("all");
-								setSearch("");
-							}}
-							className="h-9 rounded-lg border border-border bg-muted/60 px-3 text-muted-foreground text-xs transition hover:bg-muted hover:text-foreground"
+						<IconReceipt className="size-3.5" />
+						Payments
+						<span
+							className={`rounded-full px-1.5 py-0.5 font-bold text-[10px] ${pageTab === "payments" ? "bg-primary/10 text-primary" : "bg-muted text-muted-foreground"}`}
 						>
-							Clear
-						</button>
-					)}
-
-					<div className="flex items-center rounded-md border bg-muted/30 p-0.5">
-						<button
-							type="button"
-							onClick={() => setViewMode("cards")}
-							className={`rounded-sm p-1.5 transition-colors ${
-								viewMode === "cards"
-									? "bg-white text-foreground shadow-sm"
-									: "text-muted-foreground hover:text-foreground"
-							}`}
-							title="Card view"
+							{payments.length}
+						</span>
+					</button>
+					<button
+						type="button"
+						role="tab"
+						aria-selected={pageTab === "adjustments"}
+						onClick={() => setPageTab("adjustments")}
+						className={`flex items-center gap-1.5 rounded-md px-4 py-2 font-medium text-sm transition-all ${pageTab === "adjustments" ? "bg-white text-foreground shadow-sm" : "text-muted-foreground hover:text-foreground"}`}
+					>
+						<IconTag className="size-3.5" />
+						Adjustments
+						<span
+							className={`rounded-full px-1.5 py-0.5 font-bold text-[10px] ${pageTab === "adjustments" ? "bg-amber-100 text-amber-700" : "bg-muted text-muted-foreground"}`}
 						>
-							<IconLayoutGrid className="size-3.5" />
-						</button>
-						<button
-							type="button"
-							onClick={() => setViewMode("rows")}
-							className={`rounded-sm p-1.5 transition-colors ${
-								viewMode === "rows"
-									? "bg-white text-foreground shadow-sm"
-									: "text-muted-foreground hover:text-foreground"
-							}`}
-							title="Row view"
-						>
-							<IconList className="size-3.5" />
-						</button>
-					</div>
-
-					<p className="ml-auto text-muted-foreground text-xs">
-						{filtered.length} of {payments.length}
-					</p>
+							{settledCredits.length}
+						</span>
+					</button>
 				</div>
 
-				{/* ── Payment list ── */}
-				<PaymentGrid
-					payments={sortedPayments}
-					allPayments={payments}
-					isLoading={isLoading}
-					viewMode={viewMode}
-					voidingId={voidingId}
-					onViewDetail={(payment) => setDetailId(payment.id)}
-					onVoid={(payment) => setVoidingId(payment.id)}
-				/>
+				{pageTab === "payments" ? (
+					<>
+						{/* ── Filter bar ── */}
+						<div className="flex flex-wrap items-center gap-3">
+							<div className="relative min-w-50 flex-1 sm:max-w-xs">
+								<IconSearch className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+								<input
+									type="search"
+									placeholder="Search by reference or lease ID…"
+									value={search}
+									onChange={(e) => setSearch(e.target.value)}
+									className="h-9 w-full rounded-lg border border-border bg-background pr-3 pl-9 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
+								/>
+							</div>
 
-				{/* Void confirmation — one instance at page level */}
-				{(() => {
-					const voidingPayment =
-						payments.find((p) => p.id === voidingId) ?? null;
-					return voidingPayment ? (
-						<ConfirmDialog
-							open={voidingId !== null}
-							onOpenChange={(open) => {
-								if (!open) setVoidingId(null);
-							}}
-							title="Void this payment?"
-							description={`This will create a reversal entry for ${formatRupees(voidingPayment.amount)}. The original record is preserved for audit purposes.`}
-							confirmLabel="Void Payment"
-							destructive
-							onConfirm={() => {
-								voidPayment.mutate(
-									{ id: voidingPayment.id },
-									{ onSuccess: () => setVoidingId(null) },
-								);
-							}}
-							isLoading={voidPayment.isPending}
+							<select
+								value={typeFilter}
+								onChange={(e) => setTypeFilter(e.target.value)}
+								className="h-9 cursor-pointer appearance-none rounded-lg border border-border bg-background px-3 pr-8 text-foreground text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+								style={{
+									backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+									backgroundRepeat: "no-repeat",
+									backgroundPosition: "right 10px center",
+								}}
+							>
+								<option value="all">All Types</option>
+								{Object.values(PAYMENT_TYPES).map((t) => (
+									<option key={t} value={t}>
+										{t.charAt(0).toUpperCase() + t.slice(1)}
+									</option>
+								))}
+							</select>
+
+							<DropdownMenu>
+								<DropdownMenuTrigger
+									render={
+										<button
+											type="button"
+											className="inline-flex h-9 shrink-0 items-center gap-1.5 rounded-lg border border-border bg-background px-3 text-foreground text-sm transition hover:bg-muted focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary/20"
+										>
+											<IconArrowsSort className="size-3.5 text-muted-foreground" />
+											<span>{activeSortLabel}</span>
+											<IconChevronDown className="size-3.5 text-muted-foreground" />
+										</button>
+									}
+								/>
+								<DropdownMenuContent align="start">
+									{(Object.keys(PAYMENT_SORT_LABELS) as PaymentSort[]).map(
+										(option) => (
+											<DropdownMenuItem
+												key={option}
+												onClick={() => setSort(option)}
+											>
+												{PAYMENT_SORT_LABELS[option]}
+												{sort === option && <span className="ml-auto">✓</span>}
+											</DropdownMenuItem>
+										),
+									)}
+								</DropdownMenuContent>
+							</DropdownMenu>
+
+							{(typeFilter !== "all" || search.trim() !== "") && (
+								<button
+									type="button"
+									onClick={() => {
+										setTypeFilter("all");
+										setSearch("");
+									}}
+									className="h-9 rounded-lg border border-border bg-muted/60 px-3 text-muted-foreground text-xs transition hover:bg-muted hover:text-foreground"
+								>
+									Clear
+								</button>
+							)}
+
+							<div className="flex items-center rounded-md border bg-muted/30 p-0.5">
+								<button
+									type="button"
+									onClick={() => setViewMode("cards")}
+									className={`rounded-sm p-1.5 transition-colors ${
+										viewMode === "cards"
+											? "bg-white text-foreground shadow-sm"
+											: "text-muted-foreground hover:text-foreground"
+									}`}
+									title="Card view"
+								>
+									<IconLayoutGrid className="size-3.5" />
+								</button>
+								<button
+									type="button"
+									onClick={() => setViewMode("rows")}
+									className={`rounded-sm p-1.5 transition-colors ${
+										viewMode === "rows"
+											? "bg-white text-foreground shadow-sm"
+											: "text-muted-foreground hover:text-foreground"
+									}`}
+									title="Row view"
+								>
+									<IconList className="size-3.5" />
+								</button>
+							</div>
+
+							<p className="ml-auto text-muted-foreground text-xs">
+								{filtered.length} of {payments.length}
+							</p>
+						</div>
+
+						{/* ── Payment list ── */}
+						<PaymentGrid
+							payments={sortedPayments}
+							allPayments={payments}
+							isLoading={isLoading}
+							viewMode={viewMode}
+							voidingId={voidingId}
+							onViewDetail={(payment) => setDetailId(payment.id)}
+							onVoid={(payment) => setVoidingId(payment.id)}
 						/>
-					) : null;
-				})()}
 
-				{/* One dialog instance, driven by detailId — not N per row */}
-				<PaymentDetailDialog
-					payment={selectedPayment}
-					open={detailId !== null}
-					onClose={() => setDetailId(null)}
-				/>
+						{/* Void confirmation — one instance at page level */}
+						{(() => {
+							const voidingPayment =
+								payments.find((p) => p.id === voidingId) ?? null;
+							return voidingPayment ? (
+								<ConfirmDialog
+									open={voidingId !== null}
+									onOpenChange={(open) => {
+										if (!open) setVoidingId(null);
+									}}
+									title="Void this payment?"
+									description={`This will create a reversal entry for ${formatRupees(voidingPayment.amount)}. The original record is preserved for audit purposes.`}
+									confirmLabel="Void Payment"
+									destructive
+									onConfirm={() => {
+										voidPayment.mutate(
+											{ id: voidingPayment.id },
+											{ onSuccess: () => setVoidingId(null) },
+										);
+									}}
+									isLoading={voidPayment.isPending}
+								/>
+							) : null;
+						})()}
+
+						{/* One dialog instance, driven by detailId — not N per row */}
+						<PaymentDetailDialog
+							payment={selectedPayment}
+							open={detailId !== null}
+							onClose={() => setDetailId(null)}
+						/>
+					</>
+				) : (
+					<>
+						{/* ── Adjustments filter bar ── */}
+						<div className="flex flex-wrap items-center gap-3">
+							<div className="relative min-w-50 flex-1 sm:max-w-xs">
+								<IconSearch className="absolute top-1/2 left-3 size-4 -translate-y-1/2 text-muted-foreground" />
+								<input
+									type="search"
+									placeholder="Search by credit note or reason…"
+									value={adjSearch}
+									onChange={(e) => setAdjSearch(e.target.value)}
+									className="h-9 w-full rounded-lg border border-border bg-background pr-3 pl-9 text-sm outline-none transition placeholder:text-muted-foreground focus:border-primary focus:ring-2 focus:ring-primary/15"
+								/>
+							</div>
+							<select
+								value={adjTypeFilter}
+								onChange={(e) => setAdjTypeFilter(e.target.value)}
+								className="h-9 cursor-pointer appearance-none rounded-lg border border-border bg-background px-3 pr-8 text-foreground text-sm outline-none transition focus:border-primary focus:ring-2 focus:ring-primary/15"
+								style={{
+									backgroundImage: `url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%23888' stroke-width='2'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E")`,
+									backgroundRepeat: "no-repeat",
+									backgroundPosition: "right 10px center",
+								}}
+							>
+								<option value="all">All types</option>
+								<option value="discount">Discount</option>
+								<option value="write_off">Write-off</option>
+								<option value="credit_note">Credit note</option>
+							</select>
+							{(adjTypeFilter !== "all" || adjSearch.trim() !== "") && (
+								<button
+									type="button"
+									onClick={() => {
+										setAdjTypeFilter("all");
+										setAdjSearch("");
+									}}
+									className="h-9 rounded-lg border border-border bg-muted/60 px-3 text-muted-foreground text-xs transition hover:bg-muted hover:text-foreground"
+								>
+									Clear
+								</button>
+							)}
+							<p className="ml-auto text-muted-foreground text-xs">
+								{adjFiltered.length} settled •{" "}
+								{allCredits.length - settledCredits.length} pending (hidden
+								until payment)
+							</p>
+						</div>
+
+						{/* ── Adjustments list ── */}
+						{creditsLoading ? (
+							<PageLoader />
+						) : adjFiltered.length === 0 ? (
+							<div className="rounded-xl border border-dashed bg-card px-6 py-12 text-center">
+								<IconTag className="mx-auto size-8 text-muted-foreground/40" />
+								<p className="mt-3 font-medium text-sm">
+									No settled adjustments
+								</p>
+								<p className="mx-auto mt-1 max-w-md text-muted-foreground text-xs">
+									Discounts/write-offs appear here only after the tenant’s
+									payment is recorded. Unpaid bills with credits remain hidden —
+									create a payment for the discounted{" "}
+									<span className="font-mono">amountDue</span> to settle.
+									{allCredits.length > 0 &&
+									allCredits.length !== adjFiltered.length
+										? ` (${allCredits.length - settledCredits.length} still pending)`
+										: ""}
+								</p>
+							</div>
+						) : (
+							<div className="overflow-hidden rounded-xl border bg-white">
+								<div className="hidden grid-cols-[minmax(10rem,1fr)_minmax(7rem,0.7fr)_minmax(7rem,0.7fr)_minmax(12rem,1.4fr)_minmax(7rem,0.6fr)] items-center gap-4 border-b bg-muted/30 px-5 py-2.5 font-semibold text-[10px] text-muted-foreground uppercase tracking-wider lg:grid">
+									<span>Credit note</span>
+									<span>Type</span>
+									<span className="text-right">Amount</span>
+									<span>Reason</span>
+									<span className="text-right">Bill</span>
+								</div>
+								{adjFiltered.map((c) => (
+									<div
+										key={c.id}
+										className="grid gap-2 border-b px-4 py-4 last:border-0 lg:grid-cols-[minmax(10rem,1fr)_minmax(7rem,0.7fr)_minmax(7rem,0.7fr)_minmax(12rem,1.4fr)_minmax(7rem,0.6fr)] lg:items-center lg:px-5"
+									>
+										<div className="min-w-0">
+											<p className="font-mono font-semibold text-xs">
+												{c.creditNoteNo}
+											</p>
+											<p className="text-[11px] text-muted-foreground">
+												{fmtDate(c.createdAt)} •{" "}
+												{c.appliedAs === "refund" ? "Refund" : "Adjust"}
+											</p>
+										</div>
+										<div>
+											<Badge
+												variant="secondary"
+												className={
+													c.type === "write_off"
+														? "bg-amber-50 text-amber-700"
+														: c.type === "discount"
+															? "bg-violet-50 text-violet-700"
+															: "bg-sky-50 text-sky-700"
+												}
+											>
+												{c.type.replaceAll("_", " ")}
+											</Badge>
+											{c.reversedAt ? (
+												<Badge
+													variant="secondary"
+													className="ml-1 bg-destructive/10 text-destructive"
+												>
+													reversed
+												</Badge>
+											) : null}
+										</div>
+										<div className="text-right">
+											<p className="font-bold text-amber-700 text-sm tabular-nums">
+												{formatRupees(c.amount)}
+											</p>
+											<p className="text-[11px] text-muted-foreground">
+												{c.amount < 0 ? "reduction" : "reversal"}
+											</p>
+										</div>
+										<div className="min-w-0">
+											<p className="truncate text-sm">{c.reason}</p>
+											<p className="truncate text-[11px] text-muted-foreground">
+												Lease {c.leaseId.slice(0, 8).toUpperCase()}{" "}
+												{c.utilityId
+													? `• Utl ${c.utilityId.slice(0, 8).toUpperCase()}`
+													: "• Rent"}
+											</p>
+										</div>
+										<div className="text-right">
+											<a
+												href={
+													c.utilityId
+														? `/utilities/${c.utilityId}`
+														: `/leases/${c.leaseId}`
+												}
+												className="font-medium text-primary text-xs hover:underline"
+											>
+												View bill
+											</a>
+											<a
+												href={`/credit-notes/${c.id}`}
+												className="ml-2 text-muted-foreground text-xs hover:underline"
+											>
+												Note
+											</a>
+										</div>
+									</div>
+								))}
+								<div className="flex items-center justify-between bg-muted/20 px-5 py-3 text-xs">
+									<span className="text-muted-foreground">
+										Net settled adjustments
+									</span>
+									<span className="font-bold text-amber-700 tabular-nums">
+										{formatRupees(adjTotal)}
+									</span>
+								</div>
+							</div>
+						)}
+					</>
+				)}
 			</div>
 		</Container>
 	);

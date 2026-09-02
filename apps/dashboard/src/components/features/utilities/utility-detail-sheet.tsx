@@ -1,4 +1,5 @@
 import { Badge } from "@rently/ui/components/badge";
+import { Button } from "@rently/ui/components/button";
 import {
 	Dialog,
 	DialogContent,
@@ -8,7 +9,12 @@ import {
 } from "@rently/ui/components/dialog";
 import { formatRupees } from "@rently/ui/lib/currency";
 import type { UtilityListItem } from "@rently/validators";
-import { IconCalendar, IconHome, IconReceipt } from "@tabler/icons-react";
+import {
+	IconCalendar,
+	IconHome,
+	IconPrinter,
+	IconReceipt,
+} from "@tabler/icons-react";
 import { UtilityDetailCard } from "./utility-detail-card";
 
 function formatDate(value: Date) {
@@ -26,6 +32,7 @@ export function UtilityDetailDialog({
 	onOpenChange,
 	onEdit,
 	onMarkPaid,
+	onMarkPaidCombined,
 }: {
 	items: UtilityListItem[];
 	rent?: number | null;
@@ -33,20 +40,32 @@ export function UtilityDetailDialog({
 	onOpenChange: (open: boolean) => void;
 	onEdit?: (u: UtilityListItem) => void;
 	onMarkPaid: (u: UtilityListItem) => void;
+	onMarkPaidCombined?: () => void;
 }) {
 	if (items.length === 0) return null;
 
 	const first = items[0];
 	if (!first) return null;
 
+	const getAmountDue = (u: (typeof items)[number]) =>
+		(u as { amountDue?: number }).amountDue ?? u.totalAmount;
+	const isPaidDerivedLocal = (u: (typeof items)[number]) =>
+		getAmountDue(u) <= 0;
 	const utilityTotal = items.reduce(
+		(sum, utility) => sum + getAmountDue(utility),
+		0,
+	);
+	const originalTotal = items.reduce(
 		(sum, utility) => sum + utility.totalAmount,
 		0,
 	);
+	const hasAnyDiscount = items.some(
+		(u) => (u.credits?.length ?? 0) > 0 && getAmountDue(u) !== u.totalAmount,
+	);
 	const statementTotal = utilityTotal + (rent ?? 0);
 	const isCombinedBill = rent !== null;
-	const allPaid = items.every((utility) => utility.isPaid);
-	const unpaidCount = items.filter((utility) => !utility.isPaid).length;
+	const allPaid = items.every(isPaidDerivedLocal);
+	const unpaidCount = items.filter((u) => !isPaidDerivedLocal(u)).length;
 	const periodStart = first.previousReadingDate ?? first.currentReadingDate;
 	const periodEnd = first.currentReadingDate;
 	const days = Math.max(
@@ -56,6 +75,43 @@ export function UtilityDetailDialog({
 				(1000 * 60 * 60 * 24),
 		),
 	);
+	const combinedBillHref = isCombinedBill
+		? `/combined-bill?ids=${items.map((i) => i.id).join(",")}&rent=${rent ?? 0}`
+		: items.length === 1
+			? `/utilities/${items[0]!.id}`
+			: null;
+
+	// Recommendation A: rent is always 1 calendar month (month of periodEnd), utility may be arrears
+	const rentMonthLabel = new Intl.DateTimeFormat("en-IN", {
+		month: "long",
+		year: "numeric",
+	}).format(new Date(periodEnd));
+	const rentPeriodStart = new Date(
+		new Date(periodEnd).getFullYear(),
+		new Date(periodEnd).getMonth(),
+		1,
+	);
+	const rentPeriodEnd = new Date(
+		new Date(periodEnd).getFullYear(),
+		new Date(periodEnd).getMonth() + 1,
+		0,
+	);
+	const rentPeriodLabel =
+		rentPeriodStart.toLocaleDateString("en-IN", {
+			day: "2-digit",
+			month: "short",
+		}) +
+		" – " +
+		rentPeriodEnd.toLocaleDateString("en-IN", {
+			day: "2-digit",
+			month: "short",
+			year: "numeric",
+		});
+	const isLongArrears = days > 60;
+	const billingPeriodSub =
+		isCombinedBill && isLongArrears
+			? `${days} days • Rent: ${rentMonthLabel} only`
+			: `${days} days`;
 
 	return (
 		<Dialog open={open} onOpenChange={onOpenChange}>
@@ -80,12 +136,14 @@ export function UtilityDetailDialog({
 								: `${unpaidCount} unpaid`}
 						</Badge>
 					</div>
-					<DialogTitle className="font-bold text-xl tracking-tight">
-						{first.tenantName ?? "Tenant"}
-					</DialogTitle>
-					<DialogDescription>
-						{first.propertyName} · Unit {first.unitNumber}
-					</DialogDescription>
+					<div className="min-w-0">
+						<DialogTitle className="font-bold text-xl tracking-tight">
+							{first.tenantName ?? "Tenant"}
+						</DialogTitle>
+						<DialogDescription>
+							{first.propertyName} · Unit {first.unitNumber}
+						</DialogDescription>
+					</div>
 				</DialogHeader>
 
 				<div className="space-y-5 p-4 sm:p-6">
@@ -98,7 +156,7 @@ export function UtilityDetailDialog({
 							icon={<IconCalendar className="size-4" />}
 							label="Billing period"
 							value={`${formatDate(periodStart)} – ${formatDate(periodEnd)}`}
-							sub={`${days} days`}
+							sub={billingPeriodSub}
 						/>
 						<SummaryItem
 							icon={<IconHome className="size-4" />}
@@ -138,8 +196,14 @@ export function UtilityDetailDialog({
 									<div>
 										<p className="font-semibold text-sm">Rent</p>
 										<p className="text-muted-foreground text-xs">
-											Monthly rent for this unit
+											{rentPeriodLabel} • Monthly rent for this unit
 										</p>
+										{isLongArrears ? (
+											<p className="mt-0.5 text-[10px] text-amber-600">
+												Utility arrears: {days} days • Rent shown is 1 month
+												only
+											</p>
+										) : null}
 									</div>
 								</div>
 								<p className="font-bold text-base tabular-nums">
@@ -153,27 +217,74 @@ export function UtilityDetailDialog({
 								utility={utility}
 								onEdit={onEdit ? () => onEdit(utility) : undefined}
 								onMarkPaid={() => onMarkPaid(utility)}
+								hideDownload={isCombinedBill}
 							/>
 						))}
 					</div>
 
-					<footer className="flex items-end justify-between gap-4 rounded-xl border-2 border-foreground bg-muted/20 p-4">
-						<div>
-							<p className="font-semibold text-[10px] text-muted-foreground uppercase tracking-wide">
-								Total billed
-							</p>
-							<p className="mt-1 text-muted-foreground text-xs">
-								{isCombinedBill
-									? "Rent plus utility charges"
-									: allPaid
-										? "No outstanding balance"
-										: "Payment action required"}
+					<footer className="flex flex-col gap-2 rounded-xl border-2 border-foreground bg-muted/20 p-4">
+						<div className="flex items-end justify-between gap-4">
+							<div>
+								<p className="font-semibold text-[10px] text-muted-foreground uppercase tracking-wide">
+									{hasAnyDiscount ? "Amount due" : "Total billed"}
+								</p>
+								<p className="mt-1 text-muted-foreground text-xs">
+									{isCombinedBill
+										? "Rent plus utility charges"
+										: allPaid
+											? "No outstanding balance"
+											: "Payment action required"}
+								</p>
+								{hasAnyDiscount ? (
+									<p className="mt-1 text-muted-foreground text-xs line-through">
+										Original {formatRupees(originalTotal + (rent ?? 0))}
+									</p>
+								) : null}
+							</div>
+							<p className="font-bold text-2xl tabular-nums">
+								{formatRupees(statementTotal)}
 							</p>
 						</div>
-						<p className="font-bold text-2xl tabular-nums">
-							{formatRupees(statementTotal)}
-						</p>
 					</footer>
+
+					{/* Footer actions — after total callout */}
+					<div className="flex flex-wrap items-center justify-end gap-2 border-t pt-4">
+						<Button variant="outline" onClick={() => onOpenChange(false)}>
+							Close
+						</Button>
+						{combinedBillHref ? (
+							<Button
+								variant="outline"
+								className="gap-1.5"
+								onClick={() =>
+									window.open(
+										`${combinedBillHref}?print=true`,
+										"_blank",
+										"noopener",
+									)
+								}
+							>
+								<IconPrinter className="size-3.5" />
+								{isCombinedBill ? "Print combined bill" : "Print bill"}
+							</Button>
+						) : null}
+						{!allPaid ? (
+							isCombinedBill && onMarkPaidCombined ? (
+								<Button onClick={onMarkPaidCombined}>
+									Record Combined Payment
+								</Button>
+							) : (
+								<Button
+									onClick={() => {
+										const firstUnpaid = items.find((u) => getAmountDue(u) > 0);
+										if (firstUnpaid) onMarkPaid(firstUnpaid);
+									}}
+								>
+									Record payment
+								</Button>
+							)
+						) : null}
+					</div>
 				</div>
 			</DialogContent>
 		</Dialog>

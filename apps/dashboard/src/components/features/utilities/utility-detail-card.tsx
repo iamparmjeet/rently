@@ -16,10 +16,12 @@ export function UtilityDetailCard({
 	utility: u,
 	onEdit,
 	onMarkPaid,
+	hideDownload,
 }: {
 	utility: UtilityListItem;
 	onEdit?: () => void;
 	onMarkPaid: () => void;
+	hideDownload?: boolean;
 }) {
 	const isElectricity = u.utilityType === "electricity";
 	const documentAction = getUtilityDocumentAction({
@@ -31,6 +33,10 @@ export function UtilityDetailCard({
 	);
 	const hasReconciledBreakdown =
 		usageAmount + Number(u.fixedCharge ?? 0) === u.totalAmount;
+	const amountDue = (u as { amountDue?: number }).amountDue ?? u.totalAmount;
+	const isPaidDerived = amountDue <= 0;
+	const hasDiscount = (u.credits?.length ?? 0) > 0;
+	const showDiscount = hasDiscount && amountDue !== u.totalAmount;
 	const typeLabel =
 		u.utilityType === "electricity"
 			? "Electricity"
@@ -73,12 +79,12 @@ export function UtilityDetailCard({
 				<Badge
 					variant="secondary"
 					className={
-						u.isPaid
+						isPaidDerived
 							? "bg-emerald-50 text-emerald-700"
 							: "bg-amber-50 text-amber-700"
 					}
 				>
-					{u.isPaid ? "Paid" : "Unpaid"}
+					{isPaidDerived ? "Paid" : "Unpaid"}
 				</Badge>
 			</header>
 
@@ -123,11 +129,16 @@ export function UtilityDetailCard({
 			<footer className="flex flex-col gap-3 border-t px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
 				<div>
 					<p className="text-[10px] text-muted-foreground uppercase tracking-wide">
-						Billed amount
+						{showDiscount ? "Amount due" : "Billed amount"}
 					</p>
 					<p className="mt-0.5 font-bold text-lg tabular-nums">
-						{formatRupees(u.totalAmount)}
+						{formatRupees(amountDue)}
 					</p>
+					{showDiscount ? (
+						<p className="text-muted-foreground text-xs line-through">
+							Original {formatRupees(u.totalAmount)}
+						</p>
+					) : null}
 				</div>
 				<div className="flex flex-wrap items-center gap-1">
 					{onEdit && (
@@ -136,17 +147,19 @@ export function UtilityDetailCard({
 							Edit
 						</Button>
 					)}
-					<Button
-						variant="outline"
-						size="sm"
-						onClick={() =>
-							window.open(documentAction.href, "_blank", "noopener")
-						}
-					>
-						<IconDownload className="size-3.5" />
-						{documentAction.label}
-					</Button>
-					{!u.isPaid ? (
+					{!hideDownload ? (
+						<Button
+							variant="outline"
+							size="sm"
+							onClick={() =>
+								window.open(documentAction.href, "_blank", "noopener")
+							}
+						>
+							<IconDownload className="size-3.5" />
+							{documentAction.label}
+						</Button>
+					) : null}
+					{!isPaidDerived ? (
 						<Button size="sm" onClick={onMarkPaid}>
 							<IconCheck className="size-3.5" />
 							Record payment

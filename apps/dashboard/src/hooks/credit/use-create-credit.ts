@@ -15,7 +15,15 @@ export function useCreateCredit() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.utility.getUtilityById.key(),
+			});
 			if (data?.credit?.utilityId) {
+				queryClient.invalidateQueries({
+					queryKey: orpc.rent.utility.getUtilityById.key({
+						input: { id: data.credit.utilityId },
+					}),
+				});
 				queryClient.invalidateQueries({
 					queryKey: orpc.rent.credit.getCreditNote.key({
 						input: { creditId: data.credit.id },

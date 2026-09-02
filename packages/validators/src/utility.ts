@@ -35,6 +35,14 @@ export const UpdateUtilitySchema = createUpdateSchema(utilities).pick({
 	unitsUsed: true,
 	description: true,
 });
+export const BillCreditSchema = z.object({
+	amount: z.number().int(),
+	reason: z.string(),
+	creditNoteNo: z.string(),
+	type: z.string().optional(),
+	appliedAs: z.string().optional(),
+});
+
 // 3 -> Enriched list
 export const UtilityListItemSchema = UtilitySelectSchema.extend({
 	unitNumber: z.string(),
@@ -45,6 +53,8 @@ export const UtilityListItemSchema = UtilitySelectSchema.extend({
 	// The payment that settled this bill. It is used to open the existing
 	// payment receipt from the Utilities screen.
 	receiptPaymentId: z.uuid().nullable(),
+	amountDue: z.number().int().optional(),
+	credits: z.array(BillCreditSchema).optional(),
 });
 
 // Enriched document data for a single printable utility bill. Keep this
@@ -60,6 +70,8 @@ export const UtilityBillDataSchema = UtilitySelectSchema.extend({
 	ownerAddress: z.string().nullable(),
 	gstNumber: z.string().nullable(),
 	receiptPaymentId: z.uuid().nullable(),
+	amountDue: z.number().int().optional(),
+	credits: z.array(BillCreditSchema).optional(),
 });
 
 export const UtilityReadingSchema = z

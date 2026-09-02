@@ -59,8 +59,11 @@ export function MarkPaidDialog({
 			? {
 					utilityId: utility.id,
 					leaseId: utility.leaseId,
-					// Pre-fill with bill total in rupees — owner can edit for advance/partial
-					amount: paiseToFormValue(utility.totalAmount),
+					// Pre-fill with amountDue (discounted) in rupees
+					amount: paiseToFormValue(
+						(utility as { amountDue?: number }).amountDue ??
+							utility.totalAmount,
+					),
 					paymentMethod: "cash" as const,
 					receivedAt: new Date().toISOString().split("T")[0] ?? "",
 					notes: "",
@@ -71,7 +74,9 @@ export function MarkPaidDialog({
 	function onSubmit(values: RecordUtilityPayment) {
 		if (!utility) return;
 		const amountInPaise = toPaise(values.amount);
-		if (amountInPaise !== utility.totalAmount) {
+		const expected =
+			(utility as { amountDue?: number }).amountDue ?? utility.totalAmount;
+		if (amountInPaise !== expected) {
 			return;
 		}
 
@@ -107,19 +112,34 @@ export function MarkPaidDialog({
 						{utility.unitNumber}
 					</DialogDescription>
 				</DialogHeader>
-				<div className="flex items-center justify-between rounded-xl border bg-muted/25 px-4 py-3">
-					<div>
-						<p className="font-semibold text-[10px] text-muted-foreground uppercase tracking-wide">
-							Bill amount
-						</p>
-						<p className="mt-1 text-muted-foreground text-xs capitalize">
-							{utility.utilityType} · Unpaid
-						</p>
-					</div>
-					<p className="font-bold text-xl tabular-nums">
-						{formatRupees(utility.totalAmount)}
-					</p>
-				</div>
+				{(() => {
+					const amountDue =
+						(utility as { amountDue?: number }).amountDue ??
+						utility.totalAmount;
+					const hasDiscount =
+						(utility.credits?.length ?? 0) > 0 &&
+						amountDue !== utility.totalAmount;
+					return (
+						<div className="flex items-center justify-between rounded-xl border bg-muted/25 px-4 py-3">
+							<div>
+								<p className="font-semibold text-[10px] text-muted-foreground uppercase tracking-wide">
+									{hasDiscount ? "Amount due" : "Bill amount"}
+								</p>
+								<p className="mt-1 text-muted-foreground text-xs capitalize">
+									{utility.utilityType} · Unpaid
+								</p>
+								{hasDiscount ? (
+									<p className="mt-1 text-muted-foreground text-xs line-through">
+										Original {formatRupees(utility.totalAmount)}
+									</p>
+								) : null}
+							</div>
+							<p className="font-bold text-xl tabular-nums">
+								{formatRupees(amountDue)}
+							</p>
+						</div>
+					);
+				})()}
 				<form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
 					<FieldSet>
 						<FieldGroup className="space-y-4">

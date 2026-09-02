@@ -88,8 +88,10 @@ export function UtilityCardActions({
 				: utility.utilityType === "water"
 					? "water"
 					: "maintenance";
+		const amountDue =
+			(utility as { amountDue?: number }).amountDue ?? utility.totalAmount;
 		const message = encodeURIComponent(
-			`Dear ${utility.tenantName ?? "Tenant"}, your ${typeLabel} bill for ${dateDisplay} is ${formatRupees(utility.totalAmount)}. Please pay at your earliest convenience. - KeyHQ`,
+			`Dear ${utility.tenantName ?? "Tenant"}, your ${typeLabel} bill for ${dateDisplay} is ${formatRupees(amountDue)}. Please pay at your earliest convenience. - KeyHQ`,
 		);
 		window.open(
 			`https://wa.me/${utility.tenantPhone.replace(/\D/g, "")}?text=${message}`,
@@ -109,8 +111,10 @@ export function UtilityCardActions({
 				: utility.utilityType === "water"
 					? "Water Charge"
 					: "Maintenance Charge";
+		const amountDueEmail =
+			(utility as { amountDue?: number }).amountDue ?? utility.totalAmount;
 		window.open(
-			`mailto:${utility.tenantEmail}?subject=${typeLabel} - ${dateDisplay}&body=Dear ${utility.tenantName ?? "Tenant"}, your bill is ${formatRupees(utility.totalAmount)}.`,
+			`mailto:${utility.tenantEmail}?subject=${typeLabel} - ${dateDisplay}&body=Dear ${utility.tenantName ?? "Tenant"}, your bill is ${formatRupees(amountDueEmail)}.`,
 		);
 	}
 
@@ -170,7 +174,9 @@ export function UtilityCardActions({
 				utilityId={utility.id}
 				open={discountOpen}
 				onOpenChange={setDiscountOpen}
-				amountDue={utility.totalAmount}
+				amountDue={
+					(utility as { amountDue?: number }).amountDue ?? utility.totalAmount
+				}
 				totalAmount={utility.totalAmount}
 			/>
 		</>

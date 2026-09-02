@@ -42,11 +42,15 @@ export function ElectricityRow({
 		utilityId: u.id,
 		receiptPaymentId: u.receiptPaymentId,
 	});
+	const amountDue = (u as { amountDue?: number }).amountDue ?? u.totalAmount;
+	const isPaidDerived = amountDue <= 0;
+	const hasDiscount =
+		(u.credits?.length ?? 0) > 0 && amountDue !== u.totalAmount;
 
 	function handleWhatsApp() {
 		if (!u.tenantPhone) return;
 		const message = encodeURIComponent(
-			`Dear ${u.tenantName ?? "Tenant"}, your electricity bill for ${formatDate(u.currentReadingDate)} is ${formatRupees(u.totalAmount)}. Please pay at your earliest convenience. - KeyHQ`,
+			`Dear ${u.tenantName ?? "Tenant"}, your electricity bill for ${formatDate(u.currentReadingDate)} is ${formatRupees(amountDue)}. Please pay at your earliest convenience. - KeyHQ`,
 		);
 		window.open(
 			`https://wa.me/${u.tenantPhone.replace(/\D/g, "")}?text=${message}`,
@@ -57,7 +61,7 @@ export function ElectricityRow({
 	function handleEmail() {
 		if (!u.tenantEmail) return;
 		window.open(
-			`mailto:${u.tenantEmail}?subject=Electricity Bill - ${formatDate(u.currentReadingDate)}&body=Dear ${u.tenantName ?? "Tenant"}, your electricity bill is ${formatRupees(u.totalAmount)}.`,
+			`mailto:${u.tenantEmail}?subject=Electricity Bill - ${formatDate(u.currentReadingDate)}&body=Dear ${u.tenantName ?? "Tenant"}, your electricity bill is ${formatRupees(amountDue)}.`,
 		);
 	}
 
@@ -109,8 +113,13 @@ export function ElectricityRow({
 			<div className="lg:text-center">
 				<CellLabel>Amount</CellLabel>
 				<p className="font-bold text-sm tabular-nums">
-					{formatRupees(u.totalAmount)}
+					{formatRupees(amountDue)}
 				</p>
+				{hasDiscount ? (
+					<p className="text-muted-foreground text-xs line-through">
+						{formatRupees(u.totalAmount)}
+					</p>
+				) : null}
 			</div>
 
 			<div className="lg:justify-self-center">
@@ -118,12 +127,12 @@ export function ElectricityRow({
 				<Badge
 					variant="secondary"
 					className={
-						u.isPaid
+						isPaidDerived
 							? "bg-emerald-50 text-emerald-700"
 							: "bg-amber-50 text-amber-700"
 					}
 				>
-					{u.isPaid ? "Paid" : "Unpaid"}
+					{isPaidDerived ? "Paid" : "Unpaid"}
 				</Badge>
 			</div>
 
@@ -143,11 +152,11 @@ export function ElectricityRow({
 					size="sm"
 					className="min-w-[5.75rem]"
 					data-utility-row-action
-					disabled={u.isPaid}
+					disabled={isPaidDerived}
 					onClick={onMarkPaid}
 				>
 					<IconCheck className="size-3.5" />
-					{u.isPaid ? "Paid" : "Mark paid"}
+					{isPaidDerived ? "Paid" : "Mark paid"}
 				</Button>
 				<UtilityRowMenu
 					canEmail={Boolean(u.tenantEmail)}

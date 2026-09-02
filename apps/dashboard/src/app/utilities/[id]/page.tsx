@@ -82,24 +82,8 @@ export default function UtilityBillPage({
 	const readingPeriod = utility.previousReadingDate
 		? `${formatDate(utility.previousReadingDate)} – ${formatDate(utility.currentReadingDate)}`
 		: formatDate(utility.currentReadingDate);
-	const credits = (
-		utility as unknown as {
-			credits?: {
-				amount: number;
-				reason: string;
-				creditNoteNo: string;
-				type?: string;
-			}[];
-			amountDue?: number;
-		}
-	).credits;
-	const amountDue =
-		(utility as unknown as { amountDue?: number }).amountDue ??
-		(credits?.length
-			? utility.totalAmount + credits.reduce((s, c) => s + c.amount, 0)
-			: utility.isPaid
-				? 0
-				: utility.totalAmount);
+	const credits = utility.credits ?? [];
+	const amountDue = utility.amountDue ?? utility.totalAmount;
 	const paymentState = getUtilityBillPaymentState({
 		amountDue,
 		hasPaymentReceipt: utility.receiptPaymentId !== null,

@@ -52,6 +52,7 @@ import { type CombinedBillGroup, CombinedBillRow } from "./combined-bill-row";
 import { ElectricityRow } from "./electricity-row";
 import { FixedChargeRow } from "./fixed-charge-row";
 import { UnitPickerUtilityForm } from "./lease-picker-form";
+import { MarkCombinedPaidDialog } from "./mark-combined-paid-dialog";
 import { MarkPaidDialog } from "./mark-paid-dialog";
 import { UtilityDetailDialog } from "./utility-detail-sheet";
 import { UtilityGrid } from "./utility-grid";
@@ -87,6 +88,7 @@ export default function UtilitiesClient() {
 	const [markPaidTarget, setMarkPaidTarget] = useState<UtilityListItem | null>(
 		null,
 	);
+	const [combinedPayOpen, setCombinedPayOpen] = useState(false);
 
 	const utilities = data?.utilities ?? [];
 	const leases = leasesData?.leases ?? [];
@@ -94,10 +96,12 @@ export default function UtilitiesClient() {
 	// ── Derived: filter by type + search ─────────────────────────────────────
 	const filtered = useMemo(() => {
 		const q = search.toLowerCase();
+		const isPaidDerivedF = (u: (typeof utilities)[number]) =>
+			((u as { amountDue?: number }).amountDue ?? u.totalAmount) <= 0;
 		return utilities.filter((u) => {
 			if (activeTab !== "combined" && u.utilityType !== activeTab) return false;
-			if (statusFilter === "paid" && !u.isPaid) return false;
-			if (statusFilter === "unpaid" && u.isPaid) return false;
+			if (statusFilter === "paid" && !isPaidDerivedF(u)) return false;
+			if (statusFilter === "unpaid" && isPaidDerivedF(u)) return false;
 			if (!q) return true;
 			return (
 				(u.tenantName ?? "").toLowerCase().includes(q) ||
@@ -109,12 +113,16 @@ export default function UtilitiesClient() {
 
 	// ── Derived: stats ───────────────────────────────────────────────────────
 	const pageStats = useMemo(() => {
+		const getDue = (u: (typeof utilities)[number]) =>
+			(u as { amountDue?: number }).amountDue ?? u.totalAmount;
+		const isPaidDerived = (u: (typeof utilities)[number]) => getDue(u) <= 0;
 		const totalBilled = utilities.reduce((acc, u) => acc + u.totalAmount, 0);
+		const totalDue = utilities.reduce((acc, u) => acc + getDue(u), 0);
 		const totalPaid = utilities
-			.filter((u) => u.isPaid)
+			.filter(isPaidDerived)
 			.reduce((acc, u) => acc + u.totalAmount, 0);
-		const totalUnpaid = totalBilled - totalPaid;
-		const paidRecords = utilities.filter((u) => u.isPaid).length;
+		const totalUnpaid = totalDue;
+		const paidRecords = utilities.filter(isPaidDerived).length;
 		const totalRecords = utilities.length;
 		const collectionRate =
 			totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 100) : 0;
@@ -136,38 +144,41 @@ export default function UtilitiesClient() {
 	const combinedGroups = useMemo((): CombinedBillGroup[] => {
 		const map = new Map<string, CombinedBillGroup>();
 
+		const getDueC = (u: (typeof utilities)[number]) =>
+			(u as { amountDue?: number }).amountDue ?? u.totalAmount;
+		const isPaidC = (u: (typeof utilities)[number]) => getDueC(u) <= 0;
+
 		for (const u of utilities) {
 			const lease = leases.find((l) => l.leaseId === u.leaseId);
 			if (!lease) continue; // skip orphaned utilities (shouldn't happen)
 			const period = new Date(u.currentReadingDate);
 			const periodKey = `${period.getFullYear()}-${period.getMonth()}`;
 			const groupId = `${u.leaseId}-${periodKey}`;
+			const due = getDueC(u);
 
 			const existing = map.get(groupId);
 
 			if (existing) {
 				existing.utilities.push(u);
-				if (u.utilityType === "electricity")
-					existing.electricityTotal += u.totalAmount;
-				if (u.utilityType === "water") existing.waterTotal += u.totalAmount;
-				if (u.utilityType === "maintenance")
-					existing.maintenanceTotal += u.totalAmount;
-				existing.utilityTotal += u.totalAmount;
-				existing.grandTotal += u.totalAmount;
-				existing.allPaid = existing.allPaid && u.isPaid;
+				if (u.utilityType === "electricity") existing.electricityTotal += due;
+				if (u.utilityType === "water") existing.waterTotal += due;
+				if (u.utilityType === "maintenance") existing.maintenanceTotal += due;
+				existing.utilityTotal += due;
+				existing.grandTotal += due;
+				existing.allPaid = existing.allPaid && isPaidC(u);
 			} else {
 				map.set(groupId, {
 					id: groupId,
 					period: period,
 					lease,
 					utilities: [u],
-					electricityTotal: u.utilityType === "electricity" ? u.totalAmount : 0,
-					waterTotal: u.utilityType === "water" ? u.totalAmount : 0,
-					maintenanceTotal: u.utilityType === "maintenance" ? u.totalAmount : 0,
-					utilityTotal: u.totalAmount,
-					// grandTotal starts with rent + this first utility
-					grandTotal: lease.rent + u.totalAmount,
-					allPaid: u.isPaid,
+					electricityTotal: u.utilityType === "electricity" ? due : 0,
+					waterTotal: u.utilityType === "water" ? due : 0,
+					maintenanceTotal: u.utilityType === "maintenance" ? due : 0,
+					utilityTotal: due,
+					// grandTotal starts with rent + this first utility (discounted)
+					grandTotal: lease.rent + due,
+					allPaid: isPaidC(u),
 				});
 			}
 		}
@@ -633,6 +644,7 @@ export default function UtilitiesClient() {
 						setDetailRent(null);
 						setMarkPaidTarget(utility);
 					}}
+					onMarkPaidCombined={() => setCombinedPayOpen(true)}
 					onEdit={() => {
 						setDetailItems([]);
 						setDetailRent(null);
@@ -644,6 +656,20 @@ export default function UtilitiesClient() {
 					utility={markPaidTarget}
 					open={markPaidTarget !== null}
 					onOpenChange={(o) => !o && setMarkPaidTarget(null)}
+				/>
+				<MarkCombinedPaidDialog
+					items={detailItems}
+					rent={detailRent}
+					open={combinedPayOpen}
+					onOpenChange={(o) => {
+						if (!o) setCombinedPayOpen(false);
+						else setCombinedPayOpen(true);
+					}}
+					onCompleted={() => {
+						setDetailItems([]);
+						setDetailRent(null);
+						setCombinedPayOpen(false);
+					}}
 				/>
 			</div>
 		</Container>

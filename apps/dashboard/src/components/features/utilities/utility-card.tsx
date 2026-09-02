@@ -12,12 +12,14 @@ import type { UtilityListItem } from "@rently/validators";
 import {
 	IconBolt,
 	IconCheck,
+	IconDownload,
 	IconDroplet,
 	IconMail,
 	IconTag,
 	IconTool,
 } from "@tabler/icons-react";
 import { format } from "date-fns";
+import { getUtilityDocumentAction } from "./utility-row-actions";
 
 export interface UtilityCardProps {
 	utility: UtilityListItem;
@@ -68,6 +70,11 @@ export function UtilityCard({
 	const current = Number(u.currentReading ?? 0);
 	const consumed = Number(u.unitsUsed ?? current - previous);
 
+	const amountDue = (u as { amountDue?: number }).amountDue ?? u.totalAmount;
+	const isPaidDerived = amountDue <= 0;
+	const hasDiscount = (u.credits?.length ?? 0) > 0;
+	const showDiscount = hasDiscount && amountDue !== u.totalAmount;
+
 	const dateDisplay = new Date(u.currentReadingDate).toLocaleDateString(
 		"en-IN",
 		{ day: "2-digit", month: "short", year: "numeric" },
@@ -80,6 +87,11 @@ export function UtilityCard({
 				year: "numeric",
 			})
 		: "—";
+
+	const documentAction = getUtilityDocumentAction({
+		utilityId: u.id,
+		receiptPaymentId: u.receiptPaymentId,
+	});
 
 	return (
 		<Card
@@ -122,12 +134,12 @@ export function UtilityCard({
 						<Badge
 							variant="secondary"
 							className={
-								u.isPaid
+								isPaidDerived
 									? "bg-emerald-50 text-emerald-700"
 									: "bg-amber-50 text-amber-700"
 							}
 						>
-							{u.isPaid ? "Paid" : "Unpaid"}
+							{isPaidDerived ? "Paid" : "Unpaid"}
 						</Badge>
 						{actionsSlot}
 					</div>
@@ -148,10 +160,17 @@ export function UtilityCard({
 								</p>
 							</div>
 							<div className="text-right">
-								<p className="text-muted-foreground text-xs">Amount</p>
-								<p className="mt-1 font-bold text-lg tabular-nums tracking-tight">
-									{formatRupees(u.totalAmount)}
+								<p className="text-muted-foreground text-xs">
+									{showDiscount ? "Amount due" : "Amount"}
 								</p>
+								<p className="mt-1 font-bold text-lg tabular-nums tracking-tight">
+									{formatRupees(amountDue)}
+								</p>
+								{showDiscount ? (
+									<p className="text-muted-foreground text-xs line-through">
+										{formatRupees(u.totalAmount)}
+									</p>
+								) : null}
 							</div>
 						</div>
 						<div>
@@ -172,10 +191,17 @@ export function UtilityCard({
 				) : (
 					<>
 						<div>
-							<p className="text-muted-foreground text-xs">Amount</p>
-							<p className="mt-1 font-bold text-lg tabular-nums tracking-tight">
-								{formatRupees(u.totalAmount)}
+							<p className="text-muted-foreground text-xs">
+								{showDiscount ? "Amount due" : "Amount"}
 							</p>
+							<p className="mt-1 font-bold text-lg tabular-nums tracking-tight">
+								{formatRupees(amountDue)}
+							</p>
+							{showDiscount ? (
+								<p className="text-muted-foreground text-xs line-through">
+									{formatRupees(u.totalAmount)}
+								</p>
+							) : null}
 						</div>
 						<div>
 							<div className="flex items-center justify-between text-xs">
@@ -201,6 +227,18 @@ export function UtilityCard({
 					</span>
 				</p>
 				<div className="flex shrink-0 items-center gap-1">
+					<button
+						type="button"
+						className="flex size-7 items-center justify-center rounded-md text-muted-foreground transition-colors hover:bg-muted"
+						onClick={(e) => {
+							e.preventDefault();
+							e.stopPropagation();
+							window.open(documentAction.href, "_blank", "noopener");
+						}}
+						title={documentAction.title}
+					>
+						<IconDownload className="size-3.5" />
+					</button>
 					{onWhatsApp && (
 						<button
 							type="button"
@@ -251,7 +289,7 @@ export function UtilityCard({
 							<IconTag className="size-3.5" />
 						</button>
 					)}
-					{onMarkPaid && !u.isPaid && (
+					{onMarkPaid && !isPaidDerived && (
 						<button
 							type="button"
 							className="flex size-7 items-center justify-center rounded-md text-emerald-600 transition-colors hover:bg-muted"

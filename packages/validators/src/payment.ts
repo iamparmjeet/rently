@@ -1,6 +1,6 @@
 import { PAYMENT_METHOD_VALUES } from "@rently/db/constants/payment-constants";
 import { PAYMENT_TYPE_VALUES } from "@rently/db/constants/rent-constants";
-import { payments } from "@rently/db/schema/schema";
+import { paymentGroups, payments } from "@rently/db/schema/schema";
 import {
 	createInsertSchema,
 	createSelectSchema,
@@ -14,6 +14,8 @@ import { DateRangeSchema } from "./date";
 // Derive Zod Schemas - For Runtime
 export const PaymentSelectSchema = createSelectSchema(payments);
 export const PaymentInsertSchema = createInsertSchema(payments);
+export const PaymentGroupSelectSchema = createSelectSchema(paymentGroups);
+export const PaymentGroupInsertSchema = createInsertSchema(paymentGroups);
 
 // ── Layer 2: API input schemas
 // Business Logic Schemas
@@ -21,12 +23,25 @@ export const CreatePaymentSchema = PaymentInsertSchema.omit({
 	id: true,
 	createdAt: true,
 	updatedAt: true,
+	paymentGroupId: true,
 }).extend({
 	leaseId: z.string({ error: "Please select a lease" }).min(1, {
 		error: "Please select a lease",
 	}),
 	// amount must be positive — reversals go via voidPayment only (also enforced in handler)
 	amount: z.number().int().positive({ error: "Amount must be > 0" }),
+});
+
+// A combined agreement payment always settles every outstanding active-unit rent
+// balance. The server derives the individual allocations; callers cannot supply
+// allocation amounts or paymentGroupId values.
+export const CreateAgreementPaymentSchema = PaymentGroupInsertSchema.omit({
+	id: true,
+	createdAt: true,
+	updatedAt: true,
+	reversesPaymentGroupId: true,
+}).extend({
+	agreementId: z.uuid(),
 });
 
 export const UpdatePaymentSchema = createUpdateSchema(payments).pick({
@@ -93,6 +108,10 @@ export const PaymentExportOutputSchema = z.object({
 // TS Types derieved from Zod (not from InferSelectModel)
 export type Payment = z.infer<typeof PaymentSelectSchema>;
 export type NewPayment = z.infer<typeof PaymentInsertSchema>;
+export type PaymentGroup = z.infer<typeof PaymentGroupSelectSchema>;
+export type CreateAgreementPayment = z.infer<
+	typeof CreateAgreementPaymentSchema
+>;
 export type CreatePayment = z.infer<typeof CreatePaymentSchema>;
 export type UpdatePayment = z.infer<typeof UpdatePaymentSchema>;
 export type RecordUtilityPayment = z.infer<typeof RecordUtilityPaymentSchema>;

@@ -4,20 +4,31 @@ import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
 import type { Database } from "@rently/db";
 import { OWNER_ONLY_PAYMENT_METHODS_VALUE } from "@rently/db/constants/payment-constants";
-import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
+import {
+	LEASE_AGREEMENT_ARRANGEMENT,
+	PAYMENT_TYPES,
+} from "@rently/db/constants/rent-constants";
 import type { UserRole } from "@rently/db/constants/user-roles";
 import { user } from "@rently/db/schema/auth";
 import {
+	leaseAgreements,
 	leases,
+	notifications,
+	paymentGroups,
 	payments,
 	properties,
 	tenantProfiles,
 	units,
 	utilities,
 } from "@rently/db/schema/schema";
-import { sendPaymentReceiptEmail } from "@rently/email";
 import {
+	sendAgreementPaymentReceiptEmail,
+	sendPaymentReceiptEmail,
+} from "@rently/email";
+import {
+	CreateAgreementPaymentSchema,
 	CreatePaymentSchema,
+	PaymentGroupSelectSchema,
 	PaymentListItemSchema,
 	PaymentSelectSchema,
 	UpdatePaymentSchema,
@@ -25,11 +36,24 @@ import {
 import { and, desc, eq, isNull } from "drizzle-orm";
 import z from "zod";
 import { isLeaseOwner } from "../helpers";
-import { sendAutomaticPaymentReceipt } from "../helpers/automatic-emails";
+import {
+	sendAutomaticAgreementPaymentReceipt,
+	sendAutomaticPaymentReceipt,
+} from "../helpers/automatic-emails";
 import {
 	getAmountDueForRent,
 	getAmountDueForUtility,
 } from "../helpers/credit.helpers";
+
+type BatchCapableDatabase = Database & {
+	batch<T extends readonly unknown[]>(
+		queries: T,
+	): Promise<{ [K in keyof T]: Awaited<T[K]> }>;
+};
+
+function supportsBatch(db: Database): db is BatchCapableDatabase {
+	return typeof (db as { batch?: unknown }).batch === "function";
+}
 
 // ─── Shared helper ─────
 function assertMethodAllowedForRole(
@@ -66,6 +90,7 @@ async function getOwnedPayment(
 			utilityId: payments.utilityId,
 			createdAt: payments.createdAt,
 			updatedAt: payments.updatedAt,
+			paymentGroupId: payments.paymentGroupId,
 			ownerId: properties.ownerId,
 		})
 		.from(payments)
@@ -188,6 +213,150 @@ export const createPayment = ownerProcedure
 		return { payment };
 	});
 
+// Create a single payment group for a combined agreement. Each active lease is
+// allocated its complete currently-outstanding rent, preventing arbitrary or
+// cross-unit splits while multi-unit partial-payment rules remain out of scope.
+export const createAgreementPayment = ownerProcedure
+	.route({
+		method: "POST",
+		path: "/rent/payment/create-agreement-payment",
+		successStatus: StatusCode.CREATED,
+	})
+	.input(CreateAgreementPaymentSchema)
+	.output(
+		z.object({
+			paymentGroup: PaymentGroupSelectSchema,
+			payments: z.array(PaymentSelectSchema),
+		}),
+	)
+	.handler(async ({ context, input }) => {
+		const { db, user: authUser } = context;
+		assertMethodAllowedForRole(input.paymentMethods, "owner");
+
+		const [agreement] = await db
+			.select({
+				id: leaseAgreements.id,
+				arrangementType: leaseAgreements.arrangementType,
+			})
+			.from(leaseAgreements)
+			.innerJoin(properties, eq(leaseAgreements.propertyId, properties.id))
+			.where(
+				and(
+					eq(leaseAgreements.id, input.agreementId),
+					eq(properties.ownerId, authUser.id),
+				),
+			)
+			.limit(1);
+		if (!agreement) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "Agreement not found or you do not own it",
+			});
+		}
+		if (agreement.arrangementType !== LEASE_AGREEMENT_ARRANGEMENT.COMBINED) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Grouped payments are only available for combined agreements",
+			});
+		}
+
+		const agreementLeases = await db
+			.select({ id: leases.id })
+			.from(leases)
+			.where(
+				and(eq(leases.agreementId, agreement.id), eq(leases.status, "active")),
+			);
+		if (agreementLeases.length < 2) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "A combined agreement requires at least two active leases",
+			});
+		}
+
+		const allocations = await Promise.all(
+			agreementLeases.map(async ({ id }) => ({
+				leaseId: id,
+				amount: await getAmountDueForRent(db, id),
+			})),
+		);
+		if (allocations.some(({ amount }) => amount <= 0)) {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"Every active unit must have an outstanding rent balance for an automatic split",
+			});
+		}
+
+		const groupId = crypto.randomUUID();
+		const groupValues = {
+			id: groupId,
+			agreementId: agreement.id,
+			paymentDate: input.paymentDate,
+			paymentMethods: input.paymentMethods ?? null,
+			referenceNumber: input.referenceNumber ?? null,
+			description: input.description ?? null,
+		};
+		const paymentValues = allocations.map(({ leaseId, amount }) => ({
+			leaseId,
+			amount,
+			paymentDate: input.paymentDate,
+			paymentMethods: input.paymentMethods ?? null,
+			referenceNumber: input.referenceNumber ?? null,
+			type: PAYMENT_TYPES.RENT,
+			description: input.description ?? null,
+			paymentGroupId: groupId,
+		}));
+
+		if (supportsBatch(db)) {
+			await db.batch([
+				db.insert(paymentGroups).values(groupValues),
+				...paymentValues.map((values) => db.insert(payments).values(values)),
+			]);
+		} else {
+			await db.transaction(async (tx) => {
+				await tx.insert(paymentGroups).values(groupValues);
+				await tx.insert(payments).values(paymentValues);
+			});
+		}
+
+		const [paymentGroup] = await db
+			.select()
+			.from(paymentGroups)
+			.where(eq(paymentGroups.id, groupId));
+		const createdPayments = await db
+			.select()
+			.from(payments)
+			.where(eq(payments.paymentGroupId, groupId));
+		try {
+			await db.insert(notifications).values({
+				userId: agreementLeases[0]
+					? ((
+							await db
+								.select({ tenantId: leases.tenantId })
+								.from(leases)
+								.where(eq(leases.id, agreementLeases[0].id))
+								.limit(1)
+						)[0]?.tenantId ?? authUser.id)
+					: authUser.id,
+				type: "grouped_payment_received",
+				title: "Combined payment recorded",
+				message:
+					"A payment was recorded for every unit in your combined agreement.",
+				entityId: groupId,
+				entityType: "payment_group",
+			});
+		} catch (error) {
+			console.error("[payment:createAgreementPayment] notification failed", {
+				groupId,
+				error,
+			});
+		}
+		if (!paymentGroup || createdPayments.length !== paymentValues.length) {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
+				message: "Failed to record grouped payment",
+			});
+		}
+		await sendAutomaticAgreementPaymentReceipt(db, authUser.id, groupId);
+
+		return { paymentGroup, payments: createdPayments };
+	});
+
 // Update — re-validate utility linkage and block reversal via update
 export const updatePayment = ownerProcedure
 	.route({ method: "PATCH", path: "/rent/payment/update" })
@@ -292,6 +461,7 @@ export const listPayments = ownerProcedure
 				utilityId: payments.utilityId,
 				createdAt: payments.createdAt,
 				updatedAt: payments.updatedAt,
+				paymentGroupId: payments.paymentGroupId,
 				tenantName: user.name,
 				tenantPhone: tenantProfiles.phone,
 			})
@@ -330,6 +500,11 @@ export const voidPayment = ownerProcedure
 		if (existing.type === PAYMENT_TYPES.REVERSAL) {
 			throw new ORPCError("BAD_REQUEST", {
 				message: "Cannot void a reversal payment",
+			});
+		}
+		if (existing.paymentGroupId) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Use voidPaymentGroup to reverse a grouped payment",
 			});
 		}
 
@@ -386,6 +561,132 @@ export const voidPayment = ownerProcedure
 		return { reversal };
 	});
 
+// Reverse all allocations in one grouped operation. Grouped payments must not be
+// reversed individually because that would make the shared payment record lie
+// about which units were settled.
+export const voidPaymentGroup = ownerProcedure
+	.route({ method: "DELETE", path: "/rent/payment/void-group" })
+	.input(z.object({ id: z.uuid(), reason: z.string().optional() }))
+	.output(
+		z.object({
+			paymentGroup: PaymentGroupSelectSchema,
+			reversals: z.array(PaymentSelectSchema),
+		}),
+	)
+	.handler(async ({ context, input }) => {
+		const { db, user: authUser } = context;
+		const [originalGroup] = await db
+			.select({
+				id: paymentGroups.id,
+				agreementId: paymentGroups.agreementId,
+				paymentMethods: paymentGroups.paymentMethods,
+				referenceNumber: paymentGroups.referenceNumber,
+				description: paymentGroups.description,
+				reversesPaymentGroupId: paymentGroups.reversesPaymentGroupId,
+			})
+			.from(paymentGroups)
+			.innerJoin(
+				leaseAgreements,
+				eq(paymentGroups.agreementId, leaseAgreements.id),
+			)
+			.innerJoin(properties, eq(leaseAgreements.propertyId, properties.id))
+			.where(
+				and(
+					eq(paymentGroups.id, input.id),
+					eq(properties.ownerId, authUser.id),
+				),
+			)
+			.limit(1);
+		if (!originalGroup) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "Payment group not found or you do not own it",
+			});
+		}
+		if (originalGroup.reversesPaymentGroupId) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Cannot reverse a reversal group",
+			});
+		}
+
+		const [alreadyReversed] = await db
+			.select({ id: paymentGroups.id })
+			.from(paymentGroups)
+			.where(eq(paymentGroups.reversesPaymentGroupId, originalGroup.id))
+			.limit(1);
+		if (alreadyReversed) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Payment group already voided",
+			});
+		}
+
+		const originalPayments = await db
+			.select({
+				id: payments.id,
+				leaseId: payments.leaseId,
+				amount: payments.amount,
+				utilityId: payments.utilityId,
+			})
+			.from(payments)
+			.where(eq(payments.paymentGroupId, originalGroup.id));
+		if (originalPayments.length === 0) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Payment group has no allocations to reverse",
+			});
+		}
+
+		const reversalGroupId = crypto.randomUUID();
+		const paymentDate = new Date();
+		const reversalGroupValues = {
+			id: reversalGroupId,
+			agreementId: originalGroup.agreementId,
+			paymentDate,
+			paymentMethods: originalGroup.paymentMethods,
+			referenceNumber: originalGroup.referenceNumber,
+			description:
+				input.reason ?? `Reversal of payment group ${originalGroup.id}`,
+			reversesPaymentGroupId: originalGroup.id,
+		};
+		const reversalValues = originalPayments.map((payment) => ({
+			leaseId: payment.leaseId,
+			amount: -payment.amount,
+			paymentDate,
+			paymentMethods: originalGroup.paymentMethods,
+			referenceNumber: payment.id,
+			type: PAYMENT_TYPES.REVERSAL,
+			description: input.reason ?? `Reversal of payment ${payment.id}`,
+			utilityId: payment.utilityId,
+			paymentGroupId: reversalGroupId,
+		}));
+
+		if (supportsBatch(db)) {
+			await db.batch([
+				db.insert(paymentGroups).values(reversalGroupValues),
+				...reversalValues.map((values) => db.insert(payments).values(values)),
+			]);
+		} else {
+			await db.transaction(async (tx) => {
+				await tx.insert(paymentGroups).values(reversalGroupValues);
+				await tx.insert(payments).values(reversalValues);
+			});
+		}
+
+		const [paymentGroup] = await db
+			.select()
+			.from(paymentGroups)
+			.where(eq(paymentGroups.id, reversalGroupId));
+		const reversals = await db
+			.select()
+			.from(payments)
+			.where(eq(payments.paymentGroupId, reversalGroupId));
+		if (!paymentGroup || reversals.length !== reversalValues.length) {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
+				message: "Failed to reverse grouped payment",
+			});
+		}
+
+		return { paymentGroup, reversals };
+	});
+
 export const sendPaymentReceipt = ownerProcedure
 	.route({ method: "POST", path: "/rent/payment/send-receipt" })
 	.input(z.object({ paymentId: z.string().min(1) }))
@@ -402,6 +703,7 @@ export const sendPaymentReceipt = ownerProcedure
 		const [result] = await db
 			.select({
 				amount: payments.amount,
+				paymentGroupId: payments.paymentGroupId,
 				paymentDate: payments.paymentDate,
 				type: payments.type,
 				paymentMethods: payments.paymentMethods,
@@ -433,18 +735,36 @@ export const sendPaymentReceipt = ownerProcedure
 		// Manual delivery uses the same specialized HTML template as automatic
 		// receipts. The payment already happened; the receipt is independent of
 		// the persistence transaction.
-		await sendPaymentReceiptEmail({
-			to: result.tenantEmail,
-			tenantName: result.tenantName,
-			ownerName: authUser.name,
-			propertyName: result.propertyName,
-			unitNumber: result.unitNumber,
-			amount: result.amount,
-			paymentDate: result.paymentDate,
-			paymentType: result.type,
-			paymentMethod: result.paymentMethods,
-			referenceNumber: result.referenceNumber,
-		});
+		if (result.paymentGroupId) {
+			const allocations = await db
+				.select({ unitNumber: units.unitNumber, amount: payments.amount })
+				.from(payments)
+				.innerJoin(leases, eq(payments.leaseId, leases.id))
+				.innerJoin(units, eq(leases.unitId, units.id))
+				.where(eq(payments.paymentGroupId, result.paymentGroupId));
+			await sendAgreementPaymentReceiptEmail({
+				to: result.tenantEmail,
+				tenantName: result.tenantName,
+				ownerName: authUser.name,
+				propertyName: result.propertyName,
+				paymentDate: result.paymentDate,
+				paymentMethod: result.paymentMethods,
+				referenceNumber: result.referenceNumber,
+				allocations,
+			});
+		} else
+			await sendPaymentReceiptEmail({
+				to: result.tenantEmail,
+				tenantName: result.tenantName,
+				ownerName: authUser.name,
+				propertyName: result.propertyName,
+				unitNumber: result.unitNumber,
+				amount: result.amount,
+				paymentDate: result.paymentDate,
+				paymentType: result.type,
+				paymentMethod: result.paymentMethods,
+				referenceNumber: result.referenceNumber,
+			});
 
 		return { sent: true };
 	});

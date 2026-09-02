@@ -9,8 +9,12 @@ import {
 import { and, eq, isNull, sql } from "drizzle-orm";
 
 export type DbTx = Parameters<Parameters<Database["transaction"]>[0]>[0];
+type DbReader = Pick<Database, "select">;
 
-export async function getAmountDueForUtility(tx: DbTx, utilityId: string) {
+export async function getAmountDueForUtility(
+	tx: DbTx | DbReader,
+	utilityId: string,
+) {
 	// 1. Get bill total
 	const [utility] = await tx
 		.select({ totalAmount: utilities.totalAmount })
@@ -37,7 +41,10 @@ export async function getAmountDueForUtility(tx: DbTx, utilityId: string) {
 	return utility.totalAmount + (credits?.sum ?? 0) - (paid?.sum ?? 0);
 }
 
-export async function getAmountDueForRent(tx: DbTx, leaseId: string) {
+export async function getAmountDueForRent(
+	tx: DbTx | DbReader,
+	leaseId: string,
+) {
 	// 1. Get rent (beta: simple outstanding = lease.rent − paid − credits; period-aware ledger follows later)
 	const [lease] = await tx
 		.select({ rent: leases.rent })

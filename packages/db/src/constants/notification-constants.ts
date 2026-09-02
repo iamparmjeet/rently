@@ -4,6 +4,8 @@ export const NOTIFICATION_TYPES = {
 	INVITE_ACCEPTED: "invite_accepted",
 	LEASE_EXPIRING_SOON: "lease_expiring_soon",
 	RENT_OVERDUE: "rent_overdue",
+	COMBINED_AGREEMENT_CREATED: "combined_agreement_created",
+	GROUPED_PAYMENT_RECEIVED: "grouped_payment_received",
 } as const;
 
 // const tuple (not Object.values): z.enum() requires a non-empty readonly
@@ -13,6 +15,8 @@ export const NOTIFICATION_TYPE_VALUES = [
 	"invite_accepted",
 	"lease_expiring_soon",
 	"rent_overdue",
+	"combined_agreement_created",
+	"grouped_payment_received",
 ] as const satisfies readonly [string, ...string[]];
 
 export type NotificationType = (typeof NOTIFICATION_TYPE_VALUES)[number];

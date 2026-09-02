@@ -4,6 +4,8 @@ import {
 	INVITE_DELIVERY_STATUSES,
 	INVITE_STATUS_VALUES,
 	INVITE_STATUSES,
+	LEASE_AGREEMENT_ARRANGEMENT_VALUES,
+	LEASE_CATEGORY_VALUES,
 	LEASE_STATUS_VALUES,
 	PAYMENT_TYPE_VALUES,
 	PROPERTY_TYPES_VALUES,
@@ -93,27 +95,58 @@ export const units = pgTable("units", {
 	...softDeleteColumn(),
 });
 
-export const leases = pgTable("leases", {
+export const leaseAgreements = pgTable("lease_agreements", {
 	...idColumn(),
-	unitId: uuid("unit_id")
-		.notNull()
-		.references(() => units.id, { onDelete: "restrict" }),
 	tenantId: uuid("tenant_id")
 		.notNull()
 		.references(() => user.id, { onDelete: "restrict" }),
+	propertyId: uuid("property_id")
+		.notNull()
+		.references(() => properties.id, { onDelete: "restrict" }),
+	arrangementType: text("arrangement_type", {
+		enum: LEASE_AGREEMENT_ARRANGEMENT_VALUES,
+	}).notNull(),
+	category: text("category", {
+		enum: LEASE_CATEGORY_VALUES,
+	}).notNull(),
+	rentDueDate: integer("rent_due_date"),
 	startDate: timestamp("start_date").notNull(),
 	endDate: timestamp("end_date"),
-	rent: integer("rent").notNull(),
-	deposit: integer("deposit"),
-	status: text("status", {
-		enum: LEASE_STATUS_VALUES,
-	}).notNull(),
 	notice: integer("notice"),
-	rentDueDate: integer("rent_due_date"),
 	description: text("description"),
-	referenceId: uuid("reference_id").references(() => user.id),
 	...auditColumns(),
 });
+
+export const leases = pgTable(
+	"leases",
+	{
+		...idColumn(),
+		unitId: uuid("unit_id")
+			.notNull()
+			.references(() => units.id, { onDelete: "restrict" }),
+		tenantId: uuid("tenant_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "restrict" }),
+		startDate: timestamp("start_date").notNull(),
+		endDate: timestamp("end_date"),
+		rent: integer("rent").notNull(),
+		deposit: integer("deposit"),
+		status: text("status", {
+			enum: LEASE_STATUS_VALUES,
+		}).notNull(),
+		notice: integer("notice"),
+		rentDueDate: integer("rent_due_date"),
+		description: text("description"),
+		referenceId: uuid("reference_id").references(() => user.id),
+		agreementId: uuid("agreement_id").references(() => leaseAgreements.id),
+		...auditColumns(),
+	},
+	(table) => [
+		uniqueIndex("leases_one_active_per_unit_key")
+			.on(table.unitId)
+			.where(sql`${table.status} = 'active'`),
+	],
+);
 
 // ═══════════════════════════════════════════════════════════
 // ****** Accounting **************
@@ -141,6 +174,23 @@ export const utilities = pgTable("utilities", {
 	...auditColumns(),
 });
 
+export const paymentGroups = pgTable("payment_groups", {
+	...idColumn(),
+	agreementId: uuid("agreement_id")
+		.notNull()
+		.references(() => leaseAgreements.id),
+	paymentDate: timestamp("payment_date").notNull(),
+	paymentMethods: text("payment_method", {
+		enum: PAYMENT_METHOD_VALUES,
+	}),
+	referenceNumber: text("reference_number"),
+	description: text("description"),
+	reversesPaymentGroupId: uuid("reverses_payment_group_id").references(
+		(): AnyPgColumn => paymentGroups.id,
+	),
+	...auditColumns(),
+});
+
 export const payments = pgTable("payments", {
 	...idColumn(),
 	leaseId: uuid("lease_id")
@@ -157,6 +207,7 @@ export const payments = pgTable("payments", {
 	}).notNull(),
 	description: text("description"),
 	utilityId: uuid("utility_id").references(() => utilities.id),
+	paymentGroupId: uuid("payment_group_id").references(() => paymentGroups.id),
 	...auditColumns(),
 });
 

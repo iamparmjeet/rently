@@ -54,7 +54,7 @@ export const UNIT_FURNISHING_VALUES = Object.values(UNIT_FURNISHING) as [
 	...UnitFurnishing[],
 ];
 
-// ---
+// ******* Lease ****************
 
 export const LEASE_STATUSES = {
 	ACTIVE: "active",
@@ -69,7 +69,32 @@ export const LEASE_STATUS_VALUES = Object.values(LEASE_STATUSES) as [
 	...LeaseStatus[],
 ];
 
-// ---
+export const LEASE_AGREEMENT_ARRANGEMENT = {
+	INDEPENDENT: "independent",
+	COMBINED: "combined",
+} as const;
+
+export type LeaseAgreementArrangement =
+	(typeof LEASE_AGREEMENT_ARRANGEMENT)[keyof typeof LEASE_AGREEMENT_ARRANGEMENT];
+
+export const LEASE_AGREEMENT_ARRANGEMENT_VALUES = Object.values(
+	LEASE_AGREEMENT_ARRANGEMENT,
+) as [LeaseAgreementArrangement, ...LeaseAgreementArrangement[]];
+
+export const LEASE_CATEGORY = {
+	RESIDENTIAL: "residential",
+	COMMERCIAL: "commercial",
+} as const;
+
+export type LeaseCategory =
+	(typeof LEASE_CATEGORY)[keyof typeof LEASE_CATEGORY];
+
+export const LEASE_CATEGORY_VALUES = Object.values(LEASE_CATEGORY) as [
+	LeaseCategory,
+	...LeaseCategory[],
+];
+
+// ********** Payment ****************
 
 export const PAYMENT_TYPES = {
 	RENT: "rent",

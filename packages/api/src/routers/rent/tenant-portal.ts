@@ -8,6 +8,7 @@ import {
 } from "@rently/db/constants/payment-constants";
 import { user } from "@rently/db/schema/auth";
 import {
+	leaseAgreements,
 	leases,
 	notifications,
 	payments,
@@ -115,6 +116,133 @@ export const getMyActiveLease = protectedProcedure
 		};
 	});
 
+// A tenant may have multiple active units under one combined agreement. Return
+// the agreement as the navigation root so clients do not need to infer grouping
+// from individual lease rows.
+export const getMyAgreements = protectedProcedure
+	.route({ method: "GET", path: "/rent/tenant-portal/agreements" })
+	.output(
+		z.object({
+			agreements: z.array(
+				z.object({
+					id: z.uuid(),
+					arrangementType: z.string(),
+					category: z.string(),
+					startDate: z.date(),
+					endDate: z.date().nullable(),
+					rentDueDate: z.number().int().nullable(),
+					description: z.string().nullable(),
+					property: z.object({
+						id: z.uuid(),
+						name: z.string(),
+						address: z.string(),
+					}),
+					owner: z.object({ name: z.string() }),
+					units: z.array(
+						z.object({
+							leaseId: z.uuid(),
+							unitId: z.uuid(),
+							unitNumber: z.string(),
+							unitType: z.string(),
+							rent: z.number(),
+							deposit: z.number().nullable(),
+							status: z.string(),
+						}),
+					),
+				}),
+			),
+		}),
+	)
+	.handler(async ({ context }) => {
+		const rows = await context.db
+			.select({
+				agreementId: leaseAgreements.id,
+				arrangementType: leaseAgreements.arrangementType,
+				category: leaseAgreements.category,
+				startDate: leaseAgreements.startDate,
+				endDate: leaseAgreements.endDate,
+				rentDueDate: leaseAgreements.rentDueDate,
+				description: leaseAgreements.description,
+				propertyId: properties.id,
+				propertyName: properties.name,
+				propertyAddress: properties.address,
+				ownerName: user.name,
+				leaseId: leases.id,
+				unitId: units.id,
+				unitNumber: units.unitNumber,
+				unitType: units.type,
+				rent: leases.rent,
+				deposit: leases.deposit,
+				status: leases.status,
+			})
+			.from(leaseAgreements)
+			.innerJoin(leases, eq(leases.agreementId, leaseAgreements.id))
+			.innerJoin(units, eq(leases.unitId, units.id))
+			.innerJoin(properties, eq(units.propertyId, properties.id))
+			.innerJoin(user, eq(properties.ownerId, user.id))
+			.where(
+				and(
+					eq(leaseAgreements.tenantId, context.user.id),
+					eq(leases.status, "active"),
+				),
+			)
+			.orderBy(desc(leaseAgreements.createdAt), units.unitNumber);
+
+		const agreements = new Map<
+			string,
+			{
+				id: string;
+				arrangementType: string;
+				category: string;
+				startDate: Date;
+				endDate: Date | null;
+				rentDueDate: number | null;
+				description: string | null;
+				property: { id: string; name: string; address: string };
+				owner: { name: string };
+				units: Array<{
+					leaseId: string;
+					unitId: string;
+					unitNumber: string;
+					unitType: string;
+					rent: number;
+					deposit: number | null;
+					status: string;
+				}>;
+			}
+		>();
+		for (const row of rows) {
+			const agreement = agreements.get(row.agreementId) ?? {
+				id: row.agreementId,
+				arrangementType: row.arrangementType,
+				category: row.category,
+				startDate: row.startDate,
+				endDate: row.endDate,
+				rentDueDate: row.rentDueDate,
+				description: row.description,
+				property: {
+					id: row.propertyId,
+					name: row.propertyName,
+					address: row.propertyAddress,
+				},
+				owner: { name: row.ownerName ?? "Your Landlord" },
+				units: [],
+			};
+			agreement.units.push({
+				leaseId: row.leaseId,
+				unitId: row.unitId,
+				unitNumber: row.unitNumber,
+				unitType: row.unitType,
+				rent: row.rent,
+				deposit: row.deposit,
+				status: row.status,
+			});
+			agreements.set(row.agreementId, agreement);
+		}
+
+		return { agreements: [...agreements.values()] };
+	});
+
 //  2. Get My Payments
 // WHY: Tenant can only see payments for their own leases (via leases.tenantId).
 //      The JOIN scoping is the authorization — no explicit ownership check needed.
@@ -125,6 +253,7 @@ export const getMyPayments = protectedProcedure
 			payments: z.array(
 				z.object({
 					id: z.string(),
+					paymentGroupId: z.uuid().nullable(),
 					amount: z.number(), // paise
 					paymentDate: z.date(),
 					type: z.string(), // "rent" | "utility" | "deposit" | "reversal"
@@ -143,6 +272,7 @@ export const getMyPayments = protectedProcedure
 		const results = await db
 			.select({
 				id: payments.id,
+				paymentGroupId: payments.paymentGroupId,
 				amount: payments.amount,
 				paymentDate: payments.paymentDate,
 				type: payments.type,

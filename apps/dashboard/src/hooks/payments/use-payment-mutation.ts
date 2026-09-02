@@ -35,6 +35,26 @@ export function useRecordPayment() {
 	});
 }
 
+export function useRecordAgreementPayment() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (
+			input: Parameters<typeof client.rent.payment.createAgreementPayment>[0],
+		) => client.rent.payment.createAgreementPayment(input),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.payment.listPayments.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.stats.getRevenueDashboard.key(),
+			});
+			toast.success("Combined payment recorded");
+		},
+		onError: (error) =>
+			toast.error(`Failed to record combined payment: ${error.message}`),
+	});
+}
+
 export function useUpdatePayment() {
 	const queryClient = useQueryClient();
 

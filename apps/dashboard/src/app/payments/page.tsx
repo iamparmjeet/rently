@@ -36,6 +36,7 @@ import {
 	IconSearch,
 } from "@tabler/icons-react";
 import { useState } from "react";
+import { AddAgreementPaymentButton } from "@/components/features/payments/add-agreement-payment-button";
 import { AddPaymentButton } from "@/components/features/payments/add-payment-button";
 import { PaymentExportDialog } from "@/components/features/payments/payment-export-dialog";
 import { PaymentGrid } from "@/components/features/payments/payment-grid";
@@ -437,6 +438,7 @@ export default function PaymentsPage() {
 						Export CSV
 					</Button>
 					<AddPaymentButton withIcon />
+					<AddAgreementPaymentButton />
 				</PageHeader>
 
 				<PaymentExportDialog

@@ -8,6 +8,7 @@ import {
 	IconTool,
 } from "@tabler/icons-react";
 import {
+	useTenantAgreements,
 	useTenantLease,
 	useTenantPayments,
 	useTenantUtilities,
@@ -39,10 +40,12 @@ function latestByType(
 
 export function OverviewTab({ onTabChange }: OverviewTabProps) {
 	const { data: leaseData, isLoading: leaseLoading } = useTenantLease();
+	const { data: agreementsData } = useTenantAgreements();
 	const { data: paymentsData } = useTenantPayments();
 	const { data: utilitiesData } = useTenantUtilities();
 
 	const lease = leaseData?.lease;
+	const agreements = agreementsData?.agreements ?? [];
 	const payments = paymentsData?.payments ?? [];
 	const utilities = utilitiesData?.utilities ?? [];
 
@@ -77,6 +80,10 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
 		);
 	}
 
+	const combinedAgreement = agreements.find(
+		(agreement) => agreement.units.length > 1,
+	);
+
 	const currentMonth = new Date().toLocaleDateString("en-IN", {
 		month: "long",
 		year: "numeric",
@@ -84,6 +91,35 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
 
 	return (
 		<div className="space-y-3.5">
+			{combinedAgreement && (
+				<div className="rounded-xl border bg-background p-4">
+					<div className="flex items-start justify-between gap-3">
+						<div>
+							<p className="font-bold text-sm">Combined lease agreement</p>
+							<p className="mt-1 text-muted-foreground text-xs">
+								{combinedAgreement.property.name} ·{" "}
+								{combinedAgreement.owner.name}
+							</p>
+						</div>
+						<span className="rounded-full bg-primary/10 px-2 py-1 font-medium text-primary text-xs">
+							{combinedAgreement.units.length} units
+						</span>
+					</div>
+					<div className="mt-3 grid gap-2 sm:grid-cols-2">
+						{combinedAgreement.units.map((unit) => (
+							<div
+								key={unit.leaseId}
+								className="flex justify-between rounded-lg bg-muted/50 px-3 py-2 text-sm"
+							>
+								<span>Unit {unit.unitNumber}</span>
+								<span className="font-semibold">
+									{rupeesCompact(unit.rent)}
+								</span>
+							</div>
+						))}
+					</div>
+				</div>
+			)}
 			{/* ── Stats grid ─────────────────────────────────────── */}
 			<div className="grid grid-cols-2 gap-2.5">
 				{/* Primary tile — full-width on small, half on larger */}

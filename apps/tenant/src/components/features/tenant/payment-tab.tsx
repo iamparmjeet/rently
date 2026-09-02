@@ -24,6 +24,13 @@ export function PaymentsTab() {
 	const { data, isLoading } = useTenantPayments();
 
 	const payments = data?.payments ?? [];
+	const visiblePayments = payments.filter(
+		(payment, index, all) =>
+			!payment.paymentGroupId ||
+			all.findIndex(
+				(candidate) => candidate.paymentGroupId === payment.paymentGroupId,
+			) === index,
+	);
 	const paid = payments.filter((p) => p.amount > 0 && p.type !== "reversal");
 	const totalPaid = paid.reduce((s, p) => s + p.amount, 0);
 
@@ -79,7 +86,15 @@ export function PaymentsTab() {
 					</div>
 				) : (
 					<div className="divide-y divide-border">
-						{payments.map((p) => {
+						{visiblePayments.map((p) => {
+							const displayAmount = p.paymentGroupId
+								? payments
+										.filter(
+											(candidate) =>
+												candidate.paymentGroupId === p.paymentGroupId,
+										)
+										.reduce((sum, candidate) => sum + candidate.amount, 0)
+								: p.amount;
 							const isReversal = p.type === "reversal";
 							const label = getTypeLabel(p.type, p.utilityType);
 							const icon = TYPE_ICON[p.type] ?? TYPE_ICON.other;
@@ -120,7 +135,7 @@ export function PaymentsTab() {
 												)}
 											>
 												{isReversal ? "−" : ""}
-												{rupeesCompact(Math.abs(p.amount))}
+												{rupeesCompact(Math.abs(displayAmount))}
 											</p>
 											<span
 												className={cn(

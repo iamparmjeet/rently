@@ -2,6 +2,15 @@ import z from "zod";
 
 export const PaymentReceiptDataSchema = z.object({
 	receiptNumber: z.string(),
+	allocations: z
+		.array(
+			z.object({
+				leaseId: z.uuid(),
+				unitNumber: z.string(),
+				amount: z.number().int(),
+			}),
+		)
+		.optional(),
 	payment: z.object({
 		id: z.uuid(),
 		amount: z.number(),

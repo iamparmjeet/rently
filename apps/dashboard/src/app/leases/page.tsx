@@ -9,6 +9,7 @@ import { PageHeader } from "@rently/ui/shared/page-header";
 import type { LeaseWithDetails } from "@rently/validators";
 import { IconPlus } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
+import { AddCombinedLeaseButton } from "@/components/features/leases/add-combined-lease-button";
 import { LeaseCard } from "@/components/features/leases/lease-card";
 import { LeaseForm, type LeaseFormValues } from "@/components/forms/lease-form";
 import { Container } from "@/components/shared/container";
@@ -175,6 +176,7 @@ export default function LeasesPage() {
 						<IconPlus className="mr-2 size-4" />
 						New Lease
 					</Button>
+					<AddCombinedLeaseButton />
 					<FormDialog
 						open={createDialog.open}
 						onOpenChange={createDialog.onOpenChange}

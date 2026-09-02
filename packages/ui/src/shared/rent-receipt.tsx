@@ -145,30 +145,52 @@ export function RentReceipt({ receipt }: { receipt: PaymentReceiptData }) {
 						<span>Amount</span>
 					</div>
 
-					<div className="grid grid-cols-[1fr_auto] gap-4 px-4 py-4">
-						<div className="space-y-1">
-							<p className="font-semibold text-sm">
-								{paymentTypeLabel(receipt.payment.type)}
-							</p>
-							<p className="text-slate-600 text-sm">
-								Method: {paymentMethodLabel(receipt.payment.paymentMethods)}
-							</p>
-							{receipt.payment.referenceNumber && (
-								<p className="text-slate-600 text-sm">
-									Reference: {receipt.payment.referenceNumber}
-								</p>
-							)}
-							{receipt.payment.description && (
-								<p className="text-slate-600 text-sm">
-									{receipt.payment.description}
-								</p>
-							)}
+					{receipt.allocations && receipt.allocations.length > 1 ? (
+						<div className="divide-y divide-slate-100">
+							{receipt.allocations.map((allocation) => (
+								<div
+									key={allocation.leaseId}
+									className="grid grid-cols-[1fr_auto] gap-4 px-4 py-3"
+								>
+									<span className="font-semibold text-sm">
+										Unit {allocation.unitNumber}
+									</span>
+									<span className="font-bold tabular-nums">
+										{formatRupees(allocation.amount)}
+									</span>
+								</div>
+							))}
+							<div className="flex justify-between bg-slate-50 px-4 py-3 font-bold text-sm">
+								<span>Total received</span>
+								<span>{formatRupees(receipt.payment.amount)}</span>
+							</div>
 						</div>
+					) : (
+						<div className="grid grid-cols-[1fr_auto] gap-4 px-4 py-4">
+							<div className="space-y-1">
+								<p className="font-semibold text-sm">
+									{paymentTypeLabel(receipt.payment.type)}
+								</p>
+								<p className="text-slate-600 text-sm">
+									Method: {paymentMethodLabel(receipt.payment.paymentMethods)}
+								</p>
+								{receipt.payment.referenceNumber && (
+									<p className="text-slate-600 text-sm">
+										Reference: {receipt.payment.referenceNumber}
+									</p>
+								)}
+								{receipt.payment.description && (
+									<p className="text-slate-600 text-sm">
+										{receipt.payment.description}
+									</p>
+								)}
+							</div>
 
-						<p className="font-bold text-lg tabular-nums">
-							{formatRupees(receipt.payment.amount)}
-						</p>
-					</div>
+							<p className="font-bold text-lg tabular-nums">
+								{formatRupees(receipt.payment.amount)}
+							</p>
+						</div>
+					)}
 				</div>
 
 				<div className="mt-4 rounded-md bg-slate-50 px-4 py-3">

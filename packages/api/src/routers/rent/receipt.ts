@@ -30,6 +30,7 @@ async function findReceipt(
 	const [row] = await db
 		.select({
 			paymentId: payments.id,
+			paymentGroupId: payments.paymentGroupId,
 			amount: payments.amount,
 			paymentDate: payments.paymentDate,
 			paymentType: payments.type,
@@ -78,18 +79,49 @@ async function findReceipt(
 	return row;
 }
 
-function toReceipt(row: NonNullable<Awaited<ReturnType<typeof findReceipt>>>) {
+async function getReceiptAllocations(
+	db: import("@rently/db").Database,
+	row: NonNullable<Awaited<ReturnType<typeof findReceipt>>>,
+) {
+	if (!row.paymentGroupId) {
+		return [
+			{ leaseId: row.leaseId, unitNumber: row.unitNumber, amount: row.amount },
+		];
+	}
+
+	return db
+		.select({
+			leaseId: leases.id,
+			unitNumber: units.unitNumber,
+			amount: payments.amount,
+		})
+		.from(payments)
+		.innerJoin(leases, eq(payments.leaseId, leases.id))
+		.innerJoin(units, eq(leases.unitId, units.id))
+		.where(eq(payments.paymentGroupId, row.paymentGroupId));
+}
+
+async function toReceipt(
+	db: import("@rently/db").Database,
+	row: NonNullable<Awaited<ReturnType<typeof findReceipt>>>,
+) {
 	if (row.paymentType === PAYMENT_TYPES.REVERSAL) {
 		throw new ORPCError("BAD_REQUEST", {
 			message: "A receipt cannot be generated for a reversal.",
 		});
 	}
 
+	const allocations = await getReceiptAllocations(db, row);
+	const totalAmount = allocations.reduce(
+		(sum, allocation) => sum + allocation.amount,
+		0,
+	);
 	return {
 		receiptNumber: generateReceiptNumber(row.paymentId),
+		allocations,
 		payment: {
 			id: row.paymentId,
-			amount: row.amount,
+			amount: totalAmount,
 			paymentDate: row.paymentDate,
 			type: row.paymentType,
 			paymentMethods: row.paymentMethods,
@@ -139,7 +171,7 @@ export const getPaymentReceiptData = ownerProcedure
 			});
 		}
 
-		return { receipt: toReceipt(row) };
+		return { receipt: await toReceipt(context.db, row) };
 	});
 
 export const getMyPaymentReceiptData = protectedProcedure
@@ -159,5 +191,5 @@ export const getMyPaymentReceiptData = protectedProcedure
 			});
 		}
 
-		return { receipt: toReceipt(row) };
+		return { receipt: await toReceipt(context.db, row) };
 	});

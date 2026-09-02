@@ -1,4 +1,18 @@
-# Constraints (2026-08-26 — fix/beta-bugfix-audit-2026-08-26, github-centric)
+# Constraints (2026-09-02 — feat/multi-unit-lease-agreements)
+
+## Current feature constraints
+
+- MUST: preserve existing lease/payment historical amounts, IDs, receipt routes, ownership, and audit timestamps through the migration.
+- MUST: treat `lease_agreements` as the owner of tenant/property/shared terms; unit leases own rent, deposit, unit, and unit lifecycle.
+- MUST: derive residential/commercial category from trusted unit data; never accept it from the client.
+- MUST NOT: mix property or residential/commercial category in combined agreement creation.
+- MUST: create agreement/lease and future payment group/allocation writes atomically in both Neon batch and callback-transaction paths.
+- MUST NOT: make `leases.agreementId` or `payments.paymentGroupId` required before compatibility writers and backfills populate them.
+- MUST NOT: use nullable grouping as the final accounting shape; every payment allocation eventually belongs to exactly one group.
+- MUST NOT: delete or overwrite historical financial records; reversals are new auditable records.
+- MUST: keep legal-document generation, private uploads, and e-signing out of this feature slice.
+
+## Historical constraints
 
 - MUST: only the property owner who owns the bill's lease/property may create a discount (`isLeaseOwner` in `credit.ts` + `utility.ts`).
 - MUST NOT: grant property-management write access to supervisory `admin` role.

@@ -1,5 +1,63 @@
 # Decisions
 
+## 2026-09-02 - active lease exclusivity
+
+**Decision:** Enforce one active lease per unit with a partial unique index on `leases.unit_id WHERE status = 'active'`, preceded by a migration-time duplicate-data preflight.
+
+**Why:** Application availability checks cannot prevent two concurrent requests from both observing an available unit. PostgreSQL must enforce this lifecycle invariant; the partial condition preserves valid historical expired and terminated leases.
+
+**Alternatives:** A full unique index on `unit_id` (rejected: forbids legitimate lease history); a trigger (rejected: more complex and less transparent for a single immutable predicate); rely on the conditional unit-status update (rejected: it does not reject an already-inserted concurrent active lease).
+
+**Tradeoff:** A production migration will stop if old duplicate active rows exist, requiring explicit data repair before the constraint can take effect. This is preferable to silently selecting or deleting a historical lease.
+
+**Model:** GPT-5.6 Terra.
+
+## 2026-09-02 - invite fixture isolation for provisional tenants
+
+**Decision:** Make the invite integration teardown remove tenant profiles and users derived from each created invitation before deleting the invitation, and assert that an owner-prepared invitation creates its existing provisional user.
+
+**Why:** Owner-prepared onboarding intentionally creates a provisional `user` and `tenant_profiles` row immediately. The stale test expectation and incomplete cleanup caused a foreign-key failure that leaked fixtures into later cases, obscuring agreement-wrapper verification.
+
+**Alternatives:** Track the provisional user separately in every individual test (rejected: easy to omit and already missed in multiple tests); relax or remove the foreign key (rejected: would hide a genuine lifecycle dependency).
+
+**Tradeoff:** Teardown treats every created invite ID as a possible provisional user ID, which is safe for isolated test UUIDs and keeps the fixture model aligned with production behavior.
+
+**Model:** GPT-5.6 Terra.
+
+## 2026-09-02 - agreement/payment-group expand migration
+
+**Decision:** Add the physical agreement/payment-group schema and backfill every legacy lease/payment into a one-to-one independent parent. Reuse each legacy child UUID as its backfilled parent UUID, copy shared/transfer metadata without rewriting existing values, and populate only the new nullable foreign-key columns. Keep active-lease exclusivity and all payment-group writers in later slices.
+
+**Why:** One parent per existing child is the only history-preserving interpretation available before combined agreements and grouped transfers existed. Reusing the child UUID is deterministic, requires no PostgreSQL UUID extension, and makes the migration auditable. Nullable columns retain expand-stage compatibility for writers deployed before the contract phase.
+
+**Alternatives:** Generate random parent UUIDs in SQL (rejected: extension/runtime dependency and weaker traceability); leave historical rows ungrouped (rejected: blocks migrated reads and postpones an unambiguous backfill); combine the exclusivity index with this migration (rejected: it is a separate failure mode and rollback slice).
+
+**Tradeoff:** Backfilled one-to-one parents share an identifier with their historical child in a different table. IDs remain table-scoped, but operators must use the entity/table name when discussing them.
+
+**Model:** GPT-5.6 Sol.
+
+## 2026-09-02 - multi-unit agreement foundation
+
+**Decision:** Model a universal `lease_agreements` parent with unit-level `leases`; introduce `payment_groups` as the transfer parent of existing payment allocations. Use an expand-contract transition, keeping the new child foreign keys nullable until legacy writers and historical backfills are complete.
+
+**Why:** Existing lease and payment API routes, receipts, exports, and test fixtures write/read single-unit records. Requiring the new foreign keys before those writers create parents would break live compatibility. Agreement category is derived from the unit type on the server: `shop` is commercial; current studio/BHK types are residential.
+
+**Alternatives:** Add nullable grouping without a parent (rejected: ambiguous accounting); create separate room/shop lease types (rejected: duplicates accounting and tenancy logic); make new FKs non-null in the first migration (rejected: current writers cannot supply them).
+
+**Tradeoff:** Temporary duplication of shared agreement/transfer facts remains while read and write paths transition. It costs an additional contract migration later but avoids unsafe deployment and preserves history.
+
+**Model:** GPT-5.6 Terra.
+
+## 2026-09-02 - agreement-wrapper verification coverage
+
+**Decision:** Cover the compatibility wrapper through the existing invite integration suite, with one registered commercial-shop tenant and one owner-prepared residential tenant.
+
+**Why:** Those are the two route branches with different atomic write order. Querying `lease_agreements` by tenant/property proves both that exactly one independent agreement exists and that the legacy lease response retains its parent link. The two unit types also exercise server-derived commercial/residential category assignment.
+
+**Tradeoff:** The test is intentionally integration-level and requires `rently_test` plus the deferred physical migration; it is more valuable than a mock-only batch-order test but cannot execute in the current unavailable local database environment.
+
+**Model:** GPT-5.6 Terra.
+
 ## 2026-08-25 - occasional-discounts - Decision: full GST-safe discount before launch (supersedes draft-only) — shipped 8d32713
 
 **Why:** `TODO.md:194` and `b6c7f5e` (main after beta2 merge) require rent+utility coverage with GST configurability, soft launch owner-only (no external customers). Keeping `utilities.totalAmount` immutable and adding separate `bill_credits` (`0016_gst_and_bill_credits.sql`) preserves GST immutability per `research/gst-occasional-discounts.md` s.15(3)(a)/34. Residential rent 0% exempt default prevents over-charging.

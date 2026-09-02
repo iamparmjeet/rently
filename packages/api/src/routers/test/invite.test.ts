@@ -2,13 +2,16 @@ import { createRouterClient } from "@orpc/server";
 import { createDb } from "@rently/db";
 import { account, user } from "@rently/db/schema/auth";
 import {
+	leaseAgreements,
 	leases,
+	paymentGroups,
+	payments,
 	properties,
 	tenantInvites,
 	tenantProfiles,
 	units,
 } from "@rently/db/schema/schema";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, or } from "drizzle-orm";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -34,19 +37,24 @@ vi.mock("@rently/email", () => ({
 	sendInviteEmail: mocks.sendInviteEmail,
 }));
 
+import { getAmountDueForRent } from "../helpers/credit.helpers";
 import {
 	acceptInvite,
 	createInvite,
 	getInviteByToken,
 	resendInvite,
 } from "../rent/invite";
-import { createLease } from "../rent/lease";
+import { createCombinedLease, createLease } from "../rent/lease";
+import { createAgreementPayment, voidPaymentGroup } from "../rent/payment";
 import { createTenant, listTenants } from "../rent/tenant";
 
 const db = createDb();
 const createdUserIds: string[] = [];
 const createdInviteIds: string[] = [];
 const createdLeaseIds: string[] = [];
+const createdAgreementIds: string[] = [];
+const createdPaymentGroupIds: string[] = [];
+const createdPaymentIds: string[] = [];
 const createdUnitIds: string[] = [];
 const createdPropertyIds: string[] = [];
 
@@ -64,6 +72,28 @@ async function createOwner(name: string) {
 	});
 
 	return { id, name, email, role: "owner" };
+}
+
+async function createRegisteredTenant(ownerId: string) {
+	const id = crypto.randomUUID();
+	const email = `${id}@test.keyhq.invalid`;
+
+	createdUserIds.push(id);
+
+	await db.insert(user).values({
+		id,
+		name: "Registered Tenant",
+		email,
+		role: "tenant",
+	});
+
+	await db.insert(tenantProfiles).values({
+		userId: id,
+		email,
+		createdById: ownerId,
+	});
+
+	return { id, email };
 }
 
 async function createPendingInvite(
@@ -128,6 +158,9 @@ function clientFor(owner: Awaited<ReturnType<typeof createOwner>>) {
 			createTenant,
 			listTenants,
 			createLease,
+			createCombinedLease,
+			createAgreementPayment,
+			voidPaymentGroup,
 		},
 		{
 			context: {
@@ -143,14 +176,41 @@ beforeEach(() => {
 });
 
 afterEach(async () => {
+	const createdTenantIds = [
+		...new Set([...createdUserIds, ...createdInviteIds]),
+	];
+
+	if (createdPaymentIds.length > 0) {
+		await db.delete(payments).where(inArray(payments.id, createdPaymentIds));
+	}
+
+	if (createdPaymentGroupIds.length > 0) {
+		await db
+			.delete(paymentGroups)
+			.where(inArray(paymentGroups.id, createdPaymentGroupIds));
+	}
+
 	if (createdLeaseIds.length > 0) {
 		await db.delete(leases).where(inArray(leases.id, createdLeaseIds));
 	}
 
-	if (createdUserIds.length > 0) {
+	if (createdAgreementIds.length > 0) {
+		await db
+			.delete(leaseAgreements)
+			.where(inArray(leaseAgreements.id, createdAgreementIds));
+	}
+
+	if (createdTenantIds.length > 0 || createdInviteIds.length > 0) {
+		// Owner-prepared invitations create a provisional tenant profile immediately.
+		// Remove it before its invitation, regardless of which test created the invite.
 		await db
 			.delete(tenantProfiles)
-			.where(inArray(tenantProfiles.userId, createdUserIds));
+			.where(
+				or(
+					inArray(tenantProfiles.userId, createdTenantIds),
+					inArray(tenantProfiles.invitedId, createdInviteIds),
+				),
+			);
 	}
 
 	if (createdInviteIds.length > 0) {
@@ -169,13 +229,16 @@ afterEach(async () => {
 			.where(inArray(properties.id, createdPropertyIds));
 	}
 
-	if (createdUserIds.length > 0) {
-		await db.delete(user).where(inArray(user.id, createdUserIds));
+	if (createdTenantIds.length > 0) {
+		await db.delete(user).where(inArray(user.id, createdTenantIds));
 	}
 
 	createdInviteIds.length = 0;
 	createdUserIds.length = 0;
 	createdLeaseIds.length = 0;
+	createdAgreementIds.length = 0;
+	createdPaymentGroupIds.length = 0;
+	createdPaymentIds.length = 0;
 	createdUnitIds.length = 0;
 	createdPropertyIds.length = 0;
 	mocks.getSession.mockReset();
@@ -226,7 +289,240 @@ describe("createInvite", () => {
 });
 
 describe("createTenant", () => {
-	it("creates an owner-prepared invitation without creating a Better Auth user", async () => {
+	it("creates one independent agreement linked to a registered tenant lease", async () => {
+		const owner = await createOwner("Owner A");
+		const tenant = await createRegisteredTenant(owner.id);
+
+		const [property] = await db
+			.insert(properties)
+			.values({
+				ownerId: owner.id,
+				name: "Commercial Property",
+				address: "1 Market Road",
+				type: "commercial",
+			})
+			.returning();
+		if (!property) throw new Error("Failed to create property fixture");
+		createdPropertyIds.push(property.id);
+
+		const [unit] = await db
+			.insert(units)
+			.values({
+				propertyId: property.id,
+				unitNumber: "Shop-1",
+				type: "shop",
+				baseRent: 1500,
+				status: "available",
+			})
+			.returning();
+		if (!unit) throw new Error("Failed to create unit fixture");
+		createdUnitIds.push(unit.id);
+
+		const startDate = new Date("2026-08-07T00:00:00.000Z");
+		const endDate = new Date("2027-08-07T00:00:00.000Z");
+		const { lease } = await clientFor(owner).createLease({
+			unitId: unit.id,
+			tenantId: tenant.id,
+			startDate,
+			endDate,
+			rent: 1500,
+			deposit: 100,
+		});
+		createdLeaseIds.push(lease.id);
+
+		expect(lease.agreementId).not.toBeNull();
+		if (!lease.agreementId) {
+			throw new Error("Created lease must have an agreement ID");
+		}
+		createdAgreementIds.push(lease.agreementId);
+
+		const agreements = await db
+			.select({
+				id: leaseAgreements.id,
+				tenantId: leaseAgreements.tenantId,
+				propertyId: leaseAgreements.propertyId,
+				arrangementType: leaseAgreements.arrangementType,
+				category: leaseAgreements.category,
+				startDate: leaseAgreements.startDate,
+				endDate: leaseAgreements.endDate,
+			})
+			.from(leaseAgreements)
+			.where(
+				and(
+					eq(leaseAgreements.tenantId, tenant.id),
+					eq(leaseAgreements.propertyId, property.id),
+				),
+			);
+
+		expect(agreements).toEqual([
+			{
+				id: lease.agreementId,
+				tenantId: tenant.id,
+				propertyId: property.id,
+				arrangementType: "independent",
+				category: "commercial",
+				startDate,
+				endDate,
+			},
+		]);
+	});
+
+	it("creates one combined agreement for compatible available units", async () => {
+		const owner = await createOwner("Owner A");
+		const tenant = await createRegisteredTenant(owner.id);
+		const [property] = await db
+			.insert(properties)
+			.values({
+				ownerId: owner.id,
+				name: "Combined Property",
+				address: "2 Market Road",
+				type: "residential",
+			})
+			.returning();
+		if (!property) throw new Error("Failed to create property fixture");
+		createdPropertyIds.push(property.id);
+
+		const createdUnits = await db
+			.insert(units)
+			.values([
+				{
+					propertyId: property.id,
+					unitNumber: "A-1",
+					type: "1BHK",
+					baseRent: 1200,
+					status: "available",
+				},
+				{
+					propertyId: property.id,
+					unitNumber: "A-2",
+					type: "2BHK",
+					baseRent: 1800,
+					status: "available",
+				},
+			])
+			.returning();
+		createdUnitIds.push(...createdUnits.map((unit) => unit.id));
+
+		const { leases: createdLeases } = await clientFor(
+			owner,
+		).createCombinedLease({
+			tenantId: tenant.id,
+			startDate: new Date("2026-09-01T00:00:00.000Z"),
+			endDate: new Date("2027-09-01T00:00:00.000Z"),
+			units: createdUnits.map((unit) => ({
+				unitId: unit.id,
+				rent: unit.baseRent,
+				deposit: unit.baseRent * 2,
+			})),
+		});
+		createdLeaseIds.push(...createdLeases.map((lease) => lease.id));
+		expect(createdLeases).toHaveLength(2);
+		expect(new Set(createdLeases.map((lease) => lease.agreementId)).size).toBe(
+			1,
+		);
+		const agreementId = createdLeases[0]?.agreementId;
+		if (!agreementId) throw new Error("Combined leases need an agreement ID");
+		createdAgreementIds.push(agreementId);
+
+		const [agreement] = await db
+			.select({
+				arrangementType: leaseAgreements.arrangementType,
+				category: leaseAgreements.category,
+			})
+			.from(leaseAgreements)
+			.where(eq(leaseAgreements.id, agreementId));
+		expect(agreement).toEqual({
+			arrangementType: "combined",
+			category: "residential",
+		});
+	});
+
+	it("automatically splits a combined agreement payment across every unit", async () => {
+		const owner = await createOwner("Owner A");
+		const tenant = await createRegisteredTenant(owner.id);
+		const [property] = await db
+			.insert(properties)
+			.values({
+				ownerId: owner.id,
+				name: "Payment Group Property",
+				address: "3 Market Road",
+				type: "residential",
+			})
+			.returning();
+		if (!property) throw new Error("Failed to create property fixture");
+		createdPropertyIds.push(property.id);
+
+		const createdUnits = await db
+			.insert(units)
+			.values([
+				{
+					propertyId: property.id,
+					unitNumber: "B-1",
+					type: "1BHK",
+					baseRent: 1100,
+					status: "available",
+				},
+				{
+					propertyId: property.id,
+					unitNumber: "B-2",
+					type: "2BHK",
+					baseRent: 1900,
+					status: "available",
+				},
+			])
+			.returning();
+		createdUnitIds.push(...createdUnits.map((unit) => unit.id));
+
+		const client = clientFor(owner);
+		const { leases: combinedLeases } = await client.createCombinedLease({
+			tenantId: tenant.id,
+			startDate: new Date("2026-09-01T00:00:00.000Z"),
+			endDate: new Date("2027-09-01T00:00:00.000Z"),
+			units: createdUnits.map((unit) => ({
+				unitId: unit.id,
+				rent: unit.baseRent,
+			})),
+		});
+		createdLeaseIds.push(...combinedLeases.map((lease) => lease.id));
+		const agreementId = combinedLeases[0]?.agreementId;
+		if (!agreementId) throw new Error("Combined leases need an agreement ID");
+		createdAgreementIds.push(agreementId);
+		const dueByLease = await Promise.all(
+			combinedLeases.map(async (lease) => getAmountDueForRent(db, lease.id)),
+		);
+
+		const result = await client.createAgreementPayment({
+			agreementId,
+			paymentDate: new Date("2026-09-05T00:00:00.000Z"),
+			paymentMethods: "upi",
+			referenceNumber: "UPI-TEST-1",
+		});
+		createdPaymentGroupIds.push(result.paymentGroup.id);
+		createdPaymentIds.push(...result.payments.map((payment) => payment.id));
+
+		expect(result.payments).toHaveLength(2);
+		expect(
+			new Set(result.payments.map((payment) => payment.paymentGroupId)),
+		).toEqual(new Set([result.paymentGroup.id]));
+		expect(result.payments.map((payment) => payment.amount).sort()).toEqual(
+			dueByLease.sort(),
+		);
+
+		const reversal = await client.voidPaymentGroup({
+			id: result.paymentGroup.id,
+			reason: "Duplicate transfer",
+		});
+		createdPaymentGroupIds.push(reversal.paymentGroup.id);
+		createdPaymentIds.push(...reversal.reversals.map((payment) => payment.id));
+		expect(reversal.paymentGroup.reversesPaymentGroupId).toBe(
+			result.paymentGroup.id,
+		);
+		expect(reversal.reversals.map((payment) => payment.amount).sort()).toEqual(
+			dueByLease.map((amount) => -amount).sort(),
+		);
+	});
+
+	it("creates an owner-prepared invitation with a provisional tenant identity", async () => {
 		const owner = await createOwner("Owner A");
 		const email = `${crypto.randomUUID()}@test.keyhq.invalid`;
 
@@ -241,6 +537,7 @@ describe("createTenant", () => {
 		});
 
 		createdInviteIds.push(result.invite.id);
+		createdUserIds.push(result.invite.id);
 
 		expect(result.deliveryStatus).toBe("sent");
 
@@ -272,7 +569,7 @@ describe("createTenant", () => {
 			.from(user)
 			.where(eq(user.email, email));
 
-		expect(tenantUser).toBeUndefined();
+		expect(tenantUser).toEqual({ id: result.invite.id });
 	});
 
 	it("lists a newly created invitation as an unverified pending tenant", async () => {
@@ -345,6 +642,11 @@ describe("createTenant", () => {
 		createdUserIds.push(invite.id);
 
 		expect(lease.tenantId).toBe(invite.id);
+		expect(lease.agreementId).not.toBeNull();
+		if (!lease.agreementId) {
+			throw new Error("Created lease must have an agreement ID");
+		}
+		createdAgreementIds.push(lease.agreementId);
 
 		const [provisionalUser] = await db
 			.select({
@@ -360,6 +662,32 @@ describe("createTenant", () => {
 			emailVerified: false,
 			role: "tenant",
 		});
+
+		const agreements = await db
+			.select({
+				id: leaseAgreements.id,
+				tenantId: leaseAgreements.tenantId,
+				propertyId: leaseAgreements.propertyId,
+				arrangementType: leaseAgreements.arrangementType,
+				category: leaseAgreements.category,
+			})
+			.from(leaseAgreements)
+			.where(
+				and(
+					eq(leaseAgreements.tenantId, invite.id),
+					eq(leaseAgreements.propertyId, property.id),
+				),
+			);
+
+		expect(agreements).toEqual([
+			{
+				id: lease.agreementId,
+				tenantId: invite.id,
+				propertyId: property.id,
+				arrangementType: "independent",
+				category: "residential",
+			},
+		]);
 	});
 });
 

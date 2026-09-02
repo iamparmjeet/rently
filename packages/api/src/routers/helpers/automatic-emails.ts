@@ -10,6 +10,7 @@ import {
 	utilities,
 } from "@rently/db/schema/schema";
 import {
+	sendAgreementPaymentReceiptEmail,
 	sendPaymentReceiptEmail,
 	sendUtilityBillEmail,
 	type UtilityBillLine,
@@ -94,6 +95,79 @@ export async function sendAutomaticPaymentReceipt(
 	} catch (error) {
 		console.error("[automatic-email] payment receipt failed", {
 			paymentId,
+			error,
+		});
+	}
+}
+
+export async function sendAutomaticAgreementPaymentReceipt(
+	db: Database,
+	ownerId: string,
+	paymentGroupId: string,
+): Promise<void> {
+	try {
+		const [workspace] = await db
+			.select({
+				accountMode: user.accountMode,
+				workspaceMode: user.workspaceMode,
+			})
+			.from(user)
+			.where(eq(user.id, ownerId))
+			.limit(1);
+		if (!workspace || !workspaceCapabilities(workspace).outboundCommunication)
+			return;
+		if (!(await isPreferenceEnabled(db, ownerId, "paymentReceived"))) return;
+		const rows = await db
+			.select({
+				tenantEmail: user.email,
+				tenantName: user.name,
+				propertyName: properties.name,
+				unitNumber: units.unitNumber,
+				amount: payments.amount,
+				paymentDate: payments.paymentDate,
+				paymentMethod: payments.paymentMethods,
+				referenceNumber: payments.referenceNumber,
+			})
+			.from(payments)
+			.innerJoin(leases, eq(payments.leaseId, leases.id))
+			.innerJoin(units, eq(leases.unitId, units.id))
+			.innerJoin(
+				properties,
+				and(
+					eq(units.propertyId, properties.id),
+					eq(properties.ownerId, ownerId),
+				),
+			)
+			.innerJoin(user, eq(leases.tenantId, user.id))
+			.where(eq(payments.paymentGroupId, paymentGroupId));
+		const [owner] = await db
+			.select({ name: user.name })
+			.from(user)
+			.where(eq(user.id, ownerId))
+			.limit(1);
+		const first = rows[0];
+		if (
+			!first ||
+			!owner ||
+			rows.some((row) => row.tenantEmail !== first.tenantEmail)
+		)
+			return;
+		await sendAgreementPaymentReceiptEmail({
+			to: first.tenantEmail,
+			tenantName: first.tenantName,
+			ownerName: owner.name,
+			propertyName: first.propertyName,
+			paymentDate: first.paymentDate,
+			paymentMethod: first.paymentMethod,
+			referenceNumber: first.referenceNumber,
+			allocations: rows.map(({ unitNumber, amount }) => ({
+				unitNumber,
+				amount,
+			})),
+		});
+	} catch (error) {
+		console.error("[automatic-email] grouped payment receipt failed", {
+			paymentGroupId,
 			error,
 		});
 	}

@@ -2,24 +2,33 @@ import { ORPCError } from "@orpc/server";
 import { ownerProcedure } from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
 import type { Database } from "@rently/db";
-import { LEASE_STATUS_VALUES } from "@rently/db/constants/rent-constants";
+import {
+	LEASE_AGREEMENT_ARRANGEMENT,
+	LEASE_CATEGORY,
+	LEASE_STATUS_VALUES,
+	UNIT_TYPES,
+} from "@rently/db/constants/rent-constants";
 import { USER_ROLES } from "@rently/db/constants/user-roles";
 import { user } from "@rently/db/schema/auth";
 import {
+	leaseAgreements,
 	leases,
+	notifications,
 	properties,
 	rentReminderSuppressions,
 	tenantInvites,
 	tenantProfiles,
 	units,
 } from "@rently/db/schema/schema";
+import { generatedId } from "@rently/db/utils/id";
 import {
+	CreateCombinedLeaseSchema,
 	CreateLeaseSchema,
 	LeaseSelectSchema,
 	LeaseWithDetailsSchema,
 	UpdateLeaseSchema,
 } from "@rently/validators";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import z from "zod";
 import { getNextLocalPeriodKey } from "../helpers/rent-cycle";
 
@@ -70,6 +79,7 @@ export const createLease = ownerProcedure
 				unitId: units.id,
 				status: units.status,
 				propertyId: units.propertyId,
+				type: units.type,
 			})
 			.from(units)
 			.innerJoin(properties, eq(units.propertyId, properties.id))
@@ -98,6 +108,7 @@ export const createLease = ownerProcedure
 				and(
 					eq(user.id, input.tenantId),
 					eq(tenantProfiles.createdById, authUser.id),
+					isNull(tenantProfiles.deletedAt),
 				),
 			)
 			.limit(1);
@@ -136,14 +147,38 @@ export const createLease = ownerProcedure
 			});
 		}
 
-		const createLeaseQuery = db
-			.insert(leases)
-			.values({ ...input, status: "active" })
-			.returning();
+		const agreementId = generatedId();
+
+		const agreementValues = {
+			id: agreementId,
+			tenantId: input.tenantId,
+			propertyId: unit.propertyId,
+			arrangementType: LEASE_AGREEMENT_ARRANGEMENT.INDEPENDENT,
+			category:
+				unit.type === UNIT_TYPES.SHOP
+					? LEASE_CATEGORY.COMMERCIAL
+					: LEASE_CATEGORY.RESIDENTIAL,
+			startDate: input.startDate,
+			endDate: input.endDate,
+			rentDueDate: input.rentDueDate,
+			notice: input.notice,
+			description: input.description,
+		};
+
+		const leaseValues = {
+			...input,
+			agreementId,
+			status: "active" as const,
+		};
+
+		const createAgreementQuery = db
+			.insert(leaseAgreements)
+			.values(agreementValues);
+		const createLeaseQuery = db.insert(leases).values(leaseValues).returning();
 		const occupyUnitQuery = db
 			.update(units)
 			.set({ status: "occupied", updatedAt: new Date() })
-			.where(eq(units.id, input.unitId));
+			.where(and(eq(units.id, input.unitId), eq(units.status, "available")));
 
 		// Neon HTTP does not support callback transactions. Its batch API sends both
 		// statements as one database transaction; node-postgres retains its normal
@@ -151,7 +186,7 @@ export const createLease = ownerProcedure
 		let lease: Awaited<typeof createLeaseQuery>[number] | undefined;
 		if (supportsBatch(db)) {
 			if (pendingTenant) {
-				const [, , createdLeases] = await db.batch([
+				const [, , , createdLeases] = await db.batch([
 					db.insert(user).values({
 						id: pendingTenant.id,
 						name: pendingTenant.name,
@@ -171,12 +206,14 @@ export const createLease = ownerProcedure
 						invitedId: pendingTenant.id,
 						createdById: authUser.id,
 					}),
+					createAgreementQuery,
 					createLeaseQuery,
 					occupyUnitQuery,
 				]);
 				lease = createdLeases[0];
 			} else {
-				const [createdLeases] = await db.batch([
+				const [, createdLeases] = await db.batch([
+					createAgreementQuery,
 					createLeaseQuery,
 					occupyUnitQuery,
 				]);
@@ -206,15 +243,19 @@ export const createLease = ownerProcedure
 					});
 				}
 
+				await tx.insert(leaseAgreements).values(agreementValues);
+
 				const [newLease] = await tx
 					.insert(leases)
-					.values({ ...input, status: "active" })
+					.values(leaseValues)
 					.returning();
 
 				await tx
 					.update(units)
 					.set({ status: "occupied", updatedAt: new Date() })
-					.where(eq(units.id, input.unitId));
+					.where(
+						and(eq(units.id, input.unitId), eq(units.status, "available")),
+					);
 
 				return newLease;
 			});
@@ -227,6 +268,175 @@ export const createLease = ownerProcedure
 		}
 
 		return { lease };
+	});
+
+export const createCombinedLease = ownerProcedure
+	.route({
+		method: "POST",
+		path: "/rent/lease/create-combined",
+		successStatus: StatusCode.CREATED,
+	})
+	.input(CreateCombinedLeaseSchema)
+	.output(z.object({ leases: z.array(LeaseSelectSchema) }))
+	.handler(async ({ context, input }) => {
+		const { db, user: authUser } = context;
+		const unitIds = input.units.map((unit) => unit.unitId);
+		const selectedUnits = await db
+			.select({
+				id: units.id,
+				propertyId: units.propertyId,
+				status: units.status,
+				type: units.type,
+			})
+			.from(units)
+			.innerJoin(properties, eq(units.propertyId, properties.id))
+			.where(
+				and(inArray(units.id, unitIds), eq(properties.ownerId, authUser.id)),
+			);
+
+		if (selectedUnits.length !== unitIds.length) {
+			throw new ORPCError("FORBIDDEN", {
+				message: "One or more units are not yours or do not exist",
+			});
+		}
+		if (selectedUnits.some((unit) => unit.status !== "available")) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Every unit must be available for a combined lease",
+			});
+		}
+
+		const propertyIds = new Set(selectedUnits.map((unit) => unit.propertyId));
+		const categories = new Set(
+			selectedUnits.map((unit) =>
+				unit.type === UNIT_TYPES.SHOP
+					? LEASE_CATEGORY.COMMERCIAL
+					: LEASE_CATEGORY.RESIDENTIAL,
+			),
+		);
+		if (propertyIds.size !== 1 || categories.size !== 1) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Combined leases must use one property and one category",
+			});
+		}
+
+		const [registeredTenant] = await db
+			.select({ id: user.id })
+			.from(user)
+			.innerJoin(tenantProfiles, eq(tenantProfiles.userId, user.id))
+			.where(
+				and(
+					eq(user.id, input.tenantId),
+					eq(tenantProfiles.createdById, authUser.id),
+					isNull(tenantProfiles.deletedAt),
+				),
+			)
+			.limit(1);
+		if (!registeredTenant) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Tenant is not available for this lease",
+			});
+		}
+
+		const agreementId = generatedId();
+		const propertyId = selectedUnits[0]?.propertyId;
+		const category = [...categories][0];
+		if (!propertyId || !category) throw new ORPCError("INTERNAL_SERVER_ERROR");
+
+		const agreement = db.insert(leaseAgreements).values({
+			id: agreementId,
+			tenantId: input.tenantId,
+			propertyId,
+			arrangementType: LEASE_AGREEMENT_ARRANGEMENT.COMBINED,
+			category,
+			startDate: input.startDate,
+			endDate: input.endDate,
+			rentDueDate: input.rentDueDate,
+			notice: input.notice,
+			description: input.description,
+		});
+		const leaseInserts = input.units.map((unit) =>
+			db.insert(leases).values({
+				unitId: unit.unitId,
+				tenantId: input.tenantId,
+				startDate: input.startDate,
+				endDate: input.endDate,
+				rent: unit.rent,
+				deposit: unit.deposit ?? null,
+				status: "active",
+				notice: input.notice,
+				rentDueDate: input.rentDueDate,
+				description: input.description,
+				agreementId,
+			}),
+		);
+		const occupyUnits = unitIds.map((unitId) =>
+			db
+				.update(units)
+				.set({ status: "occupied", updatedAt: new Date() })
+				.where(and(eq(units.id, unitId), eq(units.status, "available"))),
+		);
+
+		if (supportsBatch(db)) {
+			await db.batch([agreement, ...leaseInserts, ...occupyUnits]);
+		} else {
+			await db.transaction(async (tx) => {
+				await tx.insert(leaseAgreements).values({
+					id: agreementId,
+					tenantId: input.tenantId,
+					propertyId,
+					arrangementType: LEASE_AGREEMENT_ARRANGEMENT.COMBINED,
+					category,
+					startDate: input.startDate,
+					endDate: input.endDate,
+					rentDueDate: input.rentDueDate,
+					notice: input.notice,
+					description: input.description,
+				});
+				await tx.insert(leases).values(
+					input.units.map((unit) => ({
+						unitId: unit.unitId,
+						tenantId: input.tenantId,
+						startDate: input.startDate,
+						endDate: input.endDate,
+						rent: unit.rent,
+						deposit: unit.deposit ?? null,
+						status: "active" as const,
+						notice: input.notice,
+						rentDueDate: input.rentDueDate,
+						description: input.description,
+						agreementId,
+					})),
+				);
+				for (const unitId of unitIds) {
+					await tx
+						.update(units)
+						.set({ status: "occupied", updatedAt: new Date() })
+						.where(and(eq(units.id, unitId), eq(units.status, "available")));
+				}
+			});
+		}
+
+		const createdLeases = await db
+			.select()
+			.from(leases)
+			.where(eq(leases.agreementId, agreementId));
+		try {
+			await db.insert(notifications).values({
+				userId: input.tenantId,
+				type: "combined_agreement_created",
+				title: "Combined lease agreement created",
+				message:
+					"Your landlord created a combined agreement covering multiple units.",
+				entityId: agreementId,
+				entityType: "lease_agreement",
+			});
+		} catch (error) {
+			console.error("[lease:createCombinedLease] notification failed", {
+				agreementId,
+				error,
+			});
+		}
+		return { leases: createdLeases };
 	});
 
 // update
@@ -343,6 +553,7 @@ export const getLeaseById = ownerProcedure
 				referenceId: leases.referenceId,
 				createdAt: leases.createdAt,
 				updatedAt: leases.updatedAt,
+				agreementId: leases.agreementId,
 				// for auth check only — stripped by output schema
 				ownerId: properties.ownerId,
 			})
@@ -386,6 +597,7 @@ export const listLeases = ownerProcedure
 		const results = await db
 			.select({
 				leaseId: leases.id,
+				agreementId: leases.agreementId,
 				rent: leases.rent,
 				deposit: leases.deposit,
 				startDate: leases.startDate,

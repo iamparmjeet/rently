@@ -35,7 +35,36 @@ export const CreateLeaseSchema = LeaseInsertSchema.omit({
 	createdAt: true,
 	updatedAt: true,
 	status: true,
+	agreementId: true,
 }).refine(dateOrderRefine, dateOrderError);
+
+export const CreateCombinedLeaseSchema = LeaseInsertSchema.omit({
+	id: true,
+	createdAt: true,
+	updatedAt: true,
+	status: true,
+	agreementId: true,
+	unitId: true,
+	rent: true,
+	deposit: true,
+})
+	.extend({
+		units: z
+			.array(
+				z.object({
+					unitId: z.uuid(),
+					rent: z.number().int().positive(),
+					deposit: z.number().int().nonnegative().nullable().optional(),
+				}),
+			)
+			.min(2, { error: "Select at least two units" })
+			.refine(
+				(units) =>
+					new Set(units.map((unit) => unit.unitId)).size === units.length,
+				{ error: "Each unit may appear only once" },
+			),
+	})
+	.refine(dateOrderRefine, dateOrderError);
 
 export const UpdateLeaseSchema = createUpdateSchema(leases)
 	.pick({
@@ -51,6 +80,7 @@ export const UpdateLeaseSchema = createUpdateSchema(leases)
 // ── Layer 3: API output schemas
 export const LeaseWithDetailsSchema = z.object({
 	leaseId: z.string(),
+	agreementId: z.uuid().nullable(),
 	unitId: z.string(),
 	tenantId: z.string(),
 	rent: z.number(),
@@ -72,5 +102,6 @@ export const LeaseWithDetailsSchema = z.object({
 // TS Types derieved from Zod (not from InferSelectModel)
 export type Lease = z.infer<typeof LeaseSelectSchema>;
 export type CreateLease = z.infer<typeof CreateLeaseSchema>;
+export type CreateCombinedLease = z.infer<typeof CreateCombinedLeaseSchema>;
 export type UpdateLease = z.infer<typeof UpdateLeaseSchema>;
 export type LeaseWithDetails = z.infer<typeof LeaseWithDetailsSchema>;

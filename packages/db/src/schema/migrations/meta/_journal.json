@@ -141,6 +141,20 @@
 			"when": 1788285418461,
 			"tag": "0019_fix_public_demo_rent_over_scaling",
 			"breakpoints": true
+		},
+		{
+			"idx": 20,
+			"version": "7",
+			"when": 1788356825070,
+			"tag": "0020_multi_unit_agreement_expand",
+			"breakpoints": true
+		},
+		{
+			"idx": 21,
+			"version": "7",
+			"when": 1788360276189,
+			"tag": "0021_colorful_senator_kelly",
+			"breakpoints": true
 		}
 	]
 }

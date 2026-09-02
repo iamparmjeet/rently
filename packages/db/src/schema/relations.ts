@@ -3,9 +3,11 @@ import { adminAuditLogs } from "./admin";
 import {
 	documentUpdateRequests,
 	invoices,
+	leaseAgreements,
 	leases,
 	notificationPreferences,
 	ownerProfiles,
+	paymentGroups,
 	payments,
 	plans,
 	properties,
@@ -40,6 +42,7 @@ export const userRelations = relations(user, ({ one, many }) => ({
 		references: [notificationPreferences.ownerId],
 	}),
 	adminAuditLogs: many(adminAuditLogs),
+	leaseAgreements: many(leaseAgreements),
 }));
 
 export const adminAuditLogRelations = relations(adminAuditLogs, ({ one }) => ({
@@ -65,6 +68,7 @@ export const propertyRelations = relations(properties, ({ one, many }) => ({
 		references: [user.id],
 	}),
 	units: many(units),
+	leaseAgreements: many(leaseAgreements),
 }));
 
 // tenantInvites → inviter (user)
@@ -97,7 +101,27 @@ export const leaseRelations = relations(leases, ({ one, many }) => ({
 	}),
 	utilities: many(utilities),
 	payments: many(payments),
+	agreement: one(leaseAgreements, {
+		fields: [leases.agreementId],
+		references: [leaseAgreements.id],
+	}),
 }));
+
+export const leaseAgreementRelations = relations(
+	leaseAgreements,
+	({ one, many }) => ({
+		tenant: one(user, {
+			fields: [leaseAgreements.tenantId],
+			references: [user.id],
+		}),
+		property: one(properties, {
+			fields: [leaseAgreements.propertyId],
+			references: [properties.id],
+		}),
+		leases: many(leases),
+		paymentGroups: many(paymentGroups),
+	}),
+);
 
 export const utilityRelations = relations(utilities, ({ one }) => ({
 	lease: one(leases, {
@@ -115,7 +139,30 @@ export const paymentRelations = relations(payments, ({ one }) => ({
 		fields: [payments.utilityId],
 		references: [utilities.id],
 	}),
+	group: one(paymentGroups, {
+		fields: [payments.paymentGroupId],
+		references: [paymentGroups.id],
+	}),
 }));
+
+export const paymentGroupRelations = relations(
+	paymentGroups,
+	({ one, many }) => ({
+		agreement: one(leaseAgreements, {
+			fields: [paymentGroups.agreementId],
+			references: [leaseAgreements.id],
+		}),
+		allocations: many(payments),
+		reverses: one(paymentGroups, {
+			relationName: "paymentGroupReversal",
+			fields: [paymentGroups.reversesPaymentGroupId],
+			references: [paymentGroups.id],
+		}),
+		reversedBy: many(paymentGroups, {
+			relationName: "paymentGroupReversal",
+		}),
+	}),
+);
 
 // subscriptions → user, plan
 export const subscriptionRelations = relations(

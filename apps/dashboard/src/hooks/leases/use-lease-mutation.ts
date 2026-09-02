@@ -41,6 +41,26 @@ export function useCreateLease() {
 	});
 }
 
+export function useCreateCombinedLease() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (
+			input: Parameters<typeof client.rent.lease.createCombinedLease>[0],
+		) => client.rent.lease.createCombinedLease(input),
+		onSuccess: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.lease.listLeases.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.unit.listUnits.key(),
+			});
+			toast.success("Combined lease created successfully");
+		},
+		onError: (error) =>
+			toast.error(`Failed to create combined lease: ${error.message}`),
+	});
+}
+
 // Update
 export function useUpdateLease() {
 	const queryClient = useQueryClient();
@@ -202,6 +222,7 @@ export function useOptimisticCreateLease() {
 						leases: [
 							{
 								leaseId: `optimistic-${Date.now()}`,
+								agreementId: null,
 								tenantId: variables.tenantId,
 								rent: variables.rent,
 								deposit: variables.deposit ?? null,

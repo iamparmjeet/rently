@@ -50,13 +50,10 @@ export const CreateAgreementPaymentSchema = PaymentGroupInsertSchema.omit({
 });
 
 export const UpdatePaymentSchema = createUpdateSchema(payments).pick({
-	amount: true,
 	paymentDate: true,
-	type: true,
 	paymentMethods: true,
 	referenceNumber: true,
 	description: true,
-	utilityId: true,
 });
 
 export const RecordUtilityPaymentSchema = z.object({

@@ -527,7 +527,8 @@ export const createAgreementPayment = ownerProcedure
 		return { paymentGroup, payments: createdPayments };
 	});
 
-// Update — re-validate utility linkage and block reversal via update
+// Update — financial fields (amount, type, utilityId, leaseId) are immutable;
+// only non-accounting metadata may change after a payment exists.
 export const updatePayment = ownerProcedure
 	.route({ method: "PATCH", path: "/rent/payment/update" })
 	.input(z.object({ id: z.string(), data: UpdatePaymentSchema }))
@@ -542,39 +543,10 @@ export const updatePayment = ownerProcedure
 				message: "Cannot update a reversal payment",
 			});
 		}
-		if (input.data.type === PAYMENT_TYPES.REVERSAL) {
-			throw new ORPCError("BAD_REQUEST", {
-				message: "Use voidPayment to create reversals",
-			});
-		}
 
 		// Recheck role restriction
 		if (input.data.paymentMethods) {
 			assertMethodAllowedForRole(input.data.paymentMethods, "owner");
-		}
-
-		// If caller changes utilityId, re-verify ownership of that utility's lease
-		const nextUtilityId = (input.data as { utilityId?: string | null })
-			.utilityId;
-		if (nextUtilityId !== undefined && nextUtilityId !== null) {
-			const [util] = await db
-				.select({ leaseId: utilities.leaseId })
-				.from(utilities)
-				.where(eq(utilities.id, nextUtilityId))
-				.limit(1);
-			if (!util) {
-				throw new ORPCError("NOT_FOUND", { message: "Utility not found" });
-			}
-			const ownsUtilityLease = await isLeaseOwner(
-				db,
-				authUser.id,
-				util.leaseId,
-			);
-			if (!ownsUtilityLease) {
-				throw new ORPCError("FORBIDDEN", {
-					message: "You do not own the lease for this utility",
-				});
-			}
 		}
 
 		const [updated] = await db
@@ -876,6 +848,23 @@ export const voidPaymentGroup = ownerProcedure
 			throw new ORPCError("INTERNAL_SERVER_ERROR", {
 				message: "Failed to reverse grouped payment",
 			});
+		}
+
+		// Grouped reversals may reopen utility bills — keep the compatibility
+		// isPaid flag in sync with the derived amountDue (parity with voidPayment).
+		const utilityIds = [
+			...new Set(
+				originalPayments
+					.map((payment) => payment.utilityId)
+					.filter((id): id is string => Boolean(id)),
+			),
+		];
+		for (const utilityId of utilityIds) {
+			const dueAfter = await getAmountDueForUtility(db, utilityId);
+			await db
+				.update(utilities)
+				.set({ isPaid: dueAfter <= 0 })
+				.where(eq(utilities.id, utilityId));
 		}
 
 		return { paymentGroup, reversals };

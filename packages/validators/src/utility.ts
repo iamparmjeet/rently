@@ -24,7 +24,6 @@ export const CreateUtilitySchema = UtilityInsertSchema.omit({
 });
 
 export const UpdateUtilitySchema = createUpdateSchema(utilities).pick({
-	leaseId: true,
 	utilityType: true,
 	previousReadingDate: true,
 	currentReadingDate: true,

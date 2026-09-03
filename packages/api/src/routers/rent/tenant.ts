@@ -459,7 +459,6 @@ export const removeTenant = ownerProcedure
 								.where(inArray(units.id, unitIds)),
 						]
 					: [];
-
 			if (tenantProfile) {
 				await db.batch([
 					db

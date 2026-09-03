@@ -6,6 +6,7 @@ const baseRow = (
 ): OverdueCandidate => ({
 	rent: 100_000,
 	paidAmount: 0,
+	creditAmount: 0,
 	startDate: new Date("2026-01-01T00:00:00.000Z"),
 	endDate: null,
 	rentDueDate: 10,
@@ -44,6 +45,22 @@ describe("computeOverdueState", () => {
 		expect(
 			computeOverdueState(baseRow({ paidAmount: 100_000 }), "2026-08-13"),
 		).toBeNull();
+	});
+
+	it("counts a rent discount against the outstanding amount", () => {
+		expect(
+			computeOverdueState(
+				baseRow({ paidAmount: 80_000, creditAmount: -20_000 }),
+				"2026-08-13",
+			),
+		).toBeNull();
+	});
+
+	it("nets a reversal back into the outstanding amount", () => {
+		// 100k rent, 100k paid but one 100k payment was reversed -> still owes 100k.
+		expect(
+			computeOverdueState(baseRow({ paidAmount: 0 }), "2026-08-13"),
+		).toMatchObject({ outstandingAmount: 100_000 });
 	});
 
 	it("ignores leases that start after the due date", () => {

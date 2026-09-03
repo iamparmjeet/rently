@@ -1,7 +1,13 @@
 import type { Database } from "@rently/db";
 import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import { user } from "@rently/db/schema/auth";
-import { leases, payments, properties, units } from "@rently/db/schema/schema";
+import {
+	billCredits,
+	leases,
+	payments,
+	properties,
+	units,
+} from "@rently/db/schema/schema";
 import type { OverdueLease } from "@rently/validators";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { computeOverdueState } from "./overdue";
@@ -54,9 +60,15 @@ export async function queryOverdueLeases(
 
 	const paidByLease = new Map<string, number>();
 	for (const payment of paymentRows) {
+		if (getLocalPeriodKey(payment.paymentDate) !== periodKey) {
+			continue;
+		}
+
+		// Net the current period: rent payments reduce due, reversal rows (voided
+		// payments) are negative and add it back. Non-rent types are ignored.
 		if (
-			payment.type !== PAYMENT_TYPES.RENT ||
-			getLocalPeriodKey(payment.paymentDate) !== periodKey
+			payment.type !== PAYMENT_TYPES.RENT &&
+			payment.type !== PAYMENT_TYPES.REVERSAL
 		) {
 			continue;
 		}
@@ -67,6 +79,28 @@ export async function queryOverdueLeases(
 		);
 	}
 
+	// Rent/general credits (utilityId null) net against rent — negative discounts
+	// plus positive reversals. Matches rent-cycle.ts effectiveRent accounting.
+	const creditRows = await db
+		.select({
+			leaseId: billCredits.leaseId,
+			amount: billCredits.amount,
+		})
+		.from(billCredits)
+		.where(
+			and(
+				inArray(billCredits.leaseId, leaseIds),
+				isNull(billCredits.utilityId),
+			),
+		);
+	const creditByLease = new Map<string, number>();
+	for (const credit of creditRows) {
+		creditByLease.set(
+			credit.leaseId,
+			(creditByLease.get(credit.leaseId) ?? 0) + credit.amount,
+		);
+	}
+
 	const localToday = getLocalDateKey(now);
 
 	return rows.flatMap((row) => {
@@ -74,6 +108,7 @@ export async function queryOverdueLeases(
 			{
 				...row,
 				paidAmount: paidByLease.get(row.leaseId) ?? 0,
+				creditAmount: creditByLease.get(row.leaseId) ?? 0,
 			},
 			localToday,
 		);

@@ -74,7 +74,7 @@ function assertMethodAllowedForRole(
 		OWNER_ONLY_PAYMENT_METHODS_VALUE as readonly string[]
 	).includes(method);
 
-	if (!isOwnerOnly && role !== "owner") {
+	if (isOwnerOnly && role !== "owner") {
 		throw new ORPCError("FORBIDDEN", {
 			message: "Cash and cheque payments can only be recorded by the owner",
 		});

@@ -3,7 +3,7 @@ import type { Database } from "@rently/db";
 import { user } from "@rently/db/schema/auth";
 import { leases, payments, properties, units } from "@rently/db/schema/schema";
 import type { PaymentExportRange, PaymentExportRow } from "@rently/validators";
-import { and, desc, eq, gte, lt, type SQL } from "drizzle-orm";
+import { and, desc, eq, gte, isNull, lt, type SQL } from "drizzle-orm";
 
 export const PAYMENT_EXPORT_MAX_ROWS = 10_000;
 
@@ -23,7 +23,11 @@ async function queryPaymentExportRows(
 	db: Database,
 	scope: PaymentExportScope,
 ): Promise<PaymentExportRow[]> {
-	const conditions: SQL[] = [eq(properties.ownerId, scope.ownerId)];
+	const conditions: SQL[] = [
+		eq(properties.ownerId, scope.ownerId),
+		isNull(properties.deletedAt),
+		isNull(units.deletedAt),
+	];
 
 	if (scope.kind === "owner") {
 		conditions.push(

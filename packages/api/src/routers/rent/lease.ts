@@ -56,7 +56,13 @@ async function getLeaseWithOwner(db: Database, leaseId: string) {
 		.from(leases)
 		.innerJoin(units, eq(leases.unitId, units.id))
 		.innerJoin(properties, eq(units.propertyId, properties.id))
-		.where(eq(leases.id, leaseId));
+		.where(
+			and(
+				eq(leases.id, leaseId),
+				isNull(properties.deletedAt),
+				isNull(units.deletedAt),
+			),
+		);
 
 	return lease ?? null;
 }
@@ -757,7 +763,13 @@ async function assertOwnedLeaseForReminder(
 		.from(leases)
 		.innerJoin(units, eq(leases.unitId, units.id))
 		.innerJoin(properties, eq(units.propertyId, properties.id))
-		.where(eq(leases.id, leaseId))
+		.where(
+			and(
+				eq(leases.id, leaseId),
+				isNull(properties.deletedAt),
+				isNull(units.deletedAt),
+			),
+		)
 		.limit(1);
 
 	if (!lease) {

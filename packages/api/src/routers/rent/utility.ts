@@ -262,11 +262,13 @@ export const updateUtility = ownerProcedure
 				.limit(1);
 			const gstEnabled = ownerProfile?.gstEnabled ?? false;
 
-			const [payment] = await db
-				.select({ id: payments.id })
+			// Lock only when a net payment remains — a fully-voided bill (reversal
+			// nets to zero) has no real financial history and stays editable.
+			const [paid] = await db
+				.select({ sum: sql<number>`coalesce(sum(${payments.amount}), 0)` })
 				.from(payments)
-				.where(eq(payments.utilityId, input.id))
-				.limit(1);
+				.where(eq(payments.utilityId, input.id));
+			const hasNetPayment = (paid?.sum ?? 0) > 0;
 			const [credit] = await db
 				.select({ id: billCredits.id })
 				.from(billCredits)
@@ -278,7 +280,7 @@ export const updateUtility = ownerProcedure
 				)
 				.limit(1);
 
-			if (gstEnabled || payment || credit) {
+			if (gstEnabled || hasNetPayment || credit) {
 				throw new ORPCError("BAD_REQUEST", {
 					message:
 						"Bill is locked — use a credit note for adjustments. Financial fields cannot be edited after GST is enabled or payments/credits exist.",
@@ -498,12 +500,11 @@ export const removeUtility = ownerProcedure
 					"Cannot delete a billed utility when GST is enabled — use a credit note instead.",
 			});
 		}
-		const [payment] = await db
-			.select({ id: payments.id })
+		const [paid] = await db
+			.select({ sum: sql<number>`coalesce(sum(${payments.amount}), 0)` })
 			.from(payments)
-			.where(eq(payments.utilityId, existing.id))
-			.limit(1);
-		if (payment) {
+			.where(eq(payments.utilityId, existing.id));
+		if ((paid?.sum ?? 0) > 0) {
 			throw new ORPCError("BAD_REQUEST", {
 				message:
 					"Cannot delete a utility with recorded payments — use a credit note or void the payment.",
@@ -531,7 +532,10 @@ export const removeUtility = ownerProcedure
 		return { success: true };
 	});
 
-const BatchItemSchema = CreateUtilitySchema.extend({
+// Per-item schema for a batch. leaseId is stamped by the server from the batch
+// request, never trusted from an item — dropping it prevents a mismatched
+// per-item lease from silently billing the wrong unit.
+const BatchItemSchema = CreateUtilitySchema.omit({ leaseId: true }).extend({
 	batchId: z.uuid(),
 });
 
@@ -558,11 +562,20 @@ export const createUtilityBatch = ownerProcedure
 		await VerifyLeaseOwnership(db, authUser.id, input.leaseId);
 
 		const insertValues = input.items.map((item) => {
-			const unitsUsed = Math.max(0, item.currentReading - item.previousReading);
-			const totalAmount = Math.round(
-				unitsUsed * (item.ratePerUnit ?? RATEPERUNIT) +
-					(item.fixedCharge ?? FIXEDCHARGE),
-			);
+			// Reuse the single-bill pricing so batch and single bills charge the
+			// same price: maintenance is a fixed charge only, decreasing readings
+			// are rejected rather than clamped to zero.
+			const totalAmount = computeTotalPaisa({
+				utilityType: item.utilityType,
+				currentReading: item.currentReading,
+				previousReading: item.previousReading,
+				ratePerUnit: item.ratePerUnit,
+				fixedCharge: item.fixedCharge,
+			});
+			const unitsUsed =
+				item.utilityType === UTILITY_TYPES.MAINTENANCE
+					? null
+					: (item.currentReading ?? 0) - (item.previousReading ?? 0);
 
 			return {
 				leaseId: input.leaseId,

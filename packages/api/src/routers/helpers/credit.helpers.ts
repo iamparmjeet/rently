@@ -76,3 +76,16 @@ export async function getAmountDueForRent(
 export function isPaidDerived(amountDue: number): boolean {
 	return amountDue <= 0;
 }
+
+// Keep the legacy utilities.isPaid flag in sync with the derived amountDue after
+// a credit or reversal changes the outstanding balance.
+export async function syncUtilityPaidState(
+	tx: DbTx | (Pick<Database, "update"> & DbReader),
+	utilityId: string,
+) {
+	const dueAfter = await getAmountDueForUtility(tx, utilityId);
+	await tx
+		.update(utilities)
+		.set({ isPaid: dueAfter <= 0 })
+		.where(eq(utilities.id, utilityId));
+}

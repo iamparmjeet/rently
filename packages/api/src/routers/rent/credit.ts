@@ -44,6 +44,7 @@ function isUniqueViolation(error: unknown): boolean {
 import {
 	getAmountDueForRent,
 	getAmountDueForUtility,
+	syncUtilityPaidState,
 } from "../helpers/credit.helpers";
 
 // *********** Helper **********************
@@ -152,6 +153,9 @@ export const createCredit = ownerProcedure
 					.limit(1);
 				if (existing) return { credit: existing };
 			}
+			if (row && input.utilityId) {
+				await syncUtilityPaidState(db, input.utilityId);
+			}
 			return { credit: row };
 		}
 
@@ -209,6 +213,9 @@ export const createCredit = ownerProcedure
 					idempotencyKey,
 				})
 				.returning();
+			if (input.utilityId) {
+				await syncUtilityPaidState(tx, input.utilityId);
+			}
 			return { credit: row };
 		});
 	});
@@ -278,6 +285,10 @@ export const reverseCredit = ownerProcedure
 				.where(eq(billCredits.id, input.creditId))
 				.returning();
 
+			if (existing.utilityId) {
+				await syncUtilityPaidState(db, existing.utilityId);
+			}
+
 			return { credit: updated, reversal };
 		}
 
@@ -315,6 +326,10 @@ export const reverseCredit = ownerProcedure
 				})
 				.where(eq(billCredits.id, input.creditId))
 				.returning();
+
+			if (existing.utilityId) {
+				await syncUtilityPaidState(tx, existing.utilityId);
+			}
 
 			return { credit: updated, reversal };
 		});

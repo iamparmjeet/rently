@@ -21,6 +21,7 @@ import {
 import { and, count, desc, eq, gte, lt, sql } from "drizzle-orm";
 import z from "zod";
 import { sendAutomaticUtilityBillEmail } from "../helpers/automatic-emails";
+import { getAmountDueForUtility } from "../helpers/credit.helpers";
 
 type BatchCapableDatabase = Database & {
 	batch<T extends readonly unknown[]>(
@@ -327,6 +328,7 @@ export const getMyUtilities = protectedProcedure
 					fixedCharge: z.number().nullable(),
 					totalAmount: z.number(), // paise
 					isPaid: z.boolean(),
+					amountDue: z.number().int(),
 					description: z.string().nullable(),
 					createdAt: z.date(),
 				}),
@@ -360,7 +362,16 @@ export const getMyUtilities = protectedProcedure
 			.where(eq(leases.tenantId, authUser.id))
 			.orderBy(desc(utilities.currentReadingDate));
 
-		return { utilities: results };
+		// Derived amountDue (total + credits − payments) is the source of truth for
+		// paid state; the stored isPaid flag can drift after a credit/reversal.
+		const enriched = await Promise.all(
+			results.map(async (utility) => ({
+				...utility,
+				amountDue: await getAmountDueForUtility(db, utility.id),
+			})),
+		);
+
+		return { utilities: enriched };
 	});
 
 //  4. Get My Profile

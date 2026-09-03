@@ -627,11 +627,6 @@ export const recordUtilityPayment = ownerProcedure
 				message: "Utility does not belong to this lease",
 			});
 		}
-		if (utility.isPaid) {
-			throw new ORPCError("CONFLICT", {
-				message: "This utility bill is already paid",
-			});
-		}
 
 		let payment: typeof payments.$inferSelect | undefined;
 		if (supportsBatch(db)) {

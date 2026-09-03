@@ -594,22 +594,21 @@ export const updateTenant = ownerProcedure
 			return { success: true };
 		}
 
+		// Scope the profile write to the rows THIS owner created. A tenant shared
+		// across multiple owners must not have one owner overwrite another owner's
+		// KYC/contact profile.
 		await db
 			.update(tenantProfiles)
-			.set({ ...profileFields, updatedAt: new Date() })
-			.where(eq(tenantProfiles.userId, tenantId));
+			.set({ ...profileFields, phone, updatedAt: new Date() })
+			.where(
+				and(
+					eq(tenantProfiles.userId, tenantId),
+					eq(tenantProfiles.createdById, authUser.id),
+				),
+			);
 
-		if (name !== undefined || email !== undefined || phone !== undefined) {
-			await db
-				.update(user)
-				.set({
-					...(name !== undefined && { name }),
-					...(email !== undefined && { email }),
-					...(phone !== undefined && { phone }),
-					updatedAt: new Date(),
-				})
-				.where(eq(user.id, tenantId));
-		}
+		// name/email are global login identity fields owned by the tenant account,
+		// not by any single property owner — never rewrite them here.
 
 		return { success: true };
 	});

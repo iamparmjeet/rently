@@ -292,6 +292,8 @@
 
 ## Known Technical Debt
 
+- [ ] **Ledger/lifecycle integrity (2026-09-03 audit)** — branch `fix/ledger-integrity-2026-09-03` off `main@2250e3f`, tag `pre-ledger-integrity`. See `docs/Bug-2026-09-03-ledger-integrity.md`. Slices: S1 settlement races (idempotency keys, migration `0022`), S2 ledger immutability, S3 overdue discount/reversal accounting, S4 derived credit state, S5 lifecycle (terminate/reactivate/removeTenant), S6 cross-owner tenant auth isolation, S7 batch/portal/export housekeeping.
+- [ ] **Period-aware rent due** — deferred to `feat/period-aware-rent`. `getAmountDueForRent` currently sums lifetime `rent + credits − paid`, so month-two rent reads as already-paid after month-one settlement. Needs a period-key migration + migration of all readers (payments/overdue/reminders/portal/export). See `Decisions.md 2026-09-03`.
 - [x] `notifications-tab.tsx` — `// TODO: migrate from localStorage` comment. Preferences now use owner-scoped database storage.
 - [x] `buildReceiptMessage()` in `payment.ts` — replaced with shared KeyHQ HTML templates in `@rently/email`
 - [x] Production-marked debug logging removed; actionable server failures retain structured contextual logging.
@@ -311,6 +313,7 @@
 | Cron for in-app lease-expiry notifications | Lazy creation inside `listNotifications` — cron only needed for the _email_ channel (P1)                                                        |
 | Referral system                            | Dormant during beta. Revisit only when referrals become an intentional acquisition channel.                                                   |
 | TOTP 2FA / Passkey (`SecurityTab` placeholder `security-tab.tsx:168`) | Deferred 2026-08-25 — high friction for Indian owners; password + Google link + email verification covers beta. Revisit after 20+ paying owners or admin high-value accounts request it. Passkey (`@better-auth/passkey`) evaluated as alternative — also deferred (device/recovery friction). |
+| Period-aware rent due model | Deferred 2026-09-03 — design change needing a period-key migration + reader migration; tracked as its own `feat/period-aware-rent` branch. |
 
 ---
 

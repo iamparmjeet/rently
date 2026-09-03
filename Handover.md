@@ -1,29 +1,29 @@
-# Handover — 2026-09-02 — model: GPT-5.6 Sol — branch: feat/multi-unit-lease-agreements
+# Handover — 2026-09-03 — model: GPT-5.6 Sol — branch: fix/ledger-integrity-2026-09-03
+
+Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is already merged into `main` via `d716bd9`/`2250e3f`) and records the new ledger/lifecycle bugfix branch.
+
+## Baseline
+- Branch `fix/ledger-integrity-2026-09-03` cut from clean `main@2250e3f`; rollback tag `pre-ledger-integrity`.
+- The multi-unit agreement expand (`0020`) and active-lease partial unique index (`0021`) are already in `main`. Docs previously describing them as "uncommitted" are now reconciled.
 
 ## Done
-- Created `feat/multi-unit-lease-agreements` from clean `main@e524701` and tagged the rollback baseline `pre-multi-unit-lease-agreements`.
-- Added agreement/category constants, expand-stage agreement/payment-group schema columns, future Drizzle relation metadata, and validator guards preventing client-supplied `agreementId` or `paymentGroupId`.
-- Preserved old API outputs by projecting nullable `agreementId` / `paymentGroupId` where DB-derived output schemas require them.
-- Completed the backward-compatible `createLease` wrapper: it creates an independent agreement before the linked lease in registered, owner-prepared Neon batch, and callback-transaction paths; unit occupation remains conditional on availability.
-- Added focused `createLease` integration coverage for registered commercial-shop and owner-prepared residential tenants, asserting one independent agreement linked to each created lease.
-- Added `0020_multi_unit_agreement_expand.sql` and generated Drizzle metadata: it creates the physical expand schema, backfills one independent agreement per legacy lease and one transfer group per legacy payment, links resolvable historical reversals, and populates only the new nullable relationship columns.
-- Verified a repeat `db:generate` reports no schema drift, `bun run check-types` passes (6/6), focused Biome passes, and `git diff --check` passes.
-- Ran `db:migrate:test` successfully against a clean `rently_test`, then proved the exact `0020` backfill DML against controlled historical commercial/residential leases plus an original/reversal payment pair. Legacy values remained unchanged; every fixture child received its deterministic parent and the reversal group linked correctly.
-- Focused invite integration suite now passes 15/15. Its owner-prepared fixture now matches the pre-existing provisional-user behavior and tears down that profile/user before deleting its invite.
+- Created the branch + rollback tag.
+- Wrote `docs/Bug-2026-09-03-ledger-integrity.md` (Found/Repro/Plan) and added dated decisions for settlement idempotency keys + deferred period-aware rent.
+- Confirmed all findings against `packages/api` (not `apps/server`, which is gone).
 
 ## In-progress
-- The wrapper and expand-migration implementations are complete and verified but remain uncommitted. The next separate slice is database-level active-lease exclusivity with duplicate-data preflight.
+- S1 — Settlement integrity: idempotency-key columns + partial unique index (migration `0022`) on `payments` and `billCredits`; row-lock + revalidate on the tx path.
 
 ## Broken
-- No current verification blocker. `rently_test` is running and has been reset to an empty, fully migrated state.
+- No current verification blocker.
 
 ## Avoid
-- Do not commit or push the unverified slices.
-- Do not make `leases.agreementId` or `payments.paymentGroupId` non-null in TypeScript or SQL until legacy writers and historical backfill are complete.
-- Do not activate payment-group writes in the agreement-create slice; payment creation, utility payment, void/reversal, receipts, and exports need one later vertical slice.
-- Do not combine the active-lease exclusivity index with the expand migration; it is the next separate failure/rollback slice.
+- Do not commit, push, or deploy unverified slices.
+- Do not make `leases.agreementId` / `payments.paymentGroupId` non-null (legacy writers + backfill pending).
+- Do not add a `(utility_id) WHERE type='utility' AND amount>0` unique index — collides with void-then-repay.
+- Period-aware rent is deferred to `feat/period-aware-rent`; do not implement it here.
 
 ## Next
-1. Plan the separate active-lease exclusivity slice: duplicate-data preflight followed by a partial unique index; do not alter the expand migration.
-2. Implement and test that slice against `rently_test`.
-3. Review the complete diff before any no-emoji commit.
+1. S1 → S2 → S3 → S4 (money), S5 (lifecycle), S6 (auth), S7 (batch/housekeeping).
+2. Verify each: `db:generate` (no drift, S1) → `check-types` → focused Biome → `db:migrate:test` (S1) → focused vitest.
+3. Review full diff before any no-emoji commit; push only with approval.

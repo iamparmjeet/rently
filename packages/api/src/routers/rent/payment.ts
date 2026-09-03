@@ -33,7 +33,7 @@ import {
 	PaymentSelectSchema,
 	UpdatePaymentSchema,
 } from "@rently/validators";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import z from "zod";
 import { isLeaseOwner } from "../helpers";
 import {
@@ -53,6 +53,15 @@ type BatchCapableDatabase = Database & {
 
 function supportsBatch(db: Database): db is BatchCapableDatabase {
 	return typeof (db as { batch?: unknown }).batch === "function";
+}
+
+function isUniqueViolation(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		(error as { code?: unknown }).code === "23505"
+	);
 }
 
 // ─── Shared helper ─────
@@ -158,10 +167,28 @@ export const createPayment = ownerProcedure
 			}
 		}
 
-		// Neon HTTP does not support callback transactions — validate outside
-		// then use batch for the atomic write; node-postgres keeps transaction for row-level consistency.
+		// A client-supplied idempotency key makes a double-submit self-reject via
+		// the partial unique index, closing the Neon HTTP race (no FOR UPDATE).
+		const idempotencyKey = input.idempotencyKey ?? null;
+
 		let payment: typeof payments.$inferSelect | undefined;
 		if (supportsBatch(db)) {
+			if (idempotencyKey) {
+				const [existingPayment] = await db
+					.select()
+					.from(payments)
+					.where(
+						and(
+							eq(payments.leaseId, input.leaseId),
+							eq(payments.idempotencyKey, idempotencyKey),
+						),
+					)
+					.limit(1);
+				if (existingPayment) {
+					return { payment: existingPayment };
+				}
+			}
+
 			if (utilityId) {
 				const due = await getAmountDueForUtility(db, utilityId);
 				if (input.amount !== due) {
@@ -177,19 +204,40 @@ export const createPayment = ownerProcedure
 					});
 				}
 			}
-			const [newPayment] = await db
-				.insert(payments)
-				.values({
-					leaseId: input.leaseId,
-					amount: input.amount,
-					paymentDate: input.paymentDate,
-					type: input.type ?? PAYMENT_TYPES.RENT,
-					paymentMethods: input.paymentMethods ?? null,
-					referenceNumber: input.referenceNumber ?? null,
-					description: input.description ?? null,
-					utilityId,
-				})
-				.returning();
+			let newPayment: typeof payments.$inferSelect | undefined;
+			try {
+				[newPayment] = await db
+					.insert(payments)
+					.values({
+						leaseId: input.leaseId,
+						amount: input.amount,
+						paymentDate: input.paymentDate,
+						type: input.type ?? PAYMENT_TYPES.RENT,
+						paymentMethods: input.paymentMethods ?? null,
+						referenceNumber: input.referenceNumber ?? null,
+						description: input.description ?? null,
+						utilityId,
+						idempotencyKey,
+					})
+					.returning();
+			} catch (error) {
+				if (!isUniqueViolation(error)) throw error;
+			}
+			if (!newPayment && idempotencyKey) {
+				const [existingPayment] = await db
+					.select()
+					.from(payments)
+					.where(
+						and(
+							eq(payments.leaseId, input.leaseId),
+							eq(payments.idempotencyKey, idempotencyKey),
+						),
+					)
+					.limit(1);
+				if (existingPayment) {
+					return { payment: existingPayment };
+				}
+			}
 			payment = newPayment;
 			if (utilityId && payment) {
 				const dueAfter = await getAmountDueForUtility(db, utilityId);
@@ -200,6 +248,30 @@ export const createPayment = ownerProcedure
 			}
 		} else {
 			payment = await db.transaction(async (tx) => {
+				if (utilityId) {
+					await tx.execute(
+						sql`select 1 from ${utilities} where ${utilities.id} = ${utilityId} for update`,
+					);
+				} else {
+					await tx.execute(
+						sql`select 1 from ${leases} where ${leases.id} = ${input.leaseId} for update`,
+					);
+				}
+
+				if (idempotencyKey) {
+					const [existingPayment] = await tx
+						.select()
+						.from(payments)
+						.where(
+							and(
+								eq(payments.leaseId, input.leaseId),
+								eq(payments.idempotencyKey, idempotencyKey),
+							),
+						)
+						.limit(1);
+					if (existingPayment) return existingPayment;
+				}
+
 				if (utilityId) {
 					const due = await getAmountDueForUtility(tx, utilityId);
 					if (input.amount !== due) {
@@ -227,6 +299,7 @@ export const createPayment = ownerProcedure
 						referenceNumber: input.referenceNumber ?? null,
 						description: input.description ?? null,
 						utilityId,
+						idempotencyKey,
 					})
 					.returning();
 
@@ -323,6 +396,32 @@ export const createAgreementPayment = ownerProcedure
 			});
 		}
 
+		// Idempotency: one key across the group's lease allocations. The partial
+		// unique index (lease_id, idempotency_key) rejects a retried group write.
+		const idempotencyKey = input.idempotencyKey ?? null;
+		if (idempotencyKey) {
+			const [existingGroupPayment] = await db
+				.select({ paymentGroupId: payments.paymentGroupId })
+				.from(payments)
+				.where(eq(payments.idempotencyKey, idempotencyKey))
+				.limit(1);
+			if (existingGroupPayment?.paymentGroupId) {
+				const [paymentGroup] = await db
+					.select()
+					.from(paymentGroups)
+					.where(eq(paymentGroups.id, existingGroupPayment.paymentGroupId));
+				const createdPayments = await db
+					.select()
+					.from(payments)
+					.where(
+						eq(payments.paymentGroupId, existingGroupPayment.paymentGroupId),
+					);
+				if (paymentGroup) {
+					return { paymentGroup, payments: createdPayments };
+				}
+			}
+		}
+
 		const groupId = crypto.randomUUID();
 		const groupValues = {
 			id: groupId,
@@ -341,15 +440,46 @@ export const createAgreementPayment = ownerProcedure
 			type: PAYMENT_TYPES.RENT,
 			description: input.description ?? null,
 			paymentGroupId: groupId,
+			idempotencyKey,
 		}));
 
 		if (supportsBatch(db)) {
-			await db.batch([
-				db.insert(paymentGroups).values(groupValues),
-				...paymentValues.map((values) => db.insert(payments).values(values)),
-			]);
+			try {
+				await db.batch([
+					db.insert(paymentGroups).values(groupValues),
+					...paymentValues.map((values) => db.insert(payments).values(values)),
+				]);
+			} catch (error) {
+				if (!isUniqueViolation(error) || !idempotencyKey) throw error;
+				// Concurrent retry won the race — return the winner's group.
+				const [winnerPayment] = await db
+					.select({ paymentGroupId: payments.paymentGroupId })
+					.from(payments)
+					.where(eq(payments.idempotencyKey, idempotencyKey))
+					.limit(1);
+				if (winnerPayment?.paymentGroupId) {
+					const [paymentGroup] = await db
+						.select()
+						.from(paymentGroups)
+						.where(eq(paymentGroups.id, winnerPayment.paymentGroupId));
+					const createdPayments = await db
+						.select()
+						.from(payments)
+						.where(eq(payments.paymentGroupId, winnerPayment.paymentGroupId));
+					if (paymentGroup) {
+						return { paymentGroup, payments: createdPayments };
+					}
+				}
+				throw error;
+			}
 		} else {
 			await db.transaction(async (tx) => {
+				// Serialize concurrent grouped payments for the same agreement leases.
+				for (const { leaseId } of allocations) {
+					await tx.execute(
+						sql`select 1 from ${leases} where ${leases.id} = ${leaseId} for update`,
+					);
+				}
 				await tx.insert(paymentGroups).values(groupValues);
 				await tx.insert(payments).values(paymentValues);
 			});

@@ -32,6 +32,15 @@ function supportsBatch(db: Database): db is BatchCapableDatabase {
 	return typeof (db as { batch?: unknown }).batch === "function";
 }
 
+function isUniqueViolation(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		(error as { code?: unknown }).code === "23505"
+	);
+}
+
 import {
 	getAmountDueForRent,
 	getAmountDueForUtility,
@@ -61,6 +70,7 @@ export const createCredit = ownerProcedure
 				.negative({ error: "Amount must be negative (paise)" }),
 			reason: z.string().min(10, { error: "Reason >= 10 chars" }).trim(),
 			appliedAs: z.enum(APPLIED_AS_VALUES).default("adjust"),
+			idempotencyKey: z.uuid().optional(),
 		}),
 	)
 	.handler(async ({ context, input }) => {
@@ -81,9 +91,21 @@ export const createCredit = ownerProcedure
 		}
 
 		if (supportsBatch(db)) {
-			// Neon HTTP: no FOR UPDATE / no interactive transaction — validate then
-			// single insert is atomic via single statement; concurrency race is
-			// acceptable over 500 on Workers.
+			const idempotencyKey = input.idempotencyKey ?? null;
+			if (idempotencyKey) {
+				const [existing] = await db
+					.select()
+					.from(billCredits)
+					.where(
+						and(
+							eq(billCredits.leaseId, input.leaseId),
+							eq(billCredits.idempotencyKey, idempotencyKey),
+						),
+					)
+					.limit(1);
+				if (existing) return { credit: existing };
+			}
+
 			const due = input.utilityId
 				? await getAmountDueForUtility(db, input.utilityId)
 				: await getAmountDueForRent(db, input.leaseId);
@@ -96,21 +118,40 @@ export const createCredit = ownerProcedure
 			const id = generatedId();
 			const creditNoteNo = getCreditNoteNo(id);
 
-			const [row] = await db
-				.insert(billCredits)
-				.values({
-					id,
-					leaseId: input.leaseId,
-					utilityId: input.utilityId ?? null,
-					ownerId: user.id,
-					type: input.type,
-					amount: input.amount,
-					reason: input.reason,
-					creditNoteNo,
-					appliedAs: input.appliedAs,
-					createdBy: user.id,
-				})
-				.returning();
+			let row: typeof billCredits.$inferSelect | undefined;
+			try {
+				[row] = await db
+					.insert(billCredits)
+					.values({
+						id,
+						leaseId: input.leaseId,
+						utilityId: input.utilityId ?? null,
+						ownerId: user.id,
+						type: input.type,
+						amount: input.amount,
+						reason: input.reason,
+						creditNoteNo,
+						appliedAs: input.appliedAs,
+						createdBy: user.id,
+						idempotencyKey,
+					})
+					.returning();
+			} catch (error) {
+				if (!isUniqueViolation(error)) throw error;
+			}
+			if (!row && idempotencyKey) {
+				const [existing] = await db
+					.select()
+					.from(billCredits)
+					.where(
+						and(
+							eq(billCredits.leaseId, input.leaseId),
+							eq(billCredits.idempotencyKey, idempotencyKey),
+						),
+					)
+					.limit(1);
+				if (existing) return { credit: existing };
+			}
 			return { credit: row };
 		}
 
@@ -123,6 +164,21 @@ export const createCredit = ownerProcedure
 				await tx.execute(
 					sql`select 1 from ${leases} where ${leases.id} = ${input.leaseId} for update`,
 				);
+			}
+
+			const idempotencyKey = input.idempotencyKey ?? null;
+			if (idempotencyKey) {
+				const [existing] = await tx
+					.select()
+					.from(billCredits)
+					.where(
+						and(
+							eq(billCredits.leaseId, input.leaseId),
+							eq(billCredits.idempotencyKey, idempotencyKey),
+						),
+					)
+					.limit(1);
+				if (existing) return { credit: existing };
 			}
 
 			const due = input.utilityId
@@ -150,6 +206,7 @@ export const createCredit = ownerProcedure
 					creditNoteNo,
 					appliedAs: input.appliedAs,
 					createdBy: user.id,
+					idempotencyKey,
 				})
 				.returning();
 			return { credit: row };

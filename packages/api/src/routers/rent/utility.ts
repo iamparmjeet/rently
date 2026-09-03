@@ -664,6 +664,9 @@ export const recordUtilityPayment = ownerProcedure
 			payment = inserted;
 		} else {
 			[payment] = await db.transaction(async (tx) => {
+				await tx.execute(
+					sql`select 1 from ${utilities} where ${utilities.id} = ${input.utilityId} for update`,
+				);
 				const due = await getAmountDueForUtility(tx, input.utilityId);
 				if (due <= 0)
 					throw new ORPCError("CONFLICT", {

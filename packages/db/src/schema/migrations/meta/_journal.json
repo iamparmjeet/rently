@@ -1,160 +1,167 @@
 {
-	"version": "7",
-	"dialect": "postgresql",
-	"entries": [
-		{
-			"idx": 0,
-			"version": "7",
-			"when": 1780428006187,
-			"tag": "0000_pale_shard",
-			"breakpoints": true
-		},
-		{
-			"idx": 1,
-			"version": "7",
-			"when": 1780681840997,
-			"tag": "0001_petite_iron_fist",
-			"breakpoints": true
-		},
-		{
-			"idx": 2,
-			"version": "7",
-			"when": 1780942144055,
-			"tag": "0002_easy_iceman",
-			"breakpoints": true
-		},
-		{
-			"idx": 3,
-			"version": "7",
-			"when": 1780942277910,
-			"tag": "0003_sad_wasp",
-			"breakpoints": true
-		},
-		{
-			"idx": 4,
-			"version": "7",
-			"when": 1780942338245,
-			"tag": "0004_demonic_triathlon",
-			"breakpoints": true
-		},
-		{
-			"idx": 5,
-			"version": "7",
-			"when": 1780942491976,
-			"tag": "0005_handy_mandroid",
-			"breakpoints": true
-		},
-		{
-			"idx": 6,
-			"version": "7",
-			"when": 1781032204830,
-			"tag": "0006_strange_shaman",
-			"breakpoints": true
-		},
-		{
-			"idx": 7,
-			"version": "7",
-			"when": 1786029771614,
-			"tag": "0007_unique_the_hand",
-			"breakpoints": true
-		},
-		{
-			"idx": 8,
-			"version": "7",
-			"when": 1786089364553,
-			"tag": "0008_productive_toad",
-			"breakpoints": true
-		},
-		{
-			"idx": 9,
-			"version": "7",
-			"when": 1786091674026,
-			"tag": "0009_gigantic_runaways",
-			"breakpoints": true
-		},
-		{
-			"idx": 10,
-			"version": "7",
-			"when": 1786269600000,
-			"tag": "0010_private_tenant_documents",
-			"breakpoints": true
-		},
-		{
-			"idx": 11,
-			"version": "7",
-			"when": 1786615833363,
-			"tag": "0011_gifted_avengers",
-			"breakpoints": true
-		},
-		{
-			"idx": 12,
-			"version": "7",
-			"when": 1786616985972,
-			"tag": "0012_first_gravity",
-			"breakpoints": true
-		},
-		{
-			"idx": 13,
-			"version": "7",
-			"when": 1786617843048,
-			"tag": "0013_mysterious_gressill",
-			"breakpoints": true
-		},
-		{
-			"idx": 14,
-			"version": "7",
-			"when": 1786723200000,
-			"tag": "0014_interactive_demo_sandbox",
-			"breakpoints": true
-		},
-		{
-			"idx": 15,
-			"version": "7",
-			"when": 1786625943470,
-			"tag": "0015_silly_firelord",
-			"breakpoints": true
-		},
-		{
-			"idx": 16,
-			"version": "7",
-			"when": 1787662129825,
-			"tag": "0016_gst_and_bill_credits",
-			"breakpoints": true
-		},
-		{
-			"idx": 17,
-			"version": "7",
-			"when": 1787685064157,
-			"tag": "0017_odd_mad_thinker",
-			"breakpoints": true
-		},
-		{
-			"idx": 18,
-			"version": "7",
-			"when": 1788284983156,
-			"tag": "0018_fix_base_rent_paise",
-			"breakpoints": true
-		},
-		{
-			"idx": 19,
-			"version": "7",
-			"when": 1788285418461,
-			"tag": "0019_fix_public_demo_rent_over_scaling",
-			"breakpoints": true
-		},
-		{
-			"idx": 20,
-			"version": "7",
-			"when": 1788356825070,
-			"tag": "0020_multi_unit_agreement_expand",
-			"breakpoints": true
-		},
-		{
-			"idx": 21,
-			"version": "7",
-			"when": 1788360276189,
-			"tag": "0021_colorful_senator_kelly",
-			"breakpoints": true
-		}
-	]
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1780428006187,
+      "tag": "0000_pale_shard",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1780681840997,
+      "tag": "0001_petite_iron_fist",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1780942144055,
+      "tag": "0002_easy_iceman",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1780942277910,
+      "tag": "0003_sad_wasp",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1780942338245,
+      "tag": "0004_demonic_triathlon",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1780942491976,
+      "tag": "0005_handy_mandroid",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1781032204830,
+      "tag": "0006_strange_shaman",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1786029771614,
+      "tag": "0007_unique_the_hand",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1786089364553,
+      "tag": "0008_productive_toad",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1786091674026,
+      "tag": "0009_gigantic_runaways",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1786269600000,
+      "tag": "0010_private_tenant_documents",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1786615833363,
+      "tag": "0011_gifted_avengers",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1786616985972,
+      "tag": "0012_first_gravity",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1786617843048,
+      "tag": "0013_mysterious_gressill",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1786723200000,
+      "tag": "0014_interactive_demo_sandbox",
+      "breakpoints": true
+    },
+    {
+      "idx": 15,
+      "version": "7",
+      "when": 1786625943470,
+      "tag": "0015_silly_firelord",
+      "breakpoints": true
+    },
+    {
+      "idx": 16,
+      "version": "7",
+      "when": 1787662129825,
+      "tag": "0016_gst_and_bill_credits",
+      "breakpoints": true
+    },
+    {
+      "idx": 17,
+      "version": "7",
+      "when": 1787685064157,
+      "tag": "0017_odd_mad_thinker",
+      "breakpoints": true
+    },
+    {
+      "idx": 18,
+      "version": "7",
+      "when": 1788284983156,
+      "tag": "0018_fix_base_rent_paise",
+      "breakpoints": true
+    },
+    {
+      "idx": 19,
+      "version": "7",
+      "when": 1788285418461,
+      "tag": "0019_fix_public_demo_rent_over_scaling",
+      "breakpoints": true
+    },
+    {
+      "idx": 20,
+      "version": "7",
+      "when": 1788356825070,
+      "tag": "0020_multi_unit_agreement_expand",
+      "breakpoints": true
+    },
+    {
+      "idx": 21,
+      "version": "7",
+      "when": 1788360276189,
+      "tag": "0021_colorful_senator_kelly",
+      "breakpoints": true
+    },
+    {
+      "idx": 22,
+      "version": "7",
+      "when": 1788458878333,
+      "tag": "0022_icy_sunset_bain",
+      "breakpoints": true
+    }
+  ]
 }

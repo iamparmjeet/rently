@@ -12,7 +12,10 @@ import { DateRangeSchema } from "./date";
 // ******** Payment **********
 // ── Layer 1: DB-derived
 // Derive Zod Schemas - For Runtime
-export const PaymentSelectSchema = createSelectSchema(payments);
+// idempotencyKey is an internal dedupe column — not part of any API response.
+export const PaymentSelectSchema = createSelectSchema(payments).omit({
+	idempotencyKey: true,
+});
 export const PaymentInsertSchema = createInsertSchema(payments);
 export const PaymentGroupSelectSchema = createSelectSchema(paymentGroups);
 export const PaymentGroupInsertSchema = createInsertSchema(paymentGroups);
@@ -30,6 +33,7 @@ export const CreatePaymentSchema = PaymentInsertSchema.omit({
 	}),
 	// amount must be positive — reversals go via voidPayment only (also enforced in handler)
 	amount: z.number().int().positive({ error: "Amount must be > 0" }),
+	idempotencyKey: z.uuid().optional(),
 });
 
 // A combined agreement payment always settles every outstanding active-unit rent
@@ -42,6 +46,7 @@ export const CreateAgreementPaymentSchema = PaymentGroupInsertSchema.omit({
 	reversesPaymentGroupId: true,
 }).extend({
 	agreementId: z.uuid(),
+	idempotencyKey: z.uuid().optional(),
 });
 
 export const UpdatePaymentSchema = createUpdateSchema(payments).pick({

@@ -1,7 +1,11 @@
 "use client";
 
 import { Button } from "@rently/ui/components/button";
-import { paiseToFormValue, toPaise } from "@rently/ui/lib/currency";
+import {
+	formatRupeesOptionalPaise,
+	paiseToFormValue,
+	toPaise,
+} from "@rently/ui/lib/currency";
 import { CardSkeleton } from "@rently/ui/shared/card-skelton";
 import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
@@ -200,7 +204,7 @@ export default function LeasesPage() {
 				</PageHeader>
 				<section className="overflow-hidden rounded-xl border bg-card shadow-sm">
 					<div className="grid divide-y sm:grid-cols-[1.05fr_1fr] sm:divide-x sm:divide-y-0">
-						<div className="relative overflow-hidden bg-gradient-to-br from-primary/[0.08] via-card to-card p-5">
+						<div className="relative overflow-hidden bg-linear-to-br from-primary/8 via-card to-card p-5">
 							<p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.14em]">
 								Lease portfolio
 							</p>
@@ -219,7 +223,7 @@ export default function LeasesPage() {
 							<LeaseMetric label="Active leases" value={leaseStats.active} />
 							<LeaseMetric
 								label="Monthly rent"
-								value={`₹${leaseStats.monthlyRent.toLocaleString("en-IN")}`}
+								value={`${formatRupeesOptionalPaise(leaseStats.monthlyRent)}`}
 							/>
 						</div>
 					</div>

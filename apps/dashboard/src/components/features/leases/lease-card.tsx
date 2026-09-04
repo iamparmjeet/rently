@@ -12,7 +12,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@rently/ui/components/dropdown-menu";
-import { formatRupees } from "@rently/ui/lib/currency";
+import { formatRupeesOptionalPaise } from "@rently/ui/lib/currency";
 import { cn } from "@rently/ui/lib/utils";
 import type { LeaseWithDetails } from "@rently/validators";
 import {
@@ -73,7 +73,7 @@ export function LeaseCard({
 				isDeleting && "pointer-events-none opacity-50",
 			)}
 		>
-			<CardHeader className="border-b bg-gradient-to-br from-primary/[0.10] via-primary/[0.025] to-transparent px-5 pt-5 pb-4">
+			<CardHeader className="border-b bg-linear-to-br from-primary/10 via-primary/2.5 to-transparent px-5 pt-5 pb-4">
 				<div className="flex items-start justify-between gap-2">
 					{/* Tenant */}
 					<div className="flex min-w-0 items-start gap-3">
@@ -157,7 +157,7 @@ export function LeaseCard({
 					<div className="min-w-0">
 						<p className="text-muted-foreground text-xs">Monthly rent</p>
 						<p className="mt-1 font-semibold text-xl tracking-tight">
-							{formatRupees(lease.rent)}
+							{formatRupeesOptionalPaise(lease.rent)}
 							<span className="ml-1 font-normal text-muted-foreground text-xs">
 								/mo
 							</span>
@@ -166,11 +166,13 @@ export function LeaseCard({
 					<div className="text-right">
 						<p className="text-muted-foreground text-xs">Security deposit</p>
 						<p className="mt-1 font-medium text-sm">
-							{lease.deposit == null ? "—" : formatRupees(lease.deposit)}
+							{lease.deposit == null
+								? "—"
+								: formatRupeesOptionalPaise(lease.deposit)}
 						</p>
 					</div>
 				</div>
-				<div className="rounded-lg border bg-muted/[0.18] px-3 py-2.5">
+				<div className="rounded-lg border bg-muted/18 px-3 py-2.5">
 					<div className="flex items-center gap-2 text-sm">
 						<IconBuilding className="size-3.5 text-primary" />
 						<span className="truncate font-medium">{lease.propertyName}</span>

@@ -286,6 +286,7 @@ Neon HTTP batch behavior.
 
 ```bash
 # All apps in parallel (recommended)
+# Uses local Docker PostgreSQL (`rently_dev`), never production Neon.
 bun run dev
 
 # Or individually

@@ -31,7 +31,7 @@
 	},
 	"type": "module",
 	"scripts": {
-		"dev": "turbo dev",
+		"dev": "DATABASE_URL=postgresql://rently_db_user:rently_db_password@localhost:5432/rently_dev USE_NEON=false NODE_ENV=development turbo dev",
 		"build": "turbo build",
 		"check-types": "turbo check-types",
 		"dev:web": "turbo -F web dev",

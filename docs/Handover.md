@@ -10,6 +10,7 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (already merged in
 - Added Docker-only `rently_dev` refresh from Neon; local development uses `dev:server:local-db`.
 - Added guarded `db:migrate:local`, limited to `localhost/rently_dev`.
 - Added `db:seed:local`; the existing `db:seed` remains production-targeted.
+- `bun run dev` now forces the local `rently_dev` database.
 
 ## In-progress
 - Restore production-shaped data into local `rently_dev` and test manually before opening a PR.

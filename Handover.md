@@ -14,6 +14,7 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Added `db:refresh:local` to restore a Neon dump into Docker-only `rently_dev`; `dev:server:local-db` forces the local node-postgres path.
 - Added guarded `db:migrate:local`; it rejects any target except `localhost/rently_dev`.
 - Added `db:seed:local`; do not use the production-targeted `db:seed` while working locally.
+- `bun run dev` now forces local `rently_dev`; it is safe for the normal all-app development flow.
 
 ## In-progress
 - Restore production-shaped data into local `rently_dev` and manually test the branch before opening a PR.

@@ -7,7 +7,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
-
+import { formatRupees } from "@rently/ui/lib/currency";
 import { cn } from "@rently/ui/lib/utils";
 import { IconWrapper } from "@rently/ui/shared/icon-wrapper";
 import type { PropertyWithStats } from "@rently/validators";
@@ -82,7 +82,7 @@ export function PropertyCard({
 		>
 			<CardHeader
 				className={cn(
-					"relative border-b bg-gradient-to-br px-5 pt-5 pb-4",
+					"relative border-b bg-linear-to-br px-5 pt-5 pb-4",
 					tone.header,
 				)}
 			>
@@ -123,7 +123,7 @@ export function PropertyCard({
 					<div>
 						<p className="text-muted-foreground text-xs">Monthly revenue</p>
 						<p className="mt-1 font-semibold text-lg tracking-tight">
-							₹{property.monthlyRevenue.toLocaleString("en-IN")}
+							{formatRupees(property.monthlyRevenue)}
 							<span className="ml-1 font-normal text-muted-foreground text-xs">
 								/mo
 							</span>

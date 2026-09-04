@@ -15,7 +15,7 @@ import type {
 	UtilityListItem,
 } from "@rently/validators";
 import { IconBolt, IconDroplet, IconPlus, IconTool } from "@tabler/icons-react";
-import { useState } from "react";
+import { useMemo, useState } from "react";
 import { UtilityForm } from "@/components/forms/utility-form";
 import { useOptimisticCreateBatchUtility } from "@/hooks/utilities";
 import type { client } from "@/utils/orpc";
@@ -117,6 +117,62 @@ function buildUtilityWaMessage(u: UtilityListItem, name: string): string {
 	].join("\n");
 }
 
+// Single pricing truth for rows + totals: total is immutable, credits are
+// negative discounts, billed ignores payments, due includes them.
+function getPricing(u: UtilityListItem) {
+	const creditsSum = (u.credits ?? []).reduce((s, c) => s + c.amount, 0);
+	const billed = u.totalAmount + creditsSum;
+	const due = u.amountDue ?? billed;
+	return { creditsSum, billed, due, hasDiscount: creditsSum < 0 };
+}
+
+// Design C: typographic hierarchy, no pills. Original = semibold muted with
+// strikethrough, new = bold foreground. One component for both row variants.
+function AmountCell({
+	utility: u,
+	label,
+}: {
+	utility: UtilityListItem;
+	label: string;
+}) {
+	const { creditsSum, billed, due, hasDiscount } = getPricing(u);
+	const creditTitle = (u.credits ?? [])
+		.map((c) => `${c.creditNoteNo}: ${c.reason}`)
+		.join(", ");
+	return (
+		<div>
+			<p className="text-sm">
+				{hasDiscount && (
+					<del
+						title={creditTitle || undefined}
+						className="mr-2 font-semibold text-muted-foreground"
+					>
+						{formatRupees(u.totalAmount)}
+					</del>
+				)}
+				<span className="font-bold text-foreground">
+					{formatRupees(billed)}
+				</span>
+			</p>
+			{hasDiscount && (
+				<p
+					title={creditTitle || undefined}
+					className="text-muted-foreground text-xs"
+				>
+					Discount {formatRupees(creditsSum)}
+					{due !== billed && <> · Due {formatRupees(due)}</>}
+				</p>
+			)}
+			{!hasDiscount && due !== u.totalAmount && (
+				<p className="text-muted-foreground text-xs">
+					Due: {formatRupees(due)}
+				</p>
+			)}
+			<p className="text-muted-foreground text-xs">{label}</p>
+		</div>
+	);
+}
+
 //  Utility row ***********
 
 function UtilityRow({
@@ -149,6 +205,8 @@ function UtilityRow({
 		{ day: "numeric", month: "short" },
 	);
 
+	const { creditsSum, billed, hasDiscount } = getPricing(u);
+
 	return (
 		<div className="flex items-center gap-4 py-4">
 			<div
@@ -166,6 +224,20 @@ function UtilityRow({
 						? `Prev: ${u.previousReading} kWh (${prevDateLabel}) → Current: ${u.currentReading} kWh (${currDateLabel})`
 						: "Flat charge"}
 				</p>
+				{isElectricity && hasDiscount && (
+					<p className="mt-0.5 text-xs sm:hidden">
+						<del className="font-semibold text-muted-foreground">
+							{formatRupees(u.totalAmount)}
+						</del>{" "}
+						<span className="font-bold text-foreground">
+							{formatRupees(billed)}
+						</span>
+						<span className="text-muted-foreground">
+							{" "}
+							({formatRupees(creditsSum)})
+						</span>
+					</p>
+				)}
 			</div>
 
 			{isElectricity ? (
@@ -183,16 +255,12 @@ function UtilityRow({
 						<p className="text-muted-foreground text-xs">Rate</p>
 					</div>
 					<div>
-						<p className="font-semibold text-sm">
-							{formatRupees(u.totalAmount)}
-						</p>
-						<p className="text-muted-foreground text-xs">Bill Amount</p>
+						<AmountCell utility={u} label="Bill Amount" />
 					</div>
 				</div>
 			) : (
 				<div className="shrink-0 text-right">
-					<p className="font-semibold text-sm">{formatRupees(u.totalAmount)}</p>
-					<p className="text-muted-foreground text-xs">Amount</p>
+					<AmountCell utility={u} label="Amount" />
 				</div>
 			)}
 
@@ -275,12 +343,45 @@ export function UtilitiesTab({
 			new Date(b.currentReadingDate).getTime() -
 			new Date(a.currentReadingDate).getTime(),
 	);
+	const totals = useMemo(() => {
+		let billed = 0;
+		let discount = 0;
+		let due = 0;
+		for (const u of utilities) {
+			const p = getPricing(u);
+			billed += u.totalAmount;
+			discount += p.creditsSum;
+			due += p.due;
+		}
+		return { billed, due, discount };
+	}, [utilities]);
 
 	return (
 		<div>
 			<div className="mb-4 flex items-center justify-between">
 				<h3 className="font-semibold text-base">Utility History</h3>
 				{leaseId && <AddReadingButton leaseId={leaseId} />}
+			</div>
+
+			<div className="mb-4 grid grid-cols-3 divide-x rounded-xl border bg-card text-sm">
+				<div className="p-4">
+					<p className="text-muted-foreground text-xs">Total billed (all)</p>
+					<p className="mt-1 font-bold text-foreground text-xl tracking-tight">
+						{formatRupees(totals.billed)}
+					</p>
+				</div>
+				<div className="p-4">
+					<p className="text-muted-foreground text-xs">Discounts (all)</p>
+					<p className="mt-1 font-bold text-foreground text-xl tracking-tight">
+						{totals.discount < 0 ? formatRupees(totals.discount) : "—"}
+					</p>
+				</div>
+				<div className="p-4">
+					<p className="text-muted-foreground text-xs">Amount due (all)</p>
+					<p className="mt-1 font-bold text-foreground text-xl tracking-tight">
+						{formatRupees(totals.due)}
+					</p>
+				</div>
 			</div>
 
 			{sorted.length === 0 ? (

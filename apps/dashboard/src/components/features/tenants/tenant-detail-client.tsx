@@ -72,9 +72,7 @@ function computeStats(
 	);
 
 	const totalPaidYTD = leasePayments
-		.filter(
-			(p) => p.amount > 0 && new Date(p.paymentDate).getFullYear() === year,
-		)
+		.filter((p) => new Date(p.paymentDate).getFullYear() === year)
 		.reduce((sum, p) => sum + p.amount, 0);
 
 	const allUtils = utilitiesData?.utilities ?? [];
@@ -85,7 +83,10 @@ function computeStats(
 				const d = new Date(u.currentReadingDate);
 				return d.getMonth() === month && d.getFullYear() === year;
 			})
-			.reduce((sum, u) => sum + u.totalAmount, 0);
+			.reduce((sum, u) => {
+				const creditsSum = (u.credits ?? []).reduce((s, c) => s + c.amount, 0);
+				return sum + u.totalAmount + creditsSum;
+			}, 0);
 
 	const periodStart = new Date(year, month, 1);
 	const overdueAmount = allUtils
@@ -109,7 +110,7 @@ function StatCard({
 	return (
 		<div
 			className={`border-r p-4 last:border-r-0 sm:p-5 ${
-				variant === "primary" ? "bg-primary/[0.04] text-foreground" : "bg-card"
+				variant === "primary" ? "bg-primary/4 text-foreground" : "bg-card"
 			}`}
 		>
 			<p
@@ -274,7 +275,7 @@ export default function TenantDetailClient({ id }: { id: string }) {
 				<span className="text-muted-foreground">{tenant.name}</span>
 			</nav>
 
-			<div className="relative overflow-hidden rounded-xl border bg-gradient-to-br from-primary/[0.10] via-card to-card p-5 shadow-sm sm:p-7">
+			<div className="relative overflow-hidden rounded-xl border bg-linear-to-br from-primary/10 via-card to-card p-5 shadow-sm sm:p-7">
 				<div className="absolute -top-16 -right-10 size-48 rounded-full bg-primary/[0.07] blur-2xl" />
 				<div className="relative flex flex-wrap items-center gap-4">
 					{/* Avatar */}

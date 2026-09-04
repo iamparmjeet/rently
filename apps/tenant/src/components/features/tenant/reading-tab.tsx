@@ -1,7 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useSubmitReading, useTenantUtilities } from "@/hooks/tenant-portal";
+import {
+	useSubmitReading,
+	useTenantAgreements,
+	useTenantUtilities,
+} from "@/hooks/tenant-portal";
 import { fmtDate, rupeesCompact } from "@/utils/format";
 
 // 5-digit meter display — pads with leading zeros
@@ -23,15 +27,28 @@ function MeterDisplay({ value }: { value: string }) {
 
 export function ReadingTab() {
 	const { data, isLoading } = useTenantUtilities();
+	const { data: agreementsData } = useTenantAgreements();
 	const { mutate: submitReading, isPending, error } = useSubmitReading();
 
 	const [currentInput, setCurrentInput] = useState("");
+	const [selectedLeaseId, setSelectedLeaseId] = useState("");
 	const [readingDate, setReadingDate] = useState(() =>
 		new Date().toISOString().slice(0, 10),
 	);
 	const [notes, setNotes] = useState("");
 
-	const allUtilities = data?.utilities ?? [];
+	const activeUnits = (agreementsData?.agreements ?? []).flatMap((agreement) =>
+		agreement.units
+			.filter((unit) => unit.status === "active")
+			.map((unit) => ({
+				...unit,
+				propertyName: agreement.property.name,
+			})),
+	);
+	const leaseId = selectedLeaseId || activeUnits[0]?.leaseId;
+	const allUtilities = (data?.utilities ?? []).filter(
+		(utility) => !leaseId || utility.leaseId === leaseId,
+	);
 	// Latest electricity reading (first in desc-sorted array with type = electricity)
 	const latestElec = allUtilities.find((u) => u.utilityType === "electricity");
 	const electricReadings = allUtilities.filter(
@@ -59,12 +76,13 @@ export function ReadingTab() {
 	const showEstimate = currValue > 0 && currValue > prevReading;
 
 	function handleSubmit() {
-		if (!currentInput) return;
+		if (!currentInput || !leaseId) return;
 		submitReading(
 			{
 				currentReading: currValue,
 				readingDate,
 				notes: notes || undefined,
+				leaseId,
 			},
 			{
 				onSuccess: () => {
@@ -88,6 +106,29 @@ export function ReadingTab() {
 					instantly.
 				</p>
 			</div>
+
+			{activeUnits.length > 1 && (
+				<div>
+					<label
+						className="mb-1.5 block font-semibold text-xs"
+						htmlFor="reading-unit"
+					>
+						Unit
+					</label>
+					<select
+						className="h-11 w-full rounded-lg border bg-background px-3 font-medium text-sm outline-none focus:border-primary"
+						id="reading-unit"
+						value={leaseId ?? ""}
+						onChange={(event) => setSelectedLeaseId(event.target.value)}
+					>
+						{activeUnits.map((unit) => (
+							<option key={unit.leaseId} value={unit.leaseId}>
+								{unit.propertyName} - Unit {unit.unitNumber}
+							</option>
+						))}
+					</select>
+				</div>
+			)}
 
 			{/* Previous reading banner */}
 			{latestElec && (

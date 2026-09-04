@@ -1,5 +1,6 @@
 "use client";
 
+import { CREDIT_TYPES } from "@rently/db/constants/payment-constants";
 import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
@@ -51,6 +52,7 @@ import {
 	useSendPaymentReceipt,
 	useVoidPaymentGroup,
 } from "@/hooks/payments";
+import { getCollectionHealth } from "@/lib/payment-collection-health";
 
 // ── Type config ───────
 
@@ -275,7 +277,7 @@ function PaymentDetailDialog({
 				</div>
 
 				{/* ── Footer actions ── */}
-				<DialogFooter className="mt-5 flex-row gap-2 border-t bg-muted/[0.12] px-5 py-3 sm:justify-between">
+				<DialogFooter className="mt-5 flex-row gap-2 border-t bg-muted/12 px-5 py-3 sm:justify-between">
 					<Button variant="outline" size="sm" onClick={onClose}>
 						Close
 					</Button>
@@ -398,19 +400,31 @@ export default function PaymentsPage() {
 	});
 	const activeSortLabel = PAYMENT_SORT_LABELS[sort];
 
-	const now = new Date();
-	const thisMonthPayments = payments.filter((p) => {
-		const d = new Date(p.paymentDate);
-		return (
-			d.getFullYear() === now.getFullYear() &&
-			d.getMonth() === now.getMonth() &&
-			p.type !== PAYMENT_TYPES.REVERSAL
-		);
-	});
-	const thisMonthTotal = thisMonthPayments.reduce((s, p) => s + p.amount, 0);
-	const allTimeTotal = payments
-		.filter((p) => p.type !== PAYMENT_TYPES.REVERSAL)
-		.reduce((s, p) => s + p.amount, 0);
+	const allCredits = creditsData?.credits ?? [];
+	const collectionHealth = useMemo(
+		() =>
+			getCollectionHealth({
+				payments,
+			}),
+		[payments],
+	);
+
+	const allTimeCollection = useMemo(
+		() =>
+			getCollectionHealth({
+				payments,
+				scope: "all-time",
+			}),
+		[payments],
+	);
+	const netDiscountTotal = useMemo(
+		() =>
+			allCredits
+				.filter((credit) => credit.type === CREDIT_TYPES.DISCOUNT)
+				.reduce((total, credit) => total + credit.amount, 0),
+		[allCredits],
+	);
+
 	const reversalCount = payments.filter(
 		(p) => p.type === PAYMENT_TYPES.REVERSAL,
 	).length;
@@ -418,7 +432,6 @@ export default function PaymentsPage() {
 	const selectedPayment = payments.find((p) => p.id === detailId) ?? null;
 
 	// Adjustments: only after tenant paid (paid utility/rent exists)
-	const allCredits = creditsData?.credits ?? [];
 	const settledCredits = useMemo(() => {
 		const paidUtilityIds = new Set(
 			payments
@@ -494,26 +507,32 @@ export default function PaymentsPage() {
 
 				<section className="overflow-hidden rounded-xl border bg-card shadow-sm">
 					<div className="grid divide-y sm:grid-cols-[1.05fr_1fr] sm:divide-x sm:divide-y-0">
-						<div className="relative overflow-hidden bg-gradient-to-br from-primary/[0.08] via-card to-card p-5">
-							<div className="absolute -top-10 -right-10 size-32 rounded-full bg-primary/[0.08] blur-2xl" />
+						<div className="relative overflow-hidden bg-linear-to-br from-primary/8 via-card to-card p-5">
+							<div className="absolute -top-10 -right-10 size-32 rounded-full bg-primary/8 blur-2xl" />
 							<div className="relative">
 								<p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.14em]">
 									Collection health
 								</p>
 								<p className="mt-1 font-semibold text-3xl tabular-nums tracking-tight">
-									{formatRupees(thisMonthTotal)}
+									{formatRupees(collectionHealth.amount)}
 								</p>
 								<p className="mt-2 text-muted-foreground text-xs">
-									Collected this month · {thisMonthPayments.length} transaction
-									{thisMonthPayments.length !== 1 ? "s" : ""}
+									Collected this month · {collectionHealth.transactionCount}{" "}
+									transaction
+									{collectionHealth.transactionCount !== 1 ? "s" : ""}
 								</p>
 							</div>
 						</div>
-						<div className="grid grid-cols-3 divide-x">
+						<div className="grid grid-cols-2 divide-x sm:grid-cols-4">
 							<PaymentMetric
 								icon={IconChartBar}
 								label="All time"
-								value={formatRupees(allTimeTotal)}
+								value={formatRupees(allTimeCollection.amount)}
+							/>
+							<PaymentMetric
+								icon={IconTag}
+								label="Net discounts"
+								value={formatRupees(-netDiscountTotal)}
 							/>
 							<PaymentMetric
 								icon={IconRefreshAlert}

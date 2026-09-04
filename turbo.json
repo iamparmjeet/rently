@@ -15,7 +15,8 @@
 		},
 		"dev": {
 			"cache": false,
-			"persistent": true
+			"persistent": true,
+			"env": ["DATABASE_URL", "USE_NEON", "NODE_ENV"]
 		},
 		"db:push": {
 			"cache": false
@@ -34,6 +35,10 @@
 			"cache": false
 		},
 		"db:studio": {
+			"cache": false,
+			"persistent": true
+		},
+		"db:studio:local": {
 			"cache": false,
 			"persistent": true
 		},

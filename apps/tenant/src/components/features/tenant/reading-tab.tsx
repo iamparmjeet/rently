@@ -27,7 +27,8 @@ function MeterDisplay({ value }: { value: string }) {
 
 export function ReadingTab() {
 	const { data, isLoading } = useTenantUtilities();
-	const { data: agreementsData } = useTenantAgreements();
+	const { data: agreementsData, isLoading: agreementsLoading } =
+		useTenantAgreements();
 	const { mutate: submitReading, isPending, error } = useSubmitReading();
 
 	const [currentInput, setCurrentInput] = useState("");
@@ -93,7 +94,7 @@ export function ReadingTab() {
 		);
 	}
 
-	if (isLoading) {
+	if (isLoading || agreementsLoading) {
 		return <div className="h-80 animate-pulse rounded-xl bg-muted" />;
 	}
 

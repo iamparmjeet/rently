@@ -266,6 +266,9 @@ export const getMyPayments = protectedProcedure
 			payments: z.array(
 				z.object({
 					id: z.string(),
+					leaseId: z.string(),
+					unitNumber: z.string(),
+					propertyName: z.string(),
 					paymentGroupId: z.uuid().nullable(),
 					amount: z.number(), // paise
 					paymentDate: z.date(),
@@ -285,6 +288,9 @@ export const getMyPayments = protectedProcedure
 		const results = await db
 			.select({
 				id: payments.id,
+				leaseId: payments.leaseId,
+				unitNumber: units.unitNumber,
+				propertyName: properties.name,
 				paymentGroupId: payments.paymentGroupId,
 				amount: payments.amount,
 				paymentDate: payments.paymentDate,
@@ -299,6 +305,8 @@ export const getMyPayments = protectedProcedure
 			})
 			.from(payments)
 			.innerJoin(leases, eq(payments.leaseId, leases.id))
+			.innerJoin(units, eq(leases.unitId, units.id))
+			.innerJoin(properties, eq(units.propertyId, properties.id))
 			.leftJoin(utilities, eq(payments.utilityId, utilities.id))
 			// GOTCHA: This WHERE is the authorization. Only payments where the
 			// lease belongs to the logged-in tenant are returned.

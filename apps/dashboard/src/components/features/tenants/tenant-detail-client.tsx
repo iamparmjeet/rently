@@ -11,11 +11,13 @@ import type {
 import {
 	IconBrandWhatsapp,
 	IconPencil,
+	IconRefresh,
 	IconUserMinus,
 } from "@tabler/icons-react";
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
+import { useResendInvite } from "@/hooks/invites";
 import { useLease } from "@/hooks/leases";
 import { usePayments } from "@/hooks/payments";
 import { useRemoveTenant, useTenant } from "@/hooks/tenants";
@@ -225,6 +227,7 @@ export default function TenantDetailClient({ id }: { id: string }) {
 	);
 
 	const removeTenant = useRemoveTenant();
+	const resendInvite = useResendInvite();
 
 	// ── Loading / error states **********
 	if (isLoading) return <TenantDetailSkeleton />;
@@ -257,6 +260,7 @@ export default function TenantDetailClient({ id }: { id: string }) {
 	//  WhatsApp link **************
 	const waPhone = tenant.phone?.replace(/\D/g, "");
 	const primaryActiveLease = tenant.activeLeases[0];
+	const pendingInviteId = tenant.status === "pending" ? tenant.inviteId : null;
 
 	function handleRemove() {
 		removeTenant.mutate(
@@ -307,6 +311,19 @@ export default function TenantDetailClient({ id }: { id: string }) {
 
 					{/* Actions */}
 					<div className="ml-auto flex shrink-0 items-center gap-2">
+						{pendingInviteId && (
+							<Button
+								variant="outline"
+								size="sm"
+								disabled={resendInvite.isPending}
+								onClick={() =>
+									resendInvite.mutate({ inviteId: pendingInviteId })
+								}
+							>
+								<IconRefresh className="mr-1.5 size-4" />
+								Resend Invitation
+							</Button>
+						)}
 						{waPhone && (
 							<Button
 								variant="outline"

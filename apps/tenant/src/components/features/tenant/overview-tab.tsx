@@ -20,49 +20,32 @@ interface OverviewTabProps {
 	onTabChange: (tab: TenantPortalTab) => void;
 }
 
-// Given sorted-desc utilities, return the most recent entry per type
-function latestByType(
-	utils: {
-		utilityType: string;
-		totalAmount: number;
-		previousReading: number | null;
-		currentReading: number | null;
-		unitsUsed: number | null;
-		ratePerUnit: number | null;
-		fixedCharge: number | null;
-	}[],
-) {
-	return utils.reduce<Record<string, (typeof utils)[0]>>((acc, u) => {
-		if (!acc[u.utilityType]) acc[u.utilityType] = u;
-		return acc;
-	}, {});
-}
-
 export function OverviewTab({ onTabChange }: OverviewTabProps) {
 	const { data: leaseData, isLoading: leaseLoading } = useTenantLease();
-	const { data: agreementsData } = useTenantAgreements();
-	const { data: paymentsData } = useTenantPayments();
-	const { data: utilitiesData } = useTenantUtilities();
+	const { data: agreementsData, isLoading: agreementsLoading } =
+		useTenantAgreements();
+	const { data: paymentsData, isLoading: paymentsLoading } =
+		useTenantPayments();
+	const { data: utilitiesData, isLoading: utilitiesLoading } =
+		useTenantUtilities();
 
 	const lease = leaseData?.lease;
 	const agreements = agreementsData?.agreements ?? [];
 	const payments = paymentsData?.payments ?? [];
 	const utilities = utilitiesData?.utilities ?? [];
 
-	const latest = latestByType(utilities);
-	const electricityAmt = latest.electricity?.totalAmount ?? 0;
-	const waterAmt = latest.water?.totalAmount ?? 0;
-	const maintenanceAmt = latest.maintenance?.totalAmount ?? 0;
-	const totalDue =
-		(lease?.rent ?? 0) + electricityAmt + waterAmt + maintenanceAmt;
-
-	const elecUnitsUsed = latest.electricity?.unitsUsed ?? null;
-
 	const ytdPaid = payments
 		.filter((p) => p.amount > 0 && p.type !== "reversal")
 		.reduce((s, p) => s + p.amount, 0);
 
-	if (leaseLoading) return <OverviewSkeleton />;
+	if (
+		leaseLoading ||
+		agreementsLoading ||
+		paymentsLoading ||
+		utilitiesLoading
+	) {
+		return <OverviewSkeleton />;
+	}
 
 	if (!lease) {
 		return (
@@ -80,39 +63,64 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
 		);
 	}
 
-	const combinedAgreement = agreements.find(
-		(agreement) => agreement.units.length > 1,
+	const activeAgreements = agreements.filter((agreement) =>
+		agreement.units.some((unit) => unit.status === "active"),
+	);
+	const activeUnits = activeAgreements.flatMap((agreement) =>
+		agreement.units
+			.filter((unit) => unit.status === "active")
+			.map((unit) => ({ ...unit, agreement })),
+	);
+	const activeUnitCount = activeUnits.length;
+	const activeLeaseIds = new Set(activeUnits.map((unit) => unit.leaseId));
+	const monthlyRent = activeUnits.reduce((total, unit) => total + unit.rent, 0);
+	const now = new Date();
+	const currentUtilities = utilities.filter((utility) => {
+		const billDate = new Date(utility.currentReadingDate ?? utility.createdAt);
+		return (
+			activeLeaseIds.has(utility.leaseId) &&
+			utility.amountDue > 0 &&
+			billDate.getMonth() === now.getMonth() &&
+			billDate.getFullYear() === now.getFullYear()
+		);
+	});
+	const utilityDue = currentUtilities.reduce(
+		(total, utility) => total + utility.amountDue,
+		0,
+	);
+	const totalDue = monthlyRent + utilityDue;
+	const unitByLeaseId = new Map(
+		activeUnits.map((unit) => [unit.leaseId, unit]),
 	);
 
-	const currentMonth = new Date().toLocaleDateString("en-IN", {
+	const currentMonth = now.toLocaleDateString("en-IN", {
 		month: "long",
 		year: "numeric",
 	});
 
 	return (
 		<div className="space-y-3.5">
-			{combinedAgreement && (
+			{activeAgreements.length > 0 && (
 				<div className="rounded-xl border bg-background p-4">
-					<div className="flex items-start justify-between gap-3">
-						<div>
-							<p className="font-bold text-sm">Combined lease agreement</p>
-							<p className="mt-1 text-muted-foreground text-xs">
-								{combinedAgreement.property.name} ·{" "}
-								{combinedAgreement.owner.name}
-							</p>
-						</div>
+					<div className="flex items-center justify-between gap-3">
+						<p className="font-bold text-sm">Active leases</p>
 						<span className="rounded-full bg-primary/10 px-2 py-1 font-medium text-primary text-xs">
-							{combinedAgreement.units.length} units
+							{activeUnitCount} {activeUnitCount === 1 ? "unit" : "units"}
 						</span>
 					</div>
-					<div className="mt-3 grid gap-2 sm:grid-cols-2">
-						{combinedAgreement.units.map((unit) => (
+					<div className="mt-3 space-y-2">
+						{activeUnits.map(({ agreement, ...unit }) => (
 							<div
 								key={unit.leaseId}
-								className="flex justify-between rounded-lg bg-muted/50 px-3 py-2 text-sm"
+								className="flex items-center justify-between gap-3 rounded-lg bg-muted/50 px-3 py-2 text-sm"
 							>
-								<span>Unit {unit.unitNumber}</span>
-								<span className="font-semibold">
+								<div className="min-w-0">
+									<p className="font-medium">Unit {unit.unitNumber}</p>
+									<p className="truncate text-muted-foreground text-xs">
+										{agreement.property.name} · {agreement.owner.name}
+									</p>
+								</div>
+								<span className="shrink-0 font-semibold">
 									{rupeesCompact(unit.rent)}
 								</span>
 							</div>
@@ -125,13 +133,13 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
 				{/* Primary tile — full-width on small, half on larger */}
 				<div className="col-span-2 rounded-xl bg-primary p-4 text-primary-foreground">
 					<p className="font-medium text-primary-foreground/75 text-xs">
-						This Month Due
+						This Month&apos;s Charges
 					</p>
 					<p className="mt-1 font-extrabold text-3xl leading-none">
 						{rupeesCompact(totalDue)}
 					</p>
 					<p className="mt-1 text-primary-foreground/60 text-xs">
-						Due by {fmtDate(nextRentDueDate())}
+						Rent + unpaid utilities · Due by {fmtDate(nextRentDueDate())}
 					</p>
 				</div>
 
@@ -142,60 +150,58 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
 				/>
 				<StatTile
 					label="Monthly Rent"
-					value={rupeesCompact(lease.rent)}
-					sub={lease.property.name}
+					value={rupeesCompact(monthlyRent)}
+					sub={`${activeUnitCount} active ${activeUnitCount === 1 ? "unit" : "units"}`}
 				/>
 				<StatTile
-					label="Unit"
-					value={lease.unit.unitNumber}
-					sub={lease.property.name}
+					label={activeUnitCount === 1 ? "Current Unit" : "Current Units"}
+					value={`${activeUnitCount} ${activeUnitCount === 1 ? "unit" : "units"}`}
+					sub="See active leases above"
 				/>
 				<StatTile
 					label="Lease Status"
 					value="Active"
-					sub={lease.endDate ? `Ends ${fmtDate(lease.endDate)}` : "Ongoing"}
+					sub={`${activeUnitCount} active ${activeUnitCount === 1 ? "lease" : "leases"}`}
 				/>
 			</div>
 
 			{/* ── Bill preview ───────────────────────────────────── */}
 			<div className="overflow-hidden rounded-xl border bg-background">
 				<div className="px-4 py-3">
-					<p className="font-bold text-sm">Bill Preview — {currentMonth}</p>
-					<p className="text-muted-foreground text-xs">
-						Unit {lease.unit.unitNumber} · {lease.property.name}
-					</p>
+					<p className="font-bold text-sm">Charge Preview — {currentMonth}</p>
+					<p className="text-muted-foreground text-xs">All active units</p>
 				</div>
 				<div className="divide-y divide-border">
-					<BillPreviewItem
-						emoji="🏠"
-						label="Monthly Rent"
-						amount={lease.rent}
-					/>
-					{electricityAmt > 0 && (
+					{activeUnits.map((unit) => (
 						<BillPreviewItem
-							emoji="⚡"
-							label={`Electricity (${elecUnitsUsed ?? "—"} units)`}
-							amount={electricityAmt}
+							key={unit.leaseId}
+							emoji="🏠"
+							label={`Monthly Rent · Unit ${unit.unitNumber}`}
+							sub={unit.agreement.property.name}
+							amount={unit.rent}
 						/>
-					)}
-					{waterAmt > 0 && (
-						<BillPreviewItem
-							emoji="💧"
-							label="Water Charges"
-							amount={waterAmt}
-						/>
-					)}
-					{maintenanceAmt > 0 && (
-						<BillPreviewItem
-							emoji="🔧"
-							label="Maintenance"
-							amount={maintenanceAmt}
-						/>
-					)}
+					))}
+					{currentUtilities.map((utility) => {
+						const unit = unitByLeaseId.get(utility.leaseId);
+						const label = `${utility.utilityType.charAt(0).toUpperCase()}${utility.utilityType.slice(1)}`;
+						return (
+							<BillPreviewItem
+								key={utility.id}
+								emoji="⚡"
+								label={label}
+								sub={
+									unit
+										? `Unit ${unit.unitNumber} · ${unit.agreement.property.name}`
+										: undefined
+								}
+								amount={utility.amountDue}
+							/>
+						);
+					})}
 				</div>
 				<div className="flex items-center justify-between bg-primary px-4 py-3">
 					<span className="font-bold text-primary-foreground text-sm">
-						Total Due
+						Total Charges
 					</span>
 					<span className="font-extrabold text-2xl text-primary-foreground">
 						{rupeesCompact(totalDue)}
@@ -220,11 +226,11 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
 					/>
 					<ActionButton
 						icon={<IconMessageCircle className="h-4 w-4" />}
-						label="WhatsApp Owner"
+						label="Share Message"
 						whatsapp
 						onClick={() => {
 							const msg = encodeURIComponent(
-								`Hi, this is ${lease.owner.name}'s tenant from Unit ${lease.unit.unitNumber}, ${lease.property.name}.`,
+								`Hi, I have a question about my ${activeUnitCount === 1 ? "lease" : "leases"}.`,
 							);
 							window.open(`https://wa.me/?text=${msg}`, "_blank");
 						}}
@@ -251,13 +257,16 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
 						text="Submit electricity reading"
 						sub={`By end of ${new Date().toLocaleDateString("en-IN", { month: "long" })}`}
 					/>
-					{lease.endDate && (
-						<UpcomingItem
-							emoji="📄"
-							text="Lease renewal"
-							sub={`Expires ${fmtDate(lease.endDate)}`}
-						/>
-					)}
+					{activeAgreements
+						.filter((agreement) => agreement.endDate)
+						.map((agreement) => (
+							<UpcomingItem
+								key={agreement.id}
+								emoji="📄"
+								text={`Lease renewal · ${agreement.property.name}`}
+								sub={`Expires ${fmtDate(agreement.endDate)}`}
+							/>
+						))}
 				</div>
 			</div>
 		</div>
@@ -289,16 +298,21 @@ function StatTile({
 function BillPreviewItem({
 	emoji,
 	label,
+	sub,
 	amount,
 }: {
 	emoji: string;
 	label: string;
+	sub?: string;
 	amount: number;
 }) {
 	return (
 		<div className="flex items-center gap-3 px-4 py-2.5">
 			<span className="text-xl">{emoji}</span>
-			<span className="flex-1 font-medium text-sm">{label}</span>
+			<div className="flex-1">
+				<p className="font-medium text-sm">{label}</p>
+				{sub && <p className="text-muted-foreground text-xs">{sub}</p>}
+			</div>
 			<span className="font-bold text-sm">{rupeesCompact(amount)}</span>
 		</div>
 	);

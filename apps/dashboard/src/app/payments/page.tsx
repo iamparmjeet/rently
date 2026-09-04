@@ -49,6 +49,7 @@ import {
 	useOwnerPaymentExport,
 	usePayments,
 	useSendPaymentReceipt,
+	useVoidPaymentGroup,
 } from "@/hooks/payments";
 
 // ── Type config ───────
@@ -188,7 +189,7 @@ function PaymentDetailDialog({
 				className="gap-0 overflow-hidden rounded-xl p-0 sm:max-w-md"
 				showCloseButton={false}
 			>
-				<DialogHeader className="relative flex flex-row items-center justify-between overflow-hidden bg-gradient-to-br from-primary/[0.12] via-primary/[0.03] to-transparent px-5 py-4">
+				<DialogHeader className="relative flex flex-row items-center justify-between overflow-hidden bg-linear-to-br from-primary/12 via-primary/3 to-transparent px-5 py-4">
 					<DialogTitle className="font-semibold text-sm">
 						Payment details
 					</DialogTitle>
@@ -237,7 +238,7 @@ function PaymentDetailDialog({
 					</div>
 				</div>
 
-				<div className="mx-5 rounded-lg border bg-muted/[0.15] p-4">
+				<div className="mx-5 rounded-lg border bg-muted/15 p-4">
 					<p className="mb-3 font-medium text-[10px] text-muted-foreground uppercase tracking-[0.14em]">
 						Payment record
 					</p>
@@ -344,6 +345,7 @@ export default function PaymentsPage() {
 	const { data, isLoading } = usePayments();
 	const { data: creditsData, isLoading: creditsLoading } = useCredits();
 	const voidPayment = useDeletePayment();
+	const voidPaymentGroup = useVoidPaymentGroup();
 	const exportPayments = useOwnerPaymentExport();
 	const [pageTab, setPageTab] = useState<"payments" | "adjustments">(
 		"payments",
@@ -693,16 +695,30 @@ export default function PaymentsPage() {
 										if (!open) setVoidingId(null);
 									}}
 									title="Void this payment?"
-									description={`This will create a reversal entry for ${formatRupees(voidingPayment.amount)}. The original record is preserved for audit purposes.`}
+									description={
+										voidingPayment.paymentGroupId
+											? "This is part of a combined payment. Voiding it will create reversal entries for every unit allocation in the group. The original records are preserved for audit purposes."
+											: `This will create a reversal entry for ${formatRupees(voidingPayment.amount)}. The original record is preserved for audit purposes.`
+									}
 									confirmLabel="Void Payment"
 									destructive
 									onConfirm={() => {
-										voidPayment.mutate(
-											{ id: voidingPayment.id },
-											{ onSuccess: () => setVoidingId(null) },
-										);
+										const onSuccess = () => setVoidingId(null);
+										if (voidingPayment.paymentGroupId) {
+											voidPaymentGroup.mutate(
+												{ id: voidingPayment.paymentGroupId },
+												{ onSuccess },
+											);
+										} else {
+											voidPayment.mutate(
+												{ id: voidingPayment.id },
+												{ onSuccess },
+											);
+										}
 									}}
-									isLoading={voidPayment.isPending}
+									isLoading={
+										voidPayment.isPending || voidPaymentGroup.isPending
+									}
 								/>
 							) : null;
 						})()}

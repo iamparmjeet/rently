@@ -10,20 +10,25 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Created the branch + rollback tag.
 - Wrote `docs/Bug-2026-09-03-ledger-integrity.md` (Found/Repro/Plan) and added dated decisions for settlement idempotency keys + deferred period-aware rent.
 - Confirmed all findings against `packages/api` (not `apps/server`, which is gone).
+- Completed and committed S1–S7 (`443cbca` through `134ba50`); `bun run db:generate`, `db:migrate:test`, `check-types`, Biome, Vitest (151 tests), and the full build passed.
+- Added `db:refresh:local` to restore a Neon dump into Docker-only `rently_dev`; `dev:server:local-db` forces the local node-postgres path.
+- Added guarded `db:migrate:local`; it rejects any target except `localhost/rently_dev`.
+- Added `db:seed:local`; do not use the production-targeted `db:seed` while working locally.
 
 ## In-progress
-- S1 — Settlement integrity: idempotency-key columns + partial unique index (migration `0022`) on `payments` and `billCredits`; row-lock + revalidate on the tx path.
+- Restore production-shaped data into local `rently_dev` and manually test the branch before opening a PR.
 
 ## Broken
-- No current verification blocker.
+- Migration `0022` was accidentally applied to production Neon during verification. It is additive only: nullable idempotency-key columns and partial unique indexes; leave it in place so the later deployment skips it safely.
 
 ## Avoid
 - Do not commit, push, or deploy unverified slices.
 - Do not make `leases.agreementId` / `payments.paymentGroupId` non-null (legacy writers + backfill pending).
 - Do not add a `(utility_id) WHERE type='utility' AND amount>0` unique index — collides with void-then-repay.
 - Period-aware rent is deferred to `feat/period-aware-rent`; do not implement it here.
+- Do not point local development at production Neon. Use `db:refresh:local`; validate Neon HTTP batching only against a separate Neon branch.
 
 ## Next
-1. S1 → S2 → S3 → S4 (money), S5 (lifecycle), S6 (auth), S7 (batch/housekeeping).
-2. Verify each: `db:generate` (no drift, S1) → `check-types` → focused Biome → `db:migrate:test` (S1) → focused vitest.
-3. Review full diff before any no-emoji commit; push only with approval.
+1. Refresh `rently_dev` with `SOURCE_DATABASE_URL="$(grep '^DATABASE_URL=' apps/server/.env | cut -d= -f2-)" bun run db:refresh:local`.
+2. Run `bun run dev:server:local-db` and test locally; use a Neon branch, never production, for Neon HTTP batch smoke coverage.
+3. Push this verified fix branch without merging when approved.

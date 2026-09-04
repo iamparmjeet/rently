@@ -234,7 +234,7 @@ bun install
 ### 2. Start the local database
 
 ```bash
-# Starts a PostgreSQL 16 container (defined in packages/db/docker-compose.yaml)
+# Starts a PostgreSQL 18.6 container (matching the Neon database version)
 cd packages/db
 bun run db:start
 ```
@@ -260,9 +260,27 @@ See [Environment Variables](#environment-variables) below for all required keys.
 
 ```bash
 bun run db:generate    # generate migration files from schema
-bun run db:migrate     # apply migrations to local DB
-bun run db:seed        # seed subscription plans
+bun run db:migrate:local # apply migrations to local rently_dev
+bun run db:seed:local  # seed subscription plans locally
 ```
+
+### Refresh local data from Neon
+
+To test against production-shaped data without sending application queries to
+production, restore a Neon dump into the local-only `rently_dev` database:
+
+```bash
+bun run --filter @rently/db db:start
+SOURCE_DATABASE_URL="$(grep '^DATABASE_URL=' apps/server/.env | cut -d= -f2-)" bun run db:refresh:local
+bun run db:migrate:local
+bun run dev:server:local-db
+```
+
+`db:refresh:local` refuses any target other than `localhost:5432/rently_dev`.
+It replaces that local database only; it never writes to the source Neon
+database. Docker Postgres validates standard PostgreSQL SQL and migrations.
+Run an additional smoke test against a separate Neon branch when testing
+Neon HTTP batch behavior.
 
 ### 5. Start the dev servers
 

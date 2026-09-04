@@ -30,11 +30,17 @@
 		"db:migrate:test": {
 			"cache": false
 		},
+		"db:migrate:local": {
+			"cache": false
+		},
 		"db:studio": {
 			"cache": false,
 			"persistent": true
 		},
 		"db:seed": {
+			"cache": false
+		},
+		"db:seed:local": {
 			"cache": false
 		},
 		"db:beta-codes": {

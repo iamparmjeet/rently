@@ -1,15 +1,23 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@rently/db";
+import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import {
 	billCredits,
 	leases,
 	payments,
 	utilities,
 } from "@rently/db/schema/schema";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 
 export type DbTx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type DbReader = Pick<Database, "select">;
+
+const originalPayment = alias(payments, "original_payment");
+
+function aggregateAmount(value: number | string | null | undefined): number {
+	return Number(value ?? 0);
+}
 
 export async function getAmountDueForUtility(
 	tx: DbTx | DbReader,
@@ -27,18 +35,26 @@ export async function getAmountDueForUtility(
 
 	// 2. Sum all discounts for this bill (negative credits + positive reversals net; reversedAt is audit only)
 	const [credits] = await tx
-		.select({ sum: sql<number>`coalesce(sum(${billCredits.amount}), 0)` })
+		.select({
+			sum: sql<number | string>`coalesce(sum(${billCredits.amount}), 0)`,
+		})
 		.from(billCredits)
 		.where(eq(billCredits.utilityId, utilityId));
 
 	// 3. Sum all payments already recorded against this utility (reversal is negative, naturally nets)
 	const [paid] = await tx
-		.select({ sum: sql<number>`coalesce(sum(${payments.amount}), 0)` })
+		.select({
+			sum: sql<number | string>`coalesce(sum(${payments.amount}), 0)`,
+		})
 		.from(payments)
 		.where(eq(payments.utilityId, utilityId));
 
 	// 4. Due = total + negative credits − paid (GST-safe: total immutable, credits separate rows)
-	return utility.totalAmount + (credits?.sum ?? 0) - (paid?.sum ?? 0);
+	return (
+		utility.totalAmount +
+		aggregateAmount(credits?.sum) -
+		aggregateAmount(paid?.sum)
+	);
 }
 
 export async function getAmountDueForRent(
@@ -56,20 +72,47 @@ export async function getAmountDueForRent(
 
 	// 2. Sum all rent/general credits (negative + positive reversals net)
 	const [credits] = await tx
-		.select({ sum: sql<number>`coalesce(sum(${billCredits.amount}), 0)` })
+		.select({
+			sum: sql<number | string>`coalesce(sum(${billCredits.amount}), 0)`,
+		})
 		.from(billCredits)
 		.where(
 			and(eq(billCredits.leaseId, leaseId), isNull(billCredits.utilityId)),
 		);
 
-	// 3. Sum all rent payments for this lease (utilityId null → rent/general). Reversal is negative and nets.
+	// 3. Sum rent payments and reversals of rent payments. Deposits and other
+	// non-utility payments do not settle rent.
 	const [paid] = await tx
-		.select({ sum: sql<number>`coalesce(sum(${payments.amount}), 0)` })
+		.select({
+			sum: sql<number | string>`coalesce(sum(${payments.amount}), 0)`,
+		})
 		.from(payments)
-		.where(and(eq(payments.leaseId, leaseId), isNull(payments.utilityId)));
+		.leftJoin(
+			originalPayment,
+			and(
+				eq(payments.type, PAYMENT_TYPES.REVERSAL),
+				sql`${payments.referenceNumber} = ${originalPayment.id}::text`,
+				eq(originalPayment.leaseId, payments.leaseId),
+			),
+		)
+		.where(
+			and(
+				eq(payments.leaseId, leaseId),
+				isNull(payments.utilityId),
+				or(
+					eq(payments.type, PAYMENT_TYPES.RENT),
+					and(
+						eq(payments.type, PAYMENT_TYPES.REVERSAL),
+						eq(originalPayment.type, PAYMENT_TYPES.RENT),
+					),
+				),
+			),
+		);
 
 	// 4. Due = rent + credits − paid; isPaidDerived = amountDue <= 0 (beta simple, no period key)
-	return lease.rent + (credits?.sum ?? 0) - (paid?.sum ?? 0);
+	return (
+		lease.rent + aggregateAmount(credits?.sum) - aggregateAmount(paid?.sum)
+	);
 }
 
 // Helper for UI/API: derived paid check without extra query when amountDue already computed

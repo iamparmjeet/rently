@@ -1,5 +1,46 @@
 # Decisions
 
+## 2026-09-04 - database URL is the only database selector
+
+**Decision:** Use only `DATABASE_URL`; its hostname selects the runtime driver.
+Local commands supply Docker Postgres and deployment supplies Neon.
+
+**Why:** The combination of `DATABASE_URL`, `USE_NEON`, and a local override
+created multiple sources of truth for one database connection. Simplifying the
+configuration makes the selected database explicit, even though later
+reproduction showed that the ₹1,200 payment failure itself was an aggregate
+type-conversion bug rather than database routing.
+
+**Alternatives:** Change the payment calculation (rejected: its paise arithmetic
+and reversal netting are correct); retain a separate driver flag or override
+variable (rejected: either can disagree with the actual URL).
+
+**Tradeoff:** Driver selection depends on recognizing Neon hostnames, covered by
+a focused regression test.
+
+**Model:** GPT-5.6 Sol.
+
+## 2026-09-04 - normalize monetary aggregates at the database boundary
+
+**Decision:** Convert PostgreSQL monetary aggregate results to JavaScript
+numbers before arithmetic. Rent outstanding includes rent payments and
+reversals linked to rent payments; deposit and other payment types are excluded.
+
+**Why:** PostgreSQL promotes `sum(integer)` to `bigint`, which node-postgres
+returns as text. TypeScript's `sql<number>` annotation did not convert it at
+runtime, causing `120000 + "0"` to concatenate into `1200000`. Treating every
+non-utility payment as rent also allowed deposits to settle rent accidentally.
+
+**Alternatives:** Cast the sum back to PostgreSQL `integer` (rejected: an
+aggregate can exceed the column range); change rupee-to-paise conversion
+(rejected: the submitted `120000` was correct); count every reversal (rejected:
+a reversed deposit is not a rent adjustment).
+
+**Tradeoff:** Reversal attribution relies on the existing convention that
+`payments.referenceNumber` stores the original payment UUID for reversal rows.
+
+**Model:** GPT-5.6 Sol.
+
 ## 2026-09-03 - settlement idempotency keys
 
 **Decision:** Close the Neon HTTP settlement race with application-supplied idempotency keys backed by partial unique indexes, rather than row locks.

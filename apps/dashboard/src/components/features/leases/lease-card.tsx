@@ -12,7 +12,7 @@ import {
 	DropdownMenuSeparator,
 	DropdownMenuTrigger,
 } from "@rently/ui/components/dropdown-menu";
-import { formatRupeesOptionalPaise } from "@rently/ui/lib/currency";
+import { formatRupees } from "@rently/ui/lib/currency";
 import { cn } from "@rently/ui/lib/utils";
 import type { LeaseWithDetails } from "@rently/validators";
 import {
@@ -157,7 +157,7 @@ export function LeaseCard({
 					<div className="min-w-0">
 						<p className="text-muted-foreground text-xs">Monthly rent</p>
 						<p className="mt-1 font-semibold text-xl tracking-tight">
-							{formatRupeesOptionalPaise(lease.rent)}
+							{formatRupees(lease.rent)}
 							<span className="ml-1 font-normal text-muted-foreground text-xs">
 								/mo
 							</span>
@@ -166,9 +166,7 @@ export function LeaseCard({
 					<div className="text-right">
 						<p className="text-muted-foreground text-xs">Security deposit</p>
 						<p className="mt-1 font-medium text-sm">
-							{lease.deposit == null
-								? "—"
-								: formatRupeesOptionalPaise(lease.deposit)}
+							{lease.deposit == null ? "—" : formatRupees(lease.deposit)}
 						</p>
 					</div>
 				</div>

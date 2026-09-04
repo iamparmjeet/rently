@@ -2,7 +2,7 @@
 
 import { Button } from "@rently/ui/components/button";
 import {
-	formatRupeesOptionalPaise,
+	formatRupees,
 	paiseToFormValue,
 	toPaise,
 } from "@rently/ui/lib/currency";
@@ -223,7 +223,7 @@ export default function LeasesPage() {
 							<LeaseMetric label="Active leases" value={leaseStats.active} />
 							<LeaseMetric
 								label="Monthly rent"
-								value={`${formatRupeesOptionalPaise(leaseStats.monthlyRent)}`}
+								value={`${formatRupees(leaseStats.monthlyRent)}`}
 							/>
 						</div>
 					</div>

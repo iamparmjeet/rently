@@ -8,7 +8,7 @@ import {
 	CardTitle,
 } from "@rently/ui/components/card";
 import {
-	formatRupeesOptionalPaise,
+	formatRupees,
 	paiseToFormValue,
 	toPaise,
 } from "@rently/ui/lib/currency";
@@ -159,7 +159,7 @@ export default function LeaseDetailPage({
 						</Button>
 					</div>
 				</div>
-				<section className="overflow-hidden rounded-xl border bg-gradient-to-br from-primary/[0.10] via-card to-card p-5 shadow-sm sm:p-7">
+				<section className="overflow-hidden rounded-xl border bg-linear-to-br from-primary/10 via-card to-card p-5 shadow-sm sm:p-7">
 					<div className="flex flex-wrap items-center justify-between gap-4">
 						<div className="flex items-center gap-3">
 							<div className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
@@ -179,7 +179,7 @@ export default function LeaseDetailPage({
 						</div>
 						<div className="rounded-lg border border-primary/15 bg-background/70 px-4 py-3">
 							<p className="font-semibold text-xl">
-								{formatRupeesOptionalPaise(lease.rent)}
+								{formatRupees(lease.rent)}
 								<span className="ml-1 font-normal text-muted-foreground text-xs">
 									/mo
 								</span>
@@ -236,13 +236,13 @@ export default function LeaseDetailPage({
 								Monthly CardContent
 							</p>
 							<p className="font-semibold text-2xl">
-								{formatRupeesOptionalPaise(lease.rent)}
+								{formatRupees(lease.rent)}
 							</p>
 						</div>
 						<div>
 							<p className="text-muted-foreground text-xs">Deposit</p>
 							<p className="font-semibold text-2xl">
-								{lease.deposit ? formatRupeesOptionalPaise(lease.deposit) : "—"}
+								{lease.deposit ? formatRupees(lease.deposit) : "—"}
 							</p>
 						</div>
 						<div>

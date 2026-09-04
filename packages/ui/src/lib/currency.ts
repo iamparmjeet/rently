@@ -20,16 +20,6 @@ export function formatFormRupees(amount: number): string {
 
 export const paiseToFormValue = (paisa: number) => paisa / 100; // 100 -> 1Rs
 
-const rupeesOptionalPaiseFormatter = new Intl.NumberFormat("en-IN", {
-	style: "currency",
-	currency: "INR",
-	minimumFractionDigits: 0,
-	maximumFractionDigits: 2,
-});
-
-export const formatRupeesOptionalPaise = (paise: number): string =>
-	rupeesOptionalPaiseFormatter.format(paise / 100);
-
 // ************* Receipt Generated **************
 const SMALL_NUMBER_WORDS = [
 	"Zero",

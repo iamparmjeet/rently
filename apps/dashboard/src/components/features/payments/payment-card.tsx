@@ -46,7 +46,7 @@ export function PaymentCard({
 		>
 			<CardHeader
 				className={cn(
-					"relative border-b bg-gradient-to-br px-5 pt-5 pb-4",
+					"relative border-b bg-linear-to-br px-5 pt-5 pb-4",
 					config.headerGradient,
 				)}
 			>

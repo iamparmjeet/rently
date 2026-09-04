@@ -3,6 +3,7 @@ import { env } from "@rently/env/server";
 import { drizzle as drizzleNeonHttp } from "drizzle-orm/neon-http";
 import { drizzle as drizzlePg } from "drizzle-orm/node-postgres";
 import { Pool as PgPool } from "pg";
+import { usesNeonDriver } from "./database-driver";
 import * as schema from "./schema";
 
 export type NeonHttpDatabase = ReturnType<typeof drizzleNeonHttp>;
@@ -25,7 +26,7 @@ export function supportsDatabaseBatch(
 export function createDb(): Database {
 	const url = env.DATABASE_URL;
 
-	if (isNeonUrl(url) || env.USE_NEON === "true") {
+	if (usesNeonDriver(url)) {
 		// WHY neon-http not neon-serverless/Pool:
 		// CF Workers is stateless. The WebSocket Pool creates persistent connections
 		// that span request lifecycles, triggering CF's cross-request promise warning
@@ -49,10 +50,6 @@ export function createDb(): Database {
 	});
 
 	return drizzlePg(pool, { schema, casing: "snake_case" });
-}
-
-function isNeonUrl(url: string): boolean {
-	return url.includes("neon.tech") || url.includes("aws.neon.tech");
 }
 
 export const db = createDb();

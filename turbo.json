@@ -16,7 +16,7 @@
 		"dev": {
 			"cache": false,
 			"persistent": true,
-			"env": ["DATABASE_URL", "USE_NEON", "NODE_ENV"]
+			"env": ["DATABASE_URL", "NODE_ENV"]
 		},
 		"db:push": {
 			"cache": false

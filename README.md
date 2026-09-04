@@ -306,7 +306,7 @@ bun run dev:admin      # Private operations app — port 3004
 ```env
 # Database
 DATABASE_URL=postgresql://rently_db_user:rently_db_password@localhost:5432/rently_db
-USE_NEON=false                  # set to "true" in production to use Neon serverless driver
+# Neon URLs use the serverless HTTP driver; other PostgreSQL URLs use node-postgres.
 
 # Auth
 BETTER_AUTH_SECRET=             # min 32 chars — generate with: openssl rand -base64 32

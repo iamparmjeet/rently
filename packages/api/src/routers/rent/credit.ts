@@ -22,6 +22,40 @@ import { alias } from "drizzle-orm/pg-core";
 import z from "zod";
 import { isLeaseOwner } from "../helpers";
 
+// Drizzle wraps driver errors (the Postgres code nests under cause); read
+// both so constraint arbitration works on every path.
+function violationCode(error: unknown): string | undefined {
+	const top = error as { code?: unknown; cause?: unknown } | null;
+	if (typeof top?.code === "string") return top.code;
+	const cause = top?.cause as { code?: unknown } | null | undefined;
+	if (typeof cause?.code === "string") return cause.code;
+	return undefined;
+}
+
+async function findReversalByCredit(
+	db: Pick<Database, "select">,
+	creditId: string,
+) {
+	const [row] = await db
+		.select()
+		.from(billCredits)
+		.where(eq(billCredits.reversesCreditId, creditId))
+		.limit(1);
+	return row;
+}
+
+async function markCreditReversed(
+	db: Pick<Database, "update">,
+	creditId: string,
+) {
+	const [updated] = await db
+		.update(billCredits)
+		.set({ reversedAt: new Date(), updatedAt: new Date() })
+		.where(eq(billCredits.id, creditId))
+		.returning();
+	return updated;
+}
+
 type BatchCapableDatabase = Database & {
 	batch<T extends readonly unknown[]>(
 		queries: T,
@@ -240,8 +274,11 @@ export const reverseCredit = ownerProcedure
 		if (!(await isLeaseOwner(db, user.id, existing.leaseId)))
 			throw new ORPCError("FORBIDDEN");
 
-		if (existing.reversedAt)
+		if (existing.reversedAt) {
+			const retry = await findReversalByCredit(db, existing.id);
+			if (retry) return { credit: existing, reversal: retry };
 			throw new ORPCError("CONFLICT", { message: "Already reversed" });
+		}
 
 		// Guard: only negative credits can be reversed (positive are already reversals)
 		if (existing.amount >= 0) {
@@ -255,35 +292,45 @@ export const reverseCredit = ownerProcedure
 			const reversalId = generatedId();
 			const reversalNoteNo = getCreditNoteNo(reversalId);
 
-			const [reversal] = await db
-				.insert(billCredits)
-				.values({
-					id: reversalId,
-					leaseId: existing.leaseId,
-					utilityId: existing.utilityId,
-					ownerId: user.id,
-					type: existing.type,
-					amount: reversalAmount,
-					reason:
-						`Reversal of ${existing.creditNoteNo}: ${existing.reason}`.slice(
-							0,
-							500,
-						),
-					creditNoteNo: reversalNoteNo,
-					appliedAs: existing.appliedAs,
-					reversesCreditId: existing.id,
-					createdBy: user.id,
-				})
-				.returning();
+			let reversal: typeof billCredits.$inferSelect | undefined;
+			try {
+				const [reversalRow] = await db
+					.insert(billCredits)
+					.values({
+						id: reversalId,
+						leaseId: existing.leaseId,
+						utilityId: existing.utilityId,
+						ownerId: user.id,
+						type: existing.type,
+						amount: reversalAmount,
+						reason:
+							`Reversal of ${existing.creditNoteNo}: ${existing.reason}`.slice(
+								0,
+								500,
+							),
+						creditNoteNo: reversalNoteNo,
+						appliedAs: existing.appliedAs,
+						reversesCreditId: existing.id,
+						createdBy: user.id,
+					})
+					.returning();
+				reversal = reversalRow;
+			} catch (error) {
+				// Concurrent winner (or a crashed batch's orphan row): adopt it
+				// instead of duplicating, then complete the original below.
+				if (violationCode(error) !== "23505") throw error;
+				const winner = await findReversalByCredit(db, existing.id);
+				if (!winner) throw error;
+				reversal = winner;
+			}
 
-			const [updated] = await db
-				.update(billCredits)
-				.set({
-					reversedAt: new Date(),
-					updatedAt: new Date(),
-				})
-				.where(eq(billCredits.id, input.creditId))
-				.returning();
+			if (!reversal) {
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message: "Failed to reverse credit",
+				});
+			}
+
+			const updated = await markCreditReversed(db, existing.id);
 
 			if (existing.utilityId) {
 				await syncUtilityPaidState(db, existing.utilityId);
@@ -292,47 +339,59 @@ export const reverseCredit = ownerProcedure
 			return { credit: updated, reversal };
 		}
 
-		return db.transaction(async (tx) => {
-			const reversalAmount = Math.abs(existing.amount);
-			const reversalId = generatedId();
-			const reversalNoteNo = getCreditNoteNo(reversalId);
+		try {
+			return await db.transaction(async (tx) => {
+				const reversalAmount = Math.abs(existing.amount);
+				const reversalId = generatedId();
+				const reversalNoteNo = getCreditNoteNo(reversalId);
 
-			const [reversal] = await tx
-				.insert(billCredits)
-				.values({
-					id: reversalId,
-					leaseId: existing.leaseId,
-					utilityId: existing.utilityId,
-					ownerId: user.id,
-					type: existing.type,
-					amount: reversalAmount,
-					reason:
-						`Reversal of ${existing.creditNoteNo}: ${existing.reason}`.slice(
-							0,
-							500,
-						),
-					creditNoteNo: reversalNoteNo,
-					appliedAs: existing.appliedAs,
-					reversesCreditId: existing.id,
-					createdBy: user.id,
-				})
-				.returning();
+				const [reversal] = await tx
+					.insert(billCredits)
+					.values({
+						id: reversalId,
+						leaseId: existing.leaseId,
+						utilityId: existing.utilityId,
+						ownerId: user.id,
+						type: existing.type,
+						amount: reversalAmount,
+						reason:
+							`Reversal of ${existing.creditNoteNo}: ${existing.reason}`.slice(
+								0,
+								500,
+							),
+						creditNoteNo: reversalNoteNo,
+						appliedAs: existing.appliedAs,
+						reversesCreditId: existing.id,
+						createdBy: user.id,
+					})
+					.returning();
 
-			const [updated] = await tx
-				.update(billCredits)
-				.set({
-					reversedAt: new Date(),
-					updatedAt: new Date(),
-				})
-				.where(eq(billCredits.id, input.creditId))
-				.returning();
+				if (!reversal) {
+					throw new ORPCError("INTERNAL_SERVER_ERROR", {
+						message: "Failed to reverse credit",
+					});
+				}
 
+				const updated = await markCreditReversed(tx, existing.id);
+
+				if (existing.utilityId) {
+					await syncUtilityPaidState(tx, existing.utilityId);
+				}
+
+				return { credit: updated, reversal };
+			});
+		} catch (error) {
+			// The aborted transaction cannot be reused — adopt the winner and
+			// complete the original outside of it.
+			if (violationCode(error) !== "23505") throw error;
+			const winner = await findReversalByCredit(db, existing.id);
+			if (!winner) throw error;
+			const updated = await markCreditReversed(db, existing.id);
 			if (existing.utilityId) {
-				await syncUtilityPaidState(tx, existing.utilityId);
+				await syncUtilityPaidState(db, existing.utilityId);
 			}
-
-			return { credit: updated, reversal };
-		});
+			return { credit: updated, reversal: winner };
+		}
 	});
 
 // 3) List Credits

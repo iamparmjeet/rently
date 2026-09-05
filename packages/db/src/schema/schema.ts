@@ -351,6 +351,10 @@ export const billCredits = pgTable(
 			"bill_credits_reason_length_check",
 			sql`char_length(${t.reason}) >= 10`,
 		),
+		// One reversal per credit: concurrent reversals arbitrate here (B06).
+		uniqueIndex("bill_credits_one_reversal_per_credit")
+			.on(t.reversesCreditId)
+			.where(sql`${t.reversesCreditId} is not null`),
 		uniqueIndex("bill_credits_lease_idempotency_key")
 			.on(t.leaseId, t.idempotencyKey)
 			.where(sql`${t.idempotencyKey} is not null`),

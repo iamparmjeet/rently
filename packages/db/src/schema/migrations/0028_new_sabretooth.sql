@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "bill_credits_one_reversal_per_credit" ON "bill_credits" USING btree ("reverses_credit_id") WHERE "bill_credits"."reverses_credit_id" is not null;

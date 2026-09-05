@@ -197,6 +197,13 @@
       "when": 1788606135150,
       "tag": "0027_glorious_sabra",
       "breakpoints": true
+    },
+    {
+      "idx": 28,
+      "version": "7",
+      "when": 1788607004422,
+      "tag": "0028_new_sabretooth",
+      "breakpoints": true
     }
   ]
 }

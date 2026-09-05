@@ -292,7 +292,8 @@
 
 ## Known Technical Debt
 
-- [ ] **Ledger/lifecycle integrity (2026-09-03 audit)** — branch `fix/ledger-integrity-2026-09-03` off `main@2250e3f`, tag `pre-ledger-integrity`. See `docs/Bug-2026-09-03-ledger-integrity.md`. Slices: S1 settlement races (idempotency keys, migration `0022`), S2 ledger immutability, S3 overdue discount/reversal accounting, S4 derived credit state, S5 lifecycle (terminate/reactivate/removeTenant), S6 cross-owner tenant auth isolation, S7 batch/portal/export housekeeping.
+- [x] **Ledger/lifecycle integrity (2026-09-03 audit)** — completed on `fix/ledger-integrity-2026-09-03` in S1-S7 (`443cbca` through `134ba50`); migration `0022` adds settlement idempotency keys. Period-aware rent remains separately deferred below.
+- [ ] **Manual: multi-unit tenant meter submission** — give an existing local tenant two active leases, submit a reading for each selected unit in the tenant portal, and confirm each creates an owner-visible bill for that unit with unit-specific prior reading and estimate. Do not use a newly invited tenant.
 - [ ] **Period-aware rent due** — deferred to `feat/period-aware-rent`. `getAmountDueForRent` currently sums lifetime `rent + credits − paid`, so month-two rent reads as already-paid after month-one settlement. Needs a period-key migration + migration of all readers (payments/overdue/reminders/portal/export). See `Decisions.md 2026-09-03`.
 - [x] `notifications-tab.tsx` — `// TODO: migrate from localStorage` comment. Preferences now use owner-scoped database storage.
 - [x] `buildReceiptMessage()` in `payment.ts` — replaced with shared KeyHQ HTML templates in `@rently/email`

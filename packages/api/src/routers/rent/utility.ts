@@ -18,12 +18,14 @@ import {
 	utilities,
 } from "@rently/db/schema/schema";
 import {
+	CreateUtilityRequestSchema,
 	CreateUtilitySchema,
 	RecordUtilityPaymentSchema,
 	UpdateUtilitySchema,
 	UtilityBillDataSchema,
 	UtilityListItemSchema,
 	UtilitySelectSchema,
+	utilityBoundsViolation,
 } from "@rently/validators";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
 import z from "zod";
@@ -174,7 +176,7 @@ export const createUtility = ownerProcedure
 		path: "/rent/utility/create",
 		successStatus: StatusCode.CREATED,
 	})
-	.input(CreateUtilitySchema)
+	.input(CreateUtilityRequestSchema)
 	.output(z.object({ utility: UtilitySelectSchema }))
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
@@ -302,6 +304,23 @@ export const updateUtility = ownerProcedure
 			input.data.fixedCharge ?? existing.fixedCharge ?? FIXEDCHARGE;
 
 		const isMeter = finalType !== UTILITY_TYPES.MAINTENANCE;
+
+		// Partial updates carry only the patch — validate the merged values so
+		// a shrunken current reading or reordered dates fail here, not at the
+		// database constraint.
+		const mergedViolation = utilityBoundsViolation({
+			fixedCharge: finalFixed,
+			ratePerUnit: finalRate,
+			previousReading: finalPrevious,
+			currentReading: finalCurrent,
+			previousReadingDate:
+				input.data.previousReadingDate ?? existing.previousReadingDate,
+			currentReadingDate:
+				input.data.currentReadingDate ?? existing.currentReadingDate,
+		});
+		if (mergedViolation) {
+			throw new ORPCError("BAD_REQUEST", { message: mergedViolation });
+		}
 
 		const unitsUsed = isMeter
 			? (finalCurrent ?? 0) - (finalPrevious ?? 0)
@@ -582,6 +601,15 @@ export const createUtilityBatch = ownerProcedure
 		const { db, user: authUser } = context;
 
 		await VerifyLeaseOwnership(db, authUser.id, input.leaseId);
+
+		// Batch items skip the request schema (it cannot be omitted), so apply
+		// the same bounds per item before the single atomic insert.
+		for (const item of input.items) {
+			const violation = utilityBoundsViolation(item);
+			if (violation) {
+				throw new ORPCError("BAD_REQUEST", { message: violation });
+			}
+		}
 
 		const insertValues = input.items.map((item) => {
 			// Reuse the single-bill pricing so batch and single bills charge the

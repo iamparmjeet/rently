@@ -1,4 +1,4 @@
-# Handover — 2026-09-05 — model: Muse Spark — branch: fix/ledger-integrity-2026-09-03 (merged)
+# Handover — 2026-09-05 — model: Muse Spark — branch: fix/ci-test-gate (A02 in progress)
 
 Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is already merged into `main` via `d716bd9`/`2250e3f`) and records the new ledger/lifecycle bugfix branch.
 
@@ -80,3 +80,28 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Still outstanding (manual, unchanged): multi-unit tenant meter submission per unit; ₹1,200 check on original lease `01a06bc0…` (absent locally); Shivam erroneous group `b9a5de70…` void+re-record awaiting user approval.
 - A01 closed 2026-09-05: tree committed as 6 sequence-wise commits (`29e17da`..`bd6bbe8`), pushed, merged to `main` as `5dd4614` (regular merge, PR #5). Fix-Plan A01 marked `[x]`. `main` is now the clean base.
 - Next allowed slice: A02 on fresh branch `fix/ci-test-gate` from `main@5dd4614`.
+
+## A02 Restore CI (2026-09-05, Muse Spark, uncommitted)
+- Branch: `fix/ci-test-gate` from `main@e1ce03d`; rollback tag `pre-ci-test-gate`. Only change: new `.github/workflows/ci.yml` (11 steps).
+- Old workflow (removed in `8fa4bc6`) had no Postgres service, no migrate, and relied on `secrets.TEST_DATABASE_URL`. New workflow: `postgres:18.6` service (same image as local `docker-compose.yaml`), creates `rently_test` owned by `rently_db_user`, writes a deterministic 8-line `apps/server/.env.test`, then drift check (`db:generate` + `git diff --exit-code`), `db:migrate:test` + `VACUUM (ANALYZE)`, `check-types`, `biome check .`, `build`, full `vitest run` — all with `SKIP_ENV_VALIDATION=true` on build/test.
+- Key finding: `apps/server/.env.test` is untracked local-only, so CI must write it. Minimal viable content proven by experiment: `NODE_ENV=test` + `DATABASE_URL` (rently_test) + `BETTER_AUTH_URL` + 5 `NEXT_PUBLIC_*` URLs. Without `NODE_ENV=test` the suite runs ~25x slower (490s aggregate, 10s-timeout failures); with it, 160/160 in ~5s on a freshly migrated DB. The 5 `NEXT_PUBLIC_*` URLs satisfy `@rently/env/web` import validation; `BETTER_AUTH_URL` satisfies the auth email-verification test.
+- Verification: YAML parses; `git diff --check` clean; `db:generate` no drift; fresh drop/create/migrate (23/23) + exact CI env + full suite → 37 files, 160 tests, all pass (~7s). `check-types`/full `build` unchanged by this slice (no code touched); they run as CI steps. Biome N/A (YAML-only change).
+- Not committed/pushed (needs approval). After merge, enabling required-status-checks on `main` in GitHub settings is a manual owner step for the "PRs cannot pass while failing" done-criteria.
+- Owner constraint (2026-09-05): no CI on branch pushes — lefthook is the push-time gate and per-commit Actions runs are noise. Triggers cut to `pull_request → main` + `workflow_dispatch` only. `.env` concern resolved: workflow writes its own deterministic test env, no secrets needed.
+- Next: commit/push with approval → open PR → then A03 from clean `main`.
+
+## A02 CI restore (2026-09-05, Muse Spark, branch fix/ci-test-gate, tag pre-ci-test-gate)
+- Wrote `.github/workflows/ci.yml` (11 steps; old file was deleted in `8fa4bc6`, old version relied on `secrets.TEST_DATABASE_URL` with no DB service or migrations).
+- Job: pg 18.6 service (same creds as local compose) → create `rently_test` → write deterministic 8-line `apps/server/.env.test` → `db:generate` + git-diff drift gate → `db:migrate:test` + `VACUUM (ANALYZE)` → `check-types` → `biome check .` → `build` → `vitest run` (both with `SKIP_ENV_VALIDATION=true`).
+- Key finding: `apps/server/.env.test` is untracked, so CI must write it. Proven minimal set: `NODE_ENV=test` + `DATABASE_URL` (rently_test) + `BETTER_AUTH_URL` + 5 `NEXT_PUBLIC_*` URLs. Without the URLs, 3 files fail at import; without `NODE_ENV=test`, the suite runs ~25x slower (490s aggregate, timeout failures) on a cold DB — with it, 160/160 in ~7s on a freshly migrated DB.
+- Verification: YAML parses; `git diff --check` clean; `db:generate` no drift; fresh drop/create/migrate (23/23) + exact CI env + full suite → 37 files / 160 tests pass. check-types unaffected (no TS changed). `.env.test` restored to local 50-line version; branch holds only `.github/workflows/ci.yml`.
+- NOT done: push a real PR to watch CI run green on GitHub (needs commit/push approval); enabling required-status-checks branch protection is a manual owner step after the first green run.
+- Next: commit/push with approval, open PR, confirm green CI, then A03.
+
+## A02 CI restore (2026-09-05, Muse Spark, branch fix/ci-test-gate, tag pre-ci-test-gate)
+- Wrote `.github/workflows/ci.yml` (11 steps; old file was deleted in `8fa4bc6`, old version relied on `secrets.TEST_DATABASE_URL` with no DB service or migrations).
+- Job: pg 18.6 service (same creds as local compose) → create `rently_test` → write deterministic 8-line `apps/server/.env.test` → `db:generate` + git-diff drift gate → `db:migrate:test` + `VACUUM (ANALYZE)` → `check-types` → `biome check .` → `build` → `vitest run` (both with `SKIP_ENV_VALIDATION=true`).
+- Key finding: `apps/server/.env.test` is untracked, so CI must write it. Proven minimal set: `NODE_ENV=test` + `DATABASE_URL` (rently_test) + `BETTER_AUTH_URL` + 5 `NEXT_PUBLIC_*` URLs. Without the URLs, 3 files fail at import; without `NODE_ENV=test`, the suite runs ~25x slower (490s aggregate, timeout failures) on a cold DB — with it, 160/160 in ~7s on a freshly migrated DB.
+- Verification: YAML parses; `git diff --check` clean; `db:generate` no drift; fresh drop/create/migrate (23/23) + exact CI env + full suite → 37 files / 160 tests pass. check-types unaffected (no TS changed). `.env.test` restored to local 50-line version; branch holds only `.github/workflows/ci.yml`.
+- NOT done: push a real PR to watch CI run green on GitHub (needs commit/push approval); enabling required-status-checks branch protection is a manual owner step after the first green run.
+- Next: commit/push with approval, open PR, confirm green CI, then A03.

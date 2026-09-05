@@ -361,10 +361,20 @@ describe("financial input invariants (B02) — utilities", () => {
 		const { ownerId, leaseId } = await createDirectLease();
 		const { utility } = clientsFor(ownerId);
 		await expect(
-			utility.createUtility({ leaseId, ...BILL, fixedCharge: -1 }),
+			utility.createUtility({
+				leaseId,
+				...BILL,
+				fixedCharge: -1,
+				idempotencyKey: crypto.randomUUID(),
+			}),
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		await expect(
-			utility.createUtility({ leaseId, ...BILL, ratePerUnit: -0.5 }),
+			utility.createUtility({
+				leaseId,
+				...BILL,
+				ratePerUnit: -0.5,
+				idempotencyKey: crypto.randomUUID(),
+			}),
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 	});
 
@@ -377,6 +387,7 @@ describe("financial input invariants (B02) — utilities", () => {
 				...BILL,
 				previousReading: 150,
 				currentReading: 100,
+				idempotencyKey: crypto.randomUUID(),
 			}),
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 	});
@@ -389,6 +400,7 @@ describe("financial input invariants (B02) — utilities", () => {
 				leaseId,
 				...BILL,
 				previousReadingDate: new Date("2026-09-15T00:00:00.000Z"),
+				idempotencyKey: crypto.randomUUID(),
 			}),
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 	});
@@ -402,6 +414,7 @@ describe("financial input invariants (B02) — utilities", () => {
 			previousReading: 0,
 			currentReading: 0,
 			previousReadingDate: BILL.currentReadingDate,
+			idempotencyKey: crypto.randomUUID(),
 		});
 		createdUtilityIds.push(result.utility.id);
 		expect(result.utility.totalAmount).toBeGreaterThanOrEqual(0);
@@ -410,7 +423,11 @@ describe("financial input invariants (B02) — utilities", () => {
 	it("rejects moving the previous reading date past the stored current date", async () => {
 		const { ownerId, leaseId } = await createDirectLease();
 		const { utility } = clientsFor(ownerId);
-		const created = await utility.createUtility({ leaseId, ...BILL });
+		const created = await utility.createUtility({
+			leaseId,
+			...BILL,
+			idempotencyKey: crypto.randomUUID(),
+		});
 		createdUtilityIds.push(created.utility.id);
 		await expect(
 			utility.updateUtility({
@@ -435,6 +452,7 @@ describe("financial input invariants (B02) — utilities", () => {
 						batchId: generatedId(),
 						previousReading: 150,
 						currentReading: 100,
+						idempotencyKey: crypto.randomUUID(),
 					},
 				],
 			}),

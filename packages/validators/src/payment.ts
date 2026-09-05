@@ -46,7 +46,9 @@ export const CreatePaymentSchema = PaymentInsertSchema.omit({
 	}),
 	// amount must be positive — reversals go via voidPayment only (also enforced in handler)
 	amount: z.number().int().positive({ error: "Amount must be > 0" }),
-	idempotencyKey: z.uuid().optional(),
+	// B07: every live settlement carries the dialog-open key so ordinary
+	// retries dedupe instead of duplicating.
+	idempotencyKey: z.uuid(),
 	type: z.enum(NON_REVERSAL_PAYMENT_TYPES).optional(),
 });
 
@@ -82,7 +84,7 @@ export const CreateAgreementPaymentSchema = PaymentGroupInsertSchema.omit({
 	reversesPaymentGroupId: true,
 }).extend({
 	agreementId: z.uuid(),
-	idempotencyKey: z.uuid().optional(),
+	idempotencyKey: z.uuid(),
 });
 
 export const UpdatePaymentSchema = createUpdateSchema(payments).pick({
@@ -99,6 +101,7 @@ export const RecordUtilityPaymentSchema = z.object({
 	paymentMethod: z.enum(PAYMENT_METHOD_VALUES),
 	receivedAt: z.string().min(1, { error: "Date Required" }),
 	notes: z.string().optional(),
+	idempotencyKey: z.uuid(),
 });
 
 export const PaymentListItemSchema = PaymentSelectSchema.extend({

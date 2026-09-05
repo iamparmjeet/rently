@@ -121,6 +121,7 @@ async function createCombinedFixture() {
 		agreementId: combined[0]?.agreementId as string,
 		paymentDate: new Date("2026-09-05T00:00:00.000Z"),
 		paymentMethods: "upi",
+		idempotencyKey: crypto.randomUUID(),
 	});
 	createdGroupIds.push(grouped.paymentGroup.id);
 	return {

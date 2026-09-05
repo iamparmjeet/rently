@@ -26,6 +26,7 @@ import {
 import { Input } from "@rently/ui/components/input";
 import { Textarea } from "@rently/ui/components/textarea";
 import { formatRupees } from "@rently/ui/lib/currency";
+import { useIdempotencyKey } from "@rently/ui/shared/form-dialog";
 import { IconTag } from "@tabler/icons-react";
 import { useForm } from "react-hook-form";
 import z from "zod";
@@ -56,6 +57,8 @@ export function DiscountDialog({
 	totalAmount?: number;
 }) {
 	const createCredit = useCreateCredit();
+	// B07: one key per dialog open — retries resubmit the same key.
+	const idempotencyKey = useIdempotencyKey(open);
 
 	const {
 		register,
@@ -82,6 +85,8 @@ export function DiscountDialog({
 				amount: amountPaise,
 				reason: values.reason,
 				appliedAs: values.appliedAs,
+				// Fallback only fires when closed (never submitted then).
+				idempotencyKey: idempotencyKey ?? crypto.randomUUID(),
 			},
 			{
 				onSuccess: () => {

@@ -3,7 +3,11 @@
 import { PAYMENT_METHOD_VALUES } from "@rently/db/constants/payment-constants";
 import { Button } from "@rently/ui/components/button";
 import { Input } from "@rently/ui/components/input";
-import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
+import {
+	FormDialog,
+	useFormDialog,
+	useIdempotencyKey,
+} from "@rently/ui/shared/form-dialog";
 import { IconLayersIntersect } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { useLeases } from "@/hooks/leases";
@@ -13,6 +17,8 @@ export function AddAgreementPaymentButton() {
 	const dialog = useFormDialog();
 	const { data } = useLeases("active");
 	const mutation = useRecordAgreementPayment();
+	// B07: one key per dialog open — retries resubmit the same key.
+	const idempotencyKey = useIdempotencyKey(dialog.open);
 	const groups = useMemo(() => {
 		const grouped = new Map<
 			string,
@@ -48,6 +54,8 @@ export function AddAgreementPaymentButton() {
 				paymentMethods: paymentMethods ? (paymentMethods as never) : null,
 				referenceNumber: referenceNumber || null,
 				description: null,
+				// Fallback only fires when closed (never submitted then).
+				idempotencyKey: idempotencyKey ?? crypto.randomUUID(),
 			},
 			{ onSuccess: () => dialog.closeDialog() },
 		);

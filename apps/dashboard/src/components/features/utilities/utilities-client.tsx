@@ -32,7 +32,7 @@ import {
 	IconSearch,
 	IconTool,
 } from "@tabler/icons-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { UtilityForm } from "@/components/forms/utility-form";
 import { Container } from "@/components/shared/container";
 import { useSuspenseLeases } from "@/hooks/leases";
@@ -80,6 +80,13 @@ export default function UtilitiesClient() {
 	const removeUtility = useOptimisticRemoveUtility();
 
 	const createDialog = useFormDialog();
+	// B07: one idempotency key per bill type, minted per dialog open and
+	// stable across retries; cleared on close. Keyed by type (not index) so
+	// toggling tabs between attempts cannot shift keys onto other bills.
+	const batchItemKeysRef = useRef<Record<string, string>>({});
+	if (!createDialog.open && Object.keys(batchItemKeysRef.current).length > 0) {
+		batchItemKeysRef.current = {};
+	}
 
 	const [viewMode, setViewMode] = useState<"cards" | "rows">("cards");
 	const [activeTab, setActiveTab] = useState<UtilityTab>("electricity");
@@ -236,6 +243,14 @@ export default function UtilitiesClient() {
 
 		const items: BatchItem[] = [];
 
+		const itemKey = (utilityType: string) => {
+			const retained = batchItemKeysRef.current[utilityType];
+			if (retained) return retained;
+			const fresh = crypto.randomUUID();
+			batchItemKeysRef.current[utilityType] = fresh;
+			return fresh;
+		};
+
 		if (values.electricity) {
 			// WHY: destructure to drop isPaid — CreateUtilitySchema omits it intentionally
 			const { isPaid: _isPaid, ...elecFields } = values.electricity;
@@ -245,6 +260,7 @@ export default function UtilitiesClient() {
 				...elecFields,
 				ratePerUnit: toPaise(elecFields.ratePerUnit),
 				fixedCharge: toPaise(elecFields.fixedCharge),
+				idempotencyKey: itemKey("electricity"),
 			});
 		}
 
@@ -260,6 +276,7 @@ export default function UtilitiesClient() {
 				currentReading: 0,
 				...waterFields,
 				fixedCharge: toPaise(waterFields.fixedCharge),
+				idempotencyKey: itemKey("water"),
 			});
 		}
 
@@ -272,6 +289,7 @@ export default function UtilitiesClient() {
 				currentReading: 0,
 				...maintFields,
 				fixedCharge: toPaise(maintFields.fixedCharge),
+				idempotencyKey: itemKey("maintenance"),
 			});
 		}
 

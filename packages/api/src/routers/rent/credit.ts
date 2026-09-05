@@ -105,7 +105,7 @@ export const createCredit = ownerProcedure
 				.negative({ error: "Amount must be negative (paise)" }),
 			reason: z.string().min(10, { error: "Reason >= 10 chars" }).trim(),
 			appliedAs: z.enum(APPLIED_AS_VALUES).default("adjust"),
-			idempotencyKey: z.uuid().optional(),
+			idempotencyKey: z.uuid(),
 		}),
 	)
 	.handler(async ({ context, input }) => {

@@ -107,6 +107,7 @@ async function createPaidLease(rent = 10_000_00) {
 		amount: rent,
 		paymentDate: new Date("2026-09-01T00:00:00.000Z"),
 		type: PAYMENT_TYPES.RENT,
+		idempotencyKey: crypto.randomUUID(),
 	});
 	return { client, paymentId: paid.payment.id, leaseId: lease.id };
 }

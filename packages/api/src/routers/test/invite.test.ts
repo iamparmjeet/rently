@@ -508,6 +508,7 @@ describe("createTenant", () => {
 			paymentDate: new Date("2026-09-05T00:00:00.000Z"),
 			paymentMethods: "upi",
 			referenceNumber: "UPI-TEST-1",
+			idempotencyKey: crypto.randomUUID(),
 		});
 		createdPaymentGroupIds.push(result.paymentGroup.id);
 		createdPaymentIds.push(...result.payments.map((payment) => payment.id));

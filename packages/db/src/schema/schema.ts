@@ -203,6 +203,10 @@ export const utilities = pgTable(
 		totalAmount: integer("total_amount").notNull(),
 		description: text("description"),
 		isPaid: boolean("is_paid").notNull().default(false),
+		// Client-supplied idempotency key for bill creation (B07). Nullable:
+		// tenant meter submissions and legacy rows have none. Retried creates
+		// with the same key return the existing bill instead of duplicating it.
+		idempotencyKey: uuid("idempotency_key"),
 		...auditColumns(),
 	},
 	(table) => [
@@ -222,6 +226,9 @@ export const utilities = pgTable(
 			"utilities_period_order_check",
 			sql`${table.previousReadingDate} is null or ${table.previousReadingDate} <= ${table.currentReadingDate}`,
 		),
+		uniqueIndex("utilities_lease_idempotency_key")
+			.on(table.leaseId, table.idempotencyKey)
+			.where(sql`${table.idempotencyKey} is not null`),
 	],
 );
 

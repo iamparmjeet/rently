@@ -239,6 +239,7 @@ describe("payment reversal linkage (B03) — writers", () => {
 			amount: 10_000_00,
 			paymentDate: new Date("2026-09-01T00:00:00.000Z"),
 			type: PAYMENT_TYPES.RENT,
+			idempotencyKey: crypto.randomUUID(),
 		});
 		const { reversal } = await client.voidPayment({ id: paid.payment.id });
 		expect(reversal.reversesPaymentId).toBe(paid.payment.id);
@@ -267,6 +268,7 @@ describe("payment reversal linkage (B03) — writers", () => {
 			agreementId: agreementId as string,
 			paymentDate: new Date("2026-09-05T00:00:00.000Z"),
 			paymentMethods: "upi",
+			idempotencyKey: crypto.randomUUID(),
 		});
 		createdGroupIds.push(grouped.paymentGroup.id);
 		const { reversals } = await client.voidPaymentGroup({
@@ -303,6 +305,7 @@ describe("payment reversal linkage (B03) — writers", () => {
 			amount: 10_000_00,
 			paymentDate: new Date("2026-09-01T00:00:00.000Z"),
 			type: PAYMENT_TYPES.RENT,
+			idempotencyKey: crypto.randomUUID(),
 		});
 		await client.voidPayment({ id: first.payment.id });
 		const repaid = await client.createPayment({
@@ -310,6 +313,7 @@ describe("payment reversal linkage (B03) — writers", () => {
 			amount: 10_000_00,
 			paymentDate: new Date("2026-09-02T00:00:00.000Z"),
 			type: PAYMENT_TYPES.RENT,
+			idempotencyKey: crypto.randomUUID(),
 		});
 		expect(repaid.payment.type).toBe(PAYMENT_TYPES.RENT);
 		expect(repaid.payment.reversesPaymentId).toBeNull();

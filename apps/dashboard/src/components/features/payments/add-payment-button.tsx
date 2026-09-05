@@ -3,7 +3,11 @@
 // apps/dashboard/src/components/features/payments/add-payment-button.tsx
 import { Button } from "@rently/ui/components/button";
 import { toPaise } from "@rently/ui/lib/currency";
-import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
+import {
+	FormDialog,
+	useFormDialog,
+	useIdempotencyKey,
+} from "@rently/ui/shared/form-dialog";
 import { IconPlus } from "@tabler/icons-react";
 import { useMemo } from "react";
 import {
@@ -34,6 +38,8 @@ export function AddPaymentButton({
 }: AddPaymentButtonProps) {
 	const dialog = useFormDialog();
 	const recordPayment = useRecordPayment();
+	// B07: one key per dialog open — retries resubmit the same key.
+	const idempotencyKey = useIdempotencyKey(dialog.open);
 
 	const { data: leasesData } = useLeases("active");
 	const activeLeases = leasesData?.leases ?? [];
@@ -88,6 +94,8 @@ export function AddPaymentButton({
 				description: values.description || null,
 				utilityId: values.utilityId || null,
 				paymentMethods: values.paymentMethods ?? null,
+				// Fallback only fires when closed (never submitted then).
+				idempotencyKey: idempotencyKey ?? crypto.randomUUID(),
 			},
 			{ onSuccess: dialog.closeDialog },
 		);

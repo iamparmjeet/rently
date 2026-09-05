@@ -169,6 +169,13 @@
       "when": 1788601949432,
       "tag": "0023_dapper_butterfly",
       "breakpoints": true
+    },
+    {
+      "idx": 24,
+      "version": "7",
+      "when": 1788603209617,
+      "tag": "0024_lonely_nocturne",
+      "breakpoints": true
     }
   ]
 }

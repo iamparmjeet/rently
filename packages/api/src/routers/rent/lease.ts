@@ -52,6 +52,8 @@ async function getLeaseWithOwner(db: Database, leaseId: string) {
 			unitId: leases.unitId,
 			ownerId: properties.ownerId,
 			status: leases.status,
+			startDate: leases.startDate,
+			endDate: leases.endDate,
 		})
 		.from(leases)
 		.innerJoin(units, eq(leases.unitId, units.id))
@@ -512,6 +514,18 @@ export const updateLease = ownerProcedure
 					message: "Unit already has an active lease.",
 				});
 			}
+		}
+
+		// Partial updates carry only the patch — validate merged dates so a
+		// shrunken end date fails here, not at the database constraint.
+		// Explicit null clears the end date (open-ended lease).
+		const finalEnd =
+			input.data.endDate === undefined ? ownership.endDate : input.data.endDate;
+		const finalStart = input.data.startDate ?? ownership.startDate;
+		if (finalEnd && finalStart && finalEnd < finalStart) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "End date must be after start date",
+			});
 		}
 
 		const unitStatus =

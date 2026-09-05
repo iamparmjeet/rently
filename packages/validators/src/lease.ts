@@ -22,6 +22,40 @@ const dateOrderError = {
 	path: ["endDate"],
 };
 
+// B02: positive rent, nonnegative deposit, due day 1-31. Fields are optional
+// on update schemas, so each rule fires only when its field is present.
+const leaseMoneyRefine = (data: {
+	rent?: number | null;
+	deposit?: number | null;
+	rentDueDate?: number | null;
+}) => {
+	if (data.rent !== undefined && data.rent !== null && data.rent <= 0) {
+		return false;
+	}
+	if (data.deposit !== undefined && data.deposit !== null && data.deposit < 0) {
+		return false;
+	}
+	if (
+		data.rentDueDate !== undefined &&
+		data.rentDueDate !== null &&
+		!Number.isInteger(data.rentDueDate)
+	) {
+		return false;
+	}
+	if (
+		data.rentDueDate !== undefined &&
+		data.rentDueDate !== null &&
+		(data.rentDueDate < 1 || data.rentDueDate > 31)
+	) {
+		return false;
+	}
+	return true;
+};
+const leaseMoneyError = {
+	message: "Rent must be > 0, deposit >= 0, and due day must be 1-31",
+	path: ["rent"],
+};
+
 // ******** Lease **********
 // ── Layer 1: DB-derived
 // Derive Zod Schemas - For Runtime
@@ -36,7 +70,9 @@ export const CreateLeaseSchema = LeaseInsertSchema.omit({
 	updatedAt: true,
 	status: true,
 	agreementId: true,
-}).refine(dateOrderRefine, dateOrderError);
+})
+	.refine(dateOrderRefine, dateOrderError)
+	.refine(leaseMoneyRefine, leaseMoneyError);
 
 export const CreateCombinedLeaseSchema = LeaseInsertSchema.omit({
 	id: true,
@@ -64,7 +100,8 @@ export const CreateCombinedLeaseSchema = LeaseInsertSchema.omit({
 				{ error: "Each unit may appear only once" },
 			),
 	})
-	.refine(dateOrderRefine, dateOrderError);
+	.refine(dateOrderRefine, dateOrderError)
+	.refine(leaseMoneyRefine, leaseMoneyError);
 
 export const UpdateLeaseSchema = createUpdateSchema(leases)
 	.pick({
@@ -75,7 +112,8 @@ export const UpdateLeaseSchema = createUpdateSchema(leases)
 		status: true,
 		referenceId: true,
 	})
-	.refine(dateOrderRefine, dateOrderError);
+	.refine(dateOrderRefine, dateOrderError)
+	.refine(leaseMoneyRefine, leaseMoneyError);
 
 // ── Layer 3: API output schemas
 export const LeaseWithDetailsSchema = z.object({

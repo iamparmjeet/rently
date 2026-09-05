@@ -12,6 +12,60 @@ import z from "zod";
 export const UtilitySelectSchema = createSelectSchema(utilities);
 export const UtilityInsertSchema = createInsertSchema(utilities);
 
+// B02: nonnegative charges/rates/readings, current reading not below the
+// previous one, ordered period dates. Shared as a plain function so the
+// batch handler can apply the same rule per item (BatchItemSchema omits the
+// base, which zod forbids on refined schemas — same reason the single-create
+// rule lives on CreateUtilityRequestSchema below, not the base).
+export type UtilityBoundedInput = {
+	fixedCharge?: number | null;
+	ratePerUnit?: number | null;
+	previousReading?: number | null;
+	currentReading?: number | null;
+	previousReadingDate?: Date | string | null;
+	currentReadingDate?: Date | string | null;
+};
+
+export function utilityBoundsViolation(
+	value: UtilityBoundedInput,
+): string | null {
+	if (value.fixedCharge != null && value.fixedCharge < 0) {
+		return "Fixed charge must be >= 0";
+	}
+	if (value.ratePerUnit != null && value.ratePerUnit < 0) {
+		return "Rate per unit must be >= 0";
+	}
+	if (value.previousReading != null && value.previousReading < 0) {
+		return "Previous reading must be >= 0";
+	}
+	if (value.currentReading != null && value.currentReading < 0) {
+		return "Current reading must be >= 0";
+	}
+	if (
+		value.previousReading != null &&
+		value.currentReading != null &&
+		value.currentReading < value.previousReading
+	) {
+		return "Current reading must be >= previous reading";
+	}
+	if (
+		value.previousReadingDate != null &&
+		value.currentReadingDate != null &&
+		new Date(value.previousReadingDate) > new Date(value.currentReadingDate)
+	) {
+		return "Previous reading date must be on or before the current reading date";
+	}
+	return null;
+}
+
+const refineUtilityBounds = (
+	value: UtilityBoundedInput,
+	ctx: z.RefinementCtx,
+) => {
+	const violation = utilityBoundsViolation(value);
+	if (violation) ctx.addIssue({ code: "custom", message: violation });
+};
+
 // ── Layer 2: API-input
 // Business Logic Schemas
 export const CreateUtilitySchema = UtilityInsertSchema.omit({
@@ -23,17 +77,23 @@ export const CreateUtilitySchema = UtilityInsertSchema.omit({
 	updatedAt: true,
 });
 
-export const UpdateUtilitySchema = createUpdateSchema(utilities).pick({
-	utilityType: true,
-	previousReadingDate: true,
-	currentReadingDate: true,
-	previousReading: true,
-	currentReading: true,
-	ratePerUnit: true,
-	fixedCharge: true,
-	unitsUsed: true,
-	description: true,
-});
+// Strict single-create input; the base stays unrefined for BatchItemSchema.
+export const CreateUtilityRequestSchema =
+	CreateUtilitySchema.superRefine(refineUtilityBounds);
+
+export const UpdateUtilitySchema = createUpdateSchema(utilities)
+	.pick({
+		utilityType: true,
+		previousReadingDate: true,
+		currentReadingDate: true,
+		previousReading: true,
+		currentReading: true,
+		ratePerUnit: true,
+		fixedCharge: true,
+		unitsUsed: true,
+		description: true,
+	})
+	.superRefine(refineUtilityBounds);
 export const BillCreditSchema = z.object({
 	amount: z.number().int(),
 	reason: z.string(),

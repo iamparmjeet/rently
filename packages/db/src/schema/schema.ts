@@ -77,45 +77,62 @@ export const properties = pgTable("properties", {
 	...softDeleteColumn(),
 });
 
-export const units = pgTable("units", {
-	...idColumn(),
-	propertyId: uuid("property_id")
-		.notNull()
-		.references(() => properties.id, { onDelete: "restrict" }),
-	unitNumber: text("unit_number").notNull(),
-	type: text("type", { enum: UNIT_TYPES_VALUES }).notNull(),
-	area: real("area"),
-	baseRent: integer("base_rent").notNull(), // Paisa or cents
-	furnishing: text("furnishing", { enum: UNIT_FURNISHING_VALUES }).default(
-		"unfurnished",
-	),
-	description: text("description"),
-	status: text("status", { enum: UNIT_STATUS_VALUES }).notNull(),
-	...auditColumns(),
-	...softDeleteColumn(),
-});
+export const units = pgTable(
+	"units",
+	{
+		...idColumn(),
+		propertyId: uuid("property_id")
+			.notNull()
+			.references(() => properties.id, { onDelete: "restrict" }),
+		unitNumber: text("unit_number").notNull(),
+		type: text("type", { enum: UNIT_TYPES_VALUES }).notNull(),
+		area: real("area"),
+		baseRent: integer("base_rent").notNull(), // Paisa or cents
+		furnishing: text("furnishing", { enum: UNIT_FURNISHING_VALUES }).default(
+			"unfurnished",
+		),
+		description: text("description"),
+		status: text("status", { enum: UNIT_STATUS_VALUES }).notNull(),
+		...auditColumns(),
+		...softDeleteColumn(),
+	},
+	(table) => [check("units_base_rent_check", sql`${table.baseRent} > 0`)],
+);
 
-export const leaseAgreements = pgTable("lease_agreements", {
-	...idColumn(),
-	tenantId: uuid("tenant_id")
-		.notNull()
-		.references(() => user.id, { onDelete: "restrict" }),
-	propertyId: uuid("property_id")
-		.notNull()
-		.references(() => properties.id, { onDelete: "restrict" }),
-	arrangementType: text("arrangement_type", {
-		enum: LEASE_AGREEMENT_ARRANGEMENT_VALUES,
-	}).notNull(),
-	category: text("category", {
-		enum: LEASE_CATEGORY_VALUES,
-	}).notNull(),
-	rentDueDate: integer("rent_due_date"),
-	startDate: timestamp("start_date").notNull(),
-	endDate: timestamp("end_date"),
-	notice: integer("notice"),
-	description: text("description"),
-	...auditColumns(),
-});
+export const leaseAgreements = pgTable(
+	"lease_agreements",
+	{
+		...idColumn(),
+		tenantId: uuid("tenant_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "restrict" }),
+		propertyId: uuid("property_id")
+			.notNull()
+			.references(() => properties.id, { onDelete: "restrict" }),
+		arrangementType: text("arrangement_type", {
+			enum: LEASE_AGREEMENT_ARRANGEMENT_VALUES,
+		}).notNull(),
+		category: text("category", {
+			enum: LEASE_CATEGORY_VALUES,
+		}).notNull(),
+		rentDueDate: integer("rent_due_date"),
+		startDate: timestamp("start_date").notNull(),
+		endDate: timestamp("end_date"),
+		notice: integer("notice"),
+		description: text("description"),
+		...auditColumns(),
+	},
+	(table) => [
+		check(
+			"lease_agreements_due_day_check",
+			sql`${table.rentDueDate} is null or (${table.rentDueDate} >= 1 and ${table.rentDueDate} <= 31)`,
+		),
+		check(
+			"lease_agreements_date_order_check",
+			sql`${table.endDate} is null or ${table.endDate} >= ${table.startDate}`,
+		),
+	],
+);
 
 export const leases = pgTable(
 	"leases",
@@ -142,6 +159,19 @@ export const leases = pgTable(
 		...auditColumns(),
 	},
 	(table) => [
+		check("leases_rent_check", sql`${table.rent} > 0`),
+		check(
+			"leases_deposit_check",
+			sql`${table.deposit} is null or ${table.deposit} >= 0`,
+		),
+		check(
+			"leases_due_day_check",
+			sql`${table.rentDueDate} is null or (${table.rentDueDate} >= 1 and ${table.rentDueDate} <= 31)`,
+		),
+		check(
+			"leases_date_order_check",
+			sql`${table.endDate} is null or ${table.endDate} >= ${table.startDate}`,
+		),
 		uniqueIndex("leases_one_active_per_unit_key")
 			.on(table.unitId)
 			.where(sql`${table.status} = 'active'`),
@@ -152,27 +182,48 @@ export const leases = pgTable(
 // ****** Accounting **************
 // ═══════════════════════════════════════════════════════════
 
-export const utilities = pgTable("utilities", {
-	...idColumn(),
-	batchId: uuid("batch_id").$defaultFn(() => generatedId()),
-	leaseId: uuid("lease_id")
-		.notNull()
-		.references(() => leases.id, { onDelete: "restrict" }),
-	utilityType: text("utility_type", {
-		enum: UTILITY_TYPE_VALUES,
-	}).notNull(),
-	previousReadingDate: timestamp("previous_reading_date"),
-	currentReadingDate: timestamp("reading_date").notNull(),
-	previousReading: real("previous_reading").notNull(),
-	currentReading: real("current_reading").notNull(),
-	unitsUsed: real("units_used"),
-	ratePerUnit: real("rate_per_unit"),
-	fixedCharge: integer("fixed_charge"),
-	totalAmount: integer("total_amount").notNull(),
-	description: text("description"),
-	isPaid: boolean("is_paid").notNull().default(false),
-	...auditColumns(),
-});
+export const utilities = pgTable(
+	"utilities",
+	{
+		...idColumn(),
+		batchId: uuid("batch_id").$defaultFn(() => generatedId()),
+		leaseId: uuid("lease_id")
+			.notNull()
+			.references(() => leases.id, { onDelete: "restrict" }),
+		utilityType: text("utility_type", {
+			enum: UTILITY_TYPE_VALUES,
+		}).notNull(),
+		previousReadingDate: timestamp("previous_reading_date"),
+		currentReadingDate: timestamp("reading_date").notNull(),
+		previousReading: real("previous_reading").notNull(),
+		currentReading: real("current_reading").notNull(),
+		unitsUsed: real("units_used"),
+		ratePerUnit: real("rate_per_unit"),
+		fixedCharge: integer("fixed_charge"),
+		totalAmount: integer("total_amount").notNull(),
+		description: text("description"),
+		isPaid: boolean("is_paid").notNull().default(false),
+		...auditColumns(),
+	},
+	(table) => [
+		check(
+			"utilities_fixed_charge_check",
+			sql`${table.fixedCharge} is null or ${table.fixedCharge} >= 0`,
+		),
+		check(
+			"utilities_rate_check",
+			sql`${table.ratePerUnit} is null or ${table.ratePerUnit} >= 0`,
+		),
+		check(
+			"utilities_readings_check",
+			sql`${table.previousReading} >= 0 and ${table.currentReading} >= 0 and ${table.currentReading} >= ${table.previousReading}`,
+		),
+		check(
+			"utilities_period_order_check",
+			sql`${table.previousReadingDate} is null or ${table.previousReadingDate} <= ${table.currentReadingDate}`,
+		),
+	],
+);
 
 export const paymentGroups = pgTable("payment_groups", {
 	...idColumn(),

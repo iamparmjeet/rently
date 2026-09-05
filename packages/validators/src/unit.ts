@@ -7,6 +7,22 @@ import {
 } from "drizzle-zod";
 import z from "zod";
 
+// B02: base rent must stay positive on create and update.
+const baseRentRefine = (data: { baseRent?: number | null }) => {
+	if (
+		data.baseRent !== undefined &&
+		data.baseRent !== null &&
+		data.baseRent <= 0
+	) {
+		return false;
+	}
+	return true;
+};
+const baseRentError = {
+	message: "Base rent must be > 0",
+	path: ["baseRent"],
+};
+
 // ******** Units **********
 
 // ── Layer 1: DB-derived
@@ -21,17 +37,19 @@ export const CreateUnitSchema = UnitInsertSchema.omit({
 	status: true,
 	createdAt: true,
 	updatedAt: true,
-});
+}).refine(baseRentRefine, baseRentError);
 
-export const UpdateUnitSchema = createUpdateSchema(units).pick({
-	unitNumber: true,
-	type: true,
-	area: true,
-	baseRent: true,
-	furnishing: true,
-	description: true,
-	status: true,
-});
+export const UpdateUnitSchema = createUpdateSchema(units)
+	.pick({
+		unitNumber: true,
+		type: true,
+		area: true,
+		baseRent: true,
+		furnishing: true,
+		description: true,
+		status: true,
+	})
+	.refine(baseRentRefine, baseRentError);
 
 // Layer 3 - API output
 export const UnitDetailSchema = UnitSelectSchema.extend({

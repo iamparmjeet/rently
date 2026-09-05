@@ -133,3 +133,13 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → full suite 172/172.
 - Live proofs (zero connection risk): remote `rently_test` impostor in `.env.test` → `db:generate` refuses pre-connection; original `.env.test` restored checksum-identical. Note: dotenv `override:true` clobbers env-passed `DATABASE_URL`, so the file-swap (not env override) is the correct negative probe.
 - Committed as `add8db6`, opened PR #8 → `integ/phase-a-baseline` with user approval, CI green (~3m17s), merged as `74c6ec9`.
+
+## A05 Deployment safety gates (2026-09-05, Muse Spark, branch fix/deployment-safety-gates, tag pre-deployment-safety-gates)
+- Base: clean `integ/phase-a-baseline@2ffe4a6`. Fix-Plan A05 `[~]` (implemented+verified, Terra Medium review owed).
+- Findings: `wrangler.json` deployed `AADHAAR_UPLOADS_ENABLED=true` against Constraints (fixed to `"false"`); auth derived the cookie domain from `BETTER_AUTH_URL` hostname instead of validated `env.COOKIE_DOMAIN` (now `resolveCookieDomain`: prod uses validated domain, dev keeps `undefined`; prod value identical `.parmjeetmishra.com`, no behavior change).
+- Changed (no migration): `apps/server/wrangler.json` (Aadhaar off); `packages/auth/src/cookie-domain.ts` (new pure helper) + `index.ts` wiring.
+- Tests (written first, all red pre-fix): `cookie-domain.test.ts` (prod/dev + wiring pin), `deployment-config.test.ts` (wrangler Aadhaar off + bare cookie domain + schema default tripwire), `tenant-document.test.ts` +1 Aadhaar-disabled upload rejection (`BAD_REQUEST`/`AADHAAR_UPLOAD_DISABLED`; existing pan test proves non-Aadhaar still works).
+- Credentials sweep: no genuine secrets in tracked test/example/fixture files (only README `<account-id>` placeholder + env-constructed endpoint string); `invite.test.ts` passwords dummy. Untracked local `apps/server/.env.test` holds real secrets by A02/A03 design (gitignored) — left untouched.
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → full suite 179/179.
+- One self-caught edit mangled an import in `auth/index.ts`; repaired immediately, repair verified in final diff.
+- Opened PR #9 → `integ/phase-a-baseline` with user approval, CI green (~3m15s), merged 2026-09-05.

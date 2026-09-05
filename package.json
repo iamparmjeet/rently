@@ -51,6 +51,7 @@
 		"db:migrate": "turbo -F @rently/db db:migrate",
 		"db:migrate:test": "turbo -F @rently/db db:migrate:test",
 		"db:refresh:local": "bash scripts/refresh-neon-to-local.sh",
+		"db:bootstrap": "bash scripts/db-bootstrap-local.sh",
 		"db:seed": "turbo -F @rently/db db:seed",
 		"db:seed:local": "turbo -F @rently/db db:seed:local",
 		"db:seed-demo": "bun run --env-file=apps/server/.env apps/server/src/seed-demo.ts",

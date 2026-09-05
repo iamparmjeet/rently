@@ -247,6 +247,22 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Build-generated `next-env.d.ts` changes were restored; no `.env` files were retained.
 - Sol/Terra final review remains tracked review debt before any `[x]` or `main` rollup.
 
+## C03 Historical rent-period backfill (2026-09-06, ZLM 5.3 Flash, branch feat/rent-period-backfill)
+
+- Base: `integ/phase-a-baseline@f7a4642b`; rollback tag `pre-rent-period-backfill`; `main` untouched. Sol review deferred to owner (Terra/Sol pass later, as with B11/C02).
+- Survey of the production-shaped `rently_dev` (read-only, dump pre-B01 at migration 24): 13 leases, 53 rent payments, 8 reversals, zero rent-scoped credits; 5 seed leases whose historical payment totals exceed any deterministic charge set; one terminated lease with no end date. These shapes drove the exception design.
+- Changed (one migration `0032_curvy_argent`, hand-authored after the generated DDL):
+  - `rent_backfill_exceptions` table (declared in schema.ts; CREATE IF NOT EXISTS with inline FKs so the file re-runs) — kinds: `lease_end_ambiguous`, `unallocated_source_remainder`, `unattributable_reversal` (the last is a dead-man's switch: B03's CHECK makes unlinked reversals impossible post-0025).
+  - Charges: one per lease per period active, through the current IST month for ongoing leases, prorated at edges (`round(rent × activeDays / dim)`), due date = min(rentDueDate or start-day, month length) snapshotted. Date math uses the stored wall-clock date part (G01 formalizes TZ later).
+  - FIFO allocation via cumulative-interval overlap: charges and flows each occupy paise ranges per lease; the overlap is the allocation. Sources: positive rent payments (business date order) + rent-scoped discount credits; reversals mirror their original's allocations negated (B03/B12 attribution, referenceNumber fallback).
+  - Exceptions recomputed from scratch each run; everything else ON CONFLICT DO NOTHING → fully idempotent.
+- Tests (`packages/db/src/rent-period-backfill.test.ts`, 7): period+due-date exactness for ended and ongoing leases (IST-oracled), prorated edges with lifetime overpayment → exception (72,581/24,194 vs 150,000 collected), void-then-repay mirroring reopens July, credit FIFO alongside payments, ambiguous terminated lease → exception, idempotent re-run, reconciliation (no over-allocated charges; leftover flows all listed).
+- **fileParallelism: false** added to vitest.config.ts — test files share one DB and the backfill re-run mutates global rows; parallel files raced (observed: C02 suite failures when run alongside C03). Within-file concurrency (B04/B05/B10 races) unaffected.
+- Live proof (rently_dev untouched, confirmed still at migration 24): snapshot → disposable postgres:18.6 container on :5433 → full pending migration sequence applied cleanly → 61 charges / 57 allocations / 14 exceptions (1 ambiguous-end, 13 remainders totaling ₹57,060 — the seed leases) → **zero over-allocated charges** → paise-exact reconciliation (flows 86,870,000 = stream allocations 81,164,000 + reversal mirrors −440,000 + exceptions 5,706,000) → 0032 re-run changed nothing (61/57/14) → probe destroyed.
+- Gates: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → focused 13/13 (with C02 suite) → full suite 56 files / 293 tests → build 5/5.
+- Review debt: Sol design gate + final review owed. Known limitation: charges apply each lease's current `rent` to its whole history (rent edits were never modeled); "today" at migration time fixes ongoing-lease accrual — later periods are C04's writers.
+- Next allowed slice: C04 dual-write rent operations from a clean integration-branch cut.
+
 ## C02 Rent charges and allocations schema (2026-09-06, ZLM 5.3 Flash, branch feat/rent-period-schema)
 
 - Base: `integ/phase-a-baseline@9c3cbbf3`; rollback tag `pre-rent-period-schema`; `main` untouched. Owner pre-deferred the Sol/Terra design gate (reviews later, as with B11).

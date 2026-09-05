@@ -51,6 +51,14 @@ type BatchCapableDatabase = Database & {
 	): Promise<{ [K in keyof T]: Awaited<T[K]> }>;
 };
 
+const formatRupees = (paise: number) =>
+	new Intl.NumberFormat("en-IN", {
+		style: "currency",
+		currency: "INR",
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	}).format(paise / 100);
+
 function supportsBatch(db: Database): db is BatchCapableDatabase {
 	return typeof (db as { batch?: unknown }).batch === "function";
 }
@@ -193,14 +201,14 @@ export const createPayment = ownerProcedure
 				const due = await getAmountDueForUtility(db, utilityId);
 				if (input.amount !== due) {
 					throw new ORPCError("BAD_REQUEST", {
-						message: `Amount must equal outstanding amountDue (${due}) for this utility`,
+						message: `Payment must equal the outstanding utility balance of ${formatRupees(due)}. Advance payments are not supported.`,
 					});
 				}
 			} else if (input.type === PAYMENT_TYPES.RENT) {
 				const due = await getAmountDueForRent(db, input.leaseId);
 				if (input.amount !== due) {
 					throw new ORPCError("BAD_REQUEST", {
-						message: `Amount must equal outstanding rent due (${due})`,
+						message: `Payment must equal the outstanding rent balance of ${formatRupees(due)}. Advance payments are not supported.`,
 					});
 				}
 			}
@@ -276,14 +284,14 @@ export const createPayment = ownerProcedure
 					const due = await getAmountDueForUtility(tx, utilityId);
 					if (input.amount !== due) {
 						throw new ORPCError("BAD_REQUEST", {
-							message: `Amount must equal outstanding amountDue (${due}) for this utility`,
+							message: `Payment must equal the outstanding utility balance of ${formatRupees(due)}. Advance payments are not supported.`,
 						});
 					}
 				} else if (input.type === PAYMENT_TYPES.RENT) {
 					const due = await getAmountDueForRent(tx, input.leaseId);
 					if (input.amount !== due) {
 						throw new ORPCError("BAD_REQUEST", {
-							message: `Amount must equal outstanding rent due (${due})`,
+							message: `Payment must equal the outstanding rent balance of ${formatRupees(due)}. Advance payments are not supported.`,
 						});
 					}
 				}
@@ -612,7 +620,14 @@ export const listPayments = ownerProcedure
 			.innerJoin(units, eq(leases.unitId, units.id))
 			.innerJoin(properties, eq(units.propertyId, properties.id))
 			.innerJoin(user, eq(leases.tenantId, user.id))
-			.leftJoin(tenantProfiles, eq(tenantProfiles.userId, user.id))
+			.leftJoin(
+				tenantProfiles,
+				and(
+					eq(tenantProfiles.userId, user.id),
+					eq(tenantProfiles.createdById, authUser.id),
+					isNull(tenantProfiles.deletedAt),
+				),
+			)
 			.where(
 				and(
 					eq(properties.ownerId, authUser.id),

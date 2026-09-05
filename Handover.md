@@ -247,6 +247,19 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Build-generated `next-env.d.ts` changes were restored; no `.env` files were retained.
 - Sol/Terra final review remains tracked review debt before any `[x]` or `main` rollup.
 
+## C02 Rent charges and allocations schema (2026-09-06, ZLM 5.3 Flash, branch feat/rent-period-schema)
+
+- Base: `integ/phase-a-baseline@9c3cbbf3`; rollback tag `pre-rent-period-schema`; `main` untouched. Owner pre-deferred the Sol/Terra design gate (reviews later, as with B11).
+- Scope honored: additive schema only — the tables have NO writers yet (C04 dual-writes; C08 cutover). Live readers/writers untouched; the lifetime calculation remains authoritative until then.
+- Changed (one migration `0031_open_human_fly`):
+  - `rent_charges`: one row per lease per IST period (`YYYY-MM`, format CHECK), unique `(lease_id, period_key)`, positive paise `amount`, `due_date` (date, string mode) snapshotted per charge with a CHECK that it falls inside the period. Implements C01 R2/R3/R4/R5.
+  - `rent_allocations`: `charge_id` + exactly-one-source CHECK (`payment_id` XOR `credit_id`), nonzero signed `amount` meaning "settles the charge" (payment rows mirror their sign — reversals arrive negative; credit rows invert bill_credits sign). Partial unique indexes: one allocation per source row per charge. RESTRICT FKs to charges/payments/bill_credits keep settled history undeletable. Outstanding = `amount − sum(allocations)`; over-allocation is writer-enforced (B08/B10 pattern), not a row CHECK. Implements C01 R7/R8 partially (writers in C04).
+- Tests (`packages/db/src/rent-period-schema.test.ts`, 6, DB-level, minimal per AGENTS.md — regression rationale in the file header): control (partial payment + discount settle a charge to zero), duplicate charge/period 23505, malformed charges 23514 (amount/format/due-date-in-period), allocation source XOR + zero-amount 23514, duplicate source-per-charge 23505, source delete RESTRICT 23001. Direct SQL inserts, full fixture teardown.
+- Verification: `db:generate` → 0031, re-run no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → focused 6/6 → full suite 55 files / 286 tests → build 5/5 (next-env churn restored).
+- Known limitations: charges/allocations are deliberately empty in production until C03 backfill + C04 dual-write; over-allocation and charge lifecycle (creation on lease activation, backdated registration) are C04 writer concerns; prepay cap (C01 R6) is also a writer rule.
+- Review debt: Sol/Terra design gate + final review owed before any `[x]` or `main` rollup.
+- Rollback: revert the C02 commit or drop the two tables (they are empty until C04 turns writers on); migration is additive only.
+
 ## C01 Rent-period business rules (2026-09-06, ZLM 5.3 Flash, branch docs/rent-period-rules)
 
 - Base: `integ/phase-a-baseline@e2b9ad6`; rollback tag `pre-rent-period-rules`; docs-only slice (no code, no migration, no tests per plan).

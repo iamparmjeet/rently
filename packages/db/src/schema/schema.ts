@@ -33,6 +33,7 @@ import type { AnyPgColumn } from "drizzle-orm/pg-core";
 import {
 	boolean,
 	check,
+	date,
 	integer,
 	numeric,
 	pgTable,
@@ -373,6 +374,91 @@ export const billCredits = pgTable(
 		uniqueIndex("bill_credits_lease_idempotency_key")
 			.on(t.leaseId, t.idempotencyKey)
 			.where(sql`${t.idempotencyKey} is not null`),
+	],
+);
+
+// ═══════════════════════════════════════════════════════════
+// ****** Period-aware rent ledger (Phase C — docs/Rent-Period-Rules.md) **************
+// ═══════════════════════════════════════════════════════════
+
+// One charge per lease per IST calendar month (R2): the paise owed for that
+// period — a full month, or prorated at tenancy edges (R4/R5). Writers arrive
+// in C04; the lifetime compatibility read (getAmountDueForRent) stays until
+// the C08 cutover, so this table is currently write-free.
+export const rentCharges = pgTable(
+	"rent_charges",
+	{
+		...idColumn(),
+		leaseId: uuid("lease_id")
+			.notNull()
+			.references(() => leases.id, { onDelete: "restrict" }),
+		// IST calendar month key YYYY-MM (R1/R2).
+		periodKey: text("period_key").notNull(),
+		// Clamped due date YYYY-MM-DD (R3): min(dueDay, daysInMonth(period)).
+		// Snapshotted per charge so later rentDueDate edits never rewrite history.
+		dueDate: date("due_date", { mode: "string" }).notNull(),
+		// Paise owed for the period; always positive (proration floors at 1 day).
+		amount: integer("amount").notNull(),
+		...auditColumns(),
+	},
+	(table) => [
+		// C02 acceptance: exactly one charge per lease per period.
+		uniqueIndex("rent_charges_lease_period_unique").on(
+			table.leaseId,
+			table.periodKey,
+		),
+		check("rent_charges_amount_positive", sql`${table.amount} > 0`),
+		check(
+			"rent_charges_period_key_format",
+			sql`${table.periodKey} ~ '^[0-9]{4}-[0-9]{2}$'`,
+		),
+		check(
+			"rent_charges_due_date_in_period",
+			sql`${table.dueDate}::text like ${table.periodKey} || '-%'`,
+		),
+	],
+);
+
+// Portion of a payment or bill credit applied to a charge (R7/R8): FIFO
+// allocation, partial within a period allowed. `amount` is the paise that
+// SETTLES the charge: payment rows mirror their signed payment amount
+// (reversals arrive negative and undo the original's allocation); credit rows
+// invert their bill_credits amount (a −paise discount settles +paise of the
+// charge; its positive reversal unsettles). A charge's outstanding =
+// amount − sum(allocations). Over-allocation is refused by the settlement
+// writers (B08/B10 lock-first recompute), not by a row-level CHECK.
+export const rentAllocations = pgTable(
+	"rent_allocations",
+	{
+		...idColumn(),
+		chargeId: uuid("charge_id")
+			.notNull()
+			.references(() => rentCharges.id, { onDelete: "restrict" }),
+		// Exactly one source (CHECK below): a payments row (any sign) or a
+		// rent-scoped bill_credits row (utility_id null).
+		paymentId: uuid("payment_id").references(() => payments.id, {
+			onDelete: "restrict",
+		}),
+		creditId: uuid("credit_id").references(() => billCredits.id, {
+			onDelete: "restrict",
+		}),
+		amount: integer("amount").notNull(),
+		...auditColumns(),
+	},
+	(table) => [
+		// One allocation per source row per charge — a payment's FIFO split
+		// touches each charge at most once, and a reversal mirrors that 1:1.
+		uniqueIndex("rent_allocations_payment_charge_unique")
+			.on(table.paymentId, table.chargeId)
+			.where(sql`${table.paymentId} is not null`),
+		uniqueIndex("rent_allocations_credit_charge_unique")
+			.on(table.creditId, table.chargeId)
+			.where(sql`${table.creditId} is not null`),
+		check(
+			"rent_allocations_exactly_one_source",
+			sql`(${table.paymentId} is null) <> (${table.creditId} is null)`,
+		),
+		check("rent_allocations_amount_nonzero", sql`${table.amount} <> 0`),
 	],
 );
 

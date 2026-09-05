@@ -1,5 +1,42 @@
 # Decisions
 
+## 2026-09-06 - C02 period rent charges and allocations schema
+
+**Decision:** Represent monthly rent independently of lifetime totals with two
+additive tables. `rent_charges` holds one row per lease per IST calendar month
+(unique on `(lease_id, period_key)`) with the paise owed (full or prorated per
+the C01 rules), a format-checked `YYYY-MM` period key, and the clamped due
+date snapshotted per charge. `rent_allocations` links a charge to exactly one
+source row — a `payments` row or a rent-scoped `bill_credits` row — with a
+nonzero "settles the charge" paise amount: payment rows mirror their signed
+amount (reversals arrive negative), credit rows invert their bill_credits
+amount. One allocation per source row per charge (partial unique indexes); a
+charge's outstanding is `amount − sum(allocations)`. Over-allocation stays a
+writer-level invariant (B08/B10 lock-first recompute), deliberately not a
+row-level CHECK. RESTRICT FKs keep settled history undeletable.
+
+**Why:** C01 approved prorated edges, partial payments, FIFO allocation, a
+one-period prepay cap, and backdated arrears — none representable in the
+single-lifetime-charge model. The schema is write-free until C04 dual-writes,
+so the additive migration carries zero risk to live writers, and snapshotting
+the due date per charge keeps receipts truthful when `rentDueDate` changes
+later.
+
+**Alternatives:** Period columns on `payments` (rejected: a payment spans
+multiple charges and a charge spans multiple payments — a join table is the
+only faithful shape); enforcing allocation limits with a constraint trigger
+(rejected: the B-series keeps balance math in transparent writers, and a
+trigger would silently fire under Neon HTTP batch paths too); storing
+outstanding materialized on the charge (rejected: derived state drifts —
+compute it from allocations in the C05 read model).
+
+**Tradeoff:** Until C04/C08, two rent ledgers coexist by design: charges stay
+empty in production, readers keep using the lifetime calculation, and C03
+must backfill deterministically (prorating edge periods from lease dates,
+routing ambiguous history to an exception report) before any writer turns on.
+
+**Model:** ZLM 5.3 Flash (Luna scope); Sol/Terra review owed per plan.
+
 ## 2026-09-06 - C01 rent-period business rules approved
 
 **Decision:** Adopt `docs/Rent-Period-Rules.md` as the contract for Phase C.

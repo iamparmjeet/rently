@@ -181,3 +181,12 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Incidents: (1) new column broke two explicit payment selects vs PaymentSelectSchema outputs (TS2345) — added `reversesPaymentId` to both list selects; (2) full-suite count moved 214→222.
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → full suite 222/222, zero leaks → local `bun run build` 5/5 (next-env churn restored).
 - Committed as `cee0774`, opened PR #12 → `integ/phase-a-baseline` with user approval, CI green (~3m28s) first run, merged 2026-09-05.
+
+## B04 Atomic single-payment void (2026-09-05, Muse Spark, branch fix/atomic-payment-void, tag pre-atomic-payment-void)
+- Base: clean `integ/phase-a-baseline@9be11d3`. Fix-Plan B04 `[~]` (Terra High review owed). Group void untouched (B05).
+- Pre-checks: dev has zero duplicate reversals (unique index dev-safe); no test/UI depends on the old "Payment already voided" error.
+- Changed (one migration `0026`, partial unique index on `reversesPaymentId` for reversals): void is now idempotent — link-based pre-check returns the existing reversal; genuine races arbitrate on the index (uniform optimistic insert→catch-23505→return-winner, tx-abort-safe with converge outside the dead tx); isPaid flag converges for winner and loser via extracted `syncUtilityPaidFlag`. `violationCode` unwraps drizzle's `cause`-nested code (existing top-level-only check left alone, out of scope).
+- Behavior change (recorded): second void of the same payment returns the existing reversal instead of erroring — required for retry-after-timeout; UI already hides void for reversed originals (H05 will formalize).
+- Tests first (5, all red): true-concurrency double void (same id, one row), retry, void-voided returns existing, voiding a reversal still refused, raw duplicate insert 23505. Teardown needed agreement-wrapper cleanup (lease.createLease side effect).
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → full suite 227/227, zero leaks → local `bun run build` 5/5 (next-env churn restored).
+- Committed as `04be6953`, opened PR #13 → `integ/phase-a-baseline` with user approval, CI green (~3m25s) first run, merged 2026-09-05.

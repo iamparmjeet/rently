@@ -1,5 +1,5 @@
 {
-	"$schema": "https://turbo.build/schema.json",
+	"$schema": "https://v2-10-12.turborepo.dev/schema.json",
 	"ui": "tui",
 	"tasks": {
 		"build": {
@@ -15,7 +15,8 @@
 		},
 		"dev": {
 			"cache": false,
-			"persistent": true
+			"persistent": true,
+			"env": ["DATABASE_URL", "NODE_ENV"]
 		},
 		"db:push": {
 			"cache": false
@@ -30,11 +31,21 @@
 		"db:migrate:test": {
 			"cache": false
 		},
+		"db:migrate:local": {
+			"cache": false
+		},
 		"db:studio": {
 			"cache": false,
 			"persistent": true
 		},
+		"db:studio:local": {
+			"cache": false,
+			"persistent": true
+		},
 		"db:seed": {
+			"cache": false
+		},
+		"db:seed:local": {
 			"cache": false
 		},
 		"db:beta-codes": {

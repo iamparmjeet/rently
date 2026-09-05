@@ -21,9 +21,9 @@ import { useQueryClient } from "@tanstack/react-query";
 import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import {
+	useTenantAgreements,
 	useTenantDocumentAction,
 	useTenantDocuments,
-	useTenantLease,
 	useTenantProfile,
 } from "@/hooks/tenant-portal";
 import { client, orpc } from "@/utils/orpc";
@@ -85,7 +85,8 @@ function Countdown({ until }: { until: string | Date }) {
 
 export function DocsTab() {
 	const { data: profileData, isLoading: profileLoading } = useTenantProfile();
-	const { data: leaseData } = useTenantLease();
+	const { data: agreementsData, isLoading: agreementsLoading } =
+		useTenantAgreements();
 	const { data, isLoading } = useTenantDocuments();
 	const actions = useTenantDocumentAction();
 	const queryClient = useQueryClient();
@@ -109,9 +110,13 @@ export function DocsTab() {
 		error: string | null;
 	} | null>(null);
 	const profile = profileData?.profile;
-	const lease = leaseData?.lease;
+	const activeUnits = (agreementsData?.agreements ?? []).flatMap((agreement) =>
+		agreement.units
+			.filter((unit) => unit.status === "active")
+			.map((unit) => `Unit ${unit.unitNumber}, ${agreement.property.name}`),
+	);
 
-	if (profileLoading || isLoading)
+	if (profileLoading || agreementsLoading || isLoading)
 		return <div className="h-80 animate-pulse rounded-xl bg-muted" />;
 
 	const docs = data?.documents ?? [];
@@ -316,10 +321,12 @@ export function DocsTab() {
 						label="Address"
 						value={profile?.address ?? "Not provided"}
 					/>
-					{lease && (
+					{activeUnits.length > 0 && (
 						<ProfileRow
-							label="Current unit"
-							value={`Unit ${lease.unit.unitNumber}, ${lease.property.name}`}
+							label={
+								activeUnits.length === 1 ? "Current unit" : "Current units"
+							}
+							value={activeUnits.join(" · ")}
 						/>
 					)}
 				</div>

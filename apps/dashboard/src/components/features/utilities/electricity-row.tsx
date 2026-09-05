@@ -44,8 +44,18 @@ export function ElectricityRow({
 	});
 	const amountDue = (u as { amountDue?: number }).amountDue ?? u.totalAmount;
 	const isPaidDerived = amountDue <= 0;
+	const hasReversedPayment = u.hasReversedPayment ?? false;
 	const hasDiscount =
-		(u.credits?.length ?? 0) > 0 && amountDue !== u.totalAmount;
+		(u.credits ?? []).reduce((sum, credit) => sum + credit.amount, 0) !== 0;
+	const discountedAmount =
+		u.totalAmount +
+		(u.credits ?? []).reduce((sum, credit) => sum + credit.amount, 0);
+	const displayedAmount = isPaidDerived ? discountedAmount : amountDue;
+	const amountLabel = isPaidDerived
+		? "Bill amount"
+		: hasDiscount
+			? "Amount due"
+			: "Amount";
 
 	function handleWhatsApp() {
 		if (!u.tenantPhone) return;
@@ -111,15 +121,27 @@ export function ElectricityRow({
 			</div>
 
 			<div className="lg:text-center">
-				<CellLabel>Amount</CellLabel>
-				<p className="font-bold text-sm tabular-nums">
-					{formatRupees(amountDue)}
-				</p>
-				{hasDiscount ? (
-					<p className="text-muted-foreground text-xs line-through">
-						{formatRupees(u.totalAmount)}
-					</p>
-				) : null}
+				<CellLabel>{amountLabel}</CellLabel>
+				<div className="flex justify-between gap-3 lg:justify-center">
+					<div>
+						<p className="font-bold text-sm tabular-nums">
+							{formatRupees(displayedAmount)}
+						</p>
+						{hasDiscount ? (
+							<p className="text-muted-foreground text-xs line-through">
+								{formatRupees(u.totalAmount)}
+							</p>
+						) : null}
+					</div>
+					{isPaidDerived && hasDiscount ? (
+						<div>
+							<p className="text-muted-foreground text-xs">Due</p>
+							<p className="font-bold text-emerald-700 text-sm tabular-nums">
+								{formatRupees(amountDue)}
+							</p>
+						</div>
+					) : null}
+				</div>
 			</div>
 
 			<div className="lg:justify-self-center">
@@ -132,7 +154,11 @@ export function ElectricityRow({
 							: "bg-amber-50 text-amber-700"
 					}
 				>
-					{isPaidDerived ? "Paid" : "Unpaid"}
+					{isPaidDerived
+						? "Paid"
+						: hasReversedPayment
+							? "Payment voided"
+							: "Unpaid"}
 				</Badge>
 			</div>
 
@@ -160,6 +186,7 @@ export function ElectricityRow({
 				</Button>
 				<UtilityRowMenu
 					canEmail={Boolean(u.tenantEmail)}
+					canEdit={!isPaidDerived && !hasReversedPayment}
 					canWhatsApp={Boolean(u.tenantPhone)}
 					isDeleting={isDeleting}
 					onDelete={onDelete}

@@ -19,6 +19,7 @@ import { NotFoundState } from "@rently/ui/shared/not-found-state";
 import {
 	IconChevronLeft,
 	IconPencil,
+	IconRefresh,
 	IconTrash,
 	IconUser,
 } from "@tabler/icons-react";
@@ -127,6 +128,9 @@ export default function LeaseDetailPage({
 	function handleTerminate() {
 		terminateLease.mutate({ id }, { onSuccess: terminateDialog.closeDialog });
 	}
+	function handleReactivate() {
+		updateLease.mutate({ id, data: { status: "active" } });
+	}
 
 	return (
 		<Container>
@@ -143,6 +147,16 @@ export default function LeaseDetailPage({
 						Leases
 					</Button>
 					<div className="flex items-center gap-2">
+						{isTerminated && (
+							<Button
+								variant="outline"
+								onClick={handleReactivate}
+								disabled={updateLease.isPending}
+							>
+								<IconRefresh className="mr-2 size-4" />
+								Reactivate
+							</Button>
+						)}
 						{isEditable && (
 							<Button variant="outline" onClick={editDialog.openDialog}>
 								<IconPencil className="mr-2 size-4" />
@@ -159,7 +173,7 @@ export default function LeaseDetailPage({
 						</Button>
 					</div>
 				</div>
-				<section className="overflow-hidden rounded-xl border bg-gradient-to-br from-primary/[0.10] via-card to-card p-5 shadow-sm sm:p-7">
+				<section className="overflow-hidden rounded-xl border bg-linear-to-br from-primary/10 via-card to-card p-5 shadow-sm sm:p-7">
 					<div className="flex flex-wrap items-center justify-between gap-4">
 						<div className="flex items-center gap-3">
 							<div className="flex size-11 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
@@ -232,7 +246,9 @@ export default function LeaseDetailPage({
 					</CardHeader>
 					<CardContent className="grid grid-cols-2 gap-4 sm:grid-cols-3">
 						<div>
-							<p className="text-muted-foreground text-xs">Monthly Rent</p>
+							<p className="text-muted-foreground text-xs">
+								Monthly CardContent
+							</p>
 							<p className="font-semibold text-2xl">
 								{formatRupees(lease.rent)}
 							</p>

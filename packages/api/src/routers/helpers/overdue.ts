@@ -8,6 +8,8 @@ import {
 export type OverdueCandidate = {
 	rent: number;
 	paidAmount: number;
+	/** Sum of rent/general bill_credits (negative discounts + positive reversals net). */
+	creditAmount: number;
 	startDate: Date;
 	endDate: Date | null;
 	rentDueDate: number | null;
@@ -54,7 +56,10 @@ export function computeOverdueState(
 
 	const paidAmount = Math.max(row.paidAmount, 0);
 
-	if (paidAmount >= row.rent) {
+	// Effective rent after discounts/credits (rent + negative credits + positive reversals).
+	const effectiveRent = row.rent + (row.creditAmount ?? 0);
+
+	if (paidAmount >= effectiveRent) {
 		return null;
 	}
 
@@ -62,6 +67,6 @@ export function computeOverdueState(
 		dueDate,
 		daysOverdue: differenceInCalendarDays(dueDate, localToday),
 		paidAmount,
-		outstandingAmount: Math.max(row.rent - paidAmount, 0),
+		outstandingAmount: Math.max(effectiveRent - paidAmount, 0),
 	};
 }

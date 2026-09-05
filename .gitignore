@@ -56,3 +56,6 @@ corserro.txt
 env.txt
 AGENTS.md
 docs/
+!docs/
+docs/**
+!docs/Fix-Plan-2026-09-05.md

@@ -262,11 +262,13 @@ export const updateUtility = ownerProcedure
 				.limit(1);
 			const gstEnabled = ownerProfile?.gstEnabled ?? false;
 
-			const [payment] = await db
-				.select({ id: payments.id })
+			// Lock only when a net payment remains — a fully-voided bill (reversal
+			// nets to zero) has no real financial history and stays editable.
+			const [paid] = await db
+				.select({ sum: sql<number>`coalesce(sum(${payments.amount}), 0)` })
 				.from(payments)
-				.where(eq(payments.utilityId, input.id))
-				.limit(1);
+				.where(eq(payments.utilityId, input.id));
+			const hasNetPayment = (paid?.sum ?? 0) > 0;
 			const [credit] = await db
 				.select({ id: billCredits.id })
 				.from(billCredits)
@@ -278,7 +280,7 @@ export const updateUtility = ownerProcedure
 				)
 				.limit(1);
 
-			if (gstEnabled || payment || credit) {
+			if (gstEnabled || hasNetPayment || credit) {
 				throw new ORPCError("BAD_REQUEST", {
 					message:
 						"Bill is locked — use a credit note for adjustments. Financial fields cannot be edited after GST is enabled or payments/credits exist.",
@@ -399,8 +401,34 @@ export const listUtilities = ownerProcedure
 					from ${payments}
 					where ${payments.utilityId} = ${utilities.id}
 						and ${payments.type} = 'utility'
+						and not exists (
+							select 1 from ${payments} reversal
+							where reversal.type = 'reversal'
+								and reversal.reference_number = ${payments.id}::text
+						)
 					order by ${payments.createdAt} desc
 					limit 1
+				)`,
+				receiptPaymentDate: sql<Date | null>`(
+					select ${payments.paymentDate}
+					from ${payments}
+					where ${payments.utilityId} = ${utilities.id}
+						and ${payments.type} = 'utility'
+						and not exists (
+							select 1 from ${payments} reversal
+							where reversal.type = 'reversal'
+								and reversal.reference_number = ${payments.id}::text
+						)
+					order by ${payments.createdAt} desc
+					limit 1
+				)`.mapWith((value) => (value ? new Date(String(value)) : null)),
+				hasReversedPayment: sql<boolean>`exists (
+					select 1
+					from ${payments} payment
+					inner join ${payments} reversal
+						on reversal.reference_number = payment.id::text
+						and reversal.type = 'reversal'
+					where payment.utility_id = ${utilities.id}
 				)`,
 				// enriched context
 				unitNumber: units.unitNumber,
@@ -512,17 +540,12 @@ export const removeUtility = ownerProcedure
 		const [credit] = await db
 			.select({ id: billCredits.id })
 			.from(billCredits)
-			.where(
-				and(
-					eq(billCredits.utilityId, existing.id),
-					isNull(billCredits.reversedAt),
-				),
-			)
+			.where(eq(billCredits.utilityId, existing.id))
 			.limit(1);
 		if (credit) {
 			throw new ORPCError("BAD_REQUEST", {
 				message:
-					"Cannot delete a utility with active credits — reverse the credit first.",
+					"Cannot delete a utility with recorded credits — keep the bill for audit history.",
 			});
 		}
 
@@ -531,7 +554,10 @@ export const removeUtility = ownerProcedure
 		return { success: true };
 	});
 
-const BatchItemSchema = CreateUtilitySchema.extend({
+// Per-item schema for a batch. leaseId is stamped by the server from the batch
+// request, never trusted from an item — dropping it prevents a mismatched
+// per-item lease from silently billing the wrong unit.
+const BatchItemSchema = CreateUtilitySchema.omit({ leaseId: true }).extend({
 	batchId: z.uuid(),
 });
 
@@ -558,11 +584,20 @@ export const createUtilityBatch = ownerProcedure
 		await VerifyLeaseOwnership(db, authUser.id, input.leaseId);
 
 		const insertValues = input.items.map((item) => {
-			const unitsUsed = Math.max(0, item.currentReading - item.previousReading);
-			const totalAmount = Math.round(
-				unitsUsed * (item.ratePerUnit ?? RATEPERUNIT) +
-					(item.fixedCharge ?? FIXEDCHARGE),
-			);
+			// Reuse the single-bill pricing so batch and single bills charge the
+			// same price: maintenance is a fixed charge only, decreasing readings
+			// are rejected rather than clamped to zero.
+			const totalAmount = computeTotalPaisa({
+				utilityType: item.utilityType,
+				currentReading: item.currentReading,
+				previousReading: item.previousReading,
+				ratePerUnit: item.ratePerUnit,
+				fixedCharge: item.fixedCharge,
+			});
+			const unitsUsed =
+				item.utilityType === UTILITY_TYPES.MAINTENANCE
+					? null
+					: (item.currentReading ?? 0) - (item.previousReading ?? 0);
 
 			return {
 				leaseId: input.leaseId,
@@ -607,7 +642,7 @@ export const recordUtilityPayment = ownerProcedure
 		successStatus: StatusCode.CREATED,
 	})
 	.input(RecordUtilityPaymentSchema)
-	.output(z.object({ success: z.boolean() }))
+	.output(z.object({ success: z.boolean(), paymentDate: z.date() }))
 	.handler(async ({ input, context }) => {
 		const { db, user } = context;
 
@@ -625,11 +660,6 @@ export const recordUtilityPayment = ownerProcedure
 		if (utility.leaseId !== input.leaseId) {
 			throw new ORPCError("FORBIDDEN", {
 				message: "Utility does not belong to this lease",
-			});
-		}
-		if (utility.isPaid) {
-			throw new ORPCError("CONFLICT", {
-				message: "This utility bill is already paid",
 			});
 		}
 
@@ -664,6 +694,9 @@ export const recordUtilityPayment = ownerProcedure
 			payment = inserted;
 		} else {
 			[payment] = await db.transaction(async (tx) => {
+				await tx.execute(
+					sql`select 1 from ${utilities} where ${utilities.id} = ${input.utilityId} for update`,
+				);
 				const due = await getAmountDueForUtility(tx, input.utilityId);
 				if (due <= 0)
 					throw new ORPCError("CONFLICT", {
@@ -696,9 +729,13 @@ export const recordUtilityPayment = ownerProcedure
 			});
 		}
 
-		if (payment) {
-			await sendAutomaticPaymentReceipt(db, user.id, payment.id);
+		if (!payment) {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
+				message: "Failed to record utility payment",
+			});
 		}
 
-		return { success: true };
+		await sendAutomaticPaymentReceipt(db, user.id, payment.id);
+
+		return { success: true, paymentDate: payment.paymentDate };
 	});

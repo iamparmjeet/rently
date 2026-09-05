@@ -117,8 +117,10 @@ export function MarkPaidDialog({
 						(utility as { amountDue?: number }).amountDue ??
 						utility.totalAmount;
 					const hasDiscount =
-						(utility.credits?.length ?? 0) > 0 &&
-						amountDue !== utility.totalAmount;
+						(utility.credits ?? []).reduce(
+							(sum, credit) => sum + credit.amount,
+							0,
+						) !== 0;
 					return (
 						<div className="flex items-center justify-between rounded-xl border bg-muted/25 px-4 py-3">
 							<div>

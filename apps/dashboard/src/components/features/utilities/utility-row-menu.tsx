@@ -22,6 +22,7 @@ export function UtilityRowMenu({
 	canEmail,
 	canWhatsApp,
 	isDeleting,
+	canEdit,
 	onDelete,
 	onEdit,
 	onEmail,
@@ -30,6 +31,7 @@ export function UtilityRowMenu({
 	canEmail: boolean;
 	canWhatsApp: boolean;
 	isDeleting: boolean;
+	canEdit: boolean;
 	onDelete: () => void;
 	onEdit: () => void;
 	onEmail: () => void;
@@ -61,31 +63,37 @@ export function UtilityRowMenu({
 						<IconMail />
 						Send via email
 					</DropdownMenuItem>
-					<DropdownMenuSeparator />
-					<DropdownMenuItem onClick={onEdit}>
-						<IconEdit />
-						Edit
-					</DropdownMenuItem>
-					<DropdownMenuItem
-						variant="destructive"
-						onClick={() => setDeleteOpen(true)}
-					>
-						<IconTrash />
-						Delete
-					</DropdownMenuItem>
+					{canEdit ? (
+						<>
+							<DropdownMenuSeparator />
+							<DropdownMenuItem onClick={onEdit}>
+								<IconEdit />
+								Edit
+							</DropdownMenuItem>
+							<DropdownMenuItem
+								variant="destructive"
+								onClick={() => setDeleteOpen(true)}
+							>
+								<IconTrash />
+								Delete
+							</DropdownMenuItem>
+						</>
+					) : null}
 				</DropdownMenuContent>
 			</DropdownMenu>
 
-			<ConfirmDialog
-				open={deleteOpen}
-				onOpenChange={setDeleteOpen}
-				title="Delete utility record?"
-				description="This utility charge and its bill will be permanently deleted."
-				confirmLabel="Delete"
-				destructive
-				isLoading={isDeleting}
-				onConfirm={onDelete}
-			/>
+			{canEdit ? (
+				<ConfirmDialog
+					open={deleteOpen}
+					onOpenChange={setDeleteOpen}
+					title="Delete utility record?"
+					description="This utility charge and its bill will be permanently deleted."
+					confirmLabel="Delete"
+					destructive
+					isLoading={isDeleting}
+					onConfirm={onDelete}
+				/>
+			) : null}
 		</>
 	);
 }

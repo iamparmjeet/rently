@@ -191,25 +191,37 @@ export const paymentGroups = pgTable("payment_groups", {
 	...auditColumns(),
 });
 
-export const payments = pgTable("payments", {
-	...idColumn(),
-	leaseId: uuid("lease_id")
-		.notNull()
-		.references(() => leases.id, { onDelete: "restrict" }),
-	amount: integer("amount").notNull(),
-	paymentDate: timestamp("payment_date").notNull(),
-	paymentMethods: text("payment_method", {
-		enum: PAYMENT_METHOD_VALUES,
-	}),
-	referenceNumber: text("reference_number"),
-	type: text("type", {
-		enum: PAYMENT_TYPE_VALUES,
-	}).notNull(),
-	description: text("description"),
-	utilityId: uuid("utility_id").references(() => utilities.id),
-	paymentGroupId: uuid("payment_group_id").references(() => paymentGroups.id),
-	...auditColumns(),
-});
+export const payments = pgTable(
+	"payments",
+	{
+		...idColumn(),
+		leaseId: uuid("lease_id")
+			.notNull()
+			.references(() => leases.id, { onDelete: "restrict" }),
+		amount: integer("amount").notNull(),
+		paymentDate: timestamp("payment_date").notNull(),
+		paymentMethods: text("payment_method", {
+			enum: PAYMENT_METHOD_VALUES,
+		}),
+		referenceNumber: text("reference_number"),
+		type: text("type", {
+			enum: PAYMENT_TYPE_VALUES,
+		}).notNull(),
+		description: text("description"),
+		utilityId: uuid("utility_id").references(() => utilities.id),
+		paymentGroupId: uuid("payment_group_id").references(() => paymentGroups.id),
+		// Client-supplied idempotency key. Nullable: legacy writers and backfilled
+		// rows have none. A partial unique index makes a retried insert self-reject
+		// so Neon HTTP (no FOR UPDATE) cannot double-settle a lease/utility.
+		idempotencyKey: uuid("idempotency_key"),
+		...auditColumns(),
+	},
+	(table) => [
+		uniqueIndex("payments_lease_idempotency_key")
+			.on(table.leaseId, table.idempotencyKey)
+			.where(sql`${table.idempotencyKey} is not null`),
+	],
+);
 
 export const billCredits = pgTable(
 	"bill_credits",
@@ -241,6 +253,8 @@ export const billCredits = pgTable(
 			(): AnyPgColumn => billCredits.id,
 		),
 		reversedAt: timestamp("reversed_at"),
+		// Client-supplied idempotency key (partial unique index guards Neon races).
+		idempotencyKey: uuid("idempotency_key"),
 		createdBy: uuid("created_by")
 			.notNull()
 			.references(() => user.id, { onDelete: "restrict" }),
@@ -252,6 +266,9 @@ export const billCredits = pgTable(
 			"bill_credits_reason_length_check",
 			sql`char_length(${t.reason}) >= 10`,
 		),
+		uniqueIndex("bill_credits_lease_idempotency_key")
+			.on(t.leaseId, t.idempotencyKey)
+			.where(sql`${t.idempotencyKey} is not null`),
 	],
 );
 

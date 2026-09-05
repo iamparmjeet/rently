@@ -21,6 +21,7 @@ import {
 import { and, count, desc, eq, gte, lt, sql } from "drizzle-orm";
 import z from "zod";
 import { sendAutomaticUtilityBillEmail } from "../helpers/automatic-emails";
+import { getAmountDueForUtility } from "../helpers/credit.helpers";
 
 type BatchCapableDatabase = Database & {
 	batch<T extends readonly unknown[]>(
@@ -98,6 +99,7 @@ export const getMyActiveLease = protectedProcedure
 			.innerJoin(properties, eq(units.propertyId, properties.id))
 			.innerJoin(user, eq(properties.ownerId, user.id))
 			.where(and(eq(leases.tenantId, authUser.id), eq(leases.status, "active")))
+			.orderBy(desc(leases.createdAt))
 			.limit(1);
 
 		// WHY: null is a valid state — tenant may have been removed but still has
@@ -264,6 +266,9 @@ export const getMyPayments = protectedProcedure
 			payments: z.array(
 				z.object({
 					id: z.string(),
+					leaseId: z.string(),
+					unitNumber: z.string(),
+					propertyName: z.string(),
 					paymentGroupId: z.uuid().nullable(),
 					amount: z.number(), // paise
 					paymentDate: z.date(),
@@ -283,6 +288,9 @@ export const getMyPayments = protectedProcedure
 		const results = await db
 			.select({
 				id: payments.id,
+				leaseId: payments.leaseId,
+				unitNumber: units.unitNumber,
+				propertyName: properties.name,
 				paymentGroupId: payments.paymentGroupId,
 				amount: payments.amount,
 				paymentDate: payments.paymentDate,
@@ -297,6 +305,8 @@ export const getMyPayments = protectedProcedure
 			})
 			.from(payments)
 			.innerJoin(leases, eq(payments.leaseId, leases.id))
+			.innerJoin(units, eq(leases.unitId, units.id))
+			.innerJoin(properties, eq(units.propertyId, properties.id))
 			.leftJoin(utilities, eq(payments.utilityId, utilities.id))
 			// GOTCHA: This WHERE is the authorization. Only payments where the
 			// lease belongs to the logged-in tenant are returned.
@@ -327,6 +337,7 @@ export const getMyUtilities = protectedProcedure
 					fixedCharge: z.number().nullable(),
 					totalAmount: z.number(), // paise
 					isPaid: z.boolean(),
+					amountDue: z.number().int(),
 					description: z.string().nullable(),
 					createdAt: z.date(),
 				}),
@@ -360,7 +371,16 @@ export const getMyUtilities = protectedProcedure
 			.where(eq(leases.tenantId, authUser.id))
 			.orderBy(desc(utilities.currentReadingDate));
 
-		return { utilities: results };
+		// Derived amountDue (total + credits − payments) is the source of truth for
+		// paid state; the stored isPaid flag can drift after a credit/reversal.
+		const enriched = await Promise.all(
+			results.map(async (utility) => ({
+				...utility,
+				amountDue: await getAmountDueForUtility(db, utility.id),
+			})),
+		);
+
+		return { utilities: enriched };
 	});
 
 //  4. Get My Profile
@@ -481,24 +501,46 @@ export const submitMyReading = protectedProcedure
 					error: "Reading date cannot be in the future",
 				}),
 			notes: z.string().max(200).optional(),
+			// Required when a combined agreement has multiple active units so the
+			// reading is billed to the correct flat rather than an arbitrary one.
+			leaseId: z.uuid().optional(),
 		}),
 	)
 	.output(z.object({ success: z.boolean() }))
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
-		// STEP 1: Find the tenant's active lease
-		const [activeLease] = await db
+		// STEP 1: Resolve the tenant's active lease(s)
+		const activeLeases = await db
 			.select({ id: leases.id })
 			.from(leases)
-			.where(and(eq(leases.tenantId, authUser.id), eq(leases.status, "active")))
-			.limit(1);
+			.where(
+				and(eq(leases.tenantId, authUser.id), eq(leases.status, "active")),
+			);
 
-		if (!activeLease) {
+		if (activeLeases.length === 0) {
 			throw new ORPCError("NOT_FOUND", {
 				message: "No active lease found. Contact your landlord.",
 			});
 		}
+
+		let activeLease: { id: string } | undefined;
+		if (input.leaseId) {
+			activeLease = activeLeases.find((l) => l.id === input.leaseId);
+			if (!activeLease) {
+				throw new ORPCError("FORBIDDEN", {
+					message: "Lease not found among your active leases.",
+				});
+			}
+		} else if (activeLeases.length === 1) {
+			activeLease = activeLeases[0];
+		} else {
+			throw new ORPCError("BAD_REQUEST", {
+				message:
+					"Multiple active units — select which unit this reading belongs to.",
+			});
+		}
+		const selectedLease = activeLease as { id: string };
 
 		// Step2- Duplicate Monthly submission guard — race-safe via tx + FOR UPDATE
 		const readingDate = new Date(input.readingDate);
@@ -520,7 +562,7 @@ export const submitMyReading = protectedProcedure
 				.from(utilities)
 				.where(
 					and(
-						eq(utilities.leaseId, activeLease.id),
+						eq(utilities.leaseId, selectedLease.id),
 						eq(utilities.utilityType, "electricity"),
 						gte(utilities.currentReadingDate, monthStart),
 						lt(utilities.currentReadingDate, monthEnd),
@@ -546,7 +588,7 @@ export const submitMyReading = protectedProcedure
 				.from(utilities)
 				.where(
 					and(
-						eq(utilities.leaseId, activeLease.id),
+						eq(utilities.leaseId, selectedLease.id),
 						eq(utilities.utilityType, "electricity"),
 					),
 				)
@@ -570,7 +612,7 @@ export const submitMyReading = protectedProcedure
 			const [created] = await db
 				.insert(utilities)
 				.values({
-					leaseId: activeLease.id,
+					leaseId: selectedLease.id,
 					utilityType: "electricity",
 					previousReading: previousReading ?? null,
 					currentReading: input.currentReading,
@@ -589,7 +631,7 @@ export const submitMyReading = protectedProcedure
 		} else {
 			utility = await db.transaction(async (tx) => {
 				await tx.execute(
-					sql`select 1 from ${leases} where ${leases.id} = ${activeLease.id} for update`,
+					sql`select 1 from ${leases} where ${leases.id} = ${selectedLease.id} for update`,
 				);
 
 				const [existingThisMonth] = await tx
@@ -600,7 +642,7 @@ export const submitMyReading = protectedProcedure
 					.from(utilities)
 					.where(
 						and(
-							eq(utilities.leaseId, activeLease.id),
+							eq(utilities.leaseId, selectedLease.id),
 							eq(utilities.utilityType, "electricity"),
 							gte(utilities.currentReadingDate, monthStart),
 							lt(utilities.currentReadingDate, monthEnd),
@@ -626,7 +668,7 @@ export const submitMyReading = protectedProcedure
 					.from(utilities)
 					.where(
 						and(
-							eq(utilities.leaseId, activeLease.id),
+							eq(utilities.leaseId, selectedLease.id),
 							eq(utilities.utilityType, "electricity"),
 						),
 					)
@@ -650,7 +692,7 @@ export const submitMyReading = protectedProcedure
 				const [created] = await tx
 					.insert(utilities)
 					.values({
-						leaseId: activeLease.id,
+						leaseId: selectedLease.id,
 						utilityType: "electricity",
 						previousReading: previousReading ?? null,
 						currentReading: input.currentReading,
@@ -675,7 +717,7 @@ export const submitMyReading = protectedProcedure
 				.from(leases)
 				.innerJoin(units, eq(leases.unitId, units.id))
 				.innerJoin(properties, eq(units.propertyId, properties.id))
-				.where(eq(leases.id, activeLease.id))
+				.where(eq(leases.id, selectedLease.id))
 				.limit(1);
 
 			if (utility && leaseInfo) {
@@ -692,7 +734,7 @@ export const submitMyReading = protectedProcedure
 					type: NOTIFICATION_TYPES.METER_READING_SUBMITTED,
 					title: "New meter reading submitted",
 					message: `Your tenant submitted a meter reading for Unit ${leaseInfo.unitNumber}`,
-					entityId: activeLease.id,
+					entityId: selectedLease.id,
 					entityType: "lease",
 				});
 			}

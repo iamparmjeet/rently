@@ -1,5 +1,6 @@
 "use client";
 
+import { CREDIT_TYPES } from "@rently/db/constants/payment-constants";
 import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
@@ -49,7 +50,9 @@ import {
 	useOwnerPaymentExport,
 	usePayments,
 	useSendPaymentReceipt,
+	useVoidPaymentGroup,
 } from "@/hooks/payments";
+import { getCollectionHealth } from "@/lib/payment-collection-health";
 
 // ── Type config ───────
 
@@ -143,10 +146,12 @@ function PaymentDetailDialog({
 	payment,
 	open,
 	onClose,
+	isReversed = false,
 }: {
 	payment: PaymentListItem | null;
 	open: boolean;
 	onClose: () => void;
+	isReversed?: boolean;
 }) {
 	const sendReceipt = useSendPaymentReceipt();
 
@@ -188,7 +193,7 @@ function PaymentDetailDialog({
 				className="gap-0 overflow-hidden rounded-xl p-0 sm:max-w-md"
 				showCloseButton={false}
 			>
-				<DialogHeader className="relative flex flex-row items-center justify-between overflow-hidden bg-gradient-to-br from-primary/[0.12] via-primary/[0.03] to-transparent px-5 py-4">
+				<DialogHeader className="relative flex flex-row items-center justify-between overflow-hidden bg-linear-to-br from-primary/12 via-primary/3 to-transparent px-5 py-4">
 					<DialogTitle className="font-semibold text-sm">
 						Payment details
 					</DialogTitle>
@@ -231,13 +236,20 @@ function PaymentDetailDialog({
 						>
 							{formatRupees(payment.amount)}
 						</p>
-						<Badge variant={config.badgeVariant} className="mt-1 capitalize">
-							{payment.type}
-						</Badge>
+						<div className="mt-1 flex justify-end gap-1">
+							{!isReversal && !isReversed && (
+								<Badge variant="default" className="capitalize">
+									Paid
+								</Badge>
+							)}
+							<Badge variant={config.badgeVariant} className="capitalize">
+								{payment.type}
+							</Badge>
+						</div>
 					</div>
 				</div>
 
-				<div className="mx-5 rounded-lg border bg-muted/[0.15] p-4">
+				<div className="mx-5 rounded-lg border bg-muted/15 p-4">
 					<p className="mb-3 font-medium text-[10px] text-muted-foreground uppercase tracking-[0.14em]">
 						Payment record
 					</p>
@@ -274,7 +286,7 @@ function PaymentDetailDialog({
 				</div>
 
 				{/* ── Footer actions ── */}
-				<DialogFooter className="mt-5 flex-row gap-2 border-t bg-muted/[0.12] px-5 py-3 sm:justify-between">
+				<DialogFooter className="mt-5 flex-row gap-2 border-t bg-muted/12 px-5 py-3 sm:justify-between">
 					<Button variant="outline" size="sm" onClick={onClose}>
 						Close
 					</Button>
@@ -344,6 +356,7 @@ export default function PaymentsPage() {
 	const { data, isLoading } = usePayments();
 	const { data: creditsData, isLoading: creditsLoading } = useCredits();
 	const voidPayment = useDeletePayment();
+	const voidPaymentGroup = useVoidPaymentGroup();
 	const exportPayments = useOwnerPaymentExport();
 	const [pageTab, setPageTab] = useState<"payments" | "adjustments">(
 		"payments",
@@ -359,6 +372,16 @@ export default function PaymentsPage() {
 	const [adjTypeFilter, setAdjTypeFilter] = useState<string>("all");
 
 	const payments = data?.payments ?? [];
+	const reversedPaymentIds = useMemo(
+		() =>
+			new Set(
+				payments
+					.filter((payment) => payment.type === PAYMENT_TYPES.REVERSAL)
+					.map((payment) => payment.referenceNumber)
+					.filter((id): id is string => id !== null),
+			),
+		[payments],
+	);
 
 	const filtered = payments.filter((p) => {
 		const matchType = typeFilter === "all" || p.type === typeFilter;
@@ -396,19 +419,31 @@ export default function PaymentsPage() {
 	});
 	const activeSortLabel = PAYMENT_SORT_LABELS[sort];
 
-	const now = new Date();
-	const thisMonthPayments = payments.filter((p) => {
-		const d = new Date(p.paymentDate);
-		return (
-			d.getFullYear() === now.getFullYear() &&
-			d.getMonth() === now.getMonth() &&
-			p.type !== PAYMENT_TYPES.REVERSAL
-		);
-	});
-	const thisMonthTotal = thisMonthPayments.reduce((s, p) => s + p.amount, 0);
-	const allTimeTotal = payments
-		.filter((p) => p.type !== PAYMENT_TYPES.REVERSAL)
-		.reduce((s, p) => s + p.amount, 0);
+	const allCredits = creditsData?.credits ?? [];
+	const collectionHealth = useMemo(
+		() =>
+			getCollectionHealth({
+				payments,
+			}),
+		[payments],
+	);
+
+	const allTimeCollection = useMemo(
+		() =>
+			getCollectionHealth({
+				payments,
+				scope: "all-time",
+			}),
+		[payments],
+	);
+	const netDiscountTotal = useMemo(
+		() =>
+			allCredits
+				.filter((credit) => credit.type === CREDIT_TYPES.DISCOUNT)
+				.reduce((total, credit) => total + credit.amount, 0),
+		[allCredits],
+	);
+
 	const reversalCount = payments.filter(
 		(p) => p.type === PAYMENT_TYPES.REVERSAL,
 	).length;
@@ -416,7 +451,6 @@ export default function PaymentsPage() {
 	const selectedPayment = payments.find((p) => p.id === detailId) ?? null;
 
 	// Adjustments: only after tenant paid (paid utility/rent exists)
-	const allCredits = creditsData?.credits ?? [];
 	const settledCredits = useMemo(() => {
 		const paidUtilityIds = new Set(
 			payments
@@ -492,26 +526,32 @@ export default function PaymentsPage() {
 
 				<section className="overflow-hidden rounded-xl border bg-card shadow-sm">
 					<div className="grid divide-y sm:grid-cols-[1.05fr_1fr] sm:divide-x sm:divide-y-0">
-						<div className="relative overflow-hidden bg-gradient-to-br from-primary/[0.08] via-card to-card p-5">
-							<div className="absolute -top-10 -right-10 size-32 rounded-full bg-primary/[0.08] blur-2xl" />
+						<div className="relative overflow-hidden bg-linear-to-br from-primary/8 via-card to-card p-5">
+							<div className="absolute -top-10 -right-10 size-32 rounded-full bg-primary/8 blur-2xl" />
 							<div className="relative">
 								<p className="font-medium text-muted-foreground text-xs uppercase tracking-[0.14em]">
 									Collection health
 								</p>
 								<p className="mt-1 font-semibold text-3xl tabular-nums tracking-tight">
-									{formatRupees(thisMonthTotal)}
+									{formatRupees(collectionHealth.amount)}
 								</p>
 								<p className="mt-2 text-muted-foreground text-xs">
-									Collected this month · {thisMonthPayments.length} transaction
-									{thisMonthPayments.length !== 1 ? "s" : ""}
+									Collected this month · {collectionHealth.transactionCount}{" "}
+									transaction
+									{collectionHealth.transactionCount !== 1 ? "s" : ""}
 								</p>
 							</div>
 						</div>
-						<div className="grid grid-cols-3 divide-x">
+						<div className="grid grid-cols-2 divide-x sm:grid-cols-4">
 							<PaymentMetric
 								icon={IconChartBar}
 								label="All time"
-								value={formatRupees(allTimeTotal)}
+								value={formatRupees(allTimeCollection.amount)}
+							/>
+							<PaymentMetric
+								icon={IconTag}
+								label="Net discounts"
+								value={formatRupees(-netDiscountTotal)}
 							/>
 							<PaymentMetric
 								icon={IconRefreshAlert}
@@ -675,6 +715,7 @@ export default function PaymentsPage() {
 						<PaymentGrid
 							payments={sortedPayments}
 							allPayments={payments}
+							reversedPaymentIds={reversedPaymentIds}
 							isLoading={isLoading}
 							viewMode={viewMode}
 							voidingId={voidingId}
@@ -693,16 +734,30 @@ export default function PaymentsPage() {
 										if (!open) setVoidingId(null);
 									}}
 									title="Void this payment?"
-									description={`This will create a reversal entry for ${formatRupees(voidingPayment.amount)}. The original record is preserved for audit purposes.`}
+									description={
+										voidingPayment.paymentGroupId
+											? "This is part of a combined payment. Voiding it will create reversal entries for every unit allocation in the group. The original records are preserved for audit purposes."
+											: `This will create a reversal entry for ${formatRupees(voidingPayment.amount)}. The original record is preserved for audit purposes.`
+									}
 									confirmLabel="Void Payment"
 									destructive
 									onConfirm={() => {
-										voidPayment.mutate(
-											{ id: voidingPayment.id },
-											{ onSuccess: () => setVoidingId(null) },
-										);
+										const onSuccess = () => setVoidingId(null);
+										if (voidingPayment.paymentGroupId) {
+											voidPaymentGroup.mutate(
+												{ id: voidingPayment.paymentGroupId },
+												{ onSuccess },
+											);
+										} else {
+											voidPayment.mutate(
+												{ id: voidingPayment.id },
+												{ onSuccess },
+											);
+										}
 									}}
-									isLoading={voidPayment.isPending}
+									isLoading={
+										voidPayment.isPending || voidPaymentGroup.isPending
+									}
 								/>
 							) : null;
 						})()}
@@ -710,6 +765,11 @@ export default function PaymentsPage() {
 						{/* One dialog instance, driven by detailId — not N per row */}
 						<PaymentDetailDialog
 							payment={selectedPayment}
+							isReversed={
+								selectedPayment
+									? reversedPaymentIds.has(selectedPayment.id)
+									: false
+							}
 							open={detailId !== null}
 							onClose={() => setDetailId(null)}
 						/>

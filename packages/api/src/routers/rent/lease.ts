@@ -28,7 +28,7 @@ import {
 	LeaseWithDetailsSchema,
 	UpdateLeaseSchema,
 } from "@rently/validators";
-import { and, eq, inArray, isNull, sql } from "drizzle-orm";
+import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import z from "zod";
 import { getNextLocalPeriodKey } from "../helpers/rent-cycle";
 
@@ -56,7 +56,13 @@ async function getLeaseWithOwner(db: Database, leaseId: string) {
 		.from(leases)
 		.innerJoin(units, eq(leases.unitId, units.id))
 		.innerJoin(properties, eq(units.propertyId, properties.id))
-		.where(eq(leases.id, leaseId));
+		.where(
+			and(
+				eq(leases.id, leaseId),
+				isNull(properties.deletedAt),
+				isNull(units.deletedAt),
+			),
+		);
 
 	return lease ?? null;
 }
@@ -462,12 +468,50 @@ export const updateLease = ownerProcedure
 			});
 		}
 
-		// Active leases are editable (rent, deposit, notice, description, dates).
-		// Only terminated/expired are immutable — they represent closed periods.
-		if (ownership.status === "terminated" || ownership.status === "expired") {
+		// Expired leases are immutable. A terminated lease may only be reactivated;
+		// its historical terms remain closed to ordinary edits.
+		if (
+			ownership.status === "expired" ||
+			(ownership.status === "terminated" && input.data.status !== "active")
+		) {
 			throw new ORPCError("BAD_REQUEST", {
-				message: "Terminated or expired leases cannot be edited.",
+				message:
+					ownership.status === "expired"
+						? "Expired leases cannot be edited."
+						: "Terminated leases can only be reactivated.",
 			});
+		}
+
+		// Financial terms are immutable once a lease is active — changing rent or
+		// deposit would silently reprice already-recorded payments.
+		if (
+			ownership.status === "active" &&
+			(input.data.rent !== undefined || input.data.deposit !== undefined)
+		) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Rent and deposit cannot be changed on an active lease.",
+			});
+		}
+
+		// Reactivating a non-active lease must not evict a unit that is already
+		// occupied by another active lease.
+		if (input.data.status === "active" && ownership.status !== "active") {
+			const [conflicting] = await db
+				.select({ id: leases.id })
+				.from(leases)
+				.where(
+					and(
+						eq(leases.unitId, ownership.unitId),
+						eq(leases.status, "active"),
+						ne(leases.id, input.id),
+					),
+				)
+				.limit(1);
+			if (conflicting) {
+				throw new ORPCError("CONFLICT", {
+					message: "Unit already has an active lease.",
+				});
+			}
 		}
 
 		const unitStatus =
@@ -656,14 +700,32 @@ export const terminateLease = ownerProcedure
 			});
 		}
 
+		// Idempotent terminate: a second terminate must not release a unit that a
+		// newer lease has since occupied.
+		if (ownership.status === "terminated") {
+			return { success: true };
+		}
+
 		const terminateLeaseQuery = db
 			.update(leases)
 			.set({ status: "terminated", updatedAt: new Date() })
-			.where(eq(leases.id, input.id));
+			.where(and(eq(leases.id, input.id), ne(leases.status, "terminated")));
+		// Release the unit only if no other active lease still occupies it — a
+		// stale second terminate must not evict a newer lease on the same unit.
 		const releaseUnitQuery = db
 			.update(units)
 			.set({ status: "available", updatedAt: new Date() })
-			.where(eq(units.id, ownership.unitId));
+			.where(
+				and(
+					eq(units.id, ownership.unitId),
+					sql`not exists (
+						select 1 from ${leases} other
+						where other.unit_id = ${units.id}
+						  and other.status = 'active'
+						  and other.id <> ${input.id}
+					)`,
+				),
+			);
 
 		if (supportsBatch(db)) {
 			await db.batch([terminateLeaseQuery, releaseUnitQuery]);
@@ -672,11 +734,21 @@ export const terminateLease = ownerProcedure
 				await tx
 					.update(leases)
 					.set({ status: "terminated", updatedAt: new Date() })
-					.where(eq(leases.id, input.id));
+					.where(and(eq(leases.id, input.id), ne(leases.status, "terminated")));
 				await tx
 					.update(units)
 					.set({ status: "available", updatedAt: new Date() })
-					.where(eq(units.id, ownership.unitId));
+					.where(
+						and(
+							eq(units.id, ownership.unitId),
+							sql`not exists (
+								select 1 from ${leases} other
+								where other.unit_id = ${units.id}
+								  and other.status = 'active'
+								  and other.id <> ${input.id}
+							)`,
+						),
+					);
 			});
 		}
 		return { success: true };
@@ -697,7 +769,13 @@ async function assertOwnedLeaseForReminder(
 		.from(leases)
 		.innerJoin(units, eq(leases.unitId, units.id))
 		.innerJoin(properties, eq(units.propertyId, properties.id))
-		.where(eq(leases.id, leaseId))
+		.where(
+			and(
+				eq(leases.id, leaseId),
+				isNull(properties.deletedAt),
+				isNull(units.deletedAt),
+			),
+		)
 		.limit(1);
 
 	if (!lease) {

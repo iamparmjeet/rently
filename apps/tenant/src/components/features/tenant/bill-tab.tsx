@@ -1,92 +1,82 @@
 "use client";
 
-import { useTenantLease, useTenantUtilities } from "@/hooks/tenant-portal";
-import { fmtDate, fmtMonth, rupeesCompact } from "@/utils/format";
-
-function latestByType<
-	T extends {
-		utilityType: string;
-		currentReadingDate?: string | Date | null;
-		createdAt?: string | Date | null;
-	},
->(items: T[]): Record<string, T> {
-	// Sort desc by currentReadingDate then createdAt so first per type is truly latest
-	const sorted = [...items].sort((a, b) => {
-		const aTime = new Date(
-			(a.currentReadingDate ?? a.createdAt ?? 0) as string | number | Date,
-		).getTime();
-		const bTime = new Date(
-			(b.currentReadingDate ?? b.createdAt ?? 0) as string | number | Date,
-		).getTime();
-		return bTime - aTime;
-	});
-	return sorted.reduce<Record<string, T>>((acc, u) => {
-		if (!acc[u.utilityType]) acc[u.utilityType] = u;
-		return acc;
-	}, {});
-}
+import { useTenantAgreements, useTenantUtilities } from "@/hooks/tenant-portal";
+import { fmtDate, rupeesCompact } from "@/utils/format";
 
 export function BillTab() {
-	const { data: leaseData, isLoading } = useTenantLease();
-	const { data: utilitiesData } = useTenantUtilities();
+	const { data: agreementsData, isLoading: agreementsLoading } =
+		useTenantAgreements();
+	const { data: utilitiesData, isLoading: utilitiesLoading } =
+		useTenantUtilities();
 
-	const lease = leaseData?.lease;
+	const agreements = agreementsData?.agreements ?? [];
 	const utilities = utilitiesData?.utilities ?? [];
-	const latest = latestByType(utilities);
-
-	const electricity = latest.electricity;
-	const water = latest.water;
-	const maintenance = latest.maintenance;
-
-	const lineItems = [
-		lease && {
-			emoji: "🏠",
-			label: "Monthly Rent",
-			sub: `Unit ${lease.unit.unitNumber} · ${lease.property.name}`,
-			amount: lease.rent,
-		},
-		electricity && {
-			emoji: "⚡",
-			label: "Electricity",
-			sub:
-				electricity.unitsUsed != null
-					? `${electricity.unitsUsed} units × ₹${((electricity.ratePerUnit ?? 0) / 100).toFixed(0)}/unit · ${fmtDate(electricity.previousReadingDate)} → ${fmtDate(electricity.currentReadingDate)}`
-					: fmtDate(electricity.currentReadingDate),
-			amount: electricity.totalAmount,
-		},
-		water && {
-			emoji: "💧",
-			label: "Water Charges",
-			sub: `${fmtMonth(water.currentReadingDate)} · Fixed charge`,
-			amount: water.totalAmount,
-		},
-		maintenance && {
-			emoji: "🔧",
-			label: "Maintenance",
-			sub: maintenance.description ?? fmtMonth(maintenance.currentReadingDate),
-			amount: maintenance.totalAmount,
-		},
-	].filter(Boolean) as {
+	const activeUnits = agreements.flatMap((agreement) =>
+		agreement.units
+			.filter((unit) => unit.status === "active")
+			.map((unit) => ({ ...unit, agreement })),
+	);
+	const unitByLeaseId = new Map(
+		activeUnits.map((unit) => [unit.leaseId, unit]),
+	);
+	const now = new Date();
+	const currentUtilities = utilities.filter((utility) => {
+		const billDate = new Date(utility.currentReadingDate ?? utility.createdAt);
+		return (
+			unitByLeaseId.has(utility.leaseId) &&
+			utility.amountDue > 0 &&
+			billDate.getMonth() === now.getMonth() &&
+			billDate.getFullYear() === now.getFullYear()
+		);
+	});
+	const lineItems: {
+		id: string;
 		emoji: string;
 		label: string;
 		sub: string;
 		amount: number;
-	}[];
+	}[] = [
+		...activeUnits.map((unit) => ({
+			id: `rent-${unit.leaseId}`,
+			emoji: "🏠",
+			label: "Monthly Rent",
+			sub: `Unit ${unit.unitNumber} · ${unit.agreement.property.name}`,
+			amount: unit.rent,
+		})),
+		...currentUtilities.map((utility) => {
+			const unit = unitByLeaseId.get(utility.leaseId);
+			const utilityName =
+				utility.utilityType.charAt(0).toUpperCase() +
+				utility.utilityType.slice(1);
+			return {
+				id: utility.id,
+				emoji:
+					{ electricity: "⚡", water: "💧", maintenance: "🔧" }[
+						utility.utilityType
+					] ?? "📄",
+				label: utilityName,
+				sub: unit
+					? `Unit ${unit.unitNumber} · ${unit.agreement.property.name}`
+					: fmtDate(utility.currentReadingDate),
+				amount: utility.amountDue,
+			};
+		}),
+	];
 
 	const totalDue = lineItems.reduce((s, i) => s + i.amount, 0);
 
-	const currentMonth = new Date().toLocaleDateString("en-IN", {
+	const currentMonth = now.toLocaleDateString("en-IN", {
 		month: "long",
 		year: "numeric",
 	});
 
-	if (isLoading) {
+	if (agreementsLoading || utilitiesLoading) {
 		return <div className="h-64 animate-pulse rounded-xl bg-muted" />;
 	}
 
 	return (
 		<div className="space-y-3.5">
-			<h1 className="font-extrabold text-xl">Combined Bill — {currentMonth}</h1>
+			<h1 className="font-extrabold text-xl">My Charges — {currentMonth}</h1>
 
 			<div className="overflow-hidden rounded-xl border bg-background">
 				{lineItems.length === 0 ? (
@@ -97,7 +87,7 @@ export function BillTab() {
 					<div className="divide-y divide-border">
 						{lineItems.map((item) => (
 							<div
-								key={item.label}
+								key={item.id}
 								className="flex items-center gap-3 px-4 py-3.5"
 							>
 								<span className="w-8 text-center text-2xl">{item.emoji}</span>
@@ -114,7 +104,9 @@ export function BillTab() {
 				)}
 
 				<div className="flex items-center justify-between bg-primary px-4 py-3.5">
-					<span className="font-bold text-primary-foreground">Total Due</span>
+					<span className="font-bold text-primary-foreground">
+						Total Charges
+					</span>
 					<span className="font-extrabold text-3xl text-primary-foreground">
 						{rupeesCompact(totalDue)}
 					</span>
@@ -129,7 +121,7 @@ export function BillTab() {
 						const msg = encodeURIComponent(
 							`KeyHQ Bill — ${currentMonth}\n\n${lineItems
 								.map((i) => `${i.emoji} ${i.label}: ${rupeesCompact(i.amount)}`)
-								.join("\n")}\n\nTotal Due: ${rupeesCompact(totalDue)}`,
+								.join("\n")}\n\nTotal Charges: ${rupeesCompact(totalDue)}`,
 						);
 						window.open(`https://wa.me/?text=${msg}`, "_blank");
 					}}

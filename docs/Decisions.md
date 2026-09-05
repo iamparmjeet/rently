@@ -1,5 +1,68 @@
 # Decisions
 
+## 2026-09-04 - database URL is the only database selector
+
+**Decision:** Use only `DATABASE_URL`; its hostname selects the runtime driver.
+Local commands supply Docker Postgres and deployment supplies Neon.
+
+**Why:** The combination of `DATABASE_URL`, `USE_NEON`, and a local override
+created multiple sources of truth for one database connection. Simplifying the
+configuration makes the selected database explicit, even though later
+reproduction showed that the ₹1,200 payment failure itself was an aggregate
+type-conversion bug rather than database routing.
+
+**Alternatives:** Change the payment calculation (rejected: its paise arithmetic
+and reversal netting are correct); retain a separate driver flag or override
+variable (rejected: either can disagree with the actual URL).
+
+**Tradeoff:** Driver selection depends on recognizing Neon hostnames, covered by
+a focused regression test.
+
+**Model:** GPT-5.6 Sol.
+
+## 2026-09-04 - normalize monetary aggregates at the database boundary
+
+**Decision:** Convert PostgreSQL monetary aggregate results to JavaScript
+numbers before arithmetic. Rent outstanding includes rent payments and
+reversals linked to rent payments; deposit and other payment types are excluded.
+
+**Why:** PostgreSQL promotes `sum(integer)` to `bigint`, which node-postgres
+returns as text. TypeScript's `sql<number>` annotation did not convert it at
+runtime, causing `120000 + "0"` to concatenate into `1200000`. Treating every
+non-utility payment as rent also allowed deposits to settle rent accidentally.
+
+**Alternatives:** Cast the sum back to PostgreSQL `integer` (rejected: an
+aggregate can exceed the column range); change rupee-to-paise conversion
+(rejected: the submitted `120000` was correct); count every reversal (rejected:
+a reversed deposit is not a rent adjustment).
+
+**Tradeoff:** Reversal attribution relies on the existing convention that
+`payments.referenceNumber` stores the original payment UUID for reversal rows.
+
+**Model:** GPT-5.6 Sol.
+
+## 2026-09-03 - settlement idempotency keys
+
+**Decision:** Close the Neon HTTP settlement race with application-supplied idempotency keys backed by partial unique indexes, rather than row locks.
+
+**Why:** `packages/db/src/index.ts:28-36` selects Neon HTTP (drizzle `neon-http`) for CF Workers; that driver has no interactive transactions or `FOR UPDATE`, so `db.batch()` cannot lock. The dashboard/tenant clients generate a UUID on form open; double-click or retry resends the same key, and the second insert self-rejects via a partial unique index on `(lease_id, idempotency_key)`. The node-postgres path additionally locks + revalidates.
+
+**Alternatives:** Row locks only (rejected: leaves the production Neon path racy); a unique index on `(utility_id) WHERE type='utility' AND amount>0` for utility settlement (rejected for now: collides with void-then-repay, which legitimately creates a second positive row after a negative reversal).
+
+**Tradeoff:** Requires migration `0022` and clients must supply a stable key. Clients that never send a key fall back to a server-generated per-request UUID, preserving old behavior but not closing the race for legacy callers.
+
+**Model:** GPT-5.6 Sol.
+
+## 2026-09-03 - period-aware rent deferred
+
+**Decision:** Defer the period-aware rent due model (lifetime `rent + credits − paid` misreads month-two rent as paid) to a separate `feat/period-aware-rent` branch.
+
+**Why:** It is explicitly labelled future work (`credit.helpers.ts:48`, `TODO.md:244`) and requires a period-key migration plus migration of every reader (payments, overdue, reminders, portal, export). It is a design change, not a bugfix, and belongs in its own slice with its own rollback.
+
+**Alternatives:** Include here (rejected: mixes a schema redesign into a bugfix branch, violating the one-migration-one-slice constraint).
+
+**Model:** GPT-5.6 Sol.
+
 ## 2026-09-02 - active lease exclusivity
 
 **Decision:** Enforce one active lease per unit with a partial unique index on `leases.unit_id WHERE status = 'active'`, preceded by a migration-time duplicate-data preflight.

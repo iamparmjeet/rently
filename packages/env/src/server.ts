@@ -1,11 +1,14 @@
-import "dotenv/config";
 import { createEnv } from "@t3-oss/env-core";
+import dotenv from "dotenv";
 import { z } from "zod";
+
+// Local commands provide DATABASE_URL explicitly; dotenv fills in the remaining
+// application settings without replacing values already present in the process.
+dotenv.config({ path: [".env.local", ".env"], quiet: true });
 
 export const env = createEnv({
 	skipValidation: !!process.env.SKIP_ENV_VALIDATION,
 	server: {
-		USE_NEON: z.enum(["true", "false"]).default("false"),
 		DATABASE_URL: z.string().min(1),
 		BETTER_AUTH_SECRET: z.string().min(32),
 		BETTER_AUTH_URL: z.url(),

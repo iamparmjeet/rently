@@ -87,14 +87,24 @@ export function PaymentsTab() {
 				) : (
 					<div className="divide-y divide-border">
 						{visiblePayments.map((p) => {
-							const displayAmount = p.paymentGroupId
-								? payments
-										.filter(
-											(candidate) =>
-												candidate.paymentGroupId === p.paymentGroupId,
-										)
-										.reduce((sum, candidate) => sum + candidate.amount, 0)
-								: p.amount;
+							const groupPayments = p.paymentGroupId
+								? payments.filter(
+										(candidate) =>
+											candidate.paymentGroupId === p.paymentGroupId,
+									)
+								: [p];
+							const displayAmount = groupPayments.reduce(
+								(sum, candidate) => sum + candidate.amount,
+								0,
+							);
+							const leaseContext = [
+								...new Set(
+									groupPayments.map(
+										(candidate) =>
+											`Unit ${candidate.unitNumber} · ${candidate.propertyName}`,
+									),
+								),
+							].join(" / ");
 							const isReversal = p.type === "reversal";
 							const label = getTypeLabel(p.type, p.utilityType);
 							const icon = TYPE_ICON[p.type] ?? TYPE_ICON.other;
@@ -116,6 +126,9 @@ export function PaymentsTab() {
 										<p className="font-semibold text-sm">{label}</p>
 										<p className="text-muted-foreground text-xs">
 											{fmtDate(p.paymentDate)}
+										</p>
+										<p className="truncate text-muted-foreground text-xs">
+											{leaseContext}
 										</p>
 										{(p.paymentMethods || p.referenceNumber) && (
 											<p className="truncate text-muted-foreground text-xs">

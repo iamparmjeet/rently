@@ -52,19 +52,20 @@ export function UtilityDetailDialog({
 	const isPaidDerivedLocal = (u: (typeof items)[number]) =>
 		getAmountDue(u) <= 0;
 	const utilityTotal = items.reduce(
-		(sum, utility) => sum + getAmountDue(utility),
+		(sum, utility) => sum + Math.max(0, getAmountDue(utility)),
 		0,
 	);
 	const originalTotal = items.reduce(
 		(sum, utility) => sum + utility.totalAmount,
 		0,
 	);
-	const hasAnyDiscount = items.some(
-		(u) => (u.credits?.length ?? 0) > 0 && getAmountDue(u) !== u.totalAmount,
+	const hasAnyDiscount = items.some((u) =>
+		(u.credits ?? []).some((credit) => credit.type === "discount"),
 	);
 	const statementTotal = utilityTotal + (rent ?? 0);
 	const isCombinedBill = rent !== null;
-	const allPaid = items.every(isPaidDerivedLocal);
+	const allPaid =
+		items.every(isPaidDerivedLocal) && (!isCombinedBill || (rent ?? 0) <= 0);
 	const unpaidCount = items.filter((u) => !isPaidDerivedLocal(u)).length;
 	const periodStart = first.previousReadingDate ?? first.currentReadingDate;
 	const periodEnd = first.currentReadingDate;
@@ -215,7 +216,13 @@ export function UtilityDetailDialog({
 							<UtilityDetailCard
 								key={utility.id}
 								utility={utility}
-								onEdit={onEdit ? () => onEdit(utility) : undefined}
+								onEdit={
+									onEdit &&
+									!isPaidDerivedLocal(utility) &&
+									!utility.hasReversedPayment
+										? () => onEdit(utility)
+										: undefined
+								}
 								onMarkPaid={() => onMarkPaid(utility)}
 								hideDownload={isCombinedBill}
 							/>

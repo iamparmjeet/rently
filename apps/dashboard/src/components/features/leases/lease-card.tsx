@@ -21,6 +21,7 @@ import {
 	IconCalendar,
 	IconDots,
 	IconPencil,
+	IconRefresh,
 	IconTrash,
 	IconUser,
 } from "@tabler/icons-react";
@@ -32,8 +33,10 @@ import LeaseStatusBadge from "./lease-status-badge";
 interface LeaseCardProps {
 	lease: LeaseWithDetails;
 	onEdit?: (lease: LeaseWithDetails) => void;
+	onReactivate?: (id: string) => void;
 	onDelete?: (id: string) => void;
 	isDeleting?: boolean;
+	isReactivating?: boolean;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -41,8 +44,10 @@ interface LeaseCardProps {
 export function LeaseCard({
 	onEdit,
 	lease,
+	onReactivate,
 	onDelete,
 	isDeleting,
+	isReactivating,
 	createdAt,
 	updatedAt,
 }: LeaseCardProps) {
@@ -73,7 +78,7 @@ export function LeaseCard({
 				isDeleting && "pointer-events-none opacity-50",
 			)}
 		>
-			<CardHeader className="border-b bg-gradient-to-br from-primary/[0.10] via-primary/[0.025] to-transparent px-5 pt-5 pb-4">
+			<CardHeader className="border-b bg-linear-to-br from-primary/10 via-primary/2.5 to-transparent px-5 pt-5 pb-4">
 				<div className="flex items-start justify-between gap-2">
 					{/* Tenant */}
 					<div className="flex min-w-0 items-start gap-3">
@@ -137,6 +142,15 @@ export function LeaseCard({
 										)}
 									</DropdownMenuItem>
 								)}
+								{isTerminated && (
+									<DropdownMenuItem
+										disabled={isReactivating}
+										onClick={() => onReactivate?.(lease.leaseId)}
+									>
+										<IconRefresh className="mr-2 size-4" />
+										Reactivate
+									</DropdownMenuItem>
+								)}
 								<DropdownMenuSeparator />
 								<DropdownMenuItem
 									disabled={isTerminated}
@@ -170,7 +184,7 @@ export function LeaseCard({
 						</p>
 					</div>
 				</div>
-				<div className="rounded-lg border bg-muted/[0.18] px-3 py-2.5">
+				<div className="rounded-lg border bg-muted/18 px-3 py-2.5">
 					<div className="flex items-center gap-2 text-sm">
 						<IconBuilding className="size-3.5 text-primary" />
 						<span className="truncate font-medium">{lease.propertyName}</span>

@@ -494,7 +494,26 @@ export function useRecordUtilityPayment() {
 				id: context?.toastId,
 			});
 		},
-		onSuccess: (_, __, context) => {
+		onSuccess: (result, variables, context) => {
+			queryClient.setQueryData<UtilityListCache>(
+				orpc.rent.utility.listUtilities.key(),
+				(old) =>
+					old
+						? {
+								...old,
+								utilities: old.utilities.map((utility) =>
+									utility.id === variables.utilityId
+										? {
+												...utility,
+												isPaid: true,
+												amountDue: 0,
+												receiptPaymentDate: result.paymentDate,
+											}
+										: utility,
+								),
+							}
+						: old,
+			);
 			toast.success("Payment recorded", { id: context.toastId });
 		},
 		onSettled: () => {

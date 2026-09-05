@@ -1,31 +1,25 @@
-# Handover — 2026-09-02 — model: GPT-5.6 Sol — branch: feat/multi-unit-lease-agreements
+# Handover — 2026-09-03 — model: GPT-5.6 Sol — branch: fix/ledger-integrity-2026-09-03
 
-This mirrors the repository-root `Handover.md` so a new session can resume the active feature without relying on the prior beta-audit branch notes.
+Reconciles the stale `feat/multi-unit-lease-agreements` notes (already merged into `main`) and records the new ledger/lifecycle bugfix branch. This is the gitignored local mirror of the root `Handover.md`.
 
 ## Done
-- Created `feat/multi-unit-lease-agreements` from `main@e524701` and tagged `pre-multi-unit-lease-agreements` as the rollback baseline.
-- Added agreement/category constants; expand-stage agreement/payment-group schema; future Drizzle relation metadata; and validator guards for server-owned relationship IDs.
-- Updated explicit API projections for nullable agreement/payment-group IDs.
-- Completed the `createLease` independent-agreement wrapper in both Neon batch and callback-transaction paths.
-- Added registered commercial-shop and owner-prepared residential agreement-link integration coverage.
-- Added `0020_multi_unit_agreement_expand.sql` and generated Drizzle metadata for physical tables/nullable FKs plus deterministic one-to-one legacy agreement/payment-group backfills.
-- Verified repeat schema generation has no drift, `bun run check-types` passes (6/6), focused Biome passes, and `git diff --check` passes.
-- Ran `db:migrate:test` successfully and verified the exact `0020` backfill DML using controlled historical residential/commercial lease data plus an original/reversal payment pair. Child values remained unchanged; deterministic parent links, categories, and reversal-group linkage were correct.
-- Focused invite integration suite passes 15/15 after its owner-prepared fixture was aligned with the existing provisional-user behavior and teardown was made dependency-safe.
+- Created `fix/ledger-integrity-2026-09-03` from clean `main@2250e3f`, tagged `pre-ledger-integrity`.
+- Multi-unit agreement expand (`0020`) and active-lease partial unique index (`0021`) confirmed already in `main`.
+- Wrote `docs/Bug-2026-09-03-ledger-integrity.md` and dated decisions (idempotency keys, deferred period-aware rent).
+- Completed S1–S7 (`443cbca` through `134ba50`) with db generation/migration, type, Biome, Vitest (151 tests), and build verification.
+- Added Docker-only `rently_dev` refresh from Neon; local development uses `dev:server:local-db`.
+- Added guarded `db:migrate:local`, limited to `localhost/rently_dev`.
+- Added `db:seed:local`; the existing `db:seed` remains production-targeted.
+- `bun run dev` now forces the local `rently_dev` database.
 
 ## In-progress
-- Wrapper and expand-migration implementations are complete, verified, and uncommitted. The next separate slice is active-lease exclusivity with duplicate-data preflight.
+- Restore production-shaped data into local `rently_dev` and test manually before opening a PR.
 
 ## Broken
-- No current verification blocker. `rently_test` is running and has been reset to an empty, fully migrated state.
+- Migration `0022` was accidentally applied to production Neon. It is safe and additive only (nullable columns + partial indexes); leave it so the deployment skips it.
 
 ## Avoid
-- Do not commit, push, or deploy the unverified work.
-- Keep new child FKs nullable during the expand stage.
-- Defer grouped-payment writers to their own vertical slice.
-- Keep active-lease exclusivity as the next separate migration slice.
+- No production Neon access from local development; no non-null `agreementId`/`paymentGroupId`; no utility-settlement unique index (void-then-repay); period-aware rent deferred.
 
 ## Next
-1. Plan the active-lease exclusivity slice with duplicate-data preflight and a separate partial unique index.
-2. Implement and verify it against `rently_test`.
-3. Review the full diff before any no-emoji commit.
+- Refresh `rently_dev`, use `dev:server:local-db`, then test; test Neon HTTP batches only against a separate Neon branch.

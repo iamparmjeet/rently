@@ -33,7 +33,7 @@ import {
 	PaymentSelectSchema,
 	UpdatePaymentSchema,
 } from "@rently/validators";
-import { and, desc, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, isNull, sql } from "drizzle-orm";
 import z from "zod";
 import { isLeaseOwner } from "../helpers";
 import {
@@ -51,8 +51,25 @@ type BatchCapableDatabase = Database & {
 	): Promise<{ [K in keyof T]: Awaited<T[K]> }>;
 };
 
+const formatRupees = (paise: number) =>
+	new Intl.NumberFormat("en-IN", {
+		style: "currency",
+		currency: "INR",
+		minimumFractionDigits: 2,
+		maximumFractionDigits: 2,
+	}).format(paise / 100);
+
 function supportsBatch(db: Database): db is BatchCapableDatabase {
 	return typeof (db as { batch?: unknown }).batch === "function";
+}
+
+function isUniqueViolation(error: unknown): boolean {
+	return (
+		typeof error === "object" &&
+		error !== null &&
+		"code" in error &&
+		(error as { code?: unknown }).code === "23505"
+	);
 }
 
 // ─── Shared helper ─────
@@ -65,7 +82,7 @@ function assertMethodAllowedForRole(
 		OWNER_ONLY_PAYMENT_METHODS_VALUE as readonly string[]
 	).includes(method);
 
-	if (!isOwnerOnly && role !== "owner") {
+	if (isOwnerOnly && role !== "owner") {
 		throw new ORPCError("FORBIDDEN", {
 			message: "Cash and cheque payments can only be recorded by the owner",
 		});
@@ -158,38 +175,77 @@ export const createPayment = ownerProcedure
 			}
 		}
 
-		// Neon HTTP does not support callback transactions — validate outside
-		// then use batch for the atomic write; node-postgres keeps transaction for row-level consistency.
+		// A client-supplied idempotency key makes a double-submit self-reject via
+		// the partial unique index, closing the Neon HTTP race (no FOR UPDATE).
+		const idempotencyKey = input.idempotencyKey ?? null;
+
 		let payment: typeof payments.$inferSelect | undefined;
 		if (supportsBatch(db)) {
+			if (idempotencyKey) {
+				const [existingPayment] = await db
+					.select()
+					.from(payments)
+					.where(
+						and(
+							eq(payments.leaseId, input.leaseId),
+							eq(payments.idempotencyKey, idempotencyKey),
+						),
+					)
+					.limit(1);
+				if (existingPayment) {
+					return { payment: existingPayment };
+				}
+			}
+
 			if (utilityId) {
 				const due = await getAmountDueForUtility(db, utilityId);
 				if (input.amount !== due) {
 					throw new ORPCError("BAD_REQUEST", {
-						message: `Amount must equal outstanding amountDue (${due}) for this utility`,
+						message: `Payment must equal the outstanding utility balance of ${formatRupees(due)}. Advance payments are not supported.`,
 					});
 				}
 			} else if (input.type === PAYMENT_TYPES.RENT) {
 				const due = await getAmountDueForRent(db, input.leaseId);
 				if (input.amount !== due) {
 					throw new ORPCError("BAD_REQUEST", {
-						message: `Amount must equal outstanding rent due (${due})`,
+						message: `Payment must equal the outstanding rent balance of ${formatRupees(due)}. Advance payments are not supported.`,
 					});
 				}
 			}
-			const [newPayment] = await db
-				.insert(payments)
-				.values({
-					leaseId: input.leaseId,
-					amount: input.amount,
-					paymentDate: input.paymentDate,
-					type: input.type ?? PAYMENT_TYPES.RENT,
-					paymentMethods: input.paymentMethods ?? null,
-					referenceNumber: input.referenceNumber ?? null,
-					description: input.description ?? null,
-					utilityId,
-				})
-				.returning();
+			let newPayment: typeof payments.$inferSelect | undefined;
+			try {
+				[newPayment] = await db
+					.insert(payments)
+					.values({
+						leaseId: input.leaseId,
+						amount: input.amount,
+						paymentDate: input.paymentDate,
+						type: input.type ?? PAYMENT_TYPES.RENT,
+						paymentMethods: input.paymentMethods ?? null,
+						referenceNumber: input.referenceNumber ?? null,
+						description: input.description ?? null,
+						utilityId,
+						idempotencyKey,
+					})
+					.returning();
+			} catch (error) {
+				if (!isUniqueViolation(error)) throw error;
+			}
+			if (!newPayment && idempotencyKey) {
+				const [existingPayment] = await db
+					.select()
+					.from(payments)
+					.where(
+						and(
+							eq(payments.leaseId, input.leaseId),
+							eq(payments.idempotencyKey, idempotencyKey),
+						),
+					)
+					.limit(1);
+				if (existingPayment) {
+					return { payment: existingPayment };
+				}
+			}
 			payment = newPayment;
 			if (utilityId && payment) {
 				const dueAfter = await getAmountDueForUtility(db, utilityId);
@@ -201,17 +257,41 @@ export const createPayment = ownerProcedure
 		} else {
 			payment = await db.transaction(async (tx) => {
 				if (utilityId) {
+					await tx.execute(
+						sql`select 1 from ${utilities} where ${utilities.id} = ${utilityId} for update`,
+					);
+				} else {
+					await tx.execute(
+						sql`select 1 from ${leases} where ${leases.id} = ${input.leaseId} for update`,
+					);
+				}
+
+				if (idempotencyKey) {
+					const [existingPayment] = await tx
+						.select()
+						.from(payments)
+						.where(
+							and(
+								eq(payments.leaseId, input.leaseId),
+								eq(payments.idempotencyKey, idempotencyKey),
+							),
+						)
+						.limit(1);
+					if (existingPayment) return existingPayment;
+				}
+
+				if (utilityId) {
 					const due = await getAmountDueForUtility(tx, utilityId);
 					if (input.amount !== due) {
 						throw new ORPCError("BAD_REQUEST", {
-							message: `Amount must equal outstanding amountDue (${due}) for this utility`,
+							message: `Payment must equal the outstanding utility balance of ${formatRupees(due)}. Advance payments are not supported.`,
 						});
 					}
 				} else if (input.type === PAYMENT_TYPES.RENT) {
 					const due = await getAmountDueForRent(tx, input.leaseId);
 					if (input.amount !== due) {
 						throw new ORPCError("BAD_REQUEST", {
-							message: `Amount must equal outstanding rent due (${due})`,
+							message: `Payment must equal the outstanding rent balance of ${formatRupees(due)}. Advance payments are not supported.`,
 						});
 					}
 				}
@@ -227,6 +307,7 @@ export const createPayment = ownerProcedure
 						referenceNumber: input.referenceNumber ?? null,
 						description: input.description ?? null,
 						utilityId,
+						idempotencyKey,
 					})
 					.returning();
 
@@ -323,6 +404,32 @@ export const createAgreementPayment = ownerProcedure
 			});
 		}
 
+		// Idempotency: one key across the group's lease allocations. The partial
+		// unique index (lease_id, idempotency_key) rejects a retried group write.
+		const idempotencyKey = input.idempotencyKey ?? null;
+		if (idempotencyKey) {
+			const [existingGroupPayment] = await db
+				.select({ paymentGroupId: payments.paymentGroupId })
+				.from(payments)
+				.where(eq(payments.idempotencyKey, idempotencyKey))
+				.limit(1);
+			if (existingGroupPayment?.paymentGroupId) {
+				const [paymentGroup] = await db
+					.select()
+					.from(paymentGroups)
+					.where(eq(paymentGroups.id, existingGroupPayment.paymentGroupId));
+				const createdPayments = await db
+					.select()
+					.from(payments)
+					.where(
+						eq(payments.paymentGroupId, existingGroupPayment.paymentGroupId),
+					);
+				if (paymentGroup) {
+					return { paymentGroup, payments: createdPayments };
+				}
+			}
+		}
+
 		const groupId = crypto.randomUUID();
 		const groupValues = {
 			id: groupId,
@@ -341,15 +448,46 @@ export const createAgreementPayment = ownerProcedure
 			type: PAYMENT_TYPES.RENT,
 			description: input.description ?? null,
 			paymentGroupId: groupId,
+			idempotencyKey,
 		}));
 
 		if (supportsBatch(db)) {
-			await db.batch([
-				db.insert(paymentGroups).values(groupValues),
-				...paymentValues.map((values) => db.insert(payments).values(values)),
-			]);
+			try {
+				await db.batch([
+					db.insert(paymentGroups).values(groupValues),
+					...paymentValues.map((values) => db.insert(payments).values(values)),
+				]);
+			} catch (error) {
+				if (!isUniqueViolation(error) || !idempotencyKey) throw error;
+				// Concurrent retry won the race — return the winner's group.
+				const [winnerPayment] = await db
+					.select({ paymentGroupId: payments.paymentGroupId })
+					.from(payments)
+					.where(eq(payments.idempotencyKey, idempotencyKey))
+					.limit(1);
+				if (winnerPayment?.paymentGroupId) {
+					const [paymentGroup] = await db
+						.select()
+						.from(paymentGroups)
+						.where(eq(paymentGroups.id, winnerPayment.paymentGroupId));
+					const createdPayments = await db
+						.select()
+						.from(payments)
+						.where(eq(payments.paymentGroupId, winnerPayment.paymentGroupId));
+					if (paymentGroup) {
+						return { paymentGroup, payments: createdPayments };
+					}
+				}
+				throw error;
+			}
 		} else {
 			await db.transaction(async (tx) => {
+				// Serialize concurrent grouped payments for the same agreement leases.
+				for (const { leaseId } of allocations) {
+					await tx.execute(
+						sql`select 1 from ${leases} where ${leases.id} = ${leaseId} for update`,
+					);
+				}
 				await tx.insert(paymentGroups).values(groupValues);
 				await tx.insert(payments).values(paymentValues);
 			});
@@ -397,7 +535,8 @@ export const createAgreementPayment = ownerProcedure
 		return { paymentGroup, payments: createdPayments };
 	});
 
-// Update — re-validate utility linkage and block reversal via update
+// Update — financial fields (amount, type, utilityId, leaseId) are immutable;
+// only non-accounting metadata may change after a payment exists.
 export const updatePayment = ownerProcedure
 	.route({ method: "PATCH", path: "/rent/payment/update" })
 	.input(z.object({ id: z.string(), data: UpdatePaymentSchema }))
@@ -412,39 +551,10 @@ export const updatePayment = ownerProcedure
 				message: "Cannot update a reversal payment",
 			});
 		}
-		if (input.data.type === PAYMENT_TYPES.REVERSAL) {
-			throw new ORPCError("BAD_REQUEST", {
-				message: "Use voidPayment to create reversals",
-			});
-		}
 
 		// Recheck role restriction
 		if (input.data.paymentMethods) {
 			assertMethodAllowedForRole(input.data.paymentMethods, "owner");
-		}
-
-		// If caller changes utilityId, re-verify ownership of that utility's lease
-		const nextUtilityId = (input.data as { utilityId?: string | null })
-			.utilityId;
-		if (nextUtilityId !== undefined && nextUtilityId !== null) {
-			const [util] = await db
-				.select({ leaseId: utilities.leaseId })
-				.from(utilities)
-				.where(eq(utilities.id, nextUtilityId))
-				.limit(1);
-			if (!util) {
-				throw new ORPCError("NOT_FOUND", { message: "Utility not found" });
-			}
-			const ownsUtilityLease = await isLeaseOwner(
-				db,
-				authUser.id,
-				util.leaseId,
-			);
-			if (!ownsUtilityLease) {
-				throw new ORPCError("FORBIDDEN", {
-					message: "You do not own the lease for this utility",
-				});
-			}
 		}
 
 		const [updated] = await db
@@ -510,7 +620,14 @@ export const listPayments = ownerProcedure
 			.innerJoin(units, eq(leases.unitId, units.id))
 			.innerJoin(properties, eq(units.propertyId, properties.id))
 			.innerJoin(user, eq(leases.tenantId, user.id))
-			.leftJoin(tenantProfiles, eq(tenantProfiles.userId, user.id))
+			.leftJoin(
+				tenantProfiles,
+				and(
+					eq(tenantProfiles.userId, user.id),
+					eq(tenantProfiles.createdById, authUser.id),
+					isNull(tenantProfiles.deletedAt),
+				),
+			)
 			.where(
 				and(
 					eq(properties.ownerId, authUser.id),
@@ -746,6 +863,23 @@ export const voidPaymentGroup = ownerProcedure
 			throw new ORPCError("INTERNAL_SERVER_ERROR", {
 				message: "Failed to reverse grouped payment",
 			});
+		}
+
+		// Grouped reversals may reopen utility bills — keep the compatibility
+		// isPaid flag in sync with the derived amountDue (parity with voidPayment).
+		const utilityIds = [
+			...new Set(
+				originalPayments
+					.map((payment) => payment.utilityId)
+					.filter((id): id is string => Boolean(id)),
+			),
+		];
+		for (const utilityId of utilityIds) {
+			const dueAfter = await getAmountDueForUtility(db, utilityId);
+			await db
+				.update(utilities)
+				.set({ isPaid: dueAfter <= 0 })
+				.where(eq(utilities.id, utilityId));
 		}
 
 		return { paymentGroup, reversals };

@@ -136,9 +136,44 @@ export function useDeletePayment() {
 			toast.success("Payment deleted", { id: context.toastId });
 		},
 		onSettled: () => {
-			// WHY: removeQueries on delete — no refetch needed, data is gone
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.payment.listPayments.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.utility.listUtilities.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.stats.getRevenueDashboard.key(),
+			});
+		},
+	});
+}
+
+export function useVoidPaymentGroup() {
+	const queryClient = useQueryClient();
+
+	return useMutation({
+		onMutate: () => {
+			const toastId = toast.loading("Voiding combined payment...");
+			return { toastId };
+		},
+		mutationFn: (
+			input: Parameters<typeof client.rent.payment.voidPaymentGroup>[0],
+		) => client.rent.payment.voidPaymentGroup(input),
+		onError: (error, _, context) => {
+			toast.error(`Failed to void combined payment: ${error.message}`, {
+				id: context?.toastId,
+			});
+		},
+		onSuccess: (_, __, context) => {
+			toast.success("Combined payment voided", { id: context.toastId });
+		},
+		onSettled: () => {
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.payment.listPayments.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.stats.getRevenueDashboard.key(),

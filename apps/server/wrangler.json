@@ -20,8 +20,7 @@
 		"R2_BUCKET_NAME": "keyhq",
 		"R2_PUBLIC_URL": "https://keyhq-media.parmjeetmishra.com",
 		"R2_PRIVATE_BUCKET_NAME": "keyhq-private-documents",
-		"AADHAAR_UPLOADS_ENABLED": "true",
-		"USE_NEON": "true"
+		"AADHAAR_UPLOADS_ENABLED": "true"
 	},
 	"observability": {
 		"enabled": false,

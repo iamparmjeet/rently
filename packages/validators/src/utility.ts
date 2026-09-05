@@ -24,7 +24,6 @@ export const CreateUtilitySchema = UtilityInsertSchema.omit({
 });
 
 export const UpdateUtilitySchema = createUpdateSchema(utilities).pick({
-	leaseId: true,
 	utilityType: true,
 	previousReadingDate: true,
 	currentReadingDate: true,
@@ -53,6 +52,8 @@ export const UtilityListItemSchema = UtilitySelectSchema.extend({
 	// The payment that settled this bill. It is used to open the existing
 	// payment receipt from the Utilities screen.
 	receiptPaymentId: z.uuid().nullable(),
+	receiptPaymentDate: z.date().nullable().optional(),
+	hasReversedPayment: z.boolean().optional(),
 	amountDue: z.number().int().optional(),
 	credits: z.array(BillCreditSchema).optional(),
 });

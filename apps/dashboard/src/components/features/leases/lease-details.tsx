@@ -6,6 +6,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
+import { formatRupees } from "@rently/ui/lib/currency";
 import type { Lease } from "@rently/validators/lease";
 import LeaseStatusBadge from "./lease-status-badge";
 
@@ -38,11 +39,6 @@ export function LeaseDetails({ lease }: LeaseDetailsProps) {
 		});
 	};
 
-	const formatINR = (amount: number | null | undefined) => {
-		if (!amount) return "—";
-		return `₹${amount.toLocaleString("en-IN")}`;
-	};
-
 	return (
 		<Card>
 			<CardHeader>
@@ -51,7 +47,7 @@ export function LeaseDetails({ lease }: LeaseDetailsProps) {
 					<div className="flex items-center gap-3">
 						<LeaseStatusBadge status={lease.status} />
 						<span className="font-bold text-2xl">
-							{formatINR(lease.rent)}
+							{formatRupees(lease.rent)}
 							<span className="font-normal text-muted-foreground text-sm">
 								/mo
 							</span>
@@ -69,7 +65,7 @@ export function LeaseDetails({ lease }: LeaseDetailsProps) {
 					/>
 					<DetailRow
 						label="Security Deposit"
-						value={formatINR(lease.deposit)}
+						value={lease.deposit == null ? "—" : formatRupees(lease.deposit)}
 					/>
 					<DetailRow label="Created" value={formatDate(lease.createdAt)} />
 				</div>

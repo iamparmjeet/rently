@@ -190,3 +190,12 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Tests first (5, all red): true-concurrency double void (same id, one row), retry, void-voided returns existing, voiding a reversal still refused, raw duplicate insert 23505. Teardown needed agreement-wrapper cleanup (lease.createLease side effect).
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → full suite 227/227, zero leaks → local `bun run build` 5/5 (next-env churn restored).
 - Committed as `04be6953`, opened PR #13 → `integ/phase-a-baseline` with user approval, CI green (~3m25s) first run, merged 2026-09-05.
+
+## B05 Atomic group void (2026-09-05, Muse Spark, branch fix/atomic-group-void, tag pre-atomic-group-void)
+- Base: clean `integ/phase-a-baseline@56b6134f`. Fix-Plan B05 `[~]` (Terra High review owed). Single voids untouched (B04).
+- Pre-check: dev has 1 reversal group, zero duplicates — unique index dev-safe.
+- Changed (one migration `0027`, plain UNIQUE on `paymentGroups.reversesPaymentGroupId`; NULL originals exempt by Postgres semantics): group void idempotent with completeness gate — pre-check/catch-23505 (both paths, abort-safe) serve the existing group only when allocation count matches the original; partial groups throw loud INTERNAL (never served, never auto-deleted — financial-record rule); isPaid converges via shared helper. Single-void `syncUtilityPaidFlag` reused for the group loop.
+- Tests first (4, all red): true-concurrency group voids (same group, linked allocations, single row), repeat returns complete group, partial group → INTERNAL with row counts unchanged, raw duplicate group 23505.
+- Incidents: (1) DB test omitted the first void (no conflict possible) — fixed; (2) unused-param + bad-cast type errors — removed param, typed full shape; (3) early red runs leaked 20 groups — cleaned by B05 markers.
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → full suite 231/231, zero leaks → local `bun run build` 5/5 (next-env churn restored).
+- Committed as `03e3b5fa`, opened PR #14 → `integ/phase-a-baseline` with user approval, CI green (~3m25s) first run, merged 2026-09-05.

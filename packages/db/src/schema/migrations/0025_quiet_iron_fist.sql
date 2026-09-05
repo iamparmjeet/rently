@@ -1,0 +1,4 @@
+ALTER TABLE "payments" ADD COLUMN "reverses_payment_id" uuid;--> statement-breakpoint
+ALTER TABLE "payments" ADD CONSTRAINT "payments_reverses_payment_id_payments_id_fk" FOREIGN KEY ("reverses_payment_id") REFERENCES "public"."payments"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+UPDATE "payments" AS "reversal" SET "reverses_payment_id" = "original"."id" FROM "payments" AS "original" WHERE "reversal"."type" = 'reversal' AND "reversal"."reverses_payment_id" IS NULL AND "reversal"."reference_number" = "original"."id"::text AND "original"."type" != 'reversal';--> statement-breakpoint
+ALTER TABLE "payments" ADD CONSTRAINT "payments_reversal_link_check" CHECK (("payments"."type" = 'reversal' and "payments"."reverses_payment_id" is not null) or ("payments"."type" != 'reversal' and "payments"."reverses_payment_id" is null));

@@ -211,6 +211,13 @@
       "when": 1788608143260,
       "tag": "0029_nice_vision",
       "breakpoints": true
+    },
+    {
+      "idx": 30,
+      "version": "7",
+      "when": 1788624415719,
+      "tag": "0030_adorable_rumiko_fujikawa",
+      "breakpoints": true
     }
   ]
 }

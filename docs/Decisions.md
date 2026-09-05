@@ -46,6 +46,35 @@ a focused regression test.
 
 **Model:** GPT-5.6 Sol.
 
+## 2026-09-05 - grouped-payment idempotency scope
+
+**Decision:** Store grouped-payment idempotency metadata on `payment_groups`, with a
+nullable request fingerprint and a partial unique index on
+`(agreement_id, idempotency_key)`. Replay queries must join the agreement to its
+owner's property and require the authenticated owner, requested agreement, and
+key before returning any financial rows. A fingerprint mismatch is rejected as
+the same key being reused for a different request.
+
+**Why:** B07 placed the same key on each child allocation and replayed by key
+alone, allowing a request on another agreement to receive the first group's
+financial data. The group is the idempotency unit, while the agreement UUID is
+globally unique and the owner is an authorization predicate rather than a
+duplicated ledger column.
+
+**Alternatives:** Keep searching child payments by key (rejected: it cannot
+scope replay and has no single group-level request record); add owner ID to
+payment groups (rejected: duplicates ownership already authoritative through
+the agreement/property join); use a global key unique index (rejected: keys
+are request-scoped and may safely be reused by different owners/agreements).
+
+**Tradeoff:** Existing grouped rows remain legacy-compatible with null metadata;
+only new grouped requests participate in the group-level index and fingerprint
+validation. The fingerprint covers the canonical grouped-payment request fields
+accepted by this API, not server-side balances that are intentionally bypassed
+on a successful retry.
+
+**Model:** GPT-5.6 Luna.
+
 ## 2026-09-04 - normalize monetary aggregates at the database boundary
 
 **Decision:** Convert PostgreSQL monetary aggregate results to JavaScript

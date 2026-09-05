@@ -227,3 +227,15 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Incidents: teardown forgot bill_credits (RESTRICT cascade, 72 leaked rows cleaned by markers); uuid note lesson re-applied in review (server-generated notes, no hand rolls).
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → full suite 250/250, zero leaks → local `bun run build` 5/5 (next-env churn restored).
 - Committed as `0bfded36`, opened PR #16 → `integ/phase-a-baseline` with user approval, CI green (~3m4s) first run, merged 2026-09-05. Commit hook blocked twice (biome `??=` expression-assignment) — rewritten without expression assignment.
+
+## B09 grouped-payment idempotency scope (implemented, 2026-09-05)
+
+- Base: `integ/phase-a-baseline@cb1540df`; branch `fix/group-payment-idempotency-scope`; rollback tag `pre-group-payment-idempotency-scope`.
+- Map: `createAgreementPayment` validates owner/agreement -> computes a canonical request fingerprint -> scoped group replay -> derives current active-unit allocations -> atomically inserts one group plus child payments -> returns only the created group/allocations.
+- Plan: move the idempotency key and fingerprint to `payment_groups`, add one additive migration and an agreement-scoped partial unique index, remove the group key from child allocation writes, and test cross-agreement, cross-owner, and changed-request replay behavior.
+- Changed: migration `0030` adds nullable `payment_groups.idempotency_key` and `request_fingerprint` plus the partial agreement/key index; grouped replay and unique-race adoption are owner/agreement scoped; new child allocations no longer repeat the group key; API responses omit internal metadata.
+- Verification: `db:generate` no drift -> `check-types --force` 6/6 -> focused Biome -> `db:migrate:test` -> focused suite 14/14 -> full Vitest 253/253 -> local build 5/5. Command-line test values targeted only disposable local Docker `rently_test`/`rently_dev`; no `.env` files were retained.
+- Commit: `b1ff195` (`fix(payment): scope grouped idempotency replay`). No push or merge performed.
+- Review debt: Terra High final review remains required for B09 before integration merge.
+- Rollback: revert the B09 commit or restore the files to `pre-group-payment-idempotency-scope`; if the additive migration has been applied, use a forward corrective migration rather than deleting ledger rows.
+- Constraints: no `main`, no production/`.env`/wrangler mutations, no non-null compatibility FKs, and no business-semantic changes outside grouped-payment replay.

@@ -245,6 +245,11 @@ export const paymentGroups = pgTable(
 		}),
 		referenceNumber: text("reference_number"),
 		description: text("description"),
+		// Group-level idempotency metadata. Nullable for historical groups and
+		// legacy writers; new grouped settlements store the key here rather than
+		// repeating it on every child allocation.
+		idempotencyKey: uuid("idempotency_key"),
+		requestFingerprint: text("request_fingerprint"),
 		reversesPaymentGroupId: uuid("reverses_payment_group_id").references(
 			(): AnyPgColumn => paymentGroups.id,
 		),
@@ -256,6 +261,9 @@ export const paymentGroups = pgTable(
 		uniqueIndex("payment_groups_one_reversal_per_group").on(
 			table.reversesPaymentGroupId,
 		),
+		uniqueIndex("payment_groups_agreement_idempotency_key")
+			.on(table.agreementId, table.idempotencyKey)
+			.where(sql`${table.idempotencyKey} is not null`),
 	],
 );
 

@@ -11,6 +11,7 @@ import {
 import type { UserRole } from "@rently/db/constants/user-roles";
 import { user } from "@rently/db/schema/auth";
 import {
+	billCredits,
 	leaseAgreements,
 	leases,
 	notifications,
@@ -44,6 +45,7 @@ import {
 	getAmountDueForRent,
 	getAmountDueForUtility,
 } from "../helpers/credit.helpers";
+import { settlementAdvisoryLock } from "../helpers/settlement-lock";
 
 type BatchCapableDatabase = Database & {
 	batch<T extends readonly unknown[]>(
@@ -61,15 +63,6 @@ const formatRupees = (paise: number) =>
 
 function supportsBatch(db: Database): db is BatchCapableDatabase {
 	return typeof (db as { batch?: unknown }).batch === "function";
-}
-
-function isUniqueViolation(error: unknown): boolean {
-	return (
-		typeof error === "object" &&
-		error !== null &&
-		"code" in error &&
-		(error as { code?: unknown }).code === "23505"
-	);
 }
 
 // Drizzle wraps driver errors (the Postgres code nests under cause); read
@@ -97,6 +90,189 @@ async function findReversalByOriginal(
 		)
 		.limit(1);
 	return row;
+}
+
+type IndividualPaymentInput = {
+	leaseId: string;
+	amount: number;
+	paymentDate: Date;
+	type: string;
+	paymentMethods: string | null;
+	referenceNumber: string | null;
+	description: string | null;
+	utilityId: string | null;
+	idempotencyKey: string | null;
+};
+
+async function insertNeonPayment(
+	db: BatchCapableDatabase,
+	input: IndividualPaymentInput,
+) {
+	const id = crypto.randomUUID();
+	const lockQuery = db.execute(
+		sql`SELECT ${settlementAdvisoryLock(input.utilityId ? "utility" : "lease", input.utilityId ?? input.leaseId)}`,
+	);
+	const insertQuery = input.utilityId
+		? db.execute<{ id: string }>(sql`
+			WITH balance AS MATERIALIZED (
+				SELECT u."total_amount"
+					+ COALESCE((
+						SELECT sum(c."amount")
+						FROM ${billCredits} c
+						WHERE c."utility_id" = u."id"
+					), 0)
+					- COALESCE((
+						SELECT sum(p."amount")
+						FROM ${payments} p
+						WHERE p."utility_id" = u."id"
+					), 0) AS "amount_due"
+				FROM ${utilities} u
+				WHERE u."id" = ${input.utilityId}
+			), inserted AS (
+				INSERT INTO ${payments} (
+					"id", "lease_id", "amount", "payment_date", "payment_method",
+					"reference_number", "type", "description", "utility_id",
+					"idempotency_key"
+				)
+				SELECT ${id}, ${input.leaseId}, ${input.amount}, ${input.paymentDate},
+					${input.paymentMethods}, ${input.referenceNumber}, ${input.type},
+					${input.description}, ${input.utilityId}, ${input.idempotencyKey}
+				FROM balance
+				WHERE balance."amount_due" = ${input.amount}
+				RETURNING "id", "amount"
+			), updated AS (
+				UPDATE ${utilities} u
+				SET "is_paid" = (
+					u."total_amount"
+					+ COALESCE((
+						SELECT sum(c."amount")
+						FROM ${billCredits} c
+						WHERE c."utility_id" = u."id"
+					), 0)
+						- COALESCE((
+							SELECT sum(p."amount")
+							FROM ${payments} p
+							WHERE p."utility_id" = u."id"
+						), 0) - inserted."amount" <= 0
+				), "updated_at" = now()
+				FROM inserted
+				WHERE u."id" = ${input.utilityId}
+				RETURNING u."id"
+			)
+			SELECT inserted."id" AS "id"
+			FROM inserted
+			LEFT JOIN updated ON true
+		`)
+		: db.execute<{ id: string }>(sql`
+			WITH balance AS MATERIALIZED (
+				SELECT l."rent"
+					+ COALESCE((
+						SELECT sum(c."amount")
+						FROM ${billCredits} c
+						WHERE c."lease_id" = l."id" AND c."utility_id" IS NULL
+					), 0)
+					- COALESCE((
+						SELECT sum(p."amount")
+						FROM ${payments} p
+						LEFT JOIN ${payments} original_payment
+							ON p."type" = 'reversal'
+							AND p."reference_number" = original_payment."id"::text
+							AND original_payment."lease_id" = p."lease_id"
+						WHERE p."lease_id" = l."id"
+							AND p."utility_id" IS NULL
+							AND (
+								p."type" = 'rent'
+								OR (p."type" = 'reversal' AND original_payment."type" = 'rent')
+							)
+					), 0) AS "amount_due"
+				FROM ${leases} l
+				WHERE l."id" = ${input.leaseId}
+			), inserted AS (
+				INSERT INTO ${payments} (
+					"id", "lease_id", "amount", "payment_date", "payment_method",
+					"reference_number", "type", "description", "utility_id",
+					"idempotency_key"
+				)
+				SELECT ${id}, ${input.leaseId}, ${input.amount}, ${input.paymentDate},
+					${input.paymentMethods}, ${input.referenceNumber}, ${input.type},
+					${input.description}, NULL, ${input.idempotencyKey}
+				FROM balance
+				WHERE balance."amount_due" = ${input.amount}
+				RETURNING "id", "amount"
+			)
+			SELECT inserted."id" AS "id" FROM inserted
+		`);
+
+	const [, result] = await db.batch([lockQuery, insertQuery]);
+	return result.rows[0]?.id;
+}
+
+async function insertNeonPaymentReversal(
+	db: BatchCapableDatabase,
+	input: {
+		leaseId: string;
+		amount: number;
+		paymentDate: Date;
+		description: string;
+		referenceNumber: string;
+		utilityId: string | null;
+		reversesPaymentId: string;
+	},
+) {
+	const id = crypto.randomUUID();
+	const lockQuery = db.execute(
+		sql`SELECT ${settlementAdvisoryLock(input.utilityId ? "utility" : "lease", input.utilityId ?? input.leaseId)}`,
+	);
+	const insertQuery = input.utilityId
+		? db.execute<{ id: string }>(sql`
+			WITH inserted AS (
+				INSERT INTO ${payments} (
+					"id", "lease_id", "amount", "payment_date", "type", "description",
+					"reference_number", "utility_id", "reverses_payment_id"
+				)
+				SELECT ${id}, ${input.leaseId}, ${input.amount}, ${input.paymentDate},
+					'reversal', ${input.description}, ${input.referenceNumber},
+					${input.utilityId}, ${input.reversesPaymentId}
+				RETURNING "id", "amount"
+			), updated AS (
+				UPDATE ${utilities} u
+				SET "is_paid" = (
+					u."total_amount"
+					+ COALESCE((
+						SELECT sum(c."amount")
+						FROM ${billCredits} c
+						WHERE c."utility_id" = u."id"
+					), 0)
+						- COALESCE((
+							SELECT sum(p."amount")
+							FROM ${payments} p
+							WHERE p."utility_id" = u."id"
+						), 0) - inserted."amount" <= 0
+				), "updated_at" = now()
+				FROM inserted
+				WHERE u."id" = ${input.utilityId}
+				RETURNING u."id"
+			)
+			SELECT inserted."id" AS "id"
+			FROM inserted
+			LEFT JOIN updated ON true
+		`)
+		: db.execute<{ id: string }>(sql`
+			WITH inserted AS (
+				INSERT INTO ${payments} (
+					"id", "lease_id", "amount", "payment_date", "type", "description",
+					"reference_number", "utility_id", "reverses_payment_id"
+				)
+				SELECT ${id}, ${input.leaseId}, ${input.amount}, ${input.paymentDate},
+					'reversal', ${input.description}, ${input.referenceNumber},
+					NULL, ${input.reversesPaymentId}
+				RETURNING "id", "amount"
+			)
+			SELECT inserted."id" AS "id" FROM inserted
+			`);
+
+	const [, result] = await db.batch([lockQuery, insertQuery]);
+	return result.rows[0]?.id;
 }
 
 async function syncUtilityPaidFlag(
@@ -285,26 +461,13 @@ export const createPayment = ownerProcedure
 				}
 			}
 
-			if (utilityId) {
-				const due = await getAmountDueForUtility(db, utilityId);
-				if (input.amount !== due) {
-					throw new ORPCError("BAD_REQUEST", {
-						message: `Payment must equal the outstanding utility balance of ${formatRupees(due)}. Advance payments are not supported.`,
-					});
-				}
-			} else if (input.type === PAYMENT_TYPES.RENT) {
-				const due = await getAmountDueForRent(db, input.leaseId);
-				if (input.amount !== due) {
-					throw new ORPCError("BAD_REQUEST", {
-						message: `Payment must equal the outstanding rent balance of ${formatRupees(due)}. Advance payments are not supported.`,
-					});
-				}
-			}
-			let newPayment: typeof payments.$inferSelect | undefined;
-			try {
-				[newPayment] = await db
-					.insert(payments)
-					.values({
+			let insertedId: string | undefined;
+			if (
+				utilityId ||
+				(input.type ?? PAYMENT_TYPES.RENT) === PAYMENT_TYPES.RENT
+			) {
+				try {
+					insertedId = await insertNeonPayment(db, {
 						leaseId: input.leaseId,
 						amount: input.amount,
 						paymentDate: input.paymentDate,
@@ -314,12 +477,32 @@ export const createPayment = ownerProcedure
 						description: input.description ?? null,
 						utilityId,
 						idempotencyKey,
-					})
-					.returning();
-			} catch (error) {
-				if (!isUniqueViolation(error)) throw error;
+					});
+				} catch (error) {
+					if (violationCode(error) !== "23505") throw error;
+				}
+			} else {
+				try {
+					const [newPayment] = await db
+						.insert(payments)
+						.values({
+							leaseId: input.leaseId,
+							amount: input.amount,
+							paymentDate: input.paymentDate,
+							type: input.type ?? PAYMENT_TYPES.RENT,
+							paymentMethods: input.paymentMethods ?? null,
+							referenceNumber: input.referenceNumber ?? null,
+							description: input.description ?? null,
+							utilityId,
+							idempotencyKey,
+						})
+						.returning();
+					insertedId = newPayment?.id;
+				} catch (error) {
+					if (violationCode(error) !== "23505") throw error;
+				}
 			}
-			if (!newPayment && idempotencyKey) {
+			if (!insertedId && idempotencyKey) {
 				const [existingPayment] = await db
 					.select()
 					.from(payments)
@@ -334,13 +517,25 @@ export const createPayment = ownerProcedure
 					return { payment: existingPayment };
 				}
 			}
-			payment = newPayment;
-			if (utilityId && payment) {
-				const dueAfter = await getAmountDueForUtility(db, utilityId);
-				await db
-					.update(utilities)
-					.set({ isPaid: dueAfter <= 0 })
-					.where(eq(utilities.id, utilityId));
+			if (insertedId) {
+				[payment] = await db
+					.select()
+					.from(payments)
+					.where(eq(payments.id, insertedId))
+					.limit(1);
+			}
+			if (
+				!payment &&
+				(utilityId || (input.type ?? PAYMENT_TYPES.RENT) === PAYMENT_TYPES.RENT)
+			) {
+				const due = utilityId
+					? await getAmountDueForUtility(db, utilityId)
+					: await getAmountDueForRent(db, input.leaseId);
+				throw new ORPCError("BAD_REQUEST", {
+					message: utilityId
+						? `Payment must equal the outstanding utility balance of ${formatRupees(due)}. Advance payments are not supported.`
+						: `Payment must equal the outstanding rent balance of ${formatRupees(due)}. Advance payments are not supported.`,
+				});
 			}
 		} else {
 			payment = await db.transaction(async (tx) => {
@@ -547,7 +742,7 @@ export const createAgreementPayment = ownerProcedure
 					...paymentValues.map((values) => db.insert(payments).values(values)),
 				]);
 			} catch (error) {
-				if (!isUniqueViolation(error) || !idempotencyKey) throw error;
+				if (violationCode(error) !== "23505" || !idempotencyKey) throw error;
 				// Concurrent retry won the race — return the winner's group.
 				const [winnerPayment] = await db
 					.select({ paymentGroupId: payments.paymentGroupId })
@@ -768,20 +963,22 @@ export const voidPayment = ownerProcedure
 		let reversal: typeof payments.$inferSelect | undefined;
 		if (supportsBatch(db)) {
 			try {
-				const [reversalRow] = await db
-					.insert(payments)
-					.values({
-						leaseId: existing.leaseId,
-						amount: -existing.amount,
-						paymentDate: new Date(),
-						type: PAYMENT_TYPES.REVERSAL,
-						description: input.reason ?? `Reversal of payment ${existing.id}`,
-						referenceNumber: existing.id,
-						utilityId,
-						reversesPaymentId: existing.id,
-					})
-					.returning();
-				reversal = reversalRow;
+				const reversalId = await insertNeonPaymentReversal(db, {
+					leaseId: existing.leaseId,
+					amount: -existing.amount,
+					paymentDate: new Date(),
+					description: input.reason ?? `Reversal of payment ${existing.id}`,
+					referenceNumber: existing.id,
+					utilityId,
+					reversesPaymentId: existing.id,
+				});
+				if (reversalId) {
+					[reversal] = await db
+						.select()
+						.from(payments)
+						.where(eq(payments.id, reversalId))
+						.limit(1);
+				}
 			} catch (error) {
 				if (violationCode(error) !== "23505") throw error;
 				const winner = await findReversalByOriginal(db, existing.id);
@@ -794,6 +991,21 @@ export const voidPayment = ownerProcedure
 		} else {
 			try {
 				reversal = await db.transaction(async (tx) => {
+					if (utilityId) {
+						await tx.execute(
+							sql`select 1 from ${utilities} where ${utilities.id} = ${utilityId} for update`,
+						);
+					} else {
+						await tx.execute(
+							sql`select 1 from ${leases} where ${leases.id} = ${existing.leaseId} for update`,
+						);
+					}
+					const existingReversal = await findReversalByOriginal(
+						tx,
+						existing.id,
+					);
+					if (existingReversal) return existingReversal;
+
 					const [reversalRow] = await tx
 						.insert(payments)
 						.values({

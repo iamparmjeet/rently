@@ -11,6 +11,7 @@ import {
 	billCredits,
 	leases,
 	ownerProfiles,
+	payments,
 	properties,
 	units,
 	utilities,
@@ -66,24 +67,132 @@ function supportsBatch(db: Database): db is BatchCapableDatabase {
 	return typeof (db as { batch?: unknown }).batch === "function";
 }
 
-function isUniqueViolation(error: unknown): boolean {
-	return (
-		typeof error === "object" &&
-		error !== null &&
-		"code" in error &&
-		(error as { code?: unknown }).code === "23505"
-	);
-}
-
 import {
 	getAmountDueForRent,
 	getAmountDueForUtility,
 	syncUtilityPaidState,
 } from "../helpers/credit.helpers";
+import { settlementAdvisoryLock } from "../helpers/settlement-lock";
 
 // *********** Helper **********************
 const getCreditNoteNo = (id: string) =>
 	`KQ-CN-${id.replaceAll("-", "").slice(-12).toUpperCase()}`;
+
+async function insertNeonCredit(
+	db: BatchCapableDatabase,
+	input: {
+		id: string;
+		leaseId: string;
+		utilityId: string | null;
+		ownerId: string;
+		type: string;
+		amount: number;
+		reason: string;
+		creditNoteNo: string;
+		appliedAs: string;
+		createdBy: string;
+		idempotencyKey: string;
+	},
+) {
+	const lockQuery = db.execute(
+		sql`SELECT ${settlementAdvisoryLock(input.utilityId ? "utility" : "lease", input.utilityId ?? input.leaseId)}`,
+	);
+	const insertQuery = input.utilityId
+		? db.execute<{ id: string }>(sql`
+			WITH balance AS MATERIALIZED (
+				SELECT u."total_amount"
+					+ COALESCE((
+						SELECT sum(c."amount")
+						FROM ${billCredits} c
+						WHERE c."utility_id" = u."id"
+					), 0)
+					- COALESCE((
+						SELECT sum(p."amount")
+						FROM ${payments} p
+						WHERE p."utility_id" = u."id"
+					), 0) AS "amount_due"
+				FROM ${utilities} u
+				WHERE u."id" = ${input.utilityId}
+			), inserted AS (
+				INSERT INTO ${billCredits} (
+					"id", "lease_id", "utility_id", "owner_id", "type", "amount",
+					"reason", "credit_note_no", "applied_as", "created_by",
+					"idempotency_key"
+				)
+				SELECT ${input.id}, ${input.leaseId}, ${input.utilityId},
+					${input.ownerId}, ${input.type}, ${input.amount}, ${input.reason},
+					${input.creditNoteNo}, ${input.appliedAs}, ${input.createdBy},
+					${input.idempotencyKey}
+				FROM balance
+				WHERE abs(${input.amount}) <= balance."amount_due"
+				RETURNING "id", "amount"
+			), updated AS (
+				UPDATE ${utilities} u
+				SET "is_paid" = (
+					u."total_amount"
+					+ COALESCE((
+						SELECT sum(c."amount")
+						FROM ${billCredits} c
+						WHERE c."utility_id" = u."id"
+					), 0)
+							+ inserted."amount"
+							- COALESCE((
+								SELECT sum(p."amount")
+								FROM ${payments} p
+								WHERE p."utility_id" = u."id"
+							), 0) <= 0
+				), "updated_at" = now()
+				FROM inserted
+				WHERE u."id" = ${input.utilityId}
+				RETURNING u."id"
+			)
+			SELECT inserted."id" AS "id"
+			FROM inserted
+			LEFT JOIN updated ON true
+		`)
+		: db.execute<{ id: string }>(sql`
+			WITH balance AS MATERIALIZED (
+				SELECT l."rent"
+					+ COALESCE((
+						SELECT sum(c."amount")
+						FROM ${billCredits} c
+						WHERE c."lease_id" = l."id" AND c."utility_id" IS NULL
+					), 0)
+					- COALESCE((
+						SELECT sum(p."amount")
+						FROM ${payments} p
+						LEFT JOIN ${payments} original_payment
+							ON p."type" = 'reversal'
+							AND p."reference_number" = original_payment."id"::text
+							AND original_payment."lease_id" = p."lease_id"
+						WHERE p."lease_id" = l."id"
+							AND p."utility_id" IS NULL
+							AND (
+								p."type" = 'rent'
+								OR (p."type" = 'reversal' AND original_payment."type" = 'rent')
+							)
+					), 0) AS "amount_due"
+				FROM ${leases} l
+				WHERE l."id" = ${input.leaseId}
+			), inserted AS (
+				INSERT INTO ${billCredits} (
+					"id", "lease_id", "utility_id", "owner_id", "type", "amount",
+					"reason", "credit_note_no", "applied_as", "created_by",
+					"idempotency_key"
+				)
+				SELECT ${input.id}, ${input.leaseId}, NULL, ${input.ownerId},
+					${input.type}, ${input.amount}, ${input.reason}, ${input.creditNoteNo},
+					${input.appliedAs}, ${input.createdBy}, ${input.idempotencyKey}
+				FROM balance
+				WHERE abs(${input.amount}) <= balance."amount_due"
+				RETURNING "id", "amount"
+			)
+			SELECT inserted."id" AS "id" FROM inserted
+			`);
+
+	const [, result] = await db.batch([lockQuery, insertQuery]);
+	return result.rows[0]?.id;
+}
 
 // *********** Helper Ends **********************
 
@@ -141,40 +250,29 @@ export const createCredit = ownerProcedure
 				if (existing) return { credit: existing };
 			}
 
-			const due = input.utilityId
-				? await getAmountDueForUtility(db, input.utilityId)
-				: await getAmountDueForRent(db, input.leaseId);
-
-			if (Math.abs(input.amount) > due)
-				throw new ORPCError("BAD_REQUEST", {
-					message: `Discount exceeds amountDue: ${due}`,
-				});
-
 			const id = generatedId();
 			const creditNoteNo = getCreditNoteNo(id);
 
 			let row: typeof billCredits.$inferSelect | undefined;
+			let insertedId: string | undefined;
 			try {
-				[row] = await db
-					.insert(billCredits)
-					.values({
-						id,
-						leaseId: input.leaseId,
-						utilityId: input.utilityId ?? null,
-						ownerId: user.id,
-						type: input.type,
-						amount: input.amount,
-						reason: input.reason,
-						creditNoteNo,
-						appliedAs: input.appliedAs,
-						createdBy: user.id,
-						idempotencyKey,
-					})
-					.returning();
+				insertedId = await insertNeonCredit(db, {
+					id,
+					leaseId: input.leaseId,
+					utilityId: input.utilityId ?? null,
+					ownerId: user.id,
+					type: input.type,
+					amount: input.amount,
+					reason: input.reason,
+					creditNoteNo,
+					appliedAs: input.appliedAs,
+					createdBy: user.id,
+					idempotencyKey,
+				});
 			} catch (error) {
-				if (!isUniqueViolation(error)) throw error;
+				if (violationCode(error) !== "23505") throw error;
 			}
-			if (!row && idempotencyKey) {
+			if (!insertedId && idempotencyKey) {
 				const [existing] = await db
 					.select()
 					.from(billCredits)
@@ -187,8 +285,20 @@ export const createCredit = ownerProcedure
 					.limit(1);
 				if (existing) return { credit: existing };
 			}
-			if (row && input.utilityId) {
-				await syncUtilityPaidState(db, input.utilityId);
+			if (insertedId) {
+				[row] = await db
+					.select()
+					.from(billCredits)
+					.where(eq(billCredits.id, insertedId))
+					.limit(1);
+			}
+			if (!row) {
+				const due = input.utilityId
+					? await getAmountDueForUtility(db, input.utilityId)
+					: await getAmountDueForRent(db, input.leaseId);
+				throw new ORPCError("BAD_REQUEST", {
+					message: `Discount exceeds amountDue: ${due}`,
+				});
 			}
 			return { credit: row };
 		}

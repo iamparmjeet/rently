@@ -1,5 +1,31 @@
 # Decisions
 
+## 2026-09-05 - B08 individual settlement serialization
+
+**Decision:** Serialize each individual settlement by its accounting scope: a
+node-postgres transaction locks the lease or utility row before recalculating
+the balance, while the Neon HTTP path performs an advisory lock, balance
+recheck, conditional insert, and compatibility-flag update in one SQL
+statement. Reversal insertion uses the same scope lock.
+
+**Why:** B07's idempotency indexes only arbitrate retries with the same key.
+Distinct keys can still both pass a read-before-write balance check. Neon HTTP
+cannot use `FOR UPDATE`, so its single-statement transaction must make the
+balance predicate part of the insert; node-postgres can use the existing row
+lock pattern.
+
+**Alternatives:** A schema-wide positive-payment uniqueness constraint (rejected:
+partial payments and void-then-repay are valid); a new balance table (rejected:
+larger schema and migration surface); advisory locks alone on node-postgres
+(rejected: row locks already provide the stronger database-row protection).
+
+**Tradeoff:** Neon uses PostgreSQL transaction-scoped advisory locks keyed by
+lease or utility UUID, so requests sharing one accounting scope serialize even
+when their idempotency keys differ. The existing exact-payment and credit-limit
+rules remain unchanged.
+
+**Model:** Codex GPT-5.6.
+
 ## 2026-09-04 - database URL is the only database selector
 
 **Decision:** Use only `DATABASE_URL`; its hostname selects the runtime driver.

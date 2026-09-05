@@ -65,6 +65,15 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 4. Use a Neon branch, never production, for Neon HTTP batch smoke coverage.
 5. Commit/push only with user approval.
 
+## B08 Individual settlement concurrency (2026-09-05, Codex, branch fix/atomic-individual-settlement)
+- Base confirmed: `integ/phase-a-baseline@cb1540df`; rollback tag `pre-atomic-individual-settlement` already existed before work began. `main` was not used or modified.
+- Plan: keep node-postgres row-lock transactions; replace Neon read-then-write settlement inserts with one SQL statement that takes a scope advisory lock, re-reads the balance, conditionally inserts, and updates `utilities.isPaid` in the same statement. Apply the same scope lock to single-payment reversal so payment-versus-reversal has one serialization domain.
+- Design gate: Sol High preferred and final review remain outstanding; this slice must stay `[~]` until reviewed, even after implementation and verification.
+- Implementation and verification complete on this branch; full Vitest passed
+  (51 files / 256 tests) and local build passed (5/5). Design gate and final
+  review remain outstanding, so the slice is not yet merge-ready.
+- Known limitations: Neon-path tests require a disposable Neon branch or a driver-faithful mock; production Neon must not be mutated.
+
 ## Latest Verification
 - `bun run check-types` passes all 6 tasks.
 - Focused Biome checks and `git diff --check` pass for the changed paths.

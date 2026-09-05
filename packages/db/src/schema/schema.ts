@@ -261,6 +261,12 @@ export const payments = pgTable(
 		description: text("description"),
 		utilityId: uuid("utility_id").references(() => utilities.id),
 		paymentGroupId: uuid("payment_group_id").references(() => paymentGroups.id),
+		// Machine-enforced link to the voided original. Nullable: only reversal
+		// rows carry one (B04 builds the one-reversal-per-original invariant on
+		// this column). referenceNumber is retained for display/audit.
+		reversesPaymentId: uuid("reverses_payment_id").references(
+			(): AnyPgColumn => payments.id,
+		),
 		// Client-supplied idempotency key. Nullable: legacy writers and backfilled
 		// rows have none. A partial unique index makes a retried insert self-reject
 		// so Neon HTTP (no FOR UPDATE) cannot double-settle a lease/utility.
@@ -271,9 +277,13 @@ export const payments = pgTable(
 		check(
 			"payments_type_utility_check",
 			// Utility payments name their bill; rent/deposit/other never do.
-			// Reversals preserve the original's utility link until the explicit
-			// B03 reversal linkage lands, so they stay exempt here.
+			// Reversals preserve the original's utility link (linked via
+			// reversesPaymentId), so they stay exempt here.
 			sql`(${table.type} = 'utility' and ${table.utilityId} is not null) or (${table.type} in ('rent', 'deposit', 'other') and ${table.utilityId} is null) or ${table.type} = 'reversal'`,
+		),
+		check(
+			"payments_reversal_link_check",
+			sql`(${table.type} = 'reversal' and ${table.reversesPaymentId} is not null) or (${table.type} != 'reversal' and ${table.reversesPaymentId} is null)`,
 		),
 		uniqueIndex("payments_lease_idempotency_key")
 			.on(table.leaseId, table.idempotencyKey)

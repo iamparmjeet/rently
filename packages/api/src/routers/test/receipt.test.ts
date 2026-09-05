@@ -157,14 +157,33 @@ async function createReceiptFixture(type: PaymentType = PAYMENT_TYPES.RENT) {
 	const paymentId = generatedId();
 	createdPaymentIds.push(paymentId);
 
+	// Reversal fixtures link an original (B03 presence CHECK); the receipt
+	// under test stays the reversal row itself.
+	let reversalOf: string | null = null;
+	if (type === PAYMENT_TYPES.REVERSAL) {
+		reversalOf = generatedId();
+		createdPaymentIds.push(reversalOf);
+		await db.insert(payments).values({
+			id: reversalOf,
+			leaseId,
+			amount: 25_000_00,
+			paymentDate: new Date("2026-07-01T00:00:00.000Z"),
+			type: PAYMENT_TYPES.RENT,
+			paymentMethods: "upi",
+			referenceNumber: "UPI-12345",
+			description: "July 2026 rent",
+		});
+	}
+
 	await db.insert(payments).values({
 		id: paymentId,
 		leaseId,
-		amount: 25_000_00,
+		amount: type === PAYMENT_TYPES.REVERSAL ? -25_000_00 : 25_000_00,
 		paymentDate: new Date("2026-08-01T00:00:00.000Z"),
 		type,
 		paymentMethods: "upi",
-		referenceNumber: "UPI-12345",
+		referenceNumber: reversalOf ?? "UPI-12345",
+		reversesPaymentId: reversalOf,
 		description: "August 2026 rent",
 	});
 

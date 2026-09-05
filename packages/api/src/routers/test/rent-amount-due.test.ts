@@ -120,6 +120,7 @@ describe("getAmountDueForRent", () => {
 				paymentDate: new Date("2026-09-03T00:00:00.000Z"),
 				type: PAYMENT_TYPES.REVERSAL,
 				referenceNumber: incorrectRentId,
+				reversesPaymentId: incorrectRentId,
 			},
 			{
 				id: depositId,

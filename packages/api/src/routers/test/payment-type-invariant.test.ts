@@ -226,7 +226,8 @@ describe("payment type/utility invariant (B01) — database", () => {
 		{ type: PAYMENT_TYPES.DEPOSIT, withUtility: true, allowed: false },
 		{ type: PAYMENT_TYPES.OTHER, withUtility: false, allowed: true },
 		{ type: PAYMENT_TYPES.OTHER, withUtility: true, allowed: false },
-		// Reversals preserve the original's utility link until B03 — exempt.
+		// Reversals preserve the original's utility link (B01 exemption) and
+		// carry the B03 machine-enforced link to the voided original.
 		{ type: PAYMENT_TYPES.REVERSAL, withUtility: false, allowed: true },
 		{ type: PAYMENT_TYPES.REVERSAL, withUtility: true, allowed: true },
 	];
@@ -234,6 +235,22 @@ describe("payment type/utility invariant (B01) — database", () => {
 	for (const { type, withUtility, allowed } of cells) {
 		it(`${allowed ? "accepts" : "rejects"} ${type} ${withUtility ? "with" : "without"} utility`, async () => {
 			const { leaseId, utilityId } = await createOwnerLeaseFixture();
+			let reversesPaymentId: string | null = null;
+			let referenceNumber: string | null = null;
+			if (type === PAYMENT_TYPES.REVERSAL) {
+				const originalId = generatedId();
+				createdPaymentIds.push(originalId);
+				await db.insert(payments).values({
+					id: originalId,
+					leaseId,
+					amount: 1_00_00,
+					paymentDate: new Date("2026-08-01T00:00:00.000Z"),
+					type: withUtility ? PAYMENT_TYPES.UTILITY : PAYMENT_TYPES.RENT,
+					utilityId: withUtility ? utilityId : null,
+				});
+				reversesPaymentId = originalId;
+				referenceNumber = originalId;
+			}
 			const id = generatedId();
 			const insert = db.insert(payments).values({
 				id,
@@ -242,6 +259,8 @@ describe("payment type/utility invariant (B01) — database", () => {
 				paymentDate: new Date("2026-09-01T00:00:00.000Z"),
 				type,
 				utilityId: withUtility ? utilityId : null,
+				referenceNumber,
+				reversesPaymentId,
 			});
 			if (allowed) {
 				await insert;

@@ -108,6 +108,7 @@ async function getOwnedPayment(
 			createdAt: payments.createdAt,
 			updatedAt: payments.updatedAt,
 			paymentGroupId: payments.paymentGroupId,
+			reversesPaymentId: payments.reversesPaymentId,
 			ownerId: properties.ownerId,
 		})
 		.from(payments)
@@ -609,6 +610,7 @@ export const listPayments = ownerProcedure
 				createdAt: payments.createdAt,
 				updatedAt: payments.updatedAt,
 				paymentGroupId: payments.paymentGroupId,
+				reversesPaymentId: payments.reversesPaymentId,
 				tenantName: user.name,
 				tenantPhone: tenantProfiles.phone,
 			})
@@ -693,6 +695,7 @@ export const voidPayment = ownerProcedure
 					description: input.reason ?? `Reversal of payment ${existing.id}`,
 					referenceNumber: existing.id,
 					utilityId,
+					reversesPaymentId: existing.id,
 				})
 				.returning();
 			reversal = reversalRow;
@@ -715,6 +718,7 @@ export const voidPayment = ownerProcedure
 						description: input.reason ?? `Reversal of payment ${existing.id}`,
 						referenceNumber: existing.id,
 						utilityId,
+						reversesPaymentId: existing.id,
 					})
 					.returning();
 
@@ -834,6 +838,7 @@ export const voidPaymentGroup = ownerProcedure
 			description: input.reason ?? `Reversal of payment ${payment.id}`,
 			utilityId: payment.utilityId,
 			paymentGroupId: reversalGroupId,
+			reversesPaymentId: payment.id,
 		}));
 
 		if (supportsBatch(db)) {

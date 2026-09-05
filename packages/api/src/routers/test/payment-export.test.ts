@@ -151,6 +151,7 @@ interface PaymentOptions {
 		| "online"
 		| null;
 	referenceNumber?: string | null;
+	reversesPaymentId?: string | null;
 	description?: string | null;
 	createdAt?: Date;
 }
@@ -166,6 +167,7 @@ async function createPayment(leaseId: string, options: PaymentOptions) {
 		type: options.type ?? PAYMENT_TYPES.RENT,
 		paymentMethods: options.paymentMethods,
 		referenceNumber: options.referenceNumber,
+		reversesPaymentId: options.reversesPaymentId ?? null,
 		description: options.description,
 		createdAt: options.createdAt,
 	});
@@ -219,6 +221,7 @@ describe("payment exports", () => {
 			type: PAYMENT_TYPES.REVERSAL,
 			paymentMethods: null,
 			referenceNumber: startPaymentId,
+			reversesPaymentId: startPaymentId,
 			description: "Reversed entry",
 		});
 

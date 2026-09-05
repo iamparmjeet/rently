@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "payment_groups_one_reversal_per_group" ON "payment_groups" USING btree ("reverses_payment_group_id");

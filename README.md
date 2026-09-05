@@ -231,12 +231,16 @@ cd rently
 bun install
 ```
 
-### 2. Start the local database
+### 2. Start the local database and create rently_dev + rently_test
 
 ```bash
-# Starts a PostgreSQL 18.6 container (matching the Neon database version)
-cd packages/db
-bun run db:start
+# Starts a PostgreSQL 18.6 container (matching the Neon database version),
+# creates the local-only rently_dev and rently_test databases when missing,
+# and seeds apps/server/.env.test from the committed deterministic
+# apps/server/.env.test.example template on fresh clones (never overwrites
+# an existing file, which may hold real local secrets).
+bun run --filter @rently/db db:start
+bun run db:bootstrap
 ```
 
 ### 3. Configure environment variables
@@ -259,9 +263,10 @@ See [Environment Variables](#environment-variables) below for all required keys.
 ### 4. Run migrations and seed
 
 ```bash
-bun run db:generate    # generate migration files from schema
+bun run db:generate      # generate migration files from schema
 bun run db:migrate:local # apply migrations to local rently_dev
-bun run db:seed:local  # seed subscription plans locally
+bun run db:migrate:test  # apply migrations to local rently_test (uses apps/server/.env.test)
+bun run db:seed:local    # seed subscription plans locally
 ```
 
 ### Refresh local data from Neon

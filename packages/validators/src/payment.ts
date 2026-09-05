@@ -1,5 +1,9 @@
 import { PAYMENT_METHOD_VALUES } from "@rently/db/constants/payment-constants";
-import { PAYMENT_TYPE_VALUES } from "@rently/db/constants/rent-constants";
+import {
+	PAYMENT_TYPE_VALUES,
+	PAYMENT_TYPES,
+	type PaymentType,
+} from "@rently/db/constants/rent-constants";
 import { paymentGroups, payments } from "@rently/db/schema/schema";
 import {
 	createInsertSchema,
@@ -22,6 +26,15 @@ export const PaymentGroupInsertSchema = createInsertSchema(paymentGroups);
 
 // ── Layer 2: API input schemas
 // Business Logic Schemas
+// Generic creation can never mint a reversal (voidPayment only). The
+// pairing rule (utility ⇔ utilityId) lives on CreatePaymentRequestSchema,
+// NOT here: dashboard's PaymentFormSchema overwrites keys via .extend(),
+// which zod forbids on schemas carrying refinements.
+type NonReversalPaymentType = Exclude<PaymentType, "reversal">;
+const NON_REVERSAL_PAYMENT_TYPES = PAYMENT_TYPE_VALUES.filter(
+	(t): t is NonReversalPaymentType => t !== PAYMENT_TYPES.REVERSAL,
+) as [NonReversalPaymentType, ...NonReversalPaymentType[]];
+
 export const CreatePaymentSchema = PaymentInsertSchema.omit({
 	id: true,
 	createdAt: true,
@@ -34,7 +47,30 @@ export const CreatePaymentSchema = PaymentInsertSchema.omit({
 	// amount must be positive — reversals go via voidPayment only (also enforced in handler)
 	amount: z.number().int().positive({ error: "Amount must be > 0" }),
 	idempotencyKey: z.uuid().optional(),
+	type: z.enum(NON_REVERSAL_PAYMENT_TYPES).optional(),
 });
+
+// Strict API input: utility payments name their bill, every other type
+// forbids one. The database CHECK is the backstop.
+export const CreatePaymentRequestSchema = CreatePaymentSchema.superRefine(
+	(value, ctx) => {
+		const type = value.type ?? PAYMENT_TYPES.RENT;
+		const hasUtility = value.utilityId != null;
+		if (type === PAYMENT_TYPES.UTILITY && !hasUtility) {
+			ctx.addIssue({
+				code: "custom",
+				message: "Utility payments require a utility",
+				path: ["utilityId"],
+			});
+		} else if (type !== PAYMENT_TYPES.UTILITY && hasUtility) {
+			ctx.addIssue({
+				code: "custom",
+				message: "Only utility payments may name a utility",
+				path: ["type"],
+			});
+		}
+	},
+);
 
 // A combined agreement payment always settles every outstanding active-unit rent
 // balance. The server derives the individual allocations; callers cannot supply

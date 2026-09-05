@@ -143,3 +143,12 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → full suite 179/179.
 - One self-caught edit mangled an import in `auth/index.ts`; repaired immediately, repair verified in final diff.
 - Opened PR #9 → `integ/phase-a-baseline` with user approval, CI green (~3m15s), merged 2026-09-05.
+
+## B01 Payment type/utility invariant (2026-09-05, Muse Spark, branch fix/payment-type-invariant, tag pre-payment-type-invariant)
+- Base: clean `integ/phase-a-baseline@4abc83a`. Fix-Plan B01 `[~]` (Terra High review owed).
+- Pre-verify: `rently_dev` holds zero CHECK violations (rent/deposit null, utility non-null, reversals split 5/3 as void-preserved); UI sends matching pairs; writers audited (generic create, group create/void, recordUtilityPayment, fixtures, sample-workspace).
+- Changed (one migration `0023`): schema CHECK `payments_type_utility_check` (utility⇔utilityId; reversal exempt until B03 link); `CreatePaymentSchema` excludes reversal + pairing refine (handler's now-untypable reversal check removed; DB is the backstop); update path already immutable.
+- Tests first (15, red-precise): 5 API (2 reject-mismatch, 1 reject-reversal, 2 controls) + 10-cell DB table incl. reversal exemption. Self-caught: teardown tracked payments by id and leaked on negative paths — now lease-scoped; drizzle nests driver `code` under `cause`.
+- Incident: first test run leaked 10 fixture rows into `rently_test`, which correctly BLOCKED `0023` (constraint doing its job). Cleaned precisely by fixture markers (all rows proven B01 leaks), re-migrated clean, 15/15, zero leaks after.
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` (constraint verified in pg_constraint) → full suite 194/194. `rently_dev` untouched (migration runs there via `db:migrate:local` at owner discretion).
+- CI incident (build, not in local verify order): pairing `.superRefine` on `CreatePaymentSchema` broke dashboard's key-overwriting `.extend` (zod forbids it on refined schemas). Restructured: base keeps reversal exclusion only; pairing lives on new `CreatePaymentRequestSchema` used by the router; form untouched. Added extend-smoke test so local runs catch it. Local `bun run build` 5/5 green; full suite 195/195, zero leaks.

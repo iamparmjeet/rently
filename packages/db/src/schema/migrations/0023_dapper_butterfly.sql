@@ -1,0 +1,1 @@
+ALTER TABLE "payments" ADD CONSTRAINT "payments_type_utility_check" CHECK (("payments"."type" = 'utility' and "payments"."utility_id" is not null) or ("payments"."type" in ('rent', 'deposit', 'other') and "payments"."utility_id" is null) or "payments"."type" = 'reversal');

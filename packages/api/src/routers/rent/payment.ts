@@ -27,7 +27,7 @@ import {
 } from "@rently/email";
 import {
 	CreateAgreementPaymentSchema,
-	CreatePaymentSchema,
+	CreatePaymentRequestSchema,
 	PaymentGroupSelectSchema,
 	PaymentListItemSchema,
 	PaymentSelectSchema,
@@ -139,16 +139,13 @@ export const createPayment = ownerProcedure
 		path: "/rent/payment/create",
 		successStatus: StatusCode.CREATED,
 	})
-	.input(CreatePaymentSchema)
+	.input(CreatePaymentRequestSchema)
 	.output(z.object({ payment: PaymentSelectSchema }))
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
-		if (input.type === PAYMENT_TYPES.REVERSAL) {
-			throw new ORPCError("BAD_REQUEST", {
-				message: "Reversal payments must use voidPayment",
-			});
-		}
+		// Reversal exclusion + type/utility pairing are enforced by
+		// CreatePaymentRequestSchema; the database CHECK is the backstop.
 
 		const ownsLease = await isLeaseOwner(db, authUser.id, input.leaseId);
 		if (!ownsLease) {

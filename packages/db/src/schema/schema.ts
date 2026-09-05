@@ -217,6 +217,13 @@ export const payments = pgTable(
 		...auditColumns(),
 	},
 	(table) => [
+		check(
+			"payments_type_utility_check",
+			// Utility payments name their bill; rent/deposit/other never do.
+			// Reversals preserve the original's utility link until the explicit
+			// B03 reversal linkage lands, so they stay exempt here.
+			sql`(${table.type} = 'utility' and ${table.utilityId} is not null) or (${table.type} in ('rent', 'deposit', 'other') and ${table.utilityId} is null) or ${table.type} = 'reversal'`,
+		),
 		uniqueIndex("payments_lease_idempotency_key")
 			.on(table.leaseId, table.idempotencyKey)
 			.where(sql`${table.idempotencyKey} is not null`),

@@ -225,22 +225,32 @@ export const utilities = pgTable(
 	],
 );
 
-export const paymentGroups = pgTable("payment_groups", {
-	...idColumn(),
-	agreementId: uuid("agreement_id")
-		.notNull()
-		.references(() => leaseAgreements.id),
-	paymentDate: timestamp("payment_date").notNull(),
-	paymentMethods: text("payment_method", {
-		enum: PAYMENT_METHOD_VALUES,
-	}),
-	referenceNumber: text("reference_number"),
-	description: text("description"),
-	reversesPaymentGroupId: uuid("reverses_payment_group_id").references(
-		(): AnyPgColumn => paymentGroups.id,
-	),
-	...auditColumns(),
-});
+export const paymentGroups = pgTable(
+	"payment_groups",
+	{
+		...idColumn(),
+		agreementId: uuid("agreement_id")
+			.notNull()
+			.references(() => leaseAgreements.id),
+		paymentDate: timestamp("payment_date").notNull(),
+		paymentMethods: text("payment_method", {
+			enum: PAYMENT_METHOD_VALUES,
+		}),
+		referenceNumber: text("reference_number"),
+		description: text("description"),
+		reversesPaymentGroupId: uuid("reverses_payment_group_id").references(
+			(): AnyPgColumn => paymentGroups.id,
+		),
+		...auditColumns(),
+	},
+	(table) => [
+		// One reversal group per original (B05). NULLs (original groups) are
+		// exempt by Postgres unique semantics; concurrent voids arbitrate here.
+		uniqueIndex("payment_groups_one_reversal_per_group").on(
+			table.reversesPaymentGroupId,
+		),
+	],
+);
 
 export const payments = pgTable(
 	"payments",

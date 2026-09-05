@@ -110,6 +110,58 @@ async function syncUtilityPaidFlag(
 		.where(eq(utilities.id, utilityId));
 }
 
+// Grouped reversals may reopen utility bills — keep the compatibility isPaid
+// flag in sync with the derived amountDue (parity with voidPayment).
+async function syncGroupUtilityFlags(
+	db: Pick<Database, "select" | "update">,
+	originalPayments: Array<{ utilityId: string | null }>,
+) {
+	const utilityIds = [
+		...new Set(
+			originalPayments
+				.map((payment) => payment.utilityId)
+				.filter((id): id is string => Boolean(id)),
+		),
+	];
+	for (const utilityId of utilityIds) {
+		await syncUtilityPaidFlag(db, utilityId);
+	}
+}
+
+async function findReversalGroup(
+	db: Pick<Database, "select">,
+	originalGroupId: string,
+) {
+	const [group] = await db
+		.select()
+		.from(paymentGroups)
+		.where(eq(paymentGroups.reversesPaymentGroupId, originalGroupId))
+		.limit(1);
+	if (!group) return undefined;
+	const allocations = await db
+		.select()
+		.from(payments)
+		.where(eq(payments.paymentGroupId, group.id));
+	return { group, allocations };
+}
+
+// Serve an existing reversal group only when every allocation is present.
+// A partial group means a crashed write — loud repair signal, never silent.
+async function returnCompleteGroupReversal(
+	db: Pick<Database, "select" | "update">,
+	originalPayments: Array<{ id: string; utilityId: string | null }>,
+	existing: NonNullable<Awaited<ReturnType<typeof findReversalGroup>>>,
+) {
+	if (existing.allocations.length !== originalPayments.length) {
+		throw new ORPCError("INTERNAL_SERVER_ERROR", {
+			message:
+				"Partial group reversal detected — manual repair required before retrying",
+		});
+	}
+	await syncGroupUtilityFlags(db, originalPayments);
+	return { paymentGroup: existing.group, reversals: existing.allocations };
+}
+
 // ─── Shared helper ─────
 function assertMethodAllowedForRole(
 	method: string | null | undefined,
@@ -829,17 +881,6 @@ export const voidPaymentGroup = ownerProcedure
 			});
 		}
 
-		const [alreadyReversed] = await db
-			.select({ id: paymentGroups.id })
-			.from(paymentGroups)
-			.where(eq(paymentGroups.reversesPaymentGroupId, originalGroup.id))
-			.limit(1);
-		if (alreadyReversed) {
-			throw new ORPCError("BAD_REQUEST", {
-				message: "Payment group already voided",
-			});
-		}
-
 		const originalPayments = await db
 			.select({
 				id: payments.id,
@@ -853,6 +894,18 @@ export const voidPaymentGroup = ownerProcedure
 			throw new ORPCError("BAD_REQUEST", {
 				message: "Payment group has no allocations to reverse",
 			});
+		}
+
+		// Idempotent group void: a retry (or concurrent loser) gets the
+		// existing complete reversal. A partial reversal group (crashed batch)
+		// is never served silently — it needs manual repair.
+		const existingReversal = await findReversalGroup(db, originalGroup.id);
+		if (existingReversal) {
+			return returnCompleteGroupReversal(
+				db,
+				originalPayments,
+				existingReversal,
+			);
 		}
 
 		const reversalGroupId = crypto.randomUUID();
@@ -881,15 +934,30 @@ export const voidPaymentGroup = ownerProcedure
 		}));
 
 		if (supportsBatch(db)) {
-			await db.batch([
-				db.insert(paymentGroups).values(reversalGroupValues),
-				...reversalValues.map((values) => db.insert(payments).values(values)),
-			]);
+			try {
+				await db.batch([
+					db.insert(paymentGroups).values(reversalGroupValues),
+					...reversalValues.map((values) => db.insert(payments).values(values)),
+				]);
+			} catch (error) {
+				if (violationCode(error) !== "23505") throw error;
+				const winner = await findReversalGroup(db, originalGroup.id);
+				if (!winner) throw error;
+				return returnCompleteGroupReversal(db, originalPayments, winner);
+			}
 		} else {
-			await db.transaction(async (tx) => {
-				await tx.insert(paymentGroups).values(reversalGroupValues);
-				await tx.insert(payments).values(reversalValues);
-			});
+			try {
+				await db.transaction(async (tx) => {
+					await tx.insert(paymentGroups).values(reversalGroupValues);
+					await tx.insert(payments).values(reversalValues);
+				});
+			} catch (error) {
+				// The aborted transaction cannot be reused — converge outside it.
+				if (violationCode(error) !== "23505") throw error;
+				const winner = await findReversalGroup(db, originalGroup.id);
+				if (!winner) throw error;
+				return returnCompleteGroupReversal(db, originalPayments, winner);
+			}
 		}
 
 		const [paymentGroup] = await db
@@ -906,22 +974,7 @@ export const voidPaymentGroup = ownerProcedure
 			});
 		}
 
-		// Grouped reversals may reopen utility bills — keep the compatibility
-		// isPaid flag in sync with the derived amountDue (parity with voidPayment).
-		const utilityIds = [
-			...new Set(
-				originalPayments
-					.map((payment) => payment.utilityId)
-					.filter((id): id is string => Boolean(id)),
-			),
-		];
-		for (const utilityId of utilityIds) {
-			const dueAfter = await getAmountDueForUtility(db, utilityId);
-			await db
-				.update(utilities)
-				.set({ isPaid: dueAfter <= 0 })
-				.where(eq(utilities.id, utilityId));
-		}
+		await syncGroupUtilityFlags(db, originalPayments);
 
 		return { paymentGroup, reversals };
 	});

@@ -9,7 +9,10 @@ import z from "zod";
 // ******** Utility **********
 // ── Layer 1: DB-derived
 // Derive Zod Schemas - For Runtime
-export const UtilitySelectSchema = createSelectSchema(utilities);
+// idempotencyKey is an internal dedupe column — not part of any API response.
+export const UtilitySelectSchema = createSelectSchema(utilities).omit({
+	idempotencyKey: true,
+});
 export const UtilityInsertSchema = createInsertSchema(utilities);
 
 // B02: nonnegative charges/rates/readings, current reading not below the
@@ -78,8 +81,11 @@ export const CreateUtilitySchema = UtilityInsertSchema.omit({
 });
 
 // Strict single-create input; the base stays unrefined for BatchItemSchema.
-export const CreateUtilityRequestSchema =
-	CreateUtilitySchema.superRefine(refineUtilityBounds);
+// B07: the dialog-open key is required so retried creates return the
+// existing bill instead of duplicating it.
+export const CreateUtilityRequestSchema = CreateUtilitySchema.extend({
+	idempotencyKey: z.uuid(),
+}).superRefine(refineUtilityBounds);
 
 export const UpdateUtilitySchema = createUpdateSchema(utilities)
 	.pick({

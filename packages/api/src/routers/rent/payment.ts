@@ -467,6 +467,33 @@ export const createAgreementPayment = ownerProcedure
 			});
 		}
 
+		// Idempotency: replay before any balance math — after a first success
+		// the dues are zero, so a retry must hit this before allocations.
+		// (B09 scopes replay to owner+agreement; the key lookup stays as is.)
+		const idempotencyKey = input.idempotencyKey ?? null;
+		if (idempotencyKey) {
+			const [existingGroupPayment] = await db
+				.select({ paymentGroupId: payments.paymentGroupId })
+				.from(payments)
+				.where(eq(payments.idempotencyKey, idempotencyKey))
+				.limit(1);
+			if (existingGroupPayment?.paymentGroupId) {
+				const [paymentGroup] = await db
+					.select()
+					.from(paymentGroups)
+					.where(eq(paymentGroups.id, existingGroupPayment.paymentGroupId));
+				const createdPayments = await db
+					.select()
+					.from(payments)
+					.where(
+						eq(payments.paymentGroupId, existingGroupPayment.paymentGroupId),
+					);
+				if (paymentGroup) {
+					return { paymentGroup, payments: createdPayments };
+				}
+			}
+		}
+
 		const agreementLeases = await db
 			.select({ id: leases.id })
 			.from(leases)
@@ -490,32 +517,6 @@ export const createAgreementPayment = ownerProcedure
 				message:
 					"Every active unit must have an outstanding rent balance for an automatic split",
 			});
-		}
-
-		// Idempotency: one key across the group's lease allocations. The partial
-		// unique index (lease_id, idempotency_key) rejects a retried group write.
-		const idempotencyKey = input.idempotencyKey ?? null;
-		if (idempotencyKey) {
-			const [existingGroupPayment] = await db
-				.select({ paymentGroupId: payments.paymentGroupId })
-				.from(payments)
-				.where(eq(payments.idempotencyKey, idempotencyKey))
-				.limit(1);
-			if (existingGroupPayment?.paymentGroupId) {
-				const [paymentGroup] = await db
-					.select()
-					.from(paymentGroups)
-					.where(eq(paymentGroups.id, existingGroupPayment.paymentGroupId));
-				const createdPayments = await db
-					.select()
-					.from(payments)
-					.where(
-						eq(payments.paymentGroupId, existingGroupPayment.paymentGroupId),
-					);
-				if (paymentGroup) {
-					return { paymentGroup, payments: createdPayments };
-				}
-			}
 		}
 
 		const groupId = crypto.randomUUID();

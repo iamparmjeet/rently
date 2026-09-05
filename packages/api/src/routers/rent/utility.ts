@@ -46,6 +46,16 @@ function supportsBatch(db: Database): db is BatchCapableDatabase {
 	return typeof (db as { batch?: unknown }).batch === "function";
 }
 
+// Drizzle wraps driver errors (the Postgres code nests under cause); read
+// both so constraint arbitration works on every path.
+function violationCode(error: unknown): string | undefined {
+	const top = error as { code?: unknown; cause?: unknown } | null;
+	if (typeof top?.code === "string") return top.code;
+	const cause = top?.cause as { code?: unknown } | null | undefined;
+	if (typeof cause?.code === "string") return cause.code;
+	return undefined;
+}
+
 // ******** Shared Helper ************
 type ComputeTotalInput = {
 	utilityType: string;
@@ -204,23 +214,44 @@ export const createUtility = ownerProcedure
 			fixedCharge: input.fixedCharge,
 		});
 
-		const [utility] = await db
-			.insert(utilities)
-			.values({
-				leaseId: input.leaseId,
-				utilityType: input.utilityType,
-				previousReadingDate: input.previousReadingDate,
-				currentReadingDate: input.currentReadingDate,
-				previousReading: input.previousReading,
-				currentReading: input.currentReading,
-				unitsUsed,
-				ratePerUnit: input.ratePerUnit ?? RATEPERUNIT,
-				fixedCharge: input.fixedCharge ?? FIXEDCHARGE,
-				totalAmount,
-				description: input.description ?? null,
-				isPaid: false,
-			})
-			.returning();
+		let utility: typeof utilities.$inferSelect | undefined;
+		try {
+			const [created] = await db
+				.insert(utilities)
+				.values({
+					leaseId: input.leaseId,
+					utilityType: input.utilityType,
+					previousReadingDate: input.previousReadingDate,
+					currentReadingDate: input.currentReadingDate,
+					previousReading: input.previousReading,
+					currentReading: input.currentReading,
+					unitsUsed,
+					ratePerUnit: input.ratePerUnit ?? RATEPERUNIT,
+					fixedCharge: input.fixedCharge ?? FIXEDCHARGE,
+					totalAmount,
+					description: input.description ?? null,
+					isPaid: false,
+					idempotencyKey: input.idempotencyKey,
+				})
+				.returning();
+			utility = created;
+		} catch (error) {
+			// Retried dialog key: adopt the existing bill instead of
+			// duplicating it. Email was already sent for the original.
+			if (violationCode(error) !== "23505") throw error;
+			const [existing] = await db
+				.select()
+				.from(utilities)
+				.where(
+					and(
+						eq(utilities.leaseId, input.leaseId),
+						eq(utilities.idempotencyKey, input.idempotencyKey),
+					),
+				)
+				.limit(1);
+			if (!existing) throw error;
+			return { utility: existing };
+		}
 
 		if (!utility) {
 			throw new ORPCError("INTERNAL_SERVER_ERROR", {
@@ -578,6 +609,9 @@ export const removeUtility = ownerProcedure
 // per-item lease from silently billing the wrong unit.
 const BatchItemSchema = CreateUtilitySchema.omit({ leaseId: true }).extend({
 	batchId: z.uuid(),
+	// B07: one key per item (items share a lease, so a per-batch key would
+	// collide on the partial unique index); the dialog mints them on open.
+	idempotencyKey: z.uuid(),
 });
 
 // 6. Batch
@@ -641,15 +675,34 @@ export const createUtilityBatch = ownerProcedure
 				totalAmount,
 				description: item.description,
 				isPaid: false,
+				idempotencyKey: item.idempotencyKey,
 			};
 		});
 
 		// A single INSERT is atomic on both database drivers. Neon HTTP does not
 		// support callback transactions, so avoid wrapping this statement in one.
-		const inserted = await db
-			.insert(utilities)
-			.values(insertValues)
-			.returning();
+		// A retried batch hits the per-item unique index; serve the existing
+		// batch (queried by the client batch id) instead of duplicating it.
+		let inserted: Array<typeof utilities.$inferSelect>;
+		try {
+			inserted = await db.insert(utilities).values(insertValues).returning();
+		} catch (error) {
+			if (violationCode(error) !== "23505") throw error;
+			const existing = await db
+				.select()
+				.from(utilities)
+				.where(
+					and(
+						eq(utilities.leaseId, input.leaseId),
+						eq(utilities.batchId, input.batchId),
+					),
+				);
+			if (existing.length === 0) throw error;
+			return {
+				utilities: existing,
+				batchId: input.batchId,
+			};
+		}
 
 		await sendAutomaticUtilityBillEmail({
 			db,
@@ -691,6 +744,22 @@ export const recordUtilityPayment = ownerProcedure
 			});
 		}
 
+		// Idempotent retry: a resubmitted dialog key returns the existing
+		// payment before any due validation (the bill is already settled).
+		const [existingPayment] = await db
+			.select()
+			.from(payments)
+			.where(
+				and(
+					eq(payments.leaseId, input.leaseId),
+					eq(payments.idempotencyKey, input.idempotencyKey),
+				),
+			)
+			.limit(1);
+		if (existingPayment) {
+			return { success: true, paymentDate: existingPayment.paymentDate };
+		}
+
 		let payment: typeof payments.$inferSelect | undefined;
 		if (supportsBatch(db)) {
 			const due = await getAmountDueForUtility(db, input.utilityId);
@@ -712,6 +781,7 @@ export const recordUtilityPayment = ownerProcedure
 					type: "utility",
 					description: input.notes ?? null,
 					referenceNumber: null,
+					idempotencyKey: input.idempotencyKey,
 				})
 				.returning();
 
@@ -721,40 +791,58 @@ export const recordUtilityPayment = ownerProcedure
 				.where(eq(utilities.id, input.utilityId));
 			payment = inserted;
 		} else {
-			[payment] = await db.transaction(async (tx) => {
-				await tx.execute(
-					sql`select 1 from ${utilities} where ${utilities.id} = ${input.utilityId} for update`,
-				);
-				const due = await getAmountDueForUtility(tx, input.utilityId);
-				if (due <= 0)
-					throw new ORPCError("CONFLICT", {
-						message: "Already paid/discounted",
-					});
-				if (input.amount !== due)
-					throw new ORPCError("BAD_REQUEST", {
-						message: `Payment must match amountDue: ${due}`,
-					});
+			try {
+				[payment] = await db.transaction(async (tx) => {
+					await tx.execute(
+						sql`select 1 from ${utilities} where ${utilities.id} = ${input.utilityId} for update`,
+					);
+					const due = await getAmountDueForUtility(tx, input.utilityId);
+					if (due <= 0)
+						throw new ORPCError("CONFLICT", {
+							message: "Already paid/discounted",
+						});
+					if (input.amount !== due)
+						throw new ORPCError("BAD_REQUEST", {
+							message: `Payment must match amountDue: ${due}`,
+						});
 
-				const inserted = await tx
-					.insert(payments)
-					.values({
-						leaseId: input.leaseId,
-						utilityId: input.utilityId,
-						amount: input.amount,
-						paymentDate: new Date(input.receivedAt),
-						paymentMethods: input.paymentMethod,
-						type: "utility",
-						description: input.notes ?? null,
-						referenceNumber: null,
-					})
-					.returning();
+					const inserted = await tx
+						.insert(payments)
+						.values({
+							leaseId: input.leaseId,
+							utilityId: input.utilityId,
+							amount: input.amount,
+							paymentDate: new Date(input.receivedAt),
+							paymentMethods: input.paymentMethod,
+							type: "utility",
+							description: input.notes ?? null,
+							referenceNumber: null,
+							idempotencyKey: input.idempotencyKey,
+						})
+						.returning();
 
-				await tx
-					.update(utilities)
-					.set({ isPaid: true, updatedAt: new Date() })
-					.where(eq(utilities.id, input.utilityId));
-				return inserted;
-			});
+					await tx
+						.update(utilities)
+						.set({ isPaid: true, updatedAt: new Date() })
+						.where(eq(utilities.id, input.utilityId));
+					return inserted;
+				});
+			} catch (error) {
+				// The aborted transaction cannot be reused — adopt the winner.
+				if (violationCode(error) !== "23505") throw error;
+				const [winner] = await db
+					.select()
+					.from(payments)
+					.where(
+						and(
+							eq(payments.leaseId, input.leaseId),
+							eq(payments.idempotencyKey, input.idempotencyKey),
+						),
+					)
+					.limit(1);
+				if (!winner) throw error;
+				payment = winner;
+			}
 		}
 
 		if (!payment) {

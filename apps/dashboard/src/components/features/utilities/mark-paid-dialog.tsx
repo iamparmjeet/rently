@@ -26,6 +26,7 @@ import {
 	paiseToFormValue,
 	toPaise,
 } from "@rently/ui/lib/currency";
+import { useIdempotencyKey } from "@rently/ui/shared/form-dialog";
 import {
 	type RecordUtilityPayment,
 	RecordUtilityPaymentSchema,
@@ -45,14 +46,18 @@ export function MarkPaidDialog({
 	onOpenChange: (open: boolean) => void;
 }) {
 	const recordPayment = useRecordUtilityPayment();
+	// B07: the key is a submit-time concern — the form never edits it.
+	const idempotencyKey = useIdempotencyKey(open);
 
 	const {
 		register,
 		handleSubmit,
 		reset,
 		formState: { errors },
-	} = useForm<RecordUtilityPayment>({
-		resolver: zodResolver(RecordUtilityPaymentSchema),
+	} = useForm<Omit<RecordUtilityPayment, "idempotencyKey">>({
+		resolver: zodResolver(
+			RecordUtilityPaymentSchema.omit({ idempotencyKey: true }),
+		),
 		// WHY `values` not `defaultValues`: `values` re-syncs when utility changes.
 		// `defaultValues` only runs once on mount — the dialog reuses the component.
 		values: utility
@@ -71,7 +76,7 @@ export function MarkPaidDialog({
 			: undefined,
 	});
 
-	function onSubmit(values: RecordUtilityPayment) {
+	function onSubmit(values: Omit<RecordUtilityPayment, "idempotencyKey">) {
 		if (!utility) return;
 		const amountInPaise = toPaise(values.amount);
 		const expected =
@@ -85,6 +90,8 @@ export function MarkPaidDialog({
 				...values,
 				// WHY convert here: form is rupees, API expects paise
 				amount: amountInPaise,
+				// Fallback only fires when closed (never submitted then).
+				idempotencyKey: idempotencyKey ?? crypto.randomUUID(),
 			},
 			{
 				onSuccess: () => {

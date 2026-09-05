@@ -15,7 +15,7 @@ import type {
 	UtilityListItem,
 } from "@rently/validators";
 import { IconBolt, IconDroplet, IconPlus, IconTool } from "@tabler/icons-react";
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import { UtilityForm } from "@/components/forms/utility-form";
 import { useOptimisticCreateBatchUtility } from "@/hooks/utilities";
 import type { client } from "@/utils/orpc";
@@ -28,7 +28,10 @@ type BatchItem = Parameters<
 // ── WHY this function exists: UtilityForm emits UtilityBatchFormValues
 //    (human-facing form shape with rupee values), but the API expects a flat
 //    `items` array with paise values and Date objects. This is the ACL layer.
-function buildBatchItems(values: UtilityBatchFormValues): BatchItem[] {
+function buildBatchItems(
+	values: UtilityBatchFormValues,
+	keyFor: (utilityType: string) => string,
+): BatchItem[] {
 	const shared = {
 		leaseId: values.leaseId,
 		batchId: values.batchId,
@@ -45,6 +48,7 @@ function buildBatchItems(values: UtilityBatchFormValues): BatchItem[] {
 			...elec,
 			ratePerUnit: toPaise(elec.ratePerUnit),
 			fixedCharge: toPaise(elec.fixedCharge),
+			idempotencyKey: keyFor("electricity"),
 		});
 	}
 	if (values.water) {
@@ -56,6 +60,7 @@ function buildBatchItems(values: UtilityBatchFormValues): BatchItem[] {
 			currentReading: 0,
 			...water,
 			fixedCharge: toPaise(water.fixedCharge),
+			idempotencyKey: keyFor("water"),
 		});
 	}
 	if (values.maintenance) {
@@ -67,6 +72,7 @@ function buildBatchItems(values: UtilityBatchFormValues): BatchItem[] {
 			currentReading: 0,
 			...maint,
 			fixedCharge: toPaise(maint.fixedCharge),
+			idempotencyKey: keyFor("maintenance"),
 		});
 	}
 	return items;
@@ -290,9 +296,22 @@ function UtilityRow({
 function AddReadingButton({ leaseId }: { leaseId: string }) {
 	const [open, setOpen] = useState(false);
 	const createBatch = useOptimisticCreateBatchUtility();
+	// B07: one idempotency key per bill type, minted per dialog open and
+	// stable across retries; cleared on close.
+	const itemKeysRef = useRef<Record<string, string>>({});
+	if (!open && Object.keys(itemKeysRef.current).length > 0) {
+		itemKeysRef.current = {};
+	}
 
 	function handleSubmit(values: UtilityBatchFormValues) {
-		const items = buildBatchItems(values);
+		const keyFor = (utilityType: string) => {
+			const retained = itemKeysRef.current[utilityType];
+			if (retained) return retained;
+			const fresh = crypto.randomUUID();
+			itemKeysRef.current[utilityType] = fresh;
+			return fresh;
+		};
+		const items = buildBatchItems(values, keyFor);
 		createBatch.mutate(
 			{ leaseId: values.leaseId, batchId: values.batchId, items },
 			{ onSuccess: () => setOpen(false) },

@@ -204,6 +204,13 @@
       "when": 1788607004422,
       "tag": "0028_new_sabretooth",
       "breakpoints": true
+    },
+    {
+      "idx": 29,
+      "version": "7",
+      "when": 1788608143260,
+      "tag": "0029_nice_vision",
+      "breakpoints": true
     }
   ]
 }

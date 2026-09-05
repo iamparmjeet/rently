@@ -1,6 +1,6 @@
 "use client";
 import { IconLoader2 } from "@tabler/icons-react";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { Button } from "../components/button";
 import {
 	Dialog,
@@ -103,4 +103,20 @@ export function useFormDialog() {
 		openDialog: () => setOpen(true),
 		closeDialog: () => setOpen(false),
 	};
+}
+
+// One idempotency key per dialog open for settlement mutations (B07).
+// Stable across rerenders and retries while open; fresh on reopen; null
+// when closed (callers only submit while open).
+export function useIdempotencyKey(open: boolean): string | null {
+	const state = useRef<{ open: boolean; key: string | null }>({
+		open: false,
+		key: null,
+	});
+	if (open && !state.current.open) {
+		state.current = { open: true, key: crypto.randomUUID() };
+	} else if (!open && state.current.open) {
+		state.current = { open: false, key: null };
+	}
+	return state.current.key;
 }

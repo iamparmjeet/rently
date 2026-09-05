@@ -157,6 +157,7 @@ describe("payment type/utility invariant (B01) — API", () => {
 				leaseId,
 				amount: 5_00_00,
 				paymentDate: new Date("2026-09-01T00:00:00.000Z"),
+				idempotencyKey: crypto.randomUUID(),
 				type: PAYMENT_TYPES.UTILITY,
 			}),
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -169,6 +170,7 @@ describe("payment type/utility invariant (B01) — API", () => {
 				leaseId,
 				amount: 10_000_00,
 				paymentDate: new Date("2026-09-01T00:00:00.000Z"),
+				idempotencyKey: crypto.randomUUID(),
 				type: PAYMENT_TYPES.RENT,
 				utilityId,
 			}),
@@ -182,6 +184,7 @@ describe("payment type/utility invariant (B01) — API", () => {
 				leaseId,
 				amount: 10_000_00,
 				paymentDate: new Date("2026-09-01T00:00:00.000Z"),
+				idempotencyKey: crypto.randomUUID(),
 				type: PAYMENT_TYPES.REVERSAL,
 			}),
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
@@ -194,6 +197,7 @@ describe("payment type/utility invariant (B01) — API", () => {
 			amount: 10_000_00,
 			paymentDate: new Date("2026-09-01T00:00:00.000Z"),
 			type: PAYMENT_TYPES.RENT,
+			idempotencyKey: crypto.randomUUID(),
 		});
 		createdPaymentIds.push(result.payment.id);
 		expect(result.payment.type).toBe(PAYMENT_TYPES.RENT);
@@ -206,6 +210,7 @@ describe("payment type/utility invariant (B01) — API", () => {
 			amount: 1_00_00,
 			paymentDate: new Date("2026-09-01T00:00:00.000Z"),
 			type: PAYMENT_TYPES.DEPOSIT,
+			idempotencyKey: crypto.randomUUID(),
 		});
 		createdPaymentIds.push(result.payment.id);
 		expect(result.payment.type).toBe(PAYMENT_TYPES.DEPOSIT);
@@ -257,6 +262,7 @@ describe("payment type/utility invariant (B01) — database", () => {
 				leaseId,
 				amount: type === PAYMENT_TYPES.REVERSAL ? -1_00_00 : 1_00_00,
 				paymentDate: new Date("2026-09-01T00:00:00.000Z"),
+				idempotencyKey: crypto.randomUUID(),
 				type,
 				utilityId: withUtility ? utilityId : null,
 				referenceNumber,

@@ -22,10 +22,11 @@ import {
 } from "@rently/ui/components/field";
 import { Input } from "@rently/ui/components/input";
 import { formatRupees } from "@rently/ui/lib/currency";
+import { useIdempotencyKey } from "@rently/ui/shared/form-dialog";
 import type { UtilityListItem } from "@rently/validators";
 import { IconReceipt } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useState } from "react";
+import { useRef, useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import z from "zod";
@@ -54,6 +55,13 @@ export function MarkCombinedPaidDialog({
 }) {
 	const queryClient = useQueryClient();
 	const [isSubmitting, setIsSubmitting] = useState(false);
+	// B07: legs share a lease, so each leg needs its own key — one per dialog
+	// open, stable across retries, cleared on close.
+	const rentKey = useIdempotencyKey(open);
+	const utilityKeysRef = useRef<Record<string, string>>({});
+	if (!open && Object.keys(utilityKeysRef.current).length > 0) {
+		utilityKeysRef.current = {};
+	}
 
 	const {
 		register,
@@ -103,6 +111,8 @@ export function MarkCombinedPaidDialog({
 						description: values.notes ?? null,
 						referenceNumber: null,
 						utilityId: null,
+						// Fallback only fires when closed (never submitted then).
+						idempotencyKey: rentKey ?? crypto.randomUUID(),
 					}),
 				);
 			}
@@ -110,6 +120,11 @@ export function MarkCombinedPaidDialog({
 			for (const u of items) {
 				const due = getDue(u);
 				if (due <= 0) continue;
+				let legKey = utilityKeysRef.current[u.id];
+				if (!legKey) {
+					legKey = crypto.randomUUID();
+					utilityKeysRef.current[u.id] = legKey;
+				}
 				promises.push(
 					client.rent.utility.recordUtilityPayment({
 						leaseId: u.leaseId,
@@ -118,6 +133,7 @@ export function MarkCombinedPaidDialog({
 						paymentMethod: values.paymentMethod,
 						receivedAt: values.receivedAt,
 						notes: values.notes,
+						idempotencyKey: legKey,
 					}),
 				);
 			}

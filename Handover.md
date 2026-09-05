@@ -163,3 +163,21 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Incident: early red runs leaked 39 units into `rently_test`, blocking `0024` (constraint correct). Cleaned by markers (all rows proven leaks), re-migrated, 19/19, zero leaks after.
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → full suite 214/214 → local `bun run build` 5/5 (B01 lesson; next-env.d.ts churn restored, uncommitted). `rently_dev` untouched.
 - Committed as `955fb39`, opened PR #11 → `integ/phase-a-baseline` with user approval, CI green (~3m6s) first run, merged 2026-09-05.
+
+## B03 design gate (2026-09-05, Muse-conducted — Terra/Sol review still owed)
+- Inspected: voidPayment (batch+tx), voidPaymentGroup (shared reversalValues), B01 CHECK, billCredits self-FK precedent, all payment writers, rently_dev history.
+- Preflight (production-shaped `rently_dev`): 8/8 reversals unambiguous — every `referenceNumber` matches exactly one non-reversal payment, amounts symmetric. Zero ambiguous rows.
+- Blocking decisions: (D1) link = voided original; non-reversals never linked (CHECK both directions). (D2) presence enforced by CHECK — justified by 8/8 backfill + empty CI + fixture updates below. (D3) backfill rule = single PK match on `referenceNumber` + target non-reversal. (D4) FK NO ACTION, no cascade — ledger must not evaporate. (D5) `referenceNumber` retained untouched. (D6) readers untouched (B12); duplicate-void guard stays referenceNumber-based (B04). (D7) backfill proof = dev dry-run in txn+rollback (zero mutation) + structural migration test + no-op UPDATE execution.
+- Consequences accepted: payment-export/receipt/rent-amount-due/B01 fixtures inserting unlinked reversals must gain links (test-only); uniqueness deferred to B04.
+- Risks for Terra-final: CHECK makes manual reversal inserts require links (intended); text-UUID match assumes canonical form (verified in dev, not proven universally).
+- Acceptance tests: migration contains backfill UPDATE; void/voidGroup set link + retain ref; FK blocks original delete (23503), allows reversal delete; void-then-repay via API; raw unlinked reversal and linked non-reversal rejected (23514); UPDATE no-op runs clean; report query executes.
+
+## B03 Payment reversal linkage (2026-09-05, Muse Spark, branch fix/payment-reversal-link, tag pre-payment-reversal-link)
+- Base: clean `integ/phase-a-baseline@6e410f0`. Fix-Plan B03 `[~]` (Muse gate conducted above; Terra/Sol final review owed).
+- Changed (one migration `0025`): nullable `payments.reverses_payment_id` self-FK (NO ACTION); presence+direction CHECK; backfill UPDATE (single-PK match on referenceNumber + target non-reversal) ordered BEFORE the CHECK. Writers set the link in all 3 insert sites (void batch/tx, group shared values); referenceNumber retained; readers + duplicate-void guard untouched for B12/B04.
+- Gate-mandated test-only fixture updates (unlinked-reversal inserts now illegal): payment-export + rent-amount-due gain links; receipt reversal fixture gains a linked original; B01 reversal cells insert linked originals.
+- Tests first (8, all red pre-fix): migration structural + UPDATE execution; single/group void links + ref retained; void-then-repay (repay unlinked, exactly one reversal); FK 23503/allowed delete; presence/direction 23514; report query.
+- Backfill proof on production-shaped data: scratch clone of dev `payments` (dropped after) — UPDATE linked 8/8, CHECK clean, 0 ambiguous. `rently_dev` itself never mutated.
+- Incidents: (1) new column broke two explicit payment selects vs PaymentSelectSchema outputs (TS2345) — added `reversesPaymentId` to both list selects; (2) full-suite count moved 214→222.
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → full suite 222/222, zero leaks → local `bun run build` 5/5 (next-env churn restored).
+- Committed as `cee0774`, opened PR #12 → `integ/phase-a-baseline` with user approval, CI green (~3m28s) first run, merged 2026-09-05.

@@ -696,6 +696,117 @@ export const createPayment = ownerProcedure
 		return { payment };
 	});
 
+// Neon HTTP grouped settlement (B10). The advisory locks use the same
+// per-lease key domain as individual settlements, so a grouped batch and an
+// individual payment serialize on every lease it touches. The insert
+// statement recomputes each active lease's rent due from committed rows and
+// gates the group and allocation inserts on the validation predicate, so a
+// stale pre-lock balance can never be written.
+function groupedNeonLockQuery(db: BatchCapableDatabase, agreementId: string) {
+	return db.execute(sql`
+		select pg_advisory_xact_lock(
+			hashtextextended('rently:settlement:lease:' || l."id"::text, 0)
+		)
+		from ${leases} l
+		where l."agreement_id" = ${agreementId} and l."status" = 'active'
+		order by l."id"
+	`);
+}
+
+function groupedNeonInsertQuery(
+	db: BatchCapableDatabase,
+	params: {
+		agreementId: string;
+		groupId: string;
+		paymentDate: Date;
+		paymentMethods: string | null;
+		referenceNumber: string | null;
+		description: string | null;
+		idempotencyKey: string | null;
+		requestFingerprint: string;
+	},
+) {
+	// The due expression mirrors getAmountDueForRent: rent plus non-utility
+	// credits minus the signed rent ledger, with reversal categories taken from
+	// the reversesPaymentId link (referenceNumber as the legacy fallback).
+	return db.execute<{
+		group_id: string | null;
+		payment_count: number;
+		lease_count: number;
+		all_positive: boolean;
+	}>(sql`
+		with dues as materialized (
+			select l."id" as "lease_id",
+				l."rent"
+				+ coalesce((
+					select sum(bc."amount")
+					from ${billCredits} bc
+					where bc."lease_id" = l."id" and bc."utility_id" is null
+				), 0)
+				- coalesce((
+					select sum(p."amount")
+					from ${payments} p
+					left join ${payments} op
+						on p."type" = 'reversal'
+						and op."lease_id" = p."lease_id"
+						and (
+							op."id" = p."reverses_payment_id"
+							or (
+								p."reverses_payment_id" is null
+								and p."reference_number" = op."id"::text
+							)
+						)
+					where p."lease_id" = l."id"
+						and p."utility_id" is null
+						and (
+							p."type" = 'rent'
+							or (p."type" = 'reversal' and op."type" = 'rent')
+						)
+				), 0) as "due"
+			from ${leases} l
+			where l."agreement_id" = ${params.agreementId} and l."status" = 'active'
+		),
+		validation as materialized (
+			select count(*)::int as "lease_count",
+				coalesce(bool_and(d."due" > 0), false) as "all_positive"
+			from dues d
+		),
+		inserted_group as (
+			insert into ${paymentGroups} (
+				"id", "agreement_id", "payment_date", "payment_method",
+				"reference_number", "description", "idempotency_key",
+				"request_fingerprint"
+			)
+			select ${params.groupId}, ${params.agreementId}, ${params.paymentDate},
+				${params.paymentMethods}, ${params.referenceNumber},
+				${params.description}, ${params.idempotencyKey},
+				${params.requestFingerprint}
+			from validation
+			where validation."lease_count" >= 2 and validation."all_positive"
+			returning "id"
+		),
+		inserted_payments as (
+			insert into ${payments} (
+				"id", "lease_id", "amount", "payment_date", "payment_method",
+				"reference_number", "type", "description", "payment_group_id"
+			)
+			select gen_random_uuid(), d."lease_id", d."due", ${params.paymentDate},
+				${params.paymentMethods}, ${params.referenceNumber},
+				${PAYMENT_TYPES.RENT}, ${params.description}, g."id"
+			from dues d
+			join inserted_group g on true
+			where d."due" > 0
+			returning "id"
+		)
+		select g."id" as "group_id",
+			(select count(*)::int from inserted_payments) as "payment_count",
+			v."lease_count" as "lease_count",
+			v."all_positive" as "all_positive"
+		from validation v
+		left join inserted_group g on true
+	`);
+}
+
 // Create a single payment group for a combined agreement. Each active lease is
 // allocated its complete currently-outstanding rent, preventing arbitrary or
 // cross-unit splits while multi-unit partial-payment rules remain out of scope.
@@ -768,19 +879,6 @@ export const createAgreementPayment = ownerProcedure
 			});
 		}
 
-		const allocations = await Promise.all(
-			agreementLeases.map(async ({ id }) => ({
-				leaseId: id,
-				amount: await getAmountDueForRent(db, id),
-			})),
-		);
-		if (allocations.some(({ amount }) => amount <= 0)) {
-			throw new ORPCError("BAD_REQUEST", {
-				message:
-					"Every active unit must have an outstanding rent balance for an automatic split",
-			});
-		}
-
 		const groupId = crypto.randomUUID();
 		const groupValues = {
 			id: groupId,
@@ -792,23 +890,56 @@ export const createAgreementPayment = ownerProcedure
 			idempotencyKey,
 			requestFingerprint,
 		};
-		const paymentValues = allocations.map(({ leaseId, amount }) => ({
-			leaseId,
-			amount,
-			paymentDate: input.paymentDate,
-			paymentMethods: input.paymentMethods ?? null,
-			referenceNumber: input.referenceNumber ?? null,
-			type: PAYMENT_TYPES.RENT,
-			description: input.description ?? null,
-			paymentGroupId: groupId,
-		}));
+
+		// B10: settlement protection comes first, then allocation math. The
+		// active-lease set and every due are (re)computed inside the locked
+		// operation below; balances read before the lock are stale by
+		// construction and must never be written.
+		let expectedAllocations = 0;
 
 		if (supportsBatch(db)) {
+			const insertQuery = groupedNeonInsertQuery(db, {
+				agreementId: agreement.id,
+				groupId,
+				paymentDate: input.paymentDate,
+				paymentMethods: input.paymentMethods ?? null,
+				referenceNumber: input.referenceNumber ?? null,
+				description: input.description ?? null,
+				idempotencyKey,
+				requestFingerprint,
+			});
 			try {
-				await db.batch([
-					db.insert(paymentGroups).values(groupValues),
-					...paymentValues.map((values) => db.insert(payments).values(values)),
+				const [, result] = await db.batch([
+					groupedNeonLockQuery(db, agreement.id),
+					insertQuery,
 				]);
+				const [row] = result.rows;
+				if (!row?.group_id) {
+					// The validation gate suppressed the insert. A same-key winner
+					// may have committed first (its settlement zeroes the dues);
+					// adopt its group before reporting a balance error.
+					if (idempotencyKey) {
+						const replay = await findGroupedPaymentReplay(
+							db,
+							authUser.id,
+							agreement.id,
+							idempotencyKey,
+							requestFingerprint,
+						);
+						if (replay) return replay;
+					}
+					if (row && row.lease_count < 2) {
+						throw new ORPCError("BAD_REQUEST", {
+							message:
+								"A combined agreement requires at least two active leases",
+						});
+					}
+					throw new ORPCError("BAD_REQUEST", {
+						message:
+							"Every active unit must have an outstanding rent balance for an automatic split",
+					});
+				}
+				expectedAllocations = row.payment_count;
 			} catch (error) {
 				if (violationCode(error) !== "23505" || !idempotencyKey) throw error;
 				// Concurrent retry won the agreement-scoped group race. Query the
@@ -824,16 +955,71 @@ export const createAgreementPayment = ownerProcedure
 				throw error;
 			}
 		} else {
+			let txReplay:
+				| Awaited<ReturnType<typeof findGroupedPaymentReplay>>
+				| undefined;
 			try {
 				await db.transaction(async (tx) => {
-					// Serialize concurrent grouped payments for the same agreement leases.
-					for (const { leaseId } of allocations) {
-						await tx.execute(
-							sql`select 1 from ${leases} where ${leases.id} = ${leaseId} for update`,
-						);
+					// Lock every active lease before reading any balance; the locking
+					// read is also the authoritative post-lock active-lease set.
+					const lockedLeases = await tx
+						.select({ id: leases.id })
+						.from(leases)
+						.where(
+							and(
+								eq(leases.agreementId, agreement.id),
+								eq(leases.status, "active"),
+							),
+						)
+						.orderBy(leases.id)
+						.for("update");
+					if (lockedLeases.length < 2) {
+						throw new ORPCError("BAD_REQUEST", {
+							message:
+								"A combined agreement requires at least two active leases",
+						});
 					}
+
+					// A same-key winner may have committed while this transaction
+					// waited on the locks; serve it before recomputing dues.
+					if (idempotencyKey) {
+						txReplay = await findGroupedPaymentReplay(
+							tx,
+							authUser.id,
+							agreement.id,
+							idempotencyKey,
+							requestFingerprint,
+						);
+						if (txReplay) return;
+					}
+
+					const allocations = await Promise.all(
+						lockedLeases.map(async ({ id }) => ({
+							leaseId: id,
+							amount: await getAmountDueForRent(tx, id),
+						})),
+					);
+					if (allocations.some(({ amount }) => amount <= 0)) {
+						throw new ORPCError("BAD_REQUEST", {
+							message:
+								"Every active unit must have an outstanding rent balance for an automatic split",
+						});
+					}
+
+					expectedAllocations = allocations.length;
 					await tx.insert(paymentGroups).values(groupValues);
-					await tx.insert(payments).values(paymentValues);
+					await tx.insert(payments).values(
+						allocations.map(({ leaseId, amount }) => ({
+							leaseId,
+							amount,
+							paymentDate: input.paymentDate,
+							paymentMethods: input.paymentMethods ?? null,
+							referenceNumber: input.referenceNumber ?? null,
+							type: PAYMENT_TYPES.RENT,
+							description: input.description ?? null,
+							paymentGroupId: groupId,
+						})),
+					);
 				});
 			} catch (error) {
 				if (violationCode(error) !== "23505" || !idempotencyKey) throw error;
@@ -847,6 +1033,7 @@ export const createAgreementPayment = ownerProcedure
 				if (replay) return replay;
 				throw error;
 			}
+			if (txReplay) return txReplay;
 		}
 
 		const [paymentGroup] = await db
@@ -881,7 +1068,7 @@ export const createAgreementPayment = ownerProcedure
 				error,
 			});
 		}
-		if (!paymentGroup || createdPayments.length !== paymentValues.length) {
+		if (!paymentGroup || createdPayments.length !== expectedAllocations) {
 			throw new ORPCError("INTERNAL_SERVER_ERROR", {
 				message: "Failed to record grouped payment",
 			});

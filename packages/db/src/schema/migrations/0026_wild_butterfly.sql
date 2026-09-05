@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "payments_one_reversal_per_original" ON "payments" USING btree ("reverses_payment_id") WHERE "payments"."type" = 'reversal' and "payments"."reverses_payment_id" is not null;

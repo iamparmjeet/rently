@@ -183,6 +183,13 @@
       "when": 1788604049872,
       "tag": "0025_quiet_iron_fist",
       "breakpoints": true
+    },
+    {
+      "idx": 26,
+      "version": "7",
+      "when": 1788605359064,
+      "tag": "0026_wild_butterfly",
+      "breakpoints": true
     }
   ]
 }

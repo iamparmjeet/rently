@@ -28,13 +28,14 @@ import {
 } from "@rently/email";
 import {
 	CreateAgreementPaymentSchema,
+	CreateCombinedBillPaymentSchema,
 	CreatePaymentRequestSchema,
 	PaymentGroupSelectSchema,
 	PaymentListItemSchema,
 	PaymentSelectSchema,
 	UpdatePaymentSchema,
 } from "@rently/validators";
-import { and, desc, eq, isNull, sql } from "drizzle-orm";
+import { and, desc, eq, inArray, isNull, type SQL, sql } from "drizzle-orm";
 import z from "zod";
 import { isLeaseOwner } from "../helpers";
 import {
@@ -88,6 +89,31 @@ function groupedPaymentRequestFingerprint(input: {
 	// accepted by this API and deliberately excludes server-side balances.
 	return JSON.stringify({
 		agreementId: input.agreementId,
+		paymentDate: input.paymentDate.toISOString(),
+		paymentMethods: input.paymentMethods ?? null,
+		referenceNumber: input.referenceNumber ?? null,
+		description: input.description ?? null,
+	});
+}
+
+// The combined-bill command shares the group-level idempotency metadata with
+// grouped rent settlements (B09): the key is scoped to (agreement, key) and a
+// fingerprint mismatch is a conflict. The fingerprint covers the bills named by
+// the caller plus the request metadata; allocation amounts are server-derived
+// balances and deliberately excluded.
+function combinedBillRequestFingerprint(input: {
+	agreementId: string;
+	leaseId: string;
+	utilityIds: string[];
+	paymentDate: Date;
+	paymentMethods?: string | null;
+	referenceNumber?: string | null;
+	description?: string | null;
+}): string {
+	return JSON.stringify({
+		agreementId: input.agreementId,
+		leaseId: input.leaseId,
+		utilityIds: [...input.utilityIds].sort(),
 		paymentDate: input.paymentDate.toISOString(),
 		paymentMethods: input.paymentMethods ?? null,
 		referenceNumber: input.referenceNumber ?? null,
@@ -807,6 +833,164 @@ function groupedNeonInsertQuery(
 	`);
 }
 
+// B11 combined-bill settlement. The batch takes its locks in the same order the
+// node transaction does — the lease row first, then each selected utility by
+// id — so both drivers serialize combined and individual settlements against
+// the same lock domains (B08/B10 precedent).
+function combinedNeonLeaseLockQuery(db: BatchCapableDatabase, leaseId: string) {
+	return db.execute(sql`
+		select ${settlementAdvisoryLock("lease", leaseId)}
+	`);
+}
+
+function combinedNeonUtilityLockQuery(
+	db: BatchCapableDatabase,
+	leaseId: string,
+	utilityIdList: SQL,
+) {
+	// Key construction mirrors settlementAdvisoryLock("utility", id) so this
+	// serializes with individual utility settlements on the same domain.
+	return db.execute(sql`
+		select pg_advisory_xact_lock(
+			hashtextextended('rently:settlement:utility:' || u."id"::text, 0)
+		)
+		from ${utilities} u
+		where u."lease_id" = ${leaseId} and u."id" in (${utilityIdList})
+		order by u."id"
+	`);
+}
+
+function combinedNeonInsertQuery(
+	db: BatchCapableDatabase,
+	params: {
+		agreementId: string;
+		leaseId: string;
+		groupId: string;
+		utilityIdList: SQL;
+		requestedCount: number;
+		paymentDate: Date;
+		paymentMethods: string | null;
+		referenceNumber: string | null;
+		description: string | null;
+		idempotencyKey: string | null;
+		requestFingerprint: string;
+	},
+) {
+	// The rent due expression mirrors getAmountDueForRent and the utility due
+	// expression mirrors getAmountDueForUtility (as in B10/B08): server-derived
+	// balances computed from committed rows inside the same statement, with the
+	// group and allocation inserts gated on the validation predicate. The rent
+	// leg is optional — included only when outstanding rent is positive; every
+	// named utility must be positive or nothing is written.
+	return db.execute<{ group_id: string | null; payment_count: number }>(sql`
+		with rent_due as materialized (
+			select l."rent"
+				+ coalesce((
+					select sum(bc."amount")
+					from ${billCredits} bc
+					where bc."lease_id" = l."id" and bc."utility_id" is null
+				), 0)
+				- coalesce((
+					select sum(p."amount")
+					from ${payments} p
+					left join ${payments} op
+						on p."type" = 'reversal'
+						and op."lease_id" = p."lease_id"
+						and (
+							op."id" = p."reverses_payment_id"
+							or (
+								p."reverses_payment_id" is null
+								and p."reference_number" = op."id"::text
+							)
+						)
+					where p."lease_id" = l."id"
+						and p."utility_id" is null
+						and (
+							p."type" = 'rent'
+							or (p."type" = 'reversal' and op."type" = 'rent')
+						)
+				), 0) as "due"
+			from ${leases} l
+			where l."id" = ${params.leaseId}
+		),
+		utility_dues as materialized (
+			select u."id",
+				u."total_amount"
+				+ coalesce((
+					select sum(c."amount")
+					from ${billCredits} c
+					where c."utility_id" = u."id"
+				), 0)
+				- coalesce((
+					select sum(p."amount")
+					from ${payments} p
+					where p."utility_id" = u."id"
+				), 0) as "due"
+			from ${utilities} u
+			where u."lease_id" = ${params.leaseId}
+				and u."id" in (${params.utilityIdList})
+		),
+		validation as materialized (
+			select
+				(select "due" from rent_due) as "rent_due",
+				(select count(*)::int from utility_dues) as "utility_count",
+				${params.requestedCount}::int as "requested_count",
+				(select coalesce(bool_and("due" > 0), false) from utility_dues)
+					as "utilities_positive"
+		),
+		inserted_group as (
+			insert into ${paymentGroups} (
+				"id", "agreement_id", "payment_date", "payment_method",
+				"reference_number", "description", "idempotency_key",
+				"request_fingerprint"
+			)
+			select ${params.groupId}, ${params.agreementId}, ${params.paymentDate},
+				${params.paymentMethods}, ${params.referenceNumber},
+				${params.description}, ${params.idempotencyKey},
+				${params.requestFingerprint}
+			from validation
+			where validation."utility_count" = validation."requested_count"
+				and validation."utilities_positive"
+			returning "id"
+		),
+		inserted_payments as (
+			insert into ${payments} (
+				"id", "lease_id", "amount", "payment_date", "payment_method",
+				"reference_number", "type", "description", "utility_id",
+				"payment_group_id"
+			)
+			select gen_random_uuid(), ${params.leaseId}::uuid, v."rent_due",
+				${params.paymentDate}::timestamp, ${params.paymentMethods},
+				${params.referenceNumber}, ${PAYMENT_TYPES.RENT},
+				${params.description}, NULL, g."id"
+			from validation v
+			join inserted_group g on true
+			where v."rent_due" > 0
+			union all
+			select gen_random_uuid(), ${params.leaseId}::uuid, d."due",
+				${params.paymentDate}::timestamp, ${params.paymentMethods},
+				${params.referenceNumber}, ${PAYMENT_TYPES.UTILITY},
+				${params.description}, d."id", g."id"
+			from utility_dues d
+			join inserted_group g on true
+			where d."due" > 0
+			returning "id"
+		),
+		updated_utilities as (
+			update ${utilities} u
+			set "is_paid" = true, "updated_at" = now()
+			from utility_dues d
+			where u."id" = d."id"
+				and exists (select 1 from inserted_group)
+			returning u."id"
+		)
+		select g."id" as "group_id",
+			(select count(*)::int from inserted_payments) as "payment_count"
+		from validation v
+		left join inserted_group g on true
+	`);
+}
+
 // Create a single payment group for a combined agreement. Each active lease is
 // allocated its complete currently-outstanding rent, preventing arbitrary or
 // cross-unit splits while multi-unit partial-payment rules remain out of scope.
@@ -1073,6 +1257,277 @@ export const createAgreementPayment = ownerProcedure
 				message: "Failed to record grouped payment",
 			});
 		}
+		await sendAutomaticAgreementPaymentReceipt(db, authUser.id, groupId);
+
+		return { paymentGroup, payments: createdPayments };
+	});
+
+// One atomic combined-bill settlement (B11): a single lease's outstanding rent
+// plus its named unpaid utilities become one payment group, written entirely
+// inside the settlement protection or not at all. Replaces the browser's
+// parallel per-leg mutations, which could half-fail across legs.
+export const createCombinedBillPayment = ownerProcedure
+	.route({
+		method: "POST",
+		path: "/rent/payment/create-combined-bill-payment",
+		successStatus: StatusCode.CREATED,
+	})
+	.input(CreateCombinedBillPaymentSchema)
+	.output(
+		z.object({
+			paymentGroup: PaymentGroupSelectSchema,
+			payments: z.array(PaymentSelectSchema),
+		}),
+	)
+	.handler(async ({ context, input }) => {
+		const { db, user: authUser } = context;
+		assertMethodAllowedForRole(input.paymentMethods, "owner");
+
+		if (new Set(input.utilityIds).size !== input.utilityIds.length) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Duplicate utility bills in the combined payment request",
+			});
+		}
+
+		// One scoped lookup resolves the lease, the owner boundary, and the
+		// payment-group parent. Current writers always create an agreement
+		// (legacy rows were backfilled); a missing one fails loudly instead of
+		// inferring a parent.
+		const [leaseRow] = await db
+			.select({ id: leases.id, agreementId: leases.agreementId })
+			.from(leases)
+			.innerJoin(units, eq(leases.unitId, units.id))
+			.innerJoin(properties, eq(units.propertyId, properties.id))
+			.where(
+				and(eq(leases.id, input.leaseId), eq(properties.ownerId, authUser.id)),
+			)
+			.limit(1);
+		if (!leaseRow) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "Lease not found or you do not own it",
+			});
+		}
+		const agreementId = leaseRow.agreementId;
+		if (!agreementId) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Lease has no agreement record for grouped payments",
+			});
+		}
+
+		// Idempotency replay before any balance math — a retry after success
+		// must return the committed group, not recompute zeroed dues.
+		const idempotencyKey = input.idempotencyKey;
+		const requestFingerprint = combinedBillRequestFingerprint({
+			agreementId,
+			leaseId: leaseRow.id,
+			utilityIds: input.utilityIds,
+			paymentDate: input.paymentDate,
+			paymentMethods: input.paymentMethods ?? null,
+			referenceNumber: input.referenceNumber ?? null,
+			description: input.description ?? null,
+		});
+		const replay = await findGroupedPaymentReplay(
+			db,
+			authUser.id,
+			agreementId,
+			idempotencyKey,
+			requestFingerprint,
+		);
+		if (replay) return replay;
+
+		const groupId = crypto.randomUUID();
+		const groupValues = {
+			id: groupId,
+			agreementId,
+			paymentDate: input.paymentDate,
+			paymentMethods: input.paymentMethods ?? null,
+			referenceNumber: input.referenceNumber ?? null,
+			description: input.description ?? null,
+			idempotencyKey,
+			requestFingerprint,
+		};
+		const utilityIdList = sql.join(
+			input.utilityIds.map((id) => sql`${id}`),
+			sql`, `,
+		);
+
+		// B10/B11: settlement protection comes first, then allocation math.
+		// Rent and utility dues are recomputed inside the locked operation;
+		// balances read before the lock are stale by construction.
+		let expectedAllocations = 0;
+
+		if (supportsBatch(db)) {
+			try {
+				const [, , result] = await db.batch([
+					combinedNeonLeaseLockQuery(db, leaseRow.id),
+					combinedNeonUtilityLockQuery(db, leaseRow.id, utilityIdList),
+					combinedNeonInsertQuery(db, {
+						agreementId,
+						leaseId: leaseRow.id,
+						groupId,
+						utilityIdList,
+						requestedCount: input.utilityIds.length,
+						paymentDate: input.paymentDate,
+						paymentMethods: input.paymentMethods ?? null,
+						referenceNumber: input.referenceNumber ?? null,
+						description: input.description ?? null,
+						idempotencyKey,
+						requestFingerprint,
+					}),
+				]);
+				const [row] = result.rows;
+				if (!row?.group_id) {
+					// The validation gate suppressed the insert. A same-key winner
+					// may have committed first (its settlement zeroed the dues);
+					// adopt its group before reporting a balance error.
+					const winnerReplay = await findGroupedPaymentReplay(
+						db,
+						authUser.id,
+						agreementId,
+						idempotencyKey,
+						requestFingerprint,
+					);
+					if (winnerReplay) return winnerReplay;
+					throw new ORPCError("BAD_REQUEST", {
+						message:
+							"Every selected utility must have an outstanding balance for a combined payment",
+					});
+				}
+				expectedAllocations = row.payment_count;
+			} catch (error) {
+				if (violationCode(error) !== "23505") throw error;
+				// Concurrent retry won the agreement-scoped group race. Query the
+				// winner only through the authenticated owner and lease's agreement.
+				const winnerReplay = await findGroupedPaymentReplay(
+					db,
+					authUser.id,
+					agreementId,
+					idempotencyKey,
+					requestFingerprint,
+				);
+				if (winnerReplay) return winnerReplay;
+				throw error;
+			}
+		} else {
+			let txReplay:
+				| Awaited<ReturnType<typeof findGroupedPaymentReplay>>
+				| undefined;
+			try {
+				await db.transaction(async (tx) => {
+					// Lock order: lease row first, then every selected utility by id
+					// — the same order the Neon batch uses.
+					await tx.execute(
+						sql`select 1 from ${leases} where ${leases.id} = ${leaseRow.id} for update`,
+					);
+
+					// A same-key winner may have committed while this transaction
+					// waited on the locks; serve it before recomputing dues.
+					txReplay = await findGroupedPaymentReplay(
+						tx,
+						authUser.id,
+						agreementId,
+						idempotencyKey,
+						requestFingerprint,
+					);
+					if (txReplay) return;
+
+					const lockedUtilities = await tx
+						.select({ id: utilities.id })
+						.from(utilities)
+						.where(
+							and(
+								eq(utilities.leaseId, leaseRow.id),
+								inArray(utilities.id, input.utilityIds),
+							),
+						)
+						.orderBy(utilities.id)
+						.for("update");
+					if (lockedUtilities.length !== input.utilityIds.length) {
+						throw new ORPCError("BAD_REQUEST", {
+							message:
+								"Every selected utility must belong to this lease for a combined payment",
+						});
+					}
+
+					const rentDue = await getAmountDueForRent(tx, leaseRow.id);
+					const utilityDues: Array<{ utilityId: string; amount: number }> = [];
+					for (const { id } of lockedUtilities) {
+						const due = await getAmountDueForUtility(tx, id);
+						if (due <= 0) {
+							throw new ORPCError("BAD_REQUEST", {
+								message:
+									"Every selected utility must have an outstanding balance for a combined payment",
+							});
+						}
+						utilityDues.push({ utilityId: id, amount: due });
+					}
+
+					// The rent leg is conditional by design — a combined bill with
+					// rent already settled records only the utilities.
+					expectedAllocations = (rentDue > 0 ? 1 : 0) + utilityDues.length;
+
+					await tx.insert(paymentGroups).values(groupValues);
+					await tx.insert(payments).values([
+						...(rentDue > 0
+							? [
+									{
+										leaseId: leaseRow.id,
+										amount: rentDue,
+										paymentDate: input.paymentDate,
+										paymentMethods: input.paymentMethods ?? null,
+										referenceNumber: input.referenceNumber ?? null,
+										type: PAYMENT_TYPES.RENT,
+										description: input.description ?? null,
+										utilityId: null,
+										paymentGroupId: groupId,
+									},
+								]
+							: []),
+						...utilityDues.map(({ utilityId, amount }) => ({
+							leaseId: leaseRow.id,
+							amount,
+							paymentDate: input.paymentDate,
+							paymentMethods: input.paymentMethods ?? null,
+							referenceNumber: input.referenceNumber ?? null,
+							type: PAYMENT_TYPES.UTILITY,
+							description: input.description ?? null,
+							utilityId,
+							paymentGroupId: groupId,
+						})),
+					]);
+
+					// The compatibility isPaid flag follows the derived due (zero
+					// after these allocations), matching recordUtilityPayment.
+					for (const { utilityId } of utilityDues) {
+						await syncUtilityPaidFlag(tx, utilityId);
+					}
+				});
+			} catch (error) {
+				// The aborted transaction cannot be reused — converge outside it.
+				if (violationCode(error) !== "23505") throw error;
+				const winnerReplay = await findGroupedPaymentReplay(
+					db,
+					authUser.id,
+					agreementId,
+					idempotencyKey,
+					requestFingerprint,
+				);
+				if (winnerReplay) return winnerReplay;
+				throw error;
+			}
+			if (txReplay) return txReplay;
+		}
+
+		const { paymentGroup, payments: createdPayments } =
+			await readGroupedPaymentResult(db, groupId);
+		if (!paymentGroup || createdPayments.length !== expectedAllocations) {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
+				message: "Failed to record combined payment",
+			});
+		}
+
+		// One receipt for the whole group, only after the settlement committed.
+		// Replays return before this point, so retries never re-email.
 		await sendAutomaticAgreementPaymentReceipt(db, authUser.id, groupId);
 
 		return { paymentGroup, payments: createdPayments };

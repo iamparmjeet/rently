@@ -246,3 +246,16 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Required gates passed: `db:generate` no drift, `check-types --force` 6/6, focused Biome, and `db:migrate:test`.
 - Build-generated `next-env.d.ts` changes were restored; no `.env` files were retained.
 - Sol/Terra final review remains tracked review debt before any `[x]` or `main` rollup.
+
+## B10 Recompute grouped allocations after locking (2026-09-05, Muse Spark, branch fix/group-payment-lock-order)
+- Base confirmed: clean `integ/phase-a-baseline@fa131704`; rollback tag `pre-group-payment-lock-order` created before work; `main` was not used or modified.
+- Bug: `createAgreementPayment` computed every allocation via `getAmountDueForRent(db, …)` before the node-postgres transaction took its `for update` locks, and before the Neon batch entirely — a concurrent individual rent payment (or a second distinct-key grouped request) could interleave, and the group then inserted stale pre-lock balances (lease overpaid, net negative due). Pre-fix red evidence: 5/8 new race tests failed (both distinct-key grouped races double-inserted; the grouped-vs-individual races both wrote).
+- Changed (no migration), `payment.ts` only:
+  - Node path: the transaction now takes an ordered `select … for update` over the agreement's active leases FIRST (this locking read is the authoritative post-lock active-lease set), re-runs the same-key replay check inside the lock (a winner that committed while waiting is adopted), recomputes allocations via `getAmountDueForRent(tx, …)`, validates all dues > 0, then inserts group + children.
+  - Neon path: batch of [advisory locks on every active lease — same `rently:settlement:lease:` key domain as individual settlements, ordered by id] + [one conditional CTE statement: recompute per-lease due (rent + non-utility credits − signed rent ledger, mirroring `getAmountDueForRent` incl. B12 link/fallback reversal attribution), gate group+allocation inserts on `lease_count >= 2 AND all_positive`]. Empty result → same-key replay adoption attempted, else BAD_REQUEST; 23505 catch unchanged. Child ids use core `gen_random_uuid()` (payments.id has no DB default; precedent in migration 0000/auth tables).
+  - Legacy pre-lock reads remain only as fast-fail (<2 active leases) and notification-recipient lookups.
+- Behavior notes: a distinct-key grouped request racing a winner now rejects with BAD_REQUEST (zero dues) instead of double-inserting; a same-key loser adopts the winner's group on every path, including inside the node lock.
+- Tests first (`group-payment-lock-order.test.ts`, 8): node/neon distinct-key grouped race, node/neon grouped-vs-individual race, node/neon same-key adoption, sequential post-settlement recompute control, neon rent-credit balance recheck. 5 red pre-fix; 8/8 stable across 5 repeat runs post-fix.
+- Verification: `db:generate` no drift → `check-types` 6/6 → focused Biome clean → `db:migrate:test` → focused 8/8 → full suite 267/267 → local `bun run build` 5/5. Zero fixture leaks in `rently_test` (verified by marker query); `next-env.d.ts` churn restored.
+- Review debt: Terra High design gate and final review remain required before any `[x]` or `main` rollup.
+- Rollback: revert the B10 commit or restore `payment.ts` to `pre-group-payment-lock-order`; no schema changes to roll back.

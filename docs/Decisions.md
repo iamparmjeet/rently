@@ -26,6 +26,30 @@ rules remain unchanged.
 
 **Model:** Codex GPT-5.6.
 
+## 2026-09-05 - canonical signed-ledger read model
+
+**Decision:** All reversal-aware payment readers use one signed-ledger helper.
+Each row keeps its stored signed amount and display type, while a reversal gets
+an internal category from its linked original payment. The B03
+`reversesPaymentId` link is authoritative; the retained `referenceNumber` is a
+fallback only for legacy rows whose nullable link is absent.
+
+**Why:** Filtering every reader on the stored `reversal` type either drops a
+legitimate reversal from net totals or attributes it to the wrong balance. A
+single read model makes rent, utility, reminder, revenue, recent-payment, and
+receipt paths agree without rewriting historical rows.
+
+**Alternatives:** Treat every reversal as rent (rejected: deposit, utility, and
+other reversals must not affect rent); infer category from `utilityId` alone
+(rejected: it cannot distinguish rent, deposit, and other non-utility rows);
+introduce period-keyed rent charges (deferred to Phase C).
+
+**Tradeoff:** Readers perform a linked-original lookup and ignore an
+unattributed reversal for category-specific calculations. Raw reversal rows
+remain visible where the existing API exposes the ledger.
+
+**Model:** GPT-5.6 Luna.
+
 ## 2026-09-04 - database URL is the only database selector
 
 **Decision:** Use only `DATABASE_URL`; its hostname selects the runtime driver.

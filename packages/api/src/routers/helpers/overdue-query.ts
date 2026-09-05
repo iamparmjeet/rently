@@ -4,7 +4,6 @@ import { user } from "@rently/db/schema/auth";
 import {
 	billCredits,
 	leases,
-	payments,
 	properties,
 	units,
 } from "@rently/db/schema/schema";
@@ -12,6 +11,7 @@ import type { OverdueLease } from "@rently/validators";
 import { and, eq, inArray, isNull } from "drizzle-orm";
 import { computeOverdueState } from "./overdue";
 import { getLocalDateKey, getLocalPeriodKey } from "./rent-cycle";
+import { getSignedLedgerPayments } from "./signed-ledger";
 
 export async function queryOverdueLeases(
 	db: Database,
@@ -48,15 +48,7 @@ export async function queryOverdueLeases(
 
 	const periodKey = getLocalPeriodKey(now);
 	const leaseIds = rows.map((row) => row.leaseId);
-	const paymentRows = await db
-		.select({
-			leaseId: payments.leaseId,
-			amount: payments.amount,
-			paymentDate: payments.paymentDate,
-			type: payments.type,
-		})
-		.from(payments)
-		.where(inArray(payments.leaseId, leaseIds));
+	const paymentRows = await getSignedLedgerPayments(db, { leaseIds });
 
 	const paidByLease = new Map<string, number>();
 	for (const payment of paymentRows) {
@@ -64,12 +56,9 @@ export async function queryOverdueLeases(
 			continue;
 		}
 
-		// Net the current period: rent payments reduce due, reversal rows (voided
-		// payments) are negative and add it back. Non-rent types are ignored.
-		if (
-			payment.type !== PAYMENT_TYPES.RENT &&
-			payment.type !== PAYMENT_TYPES.REVERSAL
-		) {
+		// Net the current period from the canonical category: reversal rows keep
+		// their signed amount but only rent originals affect rent due.
+		if (payment.utilityId !== null || payment.category !== PAYMENT_TYPES.RENT) {
 			continue;
 		}
 

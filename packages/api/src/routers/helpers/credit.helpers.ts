@@ -1,19 +1,12 @@
 import { ORPCError } from "@orpc/server";
 import type { Database } from "@rently/db";
 import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
-import {
-	billCredits,
-	leases,
-	payments,
-	utilities,
-} from "@rently/db/schema/schema";
-import { and, eq, isNull, or, sql } from "drizzle-orm";
-import { alias } from "drizzle-orm/pg-core";
+import { billCredits, leases, utilities } from "@rently/db/schema/schema";
+import { and, eq, isNull, sql } from "drizzle-orm";
+import { getSignedLedgerPayments } from "./signed-ledger";
 
 export type DbTx = Parameters<Parameters<Database["transaction"]>[0]>[0];
 type DbReader = Pick<Database, "select">;
-
-const originalPayment = alias(payments, "original_payment");
 
 function aggregateAmount(value: number | string | null | undefined): number {
 	return Number(value ?? 0);
@@ -41,20 +34,17 @@ export async function getAmountDueForUtility(
 		.from(billCredits)
 		.where(eq(billCredits.utilityId, utilityId));
 
-	// 3. Sum all payments already recorded against this utility (reversal is negative, naturally nets)
-	const [paid] = await tx
-		.select({
-			sum: sql<number | string>`coalesce(sum(${payments.amount}), 0)`,
-		})
-		.from(payments)
-		.where(eq(payments.utilityId, utilityId));
+	// 3. Sum the canonical utility ledger. Reversal rows retain their negative
+	// sign but only count when their original was a utility payment.
+	const ledger = await getSignedLedgerPayments(tx, {
+		utilityIds: [utilityId],
+	});
+	const paid = ledger
+		.filter((row) => row.category === PAYMENT_TYPES.UTILITY)
+		.reduce((sum, row) => sum + row.amount, 0);
 
 	// 4. Due = total + negative credits − paid (GST-safe: total immutable, credits separate rows)
-	return (
-		utility.totalAmount +
-		aggregateAmount(credits?.sum) -
-		aggregateAmount(paid?.sum)
-	);
+	return utility.totalAmount + aggregateAmount(credits?.sum) - paid;
 }
 
 export async function getAmountDueForRent(
@@ -80,39 +70,17 @@ export async function getAmountDueForRent(
 			and(eq(billCredits.leaseId, leaseId), isNull(billCredits.utilityId)),
 		);
 
-	// 3. Sum rent payments and reversals of rent payments. Deposits and other
-	// non-utility payments do not settle rent.
-	const [paid] = await tx
-		.select({
-			sum: sql<number | string>`coalesce(sum(${payments.amount}), 0)`,
-		})
-		.from(payments)
-		.leftJoin(
-			originalPayment,
-			and(
-				eq(payments.type, PAYMENT_TYPES.REVERSAL),
-				sql`${payments.referenceNumber} = ${originalPayment.id}::text`,
-				eq(originalPayment.leaseId, payments.leaseId),
-			),
+	// 3. Sum the canonical rent ledger. Deposits, utilities, and other
+	// non-rent rows—including their reversals—do not settle rent.
+	const ledger = await getSignedLedgerPayments(tx, { leaseIds: [leaseId] });
+	const paid = ledger
+		.filter(
+			(row) => row.utilityId === null && row.category === PAYMENT_TYPES.RENT,
 		)
-		.where(
-			and(
-				eq(payments.leaseId, leaseId),
-				isNull(payments.utilityId),
-				or(
-					eq(payments.type, PAYMENT_TYPES.RENT),
-					and(
-						eq(payments.type, PAYMENT_TYPES.REVERSAL),
-						eq(originalPayment.type, PAYMENT_TYPES.RENT),
-					),
-				),
-			),
-		);
+		.reduce((sum, row) => sum + row.amount, 0);
 
 	// 4. Due = rent + credits − paid; isPaidDerived = amountDue <= 0 (beta simple, no period key)
-	return (
-		lease.rent + aggregateAmount(credits?.sum) - aggregateAmount(paid?.sum)
-	);
+	return lease.rent + aggregateAmount(credits?.sum) - paid;
 }
 
 // Helper for UI/API: derived paid check without extra query when amountDue already computed

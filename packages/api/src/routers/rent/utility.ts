@@ -35,6 +35,7 @@ import {
 	sendAutomaticUtilityBillEmail,
 } from "../helpers/automatic-emails";
 import { getAmountDueForUtility } from "../helpers/credit.helpers";
+import { settlementAdvisoryLock } from "../helpers/settlement-lock";
 
 type BatchCapableDatabase = Database & {
 	batch<T extends readonly unknown[]>(
@@ -54,6 +55,76 @@ function violationCode(error: unknown): string | undefined {
 	const cause = top?.cause as { code?: unknown } | null | undefined;
 	if (typeof cause?.code === "string") return cause.code;
 	return undefined;
+}
+
+async function insertNeonUtilityPayment(
+	db: BatchCapableDatabase,
+	input: {
+		leaseId: string;
+		utilityId: string;
+		amount: number;
+		paymentDate: Date;
+		paymentMethod: string;
+		description: string | null;
+		idempotencyKey: string;
+	},
+) {
+	const id = crypto.randomUUID();
+	const lockQuery = db.execute(
+		sql`SELECT ${settlementAdvisoryLock("utility", input.utilityId)}`,
+	);
+	const insertQuery = db.execute<{ id: string }>(sql`
+		WITH balance AS MATERIALIZED (
+			SELECT u."total_amount"
+				+ COALESCE((
+					SELECT sum(c."amount")
+					FROM ${billCredits} c
+					WHERE c."utility_id" = u."id"
+				), 0)
+				- COALESCE((
+					SELECT sum(p."amount")
+					FROM ${payments} p
+					WHERE p."utility_id" = u."id"
+				), 0) AS "amount_due"
+		FROM ${utilities} u
+			WHERE u."id" = ${input.utilityId}
+		), inserted AS (
+			INSERT INTO ${payments} (
+				"id", "lease_id", "utility_id", "amount", "payment_date", "payment_method",
+				"type", "description", "reference_number", "idempotency_key"
+			)
+			SELECT ${id}, ${input.leaseId}, ${input.utilityId}, ${input.amount},
+				${input.paymentDate}, ${input.paymentMethod}, 'utility',
+				${input.description}, NULL, ${input.idempotencyKey}
+			FROM balance
+			WHERE balance."amount_due" = ${input.amount}
+			RETURNING "id", "amount"
+		), updated AS (
+			UPDATE ${utilities} u
+			SET "is_paid" = (
+				u."total_amount"
+				+ COALESCE((
+					SELECT sum(c."amount")
+					FROM ${billCredits} c
+					WHERE c."utility_id" = u."id"
+				), 0)
+				- COALESCE((
+					SELECT sum(p."amount")
+					FROM ${payments} p
+					WHERE p."utility_id" = u."id"
+				), 0) - inserted."amount" <= 0
+			), "updated_at" = now()
+			FROM inserted
+			WHERE u."id" = ${input.utilityId}
+			RETURNING u."id"
+		)
+		SELECT inserted."id" AS "id"
+		FROM inserted
+		LEFT JOIN updated ON true
+	`);
+
+	const [, result] = await db.batch([lockQuery, insertQuery]);
+	return result.rows[0]?.id;
 }
 
 // ******** Shared Helper ************
@@ -762,34 +833,51 @@ export const recordUtilityPayment = ownerProcedure
 
 		let payment: typeof payments.$inferSelect | undefined;
 		if (supportsBatch(db)) {
-			const due = await getAmountDueForUtility(db, input.utilityId);
-			if (due <= 0)
-				throw new ORPCError("CONFLICT", { message: "Already paid/discounted" });
-			if (input.amount !== due)
-				throw new ORPCError("BAD_REQUEST", {
-					message: `Payment must match amountDue: ${due}`,
-				});
-
-			const [inserted] = await db
-				.insert(payments)
-				.values({
+			let insertedId: string | undefined;
+			try {
+				insertedId = await insertNeonUtilityPayment(db, {
 					leaseId: input.leaseId,
 					utilityId: input.utilityId,
 					amount: input.amount,
 					paymentDate: new Date(input.receivedAt),
-					paymentMethods: input.paymentMethod,
-					type: "utility",
+					paymentMethod: input.paymentMethod,
 					description: input.notes ?? null,
-					referenceNumber: null,
 					idempotencyKey: input.idempotencyKey,
-				})
-				.returning();
-
-			await db
-				.update(utilities)
-				.set({ isPaid: true, updatedAt: new Date() })
-				.where(eq(utilities.id, input.utilityId));
-			payment = inserted;
+				});
+			} catch (error) {
+				if (violationCode(error) !== "23505") throw error;
+			}
+			if (!insertedId) {
+				const [retry] = await db
+					.select()
+					.from(payments)
+					.where(
+						and(
+							eq(payments.leaseId, input.leaseId),
+							eq(payments.idempotencyKey, input.idempotencyKey),
+						),
+					)
+					.limit(1);
+				if (retry) {
+					payment = retry;
+				} else {
+					const due = await getAmountDueForUtility(db, input.utilityId);
+					if (due <= 0) {
+						throw new ORPCError("CONFLICT", {
+							message: "Already paid/discounted",
+						});
+					}
+					throw new ORPCError("BAD_REQUEST", {
+						message: `Payment must match amountDue: ${due}`,
+					});
+				}
+			} else {
+				[payment] = await db
+					.select()
+					.from(payments)
+					.where(eq(payments.id, insertedId))
+					.limit(1);
+			}
 		} else {
 			try {
 				[payment] = await db.transaction(async (tx) => {

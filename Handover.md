@@ -1,4 +1,4 @@
-# Handover — 2026-09-03 — model: GPT-5.6 Sol — branch: fix/ledger-integrity-2026-09-03
+# Handover — 2026-09-05 — model: Muse Spark — branch: fix/ledger-integrity-2026-09-03 (merged)
 
 Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is already merged into `main` via `d716bd9`/`2250e3f`) and records the new ledger/lifecycle bugfix branch.
 
@@ -78,4 +78,5 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
   - `bun run --filter @rently/db db:migrate:test` → migrations applied successfully.
   - `SKIP_ENV_VALIDATION=1 bunx vitest run invite.test.ts tenant-removal.test.ts` → 19/19 pass.
 - Still outstanding (manual, unchanged): multi-unit tenant meter submission per unit; ₹1,200 check on original lease `01a06bc0…` (absent locally); Shivam erroneous group `b9a5de70…` void+re-record awaiting user approval.
-- Next: A01 is verified but NOT committed (needs user approval per plan §3/A01). Do not cut `fix/ci-test-gate` (A02) until user approves commit/split of this tree so `main` can be a clean base.
+- A01 closed 2026-09-05: tree committed as 6 sequence-wise commits (`29e17da`..`bd6bbe8`), pushed, merged to `main` as `5dd4614` (regular merge, PR #5). Fix-Plan A01 marked `[x]`. `main` is now the clean base.
+- Next allowed slice: A02 on fresh branch `fix/ci-test-gate` from `main@5dd4614`.

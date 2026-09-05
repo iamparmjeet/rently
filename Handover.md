@@ -1,4 +1,11 @@
-# Handover — 2026-09-05 — model: Muse Spark — branch: fix/local-db-bootstrap (A03 implemented, uncommitted, awaiting review)
+# Handover — 2026-09-05 — model: Muse Spark — branch: integ/phase-a-baseline (batching A03+; see workflow note)
+
+## Workflow note (2026-09-05, owner-directed)
+- Batching: slices merge one-branch-per-slice into `integ/phase-a-baseline` (cut from clean `main@8e27688`, rollback tag `pre-integ-phase-a-baseline`), then one rollup PR into `main`. Rollback tags per slice retained. CI gates PRs to both branches (trigger extended in `c0cfe04`; PR-only, no per-commit runs).
+- A03 merged as PR #7 (CI green, merged 2026-09-05). Fix-Plan A03 stays `[~]` until Terra review.
+- Implementer is now Muse Spark throughout; Terra review is deferred, not waived.
+- Terra review debt (must clear before any `[x]` or `main` rollup): A03 (Terra Medium), A04 (Terra High), and every later slice per Fix-Plan §7.
+- Muse rules until debt is paid: no business-semantic decisions without stopping to ask; nothing production-touching; slices stay `[~]` at best.
 
 Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is already merged into `main` via `d716bd9`/`2250e3f`) and records the new ledger/lifecycle bugfix branch.
 

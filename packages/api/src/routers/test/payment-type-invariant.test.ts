@@ -14,6 +14,8 @@ import {
 	leases,
 	payments,
 	properties,
+	rentAllocations,
+	rentCharges,
 	units,
 	utilities,
 } from "@rently/db/schema/schema";
@@ -121,6 +123,33 @@ async function createOwnerLeaseFixture() {
 afterEach(async () => {
 	// Any payment created for a fixture lease (tracked or not) goes first.
 	if (createdLeaseIds.length > 0) {
+		// C04: the period ledger references payments and charges — clear both
+		// scopes before their parents.
+		await db
+			.delete(rentAllocations)
+			.where(
+				inArray(
+					rentAllocations.chargeId,
+					db
+						.select({ id: rentCharges.id })
+						.from(rentCharges)
+						.where(inArray(rentCharges.leaseId, createdLeaseIds)),
+				),
+			);
+		await db
+			.delete(rentAllocations)
+			.where(
+				inArray(
+					rentAllocations.paymentId,
+					db
+						.select({ id: payments.id })
+						.from(payments)
+						.where(inArray(payments.leaseId, createdLeaseIds)),
+				),
+			);
+		await db
+			.delete(rentCharges)
+			.where(inArray(rentCharges.leaseId, createdLeaseIds));
 		await db.delete(payments).where(inArray(payments.leaseId, createdLeaseIds));
 	}
 	if (createdUtilityIds.length > 0) {

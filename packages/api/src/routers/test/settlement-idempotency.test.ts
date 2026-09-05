@@ -17,6 +17,8 @@ import {
 	paymentGroups,
 	payments,
 	properties,
+	rentAllocations,
+	rentCharges,
 	tenantProfiles,
 	units,
 	utilities,
@@ -239,6 +241,21 @@ afterEach(async () => {
 			.where(inArray(leases.unitId, createdUnitIds));
 		const leaseIds = leaseRows.map((row) => row.id);
 		if (leaseIds.length > 0) {
+			// C04: the period ledger references leases — clear it first.
+			await db
+				.delete(rentAllocations)
+				.where(
+					inArray(
+						rentAllocations.chargeId,
+						db
+							.select({ id: rentCharges.id })
+							.from(rentCharges)
+							.where(inArray(rentCharges.leaseId, leaseIds)),
+					),
+				);
+			await db
+				.delete(rentCharges)
+				.where(inArray(rentCharges.leaseId, leaseIds));
 			await db
 				.delete(billCredits)
 				.where(inArray(billCredits.leaseId, leaseIds));

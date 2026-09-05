@@ -44,10 +44,10 @@ SELECT
 			extract(day from (p_month + interval '1 month - 1 day'))::int
 		)
 	),
-	round(
+	GREATEST(1, round(
 		l."rent" * edges.active_days
 		/ extract(day from (p_month + interval '1 month - 1 day'))::numeric
-	)::int
+	)::int)
 FROM "leases" l
 CROSS JOIN LATERAL generate_series(
 	date_trunc('month', l."start_date"),

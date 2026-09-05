@@ -31,6 +31,7 @@ import {
 import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import z from "zod";
 import { getNextLocalPeriodKey } from "../helpers/rent-cycle";
+import { ensureAccruedChargesSql } from "../helpers/rent-period";
 
 type BatchCapableDatabase = Database & {
 	batch<T extends readonly unknown[]>(
@@ -173,8 +174,10 @@ export const createLease = ownerProcedure
 			description: input.description,
 		};
 
+		const leaseId = generatedId();
 		const leaseValues = {
 			...input,
+			id: leaseId,
 			agreementId,
 			status: "active" as const,
 		};
@@ -224,6 +227,9 @@ export const createLease = ownerProcedure
 					createAgreementQuery,
 					createLeaseQuery,
 					occupyUnitQuery,
+					// C04 dual-write: accrue the new lease's period charges
+					// immediately (R13 — a backdated start owes elapsed periods).
+					db.execute(ensureAccruedChargesSql({ leaseId })),
 				]);
 				lease = createdLeases[0];
 			}
@@ -264,6 +270,10 @@ export const createLease = ownerProcedure
 					.where(
 						and(eq(units.id, input.unitId), eq(units.status, "available")),
 					);
+
+				// C04 dual-write: accrue the new lease's period charges
+				// immediately (R13 — a backdated start owes elapsed periods).
+				await tx.execute(ensureAccruedChargesSql({ leaseId }));
 
 				return newLease;
 			});
@@ -362,8 +372,11 @@ export const createCombinedLease = ownerProcedure
 			notice: input.notice,
 			description: input.description,
 		});
-		const leaseInserts = input.units.map((unit) =>
-			db.insert(leases).values({
+		const leaseIds = input.units.map(() => generatedId());
+		const leaseInserts = input.units.map((unit, index) => {
+			const leaseId = leaseIds[index];
+			return db.insert(leases).values({
+				id: leaseId,
 				unitId: unit.unitId,
 				tenantId: input.tenantId,
 				startDate: input.startDate,
@@ -375,8 +388,8 @@ export const createCombinedLease = ownerProcedure
 				rentDueDate: input.rentDueDate,
 				description: input.description,
 				agreementId,
-			}),
-		);
+			});
+		});
 		const occupyUnits = unitIds.map((unitId) =>
 			db
 				.update(units)
@@ -384,8 +397,19 @@ export const createCombinedLease = ownerProcedure
 				.where(and(eq(units.id, unitId), eq(units.status, "available"))),
 		);
 
+		// C04 dual-write: accrue every new lease's period charges immediately
+		// (R13 — a backdated start owes elapsed periods).
+		const accrueNewLeases = leaseIds.map((leaseId) =>
+			db.execute(ensureAccruedChargesSql({ leaseId })),
+		);
+
 		if (supportsBatch(db)) {
-			await db.batch([agreement, ...leaseInserts, ...occupyUnits]);
+			await db.batch([
+				agreement,
+				...leaseInserts,
+				...occupyUnits,
+				...accrueNewLeases,
+			]);
 		} else {
 			await db.transaction(async (tx) => {
 				await tx.insert(leaseAgreements).values({
@@ -401,7 +425,8 @@ export const createCombinedLease = ownerProcedure
 					description: input.description,
 				});
 				await tx.insert(leases).values(
-					input.units.map((unit) => ({
+					input.units.map((unit, index) => ({
+						id: leaseIds[index],
 						unitId: unit.unitId,
 						tenantId: input.tenantId,
 						startDate: input.startDate,
@@ -420,6 +445,9 @@ export const createCombinedLease = ownerProcedure
 						.update(units)
 						.set({ status: "occupied", updatedAt: new Date() })
 						.where(and(eq(units.id, unitId), eq(units.status, "available")));
+				}
+				for (const leaseId of leaseIds) {
+					await tx.execute(ensureAccruedChargesSql({ leaseId }));
 				}
 			});
 		}

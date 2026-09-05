@@ -9,7 +9,14 @@ import {
 } from "@rently/db/constants/rent-constants";
 import { USER_ROLES } from "@rently/db/constants/user-roles";
 import { user } from "@rently/db/schema/auth";
-import { leases, payments, properties, units } from "@rently/db/schema/schema";
+import {
+	leases,
+	payments,
+	properties,
+	rentAllocations,
+	rentCharges,
+	units,
+} from "@rently/db/schema/schema";
 import { generatedId } from "@rently/db/utils/id";
 import { inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
@@ -177,6 +184,21 @@ async function createPayment(leaseId: string, options: PaymentOptions) {
 
 afterEach(async () => {
 	if (createdLeaseIds.length > 0) {
+		// C04: the period ledger references leases — clear it first.
+		await db
+			.delete(rentAllocations)
+			.where(
+				inArray(
+					rentAllocations.chargeId,
+					db
+						.select({ id: rentCharges.id })
+						.from(rentCharges)
+						.where(inArray(rentCharges.leaseId, createdLeaseIds)),
+				),
+			);
+		await db
+			.delete(rentCharges)
+			.where(inArray(rentCharges.leaseId, createdLeaseIds));
 		await db.delete(payments).where(inArray(payments.leaseId, createdLeaseIds));
 		await db.delete(leases).where(inArray(leases.id, createdLeaseIds));
 	}

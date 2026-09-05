@@ -46,6 +46,13 @@ import {
 	getAmountDueForRent,
 	getAmountDueForUtility,
 } from "../helpers/credit.helpers";
+import {
+	allocateRentPaymentsSql,
+	ensureAccruedChargesSql,
+	mirrorPaymentGroupReversalsSql,
+	mirrorPaymentReversalSql,
+	reportUnallocatedRentPaymentRemaindersSql,
+} from "../helpers/rent-period";
 import { settlementAdvisoryLock } from "../helpers/settlement-lock";
 
 type BatchCapableDatabase = Database & {
@@ -198,6 +205,7 @@ async function findReversalByOriginal(
 }
 
 type IndividualPaymentInput = {
+	id: string;
 	leaseId: string;
 	amount: number;
 	paymentDate: Date;
@@ -213,10 +221,13 @@ async function insertNeonPayment(
 	db: BatchCapableDatabase,
 	input: IndividualPaymentInput,
 ) {
-	const id = crypto.randomUUID();
+	const id = input.id;
 	const lockQuery = db.execute(
 		sql`SELECT ${settlementAdvisoryLock(input.utilityId ? "utility" : "lease", input.utilityId ?? input.leaseId)}`,
 	);
+	// Rent payments may be partial (C01 R8) but never advance the lease: the
+	// insert goes through only when the outstanding balance covers the amount.
+	// Utility settlement keeps its exact-balance rule.
 	const insertQuery = input.utilityId
 		? db.execute<{ id: string }>(sql`
 			WITH balance AS MATERIALIZED (
@@ -302,19 +313,41 @@ async function insertNeonPayment(
 					${input.paymentMethods}, ${input.referenceNumber}, ${input.type},
 					${input.description}, NULL, ${input.idempotencyKey}
 				FROM balance
-				WHERE balance."amount_due" = ${input.amount}
+				WHERE balance."amount_due" >= ${input.amount}
 				RETURNING "id", "amount"
 			)
 			SELECT inserted."id" AS "id" FROM inserted
 		`);
 
-	const [, result] = await db.batch([lockQuery, insertQuery]);
+	// C04 dual-write: rent settlements also accrue charges and allocate FIFO
+	// into the period ledger. The gate keeps a suppressed (advance) insert
+	// side-effect free; the batch is one transaction, so all-or-nothing holds.
+	const batch: Array<{ getSQL: () => unknown }> = [lockQuery, insertQuery];
+	if (!input.utilityId && input.type === PAYMENT_TYPES.RENT) {
+		batch.push(
+			db.execute(
+				ensureAccruedChargesSql(
+					{ leaseId: input.leaseId },
+					sql`SELECT 1 FROM "payments" WHERE "id" = ${input.id}`,
+				),
+			),
+			db.execute(allocateRentPaymentsSql(sql`p."id" = ${input.id}`)),
+			db.execute(
+				reportUnallocatedRentPaymentRemaindersSql(sql`p."id" = ${input.id}`),
+			),
+		);
+	}
+	const results = await db.batch(batch);
+	const result = results[1] as (typeof results)[number] & {
+		rows: Array<{ id: string }>;
+	};
 	return result.rows[0]?.id;
 }
 
 async function insertNeonPaymentReversal(
 	db: BatchCapableDatabase,
 	input: {
+		id: string;
 		leaseId: string;
 		amount: number;
 		paymentDate: Date;
@@ -324,7 +357,7 @@ async function insertNeonPaymentReversal(
 		reversesPaymentId: string;
 	},
 ) {
-	const id = crypto.randomUUID();
+	const id = input.id;
 	const lockQuery = db.execute(
 		sql`SELECT ${settlementAdvisoryLock(input.utilityId ? "utility" : "lease", input.utilityId ?? input.leaseId)}`,
 	);
@@ -376,7 +409,16 @@ async function insertNeonPaymentReversal(
 			SELECT inserted."id" AS "id" FROM inserted
 			`);
 
-	const [, result] = await db.batch([lockQuery, insertQuery]);
+	// C04 dual-write: the reversal mirrors its original's period allocations
+	// (a no-op for utility originals — they hold no rent allocations).
+	const results = await db.batch([
+		lockQuery,
+		insertQuery,
+		db.execute(mirrorPaymentReversalSql(input.id, input.reversesPaymentId)),
+	]);
+	const result = results[1] as (typeof results)[number] & {
+		rows: Array<{ id: string }>;
+	};
 	return result.rows[0]?.id;
 }
 
@@ -573,6 +615,7 @@ export const createPayment = ownerProcedure
 			) {
 				try {
 					insertedId = await insertNeonPayment(db, {
+						id: crypto.randomUUID(),
 						leaseId: input.leaseId,
 						amount: input.amount,
 						paymentDate: input.paymentDate,
@@ -639,7 +682,7 @@ export const createPayment = ownerProcedure
 				throw new ORPCError("BAD_REQUEST", {
 					message: utilityId
 						? `Payment must equal the outstanding utility balance of ${formatRupees(due)}. Advance payments are not supported.`
-						: `Payment must equal the outstanding rent balance of ${formatRupees(due)}. Advance payments are not supported.`,
+						: `Payment exceeds the outstanding rent balance of ${formatRupees(due)}. Advance payments are not supported.`,
 				});
 			}
 		} else {
@@ -677,9 +720,11 @@ export const createPayment = ownerProcedure
 					}
 				} else if (input.type === PAYMENT_TYPES.RENT) {
 					const due = await getAmountDueForRent(tx, input.leaseId);
-					if (input.amount !== due) {
+					// C01 R8: partial payments settle part of the balance; only
+					// advances (exceeding what is owed) are refused.
+					if (input.amount > due) {
 						throw new ORPCError("BAD_REQUEST", {
-							message: `Payment must equal the outstanding rent balance of ${formatRupees(due)}. Advance payments are not supported.`,
+							message: `Payment exceeds the outstanding rent balance of ${formatRupees(due)}. Advance payments are not supported.`,
 						});
 					}
 				}
@@ -705,6 +750,23 @@ export const createPayment = ownerProcedure
 						.update(utilities)
 						.set({ isPaid: dueAfter <= 0 })
 						.where(eq(utilities.id, utilityId));
+				} else if ((input.type ?? PAYMENT_TYPES.RENT) === PAYMENT_TYPES.RENT) {
+					// C04 dual-write: accrue charges, allocate FIFO, and list any
+					// remainder a divergent history cannot absorb — atomically.
+					if (!newPayment) {
+						throw new ORPCError("INTERNAL_SERVER_ERROR", {
+							message: "Failed to record payment",
+						});
+					}
+					await tx.execute(ensureAccruedChargesSql({ leaseId: input.leaseId }));
+					await tx.execute(
+						allocateRentPaymentsSql(sql`p."id" = ${newPayment.id}`),
+					);
+					await tx.execute(
+						reportUnallocatedRentPaymentRemaindersSql(
+							sql`p."id" = ${newPayment.id}`,
+						),
+					);
 				}
 
 				return newPayment;
@@ -1096,6 +1158,22 @@ export const createAgreementPayment = ownerProcedure
 				const [, result] = await db.batch([
 					groupedNeonLockQuery(db, agreement.id),
 					insertQuery,
+					// C04 dual-write: accrue every active lease's charges and
+					// allocate the group's rent payments FIFO — same transaction.
+					db.execute(
+						ensureAccruedChargesSql(
+							{ agreementId: agreement.id },
+							sql`SELECT 1 FROM "payment_groups" WHERE "id" = ${groupId}`,
+						),
+					),
+					db.execute(
+						allocateRentPaymentsSql(sql`p."payment_group_id" = ${groupId}`),
+					),
+					db.execute(
+						reportUnallocatedRentPaymentRemaindersSql(
+							sql`p."payment_group_id" = ${groupId}`,
+						),
+					),
 				]);
 				const [row] = result.rows;
 				if (!row?.group_id) {
@@ -1203,6 +1281,20 @@ export const createAgreementPayment = ownerProcedure
 							description: input.description ?? null,
 							paymentGroupId: groupId,
 						})),
+					);
+
+					// C04 dual-write: accrue every active lease's charges and
+					// allocate the group's rent payments FIFO — same transaction.
+					await tx.execute(
+						ensureAccruedChargesSql({ agreementId: agreement.id }),
+					);
+					await tx.execute(
+						allocateRentPaymentsSql(sql`p."payment_group_id" = ${groupId}`),
+					);
+					await tx.execute(
+						reportUnallocatedRentPaymentRemaindersSql(
+							sql`p."payment_group_id" = ${groupId}`,
+						),
 					);
 				});
 			} catch (error) {
@@ -1374,6 +1466,24 @@ export const createCombinedBillPayment = ownerProcedure
 						idempotencyKey,
 						requestFingerprint,
 					}),
+					// C04 dual-write: accrue + allocate the rent leg only —
+					// utility legs never touch the rent ledger.
+					db.execute(
+						ensureAccruedChargesSql(
+							{ leaseId: leaseRow.id },
+							sql`SELECT 1 FROM "payment_groups" WHERE "id" = ${groupId}`,
+						),
+					),
+					db.execute(
+						allocateRentPaymentsSql(
+							sql`p."payment_group_id" = ${groupId} AND p."type" = 'rent'`,
+						),
+					),
+					db.execute(
+						reportUnallocatedRentPaymentRemaindersSql(
+							sql`p."payment_group_id" = ${groupId}`,
+						),
+					),
 				]);
 				const [row] = result.rows;
 				if (!row?.group_id) {
@@ -1501,6 +1611,20 @@ export const createCombinedBillPayment = ownerProcedure
 					for (const { utilityId } of utilityDues) {
 						await syncUtilityPaidFlag(tx, utilityId);
 					}
+
+					// C04 dual-write: accrue + allocate the rent leg only —
+					// utility legs never touch the rent ledger.
+					await tx.execute(ensureAccruedChargesSql({ leaseId: leaseRow.id }));
+					await tx.execute(
+						allocateRentPaymentsSql(
+							sql`p."payment_group_id" = ${groupId} AND p."type" = 'rent'`,
+						),
+					);
+					await tx.execute(
+						reportUnallocatedRentPaymentRemaindersSql(
+							sql`p."payment_group_id" = ${groupId}`,
+						),
+					);
 				});
 			} catch (error) {
 				// The aborted transaction cannot be reused — converge outside it.
@@ -1678,6 +1802,7 @@ export const voidPayment = ownerProcedure
 		if (supportsBatch(db)) {
 			try {
 				const reversalId = await insertNeonPaymentReversal(db, {
+					id: crypto.randomUUID(),
 					leaseId: existing.leaseId,
 					amount: -existing.amount,
 					paymentDate: new Date(),
@@ -1723,6 +1848,7 @@ export const voidPayment = ownerProcedure
 					const [reversalRow] = await tx
 						.insert(payments)
 						.values({
+							id: crypto.randomUUID(),
 							leaseId: existing.leaseId,
 							amount: -existing.amount,
 							paymentDate: new Date(),
@@ -1736,6 +1862,13 @@ export const voidPayment = ownerProcedure
 
 					if (utilityId) {
 						await syncUtilityPaidFlag(tx, utilityId);
+					}
+
+					// C04 dual-write: undo the original's period allocations.
+					if (reversalRow) {
+						await tx.execute(
+							mirrorPaymentReversalSql(reversalRow.id, existing.id),
+						);
 					}
 
 					return reversalRow;
@@ -1865,6 +1998,9 @@ export const voidPaymentGroup = ownerProcedure
 				await db.batch([
 					db.insert(paymentGroups).values(reversalGroupValues),
 					...reversalValues.map((values) => db.insert(payments).values(values)),
+					// C04 dual-write: the group's reversals undo the originals'
+					// period allocations.
+					db.execute(mirrorPaymentGroupReversalsSql(reversalGroupId)),
 				]);
 			} catch (error) {
 				if (violationCode(error) !== "23505") throw error;
@@ -1877,6 +2013,10 @@ export const voidPaymentGroup = ownerProcedure
 				await db.transaction(async (tx) => {
 					await tx.insert(paymentGroups).values(reversalGroupValues);
 					await tx.insert(payments).values(reversalValues);
+
+					// C04 dual-write: the group's reversals undo the originals'
+					// period allocations.
+					await tx.execute(mirrorPaymentGroupReversalsSql(reversalGroupId));
 				});
 			} catch (error) {
 				// The aborted transaction cannot be reused — converge outside it.

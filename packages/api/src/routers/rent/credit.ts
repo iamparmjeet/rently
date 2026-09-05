@@ -72,6 +72,11 @@ import {
 	getAmountDueForUtility,
 	syncUtilityPaidState,
 } from "../helpers/credit.helpers";
+import {
+	allocateRentCreditSql,
+	ensureAccruedChargesSql,
+	mirrorCreditReversalSql,
+} from "../helpers/rent-period";
 import { settlementAdvisoryLock } from "../helpers/settlement-lock";
 
 // *********** Helper **********************
@@ -190,7 +195,24 @@ async function insertNeonCredit(
 			SELECT inserted."id" AS "id" FROM inserted
 			`);
 
-	const [, result] = await db.batch([lockQuery, insertQuery]);
+	// C04 dual-write: a rent-scoped discount also settles the oldest period
+	// charges. The gate keeps a suppressed (over-limit) insert side-effect free.
+	const batch: Array<{ getSQL: () => unknown }> = [lockQuery, insertQuery];
+	if (!input.utilityId) {
+		batch.push(
+			db.execute(
+				ensureAccruedChargesSql(
+					{ leaseId: input.leaseId },
+					sql`SELECT 1 FROM "bill_credits" WHERE "id" = ${input.id}`,
+				),
+			),
+			db.execute(allocateRentCreditSql(input.id)),
+		);
+	}
+	const results = await db.batch(batch);
+	const result = results[1] as (typeof results)[number] & {
+		rows: Array<{ id: string }>;
+	};
 	return result.rows[0]?.id;
 }
 
@@ -357,8 +379,17 @@ export const createCredit = ownerProcedure
 					idempotencyKey,
 				})
 				.returning();
+			if (!row) {
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message: "Failed to create credit",
+				});
+			}
 			if (input.utilityId) {
 				await syncUtilityPaidState(tx, input.utilityId);
+			} else {
+				// C04 dual-write: the discount settles the oldest period charges.
+				await tx.execute(ensureAccruedChargesSql({ leaseId: input.leaseId }));
+				await tx.execute(allocateRentCreditSql(row.id));
 			}
 			return { credit: row };
 		});
@@ -386,7 +417,13 @@ export const reverseCredit = ownerProcedure
 
 		if (existing.reversedAt) {
 			const retry = await findReversalByCredit(db, existing.id);
-			if (retry) return { credit: existing, reversal: retry };
+			if (retry) {
+				if (!existing.utilityId) {
+					// C04 dual-write self-healing: guarantee the mirror exists.
+					await db.execute(mirrorCreditReversalSql(retry.id));
+				}
+				return { credit: existing, reversal: retry };
+			}
 			throw new ORPCError("CONFLICT", { message: "Already reversed" });
 		}
 
@@ -444,6 +481,9 @@ export const reverseCredit = ownerProcedure
 
 			if (existing.utilityId) {
 				await syncUtilityPaidState(db, existing.utilityId);
+			} else {
+				// C04 dual-write: the reversal undoes the original's allocations.
+				await db.execute(mirrorCreditReversalSql(reversal?.id as string));
 			}
 
 			return { credit: updated, reversal };
@@ -486,6 +526,9 @@ export const reverseCredit = ownerProcedure
 
 				if (existing.utilityId) {
 					await syncUtilityPaidState(tx, existing.utilityId);
+				} else {
+					// C04 dual-write: undo the original's period allocations.
+					await tx.execute(mirrorCreditReversalSql(reversal.id));
 				}
 
 				return { credit: updated, reversal };

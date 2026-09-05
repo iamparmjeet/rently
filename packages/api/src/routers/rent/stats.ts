@@ -1,11 +1,10 @@
-import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
-import { user } from "@rently/db/schema/auth";
-import { leases, payments, properties, units } from "@rently/db/schema/schema";
+import { leases, properties, units } from "@rently/db/schema/schema";
 import { OverdueLeasesResponseSchema } from "@rently/validators";
-import { and, count, desc, eq, gte, isNull, ne, sql, sum } from "drizzle-orm";
+import { and, count, eq, isNull } from "drizzle-orm";
 import z from "zod";
 import { ownerProcedure } from "../../procedures";
 import { queryOverdueLeases } from "../helpers/overdue-query";
+import { getSignedLedgerPayments } from "../helpers/signed-ledger";
 
 const DashboardStatsSchema = z.object({
 	totalProperties: z.number().int(),
@@ -139,64 +138,40 @@ export const getRevenueDashboard = ownerProcedure
 		const twelveMonthsAgo = new Date(now.getFullYear(), now.getMonth() - 11, 1);
 
 		// 2) Revenue By Month
-		const [revenueRows, recentRows, overdueLeases] = await Promise.all([
-			db
-				.select({
-					monthStart: sql<Date>`date_trunc('month', ${payments.paymentDate})`,
-					total: sum(payments.amount),
-				})
-				.from(payments)
-				// Ownership chain: payment → lease → unit → property → ownerId
-				.innerJoin(leases, eq(payments.leaseId, leases.id))
-				.innerJoin(units, eq(leases.unitId, units.id))
-				.innerJoin(properties, eq(units.propertyId, properties.id))
-				.where(
-					and(
-						eq(properties.ownerId, authUser.id),
-						ne(payments.type, PAYMENT_TYPES.REVERSAL),
-						gte(payments.paymentDate, twelveMonthsAgo),
-					),
-				)
-				.groupBy(sql`date_trunc('month', ${payments.paymentDate})`)
-				.orderBy(sql`date_trunc('month', ${payments.paymentDate}) asc`),
-
-			// 3) - Recent RecentTransactin
-			db
-				.select({
-					id: payments.id,
-					amount: payments.amount,
-					type: payments.type,
-					paymentDate: payments.paymentDate,
-					tenantName: user.name,
-					description: payments.description,
-				})
-				.from(payments)
-				.innerJoin(leases, eq(payments.leaseId, leases.id))
-				.innerJoin(units, eq(leases.unitId, units.id))
-				.innerJoin(properties, eq(units.propertyId, properties.id))
-				.innerJoin(user, eq(leases.tenantId, user.id))
-				.where(
-					and(
-						eq(properties.ownerId, authUser.id),
-						ne(payments.type, PAYMENT_TYPES.REVERSAL),
-					),
-				)
-				.orderBy(desc(payments.paymentDate))
-				.limit(5),
-
+		const [revenueRows, allPaymentRows, overdueLeases] = await Promise.all([
+			getSignedLedgerPayments(db, {
+				ownerId: authUser.id,
+				from: twelveMonthsAgo,
+			}),
+			getSignedLedgerPayments(db, { ownerId: authUser.id }),
 			queryOverdueLeases(db, now, authUser.id),
 		]);
+
+		const recentRows = [...allPaymentRows]
+			.sort(
+				(a, b) =>
+					b.paymentDate.getTime() - a.paymentDate.getTime() ||
+					b.createdAt.getTime() - a.createdAt.getTime() ||
+					b.id.localeCompare(a.id),
+			)
+			.slice(0, 5)
+			.map((row) => ({
+				id: row.id,
+				amount: row.amount,
+				type: row.type,
+				paymentDate: row.paymentDate,
+				tenantName: row.tenantName,
+				description: row.description,
+			}));
 
 		// 4 ) - Generate All 12 month buckets
 		const revenueMap = new Map<string, number>();
 		for (const row of revenueRows) {
-			const d =
-				row.monthStart instanceof Date
-					? row.monthStart
-					: new Date(row.monthStart);
+			if (!row.category) continue;
+			const d = row.paymentDate;
 
 			const key = `${d.getFullYear()}-${d.getMonth()}`;
-			revenueMap.set(key, Number(row.total ?? 0));
+			revenueMap.set(key, (revenueMap.get(key) ?? 0) + row.amount);
 		}
 
 		const revenueByMonth = Array.from({ length: 12 }, (_, i) => {

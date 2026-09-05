@@ -15,6 +15,7 @@ import { PaymentReceiptDataSchema } from "@rently/validators";
 import { and, eq, isNull, type SQL } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import z from "zod";
+import { getSignedLedgerPayments } from "../helpers/signed-ledger";
 
 const tenantUser = alias(user, "receipt_tenant");
 
@@ -76,7 +77,16 @@ async function findReceipt(
 		.where(and(eq(payments.id, paymentId), scope))
 		.limit(1);
 
-	return row;
+	if (!row) return row;
+
+	const [ledgerRow] = await getSignedLedgerPayments(db, {
+		paymentIds: [paymentId],
+	});
+	return {
+		...row,
+		ledgerCategory: ledgerRow?.category ?? null,
+		isReversed: ledgerRow?.isReversed ?? false,
+	};
 }
 
 async function getReceiptAllocations(
@@ -105,7 +115,7 @@ async function toReceipt(
 	db: import("@rently/db").Database,
 	row: NonNullable<Awaited<ReturnType<typeof findReceipt>>>,
 ) {
-	if (row.paymentType === PAYMENT_TYPES.REVERSAL) {
+	if (row.paymentType === PAYMENT_TYPES.REVERSAL || row.isReversed) {
 		throw new ORPCError("BAD_REQUEST", {
 			message: "A receipt cannot be generated for a reversal.",
 		});

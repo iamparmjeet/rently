@@ -235,7 +235,14 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Plan: move the idempotency key and fingerprint to `payment_groups`, add one additive migration and an agreement-scoped partial unique index, remove the group key from child allocation writes, and test cross-agreement, cross-owner, and changed-request replay behavior.
 - Changed: migration `0030` adds nullable `payment_groups.idempotency_key` and `request_fingerprint` plus the partial agreement/key index; grouped replay and unique-race adoption are owner/agreement scoped; new child allocations no longer repeat the group key; API responses omit internal metadata.
 - Verification: `db:generate` no drift -> `check-types --force` 6/6 -> focused Biome -> `db:migrate:test` -> focused suite 14/14 -> full Vitest 253/253 -> local build 5/5. Command-line test values targeted only disposable local Docker `rently_test`/`rently_dev`; no `.env` files were retained.
-- Commit: `b1ff195` (`fix(payment): scope grouped idempotency replay`). No push or merge performed.
+- Commit: `52de2c02` (`fix(payment): scope grouped idempotency replay`), opened PR #18 into `integ/phase-a-baseline` and merged after post-rebase CI passed.
 - Review debt: Terra High final review remains required for B09 before integration merge.
 - Rollback: revert the B09 commit or restore the files to `pre-group-payment-idempotency-scope`; if the additive migration has been applied, use a forward corrective migration rather than deleting ledger rows.
 - Constraints: no `main`, no production/`.env`/wrangler mutations, no non-null compatibility FKs, and no business-semantic changes outside grouped-payment replay.
+
+## B12 Canonical ledger reads (2026-09-05, Codex, branch fix/canonical-ledger-reads)
+- Base confirmed: `integ/phase-a-baseline@7cc9bfbc`; rollback tag `pre-canonical-ledger-reads`; `main` was not used or modified.
+- Signed-ledger implementation is complete. Focused suite passes 2/2; full Vitest passes 252/252; local build passes 5/5.
+- Required gates passed: `db:generate` no drift, `check-types --force` 6/6, focused Biome, and `db:migrate:test`.
+- Build-generated `next-env.d.ts` changes were restored; no `.env` files were retained.
+- Sol/Terra final review remains tracked review debt before any `[x]` or `main` rollup.

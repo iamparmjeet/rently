@@ -1,5 +1,6 @@
 import dotenv from "dotenv";
 import { defineConfig } from "drizzle-kit";
+import { assertAllowedTestDatabaseUrl } from "./src/test-db-guard";
 
 const isTestMigration = process.env.DRIZZLE_ENV === "test";
 const isLocalMigration = process.env.DRIZZLE_ENV === "local";
@@ -13,10 +14,8 @@ dotenv.config({
 
 const databaseUrl = new URL(process.env.DATABASE_URL ?? "");
 
-if (isTestMigration && databaseUrl.pathname !== "/rently_test") {
-	throw new Error(
-		"Test migrations may run only against the rently_test database. Check apps/server/.env.test.",
-	);
+if (isTestMigration) {
+	assertAllowedTestDatabaseUrl(process.env.DATABASE_URL, "Test migrations");
 }
 
 if (

@@ -1,19 +1,14 @@
 import { fileURLToPath } from "node:url";
 import { config } from "dotenv";
 import { defineConfig } from "vitest/config";
+import { assertAllowedTestDatabaseUrl } from "./packages/db/src/test-db-guard";
 
 config({
 	path: "apps/server/.env.test",
 	override: true,
 });
 
-const databaseUrl = new URL(process.env.DATABASE_URL ?? "");
-
-if (databaseUrl.pathname !== "/rently_test") {
-	throw new Error(
-		"Tests may run only against the rently_test database. Check apps/server/.env.test.",
-	);
-}
+assertAllowedTestDatabaseUrl(process.env.DATABASE_URL, "Tests");
 
 export default defineConfig({
 	oxc: {

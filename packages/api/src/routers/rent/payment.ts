@@ -72,6 +72,44 @@ function isUniqueViolation(error: unknown): boolean {
 	);
 }
 
+// Drizzle wraps driver errors (the Postgres code nests under cause); read
+// both so constraint arbitration works on every path.
+function violationCode(error: unknown): string | undefined {
+	const top = error as { code?: unknown; cause?: unknown } | null;
+	if (typeof top?.code === "string") return top.code;
+	const cause = top?.cause as { code?: unknown } | null | undefined;
+	if (typeof cause?.code === "string") return cause.code;
+	return undefined;
+}
+
+async function findReversalByOriginal(
+	db: Pick<Database, "select">,
+	originalId: string,
+) {
+	const [row] = await db
+		.select()
+		.from(payments)
+		.where(
+			and(
+				eq(payments.type, PAYMENT_TYPES.REVERSAL),
+				eq(payments.reversesPaymentId, originalId),
+			),
+		)
+		.limit(1);
+	return row;
+}
+
+async function syncUtilityPaidFlag(
+	db: Pick<Database, "select" | "update">,
+	utilityId: string,
+) {
+	const dueAfter = await getAmountDueForUtility(db, utilityId);
+	await db
+		.update(utilities)
+		.set({ isPaid: dueAfter <= 0 })
+		.where(eq(utilities.id, utilityId));
+}
+
 // ─── Shared helper ─────
 function assertMethodAllowedForRole(
 	method: string | null | undefined,
@@ -664,51 +702,20 @@ export const voidPayment = ownerProcedure
 			});
 		}
 
-		// Duplicate-void guard: one reversal per original payment
-		const [alreadyReversed] = await db
-			.select({ id: payments.id })
-			.from(payments)
-			.where(
-				and(
-					eq(payments.type, PAYMENT_TYPES.REVERSAL),
-					eq(payments.referenceNumber, existing.id),
-				),
-			)
-			.limit(1);
+		// Idempotent void: a retry after timeout (or a concurrent loser) gets
+		// the existing reversal instead of an error. The unique partial index
+		// on the link arbitrates genuine races below.
+		const alreadyReversed = await findReversalByOriginal(db, existing.id);
 		if (alreadyReversed) {
-			throw new ORPCError("BAD_REQUEST", {
-				message: "Payment already voided",
-			});
+			return { reversal: alreadyReversed };
 		}
 
 		const utilityId = existing.utilityId;
 
 		let reversal: typeof payments.$inferSelect | undefined;
 		if (supportsBatch(db)) {
-			const [reversalRow] = await db
-				.insert(payments)
-				.values({
-					leaseId: existing.leaseId,
-					amount: -existing.amount,
-					paymentDate: new Date(),
-					type: PAYMENT_TYPES.REVERSAL,
-					description: input.reason ?? `Reversal of payment ${existing.id}`,
-					referenceNumber: existing.id,
-					utilityId,
-					reversesPaymentId: existing.id,
-				})
-				.returning();
-			reversal = reversalRow;
-			if (utilityId && reversal) {
-				const dueAfter = await getAmountDueForUtility(db, utilityId);
-				await db
-					.update(utilities)
-					.set({ isPaid: dueAfter <= 0 })
-					.where(eq(utilities.id, utilityId));
-			}
-		} else {
-			reversal = await db.transaction(async (tx) => {
-				const [reversalRow] = await tx
+			try {
+				const [reversalRow] = await db
 					.insert(payments)
 					.values({
 						leaseId: existing.leaseId,
@@ -721,17 +728,49 @@ export const voidPayment = ownerProcedure
 						reversesPaymentId: existing.id,
 					})
 					.returning();
+				reversal = reversalRow;
+			} catch (error) {
+				if (violationCode(error) !== "23505") throw error;
+				const winner = await findReversalByOriginal(db, existing.id);
+				if (!winner) throw error;
+				reversal = winner;
+			}
+			if (utilityId && reversal) {
+				await syncUtilityPaidFlag(db, utilityId);
+			}
+		} else {
+			try {
+				reversal = await db.transaction(async (tx) => {
+					const [reversalRow] = await tx
+						.insert(payments)
+						.values({
+							leaseId: existing.leaseId,
+							amount: -existing.amount,
+							paymentDate: new Date(),
+							type: PAYMENT_TYPES.REVERSAL,
+							description: input.reason ?? `Reversal of payment ${existing.id}`,
+							referenceNumber: existing.id,
+							utilityId,
+							reversesPaymentId: existing.id,
+						})
+						.returning();
 
+					if (utilityId) {
+						await syncUtilityPaidFlag(tx, utilityId);
+					}
+
+					return reversalRow;
+				});
+			} catch (error) {
+				// The aborted transaction cannot be reused — converge outside it.
+				if (violationCode(error) !== "23505") throw error;
+				const winner = await findReversalByOriginal(db, existing.id);
+				if (!winner) throw error;
+				reversal = winner;
 				if (utilityId) {
-					const dueAfter = await getAmountDueForUtility(tx, utilityId);
-					await tx
-						.update(utilities)
-						.set({ isPaid: dueAfter <= 0 })
-						.where(eq(utilities.id, utilityId));
+					await syncUtilityPaidFlag(db, utilityId);
 				}
-
-				return reversalRow;
-			});
+			}
 		}
 
 		if (!reversal) {

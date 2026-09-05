@@ -285,6 +285,13 @@ export const payments = pgTable(
 			"payments_reversal_link_check",
 			sql`(${table.type} = 'reversal' and ${table.reversesPaymentId} is not null) or (${table.type} != 'reversal' and ${table.reversesPaymentId} is null)`,
 		),
+		// One reversal per original: concurrent voids arbitrate on this index
+		// (B04). The null guard is belt-and-braces beside the link CHECK.
+		uniqueIndex("payments_one_reversal_per_original")
+			.on(table.reversesPaymentId)
+			.where(
+				sql`${table.type} = 'reversal' and ${table.reversesPaymentId} is not null`,
+			),
 		uniqueIndex("payments_lease_idempotency_key")
 			.on(table.leaseId, table.idempotencyKey)
 			.where(sql`${table.idempotencyKey} is not null`),

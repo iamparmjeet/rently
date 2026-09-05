@@ -1,5 +1,43 @@
 # Decisions
 
+## 2026-09-06 - C01 rent-period business rules approved
+
+**Decision:** Adopt `docs/Rent-Period-Rules.md` as the contract for Phase C.
+Periods are IST calendar months keyed `YYYY-MM`; due dates clamp to the month's
+last day with no carry-over. The first and last periods of a tenancy are
+PRORATED by active days (`round_half_up(rent × activeDays ÷ daysInMonth)`).
+Partial payments are accepted in arbitrary amounts and allocated
+oldest-period-first (FIFO), with at most one future period prepayable beyond
+outstanding. Backdated lease registration creates charges for every elapsed
+period (first prorated) as immediately-outstanding arrears the owner settles
+in any amounts via FIFO allocation. Termination stops accrual at the endDate
+period but keeps arrears collectible; renewal is a new lease row, never a
+date rewrite.
+
+**Why:** The owner approved each point on 2026-09-06 after reviewing drafted
+options against shipped behavior. Proration and partial payments match how
+the owner actually collects rent (tenants moving mid-month, backdated
+registrations with 1–2 months of pending rent paid alongside the current
+month); the FIFO + capped-prepay mechanism keeps every paise allocated,
+auditable, and bounded without inventing history.
+
+**Alternatives:** Full-month charges at both edges (rejected: owner chose
+days-stayed); keeping the full-balance-only settlement rule (rejected: it
+cannot express the owner's backdated-arrears collections); unlimited prepay
+(rejected: inflates advance-held reporting and complicates refunds — H04);
+extending endDate for renewal (rejected: rewrites historical terms, conflicts
+with E06 immutability).
+
+**Tradeoff:** C02 must carry per-period charges plus per-allocation rows and a
+prepay cap; C03 backfill must prorate historical first/last periods from lease
+dates and route ambiguous dates to an exception report; C04 introduces the
+first API contract change of the plan (partial amounts), staged behind the
+dual-write; C08 must prevent a burst of overdue notices for periods elapsed
+before a backdated registration.
+
+**Model:** ZLM 5.3 Flash (drafted from shipped-code behavior); product
+decisions and approval: Parmjeet Mishra (owner, 2026-09-06).
+
 ## 2026-09-06 - B11 atomic combined-bill command
 
 **Decision:** Replace the dashboard's parallel per-leg combined-bill mutations

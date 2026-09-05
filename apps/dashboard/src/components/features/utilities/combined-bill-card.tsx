@@ -23,8 +23,14 @@ export function CombinedBillCard({
 	group,
 	onViewDetail,
 }: CombinedBillCardProps) {
-	const { lease, grandTotal, electricityTotal, waterTotal, maintenanceTotal } =
-		group;
+	const {
+		lease,
+		grandTotal,
+		rentDue,
+		electricityTotal,
+		waterTotal,
+		maintenanceTotal,
+	} = group;
 
 	const initials = (lease.tenantName ?? "?")
 		.split(" ")
@@ -33,7 +39,7 @@ export function CombinedBillCard({
 		.toUpperCase()
 		.slice(0, 2);
 
-	const allPaid = group.utilities.every((u) => u.isPaid);
+	const allPaid = group.allPaid;
 	const periodLabel = group.period.toLocaleDateString("en-IN", {
 		month: "long",
 		year: "numeric",
@@ -45,7 +51,7 @@ export function CombinedBillCard({
 			[
 				`Dear ${lease.tenantName ?? "Tenant"},`,
 				"Your bill summary for this month:",
-				`• Rent: ${formatRupees(lease.rent)}`,
+				`• Rent: ${formatRupees(rentDue)}`,
 				electricityTotal > 0
 					? `• Electricity: ${formatRupees(electricityTotal)}`
 					: null,
@@ -103,7 +109,7 @@ export function CombinedBillCard({
 			</CardHeader>
 
 			<CardContent className="space-y-2.5 bg-card px-5 py-4">
-				<BillLine label="Rent" amount={lease.rent} />
+				<BillLine label="Rent" amount={rentDue} />
 				{electricityTotal > 0 && (
 					<BillLine label="Electricity" amount={electricityTotal} />
 				)}

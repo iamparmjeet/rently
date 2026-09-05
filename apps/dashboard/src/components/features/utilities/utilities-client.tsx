@@ -4,6 +4,7 @@ import {
 	FIXEDCHARGE,
 	RATEPERUNIT,
 } from "@rently/db/constants/payment-constants";
+import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import { Button } from "@rently/ui/components/button";
 import { Input } from "@rently/ui/components/input";
 
@@ -35,6 +36,7 @@ import { useMemo, useState } from "react";
 import { UtilityForm } from "@/components/forms/utility-form";
 import { Container } from "@/components/shared/container";
 import { useSuspenseLeases } from "@/hooks/leases";
+import { useSuspensePayments } from "@/hooks/payments";
 import {
 	useOptimisticCreateBatchUtility,
 	useOptimisticRemoveUtility,
@@ -71,6 +73,7 @@ type BatchItem = Parameters<
 export default function UtilitiesClient() {
 	const { data } = useSuspenseUtilities();
 	const { data: leasesData } = useSuspenseLeases();
+	const { data: paymentsData } = useSuspensePayments();
 
 	const createBatch = useOptimisticCreateBatchUtility();
 	const updateUtility = useOptimisticUpdateUtility();
@@ -92,6 +95,7 @@ export default function UtilitiesClient() {
 
 	const utilities = data?.utilities ?? [];
 	const leases = leasesData?.leases ?? [];
+	const payments = paymentsData?.payments ?? [];
 
 	// ── Derived: filter by type + search ─────────────────────────────────────
 	const filtered = useMemo(() => {
@@ -143,10 +147,25 @@ export default function UtilitiesClient() {
 	// sum all utility totals. Then add the lease's rent for the grand total.
 	const combinedGroups = useMemo((): CombinedBillGroup[] => {
 		const map = new Map<string, CombinedBillGroup>();
+		const rentPaidByLease = new Map<string, number>();
+		for (const payment of payments) {
+			if (
+				payment.utilityId == null &&
+				(payment.type === PAYMENT_TYPES.RENT ||
+					payment.type === PAYMENT_TYPES.REVERSAL)
+			) {
+				rentPaidByLease.set(
+					payment.leaseId,
+					(rentPaidByLease.get(payment.leaseId) ?? 0) + payment.amount,
+				);
+			}
+		}
 
 		const getDueC = (u: (typeof utilities)[number]) =>
 			(u as { amountDue?: number }).amountDue ?? u.totalAmount;
 		const isPaidC = (u: (typeof utilities)[number]) => getDueC(u) <= 0;
+		const getRentDue = (lease: (typeof leases)[number]) =>
+			Math.max(0, lease.rent - (rentPaidByLease.get(lease.leaseId) ?? 0));
 
 		for (const u of utilities) {
 			const lease = leases.find((l) => l.leaseId === u.leaseId);
@@ -154,7 +173,8 @@ export default function UtilitiesClient() {
 			const period = new Date(u.currentReadingDate);
 			const periodKey = `${period.getFullYear()}-${period.getMonth()}`;
 			const groupId = `${u.leaseId}-${periodKey}`;
-			const due = getDueC(u);
+			const due = Math.max(0, getDueC(u));
+			const rentDue = getRentDue(lease);
 
 			const existing = map.get(groupId);
 
@@ -165,7 +185,7 @@ export default function UtilitiesClient() {
 				if (u.utilityType === "maintenance") existing.maintenanceTotal += due;
 				existing.utilityTotal += due;
 				existing.grandTotal += due;
-				existing.allPaid = existing.allPaid && isPaidC(u);
+				existing.allPaid = existing.allPaid && isPaidC(u) && rentDue <= 0;
 			} else {
 				map.set(groupId, {
 					id: groupId,
@@ -176,9 +196,9 @@ export default function UtilitiesClient() {
 					waterTotal: u.utilityType === "water" ? due : 0,
 					maintenanceTotal: u.utilityType === "maintenance" ? due : 0,
 					utilityTotal: due,
-					// grandTotal starts with rent + this first utility (discounted)
-					grandTotal: lease.rent + due,
-					allPaid: isPaidC(u),
+					rentDue,
+					grandTotal: rentDue + due,
+					allPaid: isPaidC(u) && rentDue <= 0,
 				});
 			}
 		}
@@ -188,7 +208,7 @@ export default function UtilitiesClient() {
 				b.period.getTime() - a.period.getTime() ||
 				(a.lease.tenantName ?? "").localeCompare(b.lease.tenantName ?? ""),
 		);
-	}, [utilities, leases]);
+	}, [utilities, leases, payments]);
 
 	const filteredCombinedGroups = useMemo(() => {
 		const q = search.toLowerCase();
@@ -564,7 +584,7 @@ export default function UtilitiesClient() {
 										key={group.id}
 										group={group}
 										onViewDetail={() => {
-											setDetailRent(group.lease.rent);
+											setDetailRent(group.rentDue);
 											setDetailItems(group.utilities);
 										}}
 									/>
@@ -577,7 +597,7 @@ export default function UtilitiesClient() {
 										key={group.id}
 										group={group}
 										onViewDetail={() => {
-											setDetailRent(group.lease.rent);
+											setDetailRent(group.rentDue);
 											setDetailItems(group.utilities);
 										}}
 									/>
@@ -645,9 +665,10 @@ export default function UtilitiesClient() {
 						setMarkPaidTarget(utility);
 					}}
 					onMarkPaidCombined={() => setCombinedPayOpen(true)}
-					onEdit={() => {
+					onEdit={(utility) => {
 						setDetailItems([]);
 						setDetailRent(null);
+						setEditTarget(utility);
 					}}
 				/>
 

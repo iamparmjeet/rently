@@ -4,7 +4,11 @@ import {
 	FIXEDCHARGE,
 	RATEPERUNIT,
 } from "@rently/db/constants/payment-constants";
-import { formatRupees, paiseToFormValue } from "@rently/ui/lib/currency";
+import {
+	formatRupees,
+	paiseToFormValue,
+	toPaise,
+} from "@rently/ui/lib/currency";
 import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
 import type {
@@ -38,20 +42,27 @@ export function UtilityCardActions({
 
 	const updateUtility = useOptimisticUpdateUtility();
 	const removeUtility = useOptimisticRemoveUtility();
+	const isPaid =
+		((utility as { amountDue?: number }).amountDue ?? utility.totalAmount) <= 0;
+	const isFinanciallyLocked = utility.hasReversedPayment ?? false;
 
 	function handleEditSubmit(values: UtilityBatchFormValues) {
 		const typeFields = (() => {
 			if (utility.utilityType === "electricity" && values.electricity) {
 				const { isPaid: _isPaid, ...rest } = values.electricity;
-				return rest;
+				return {
+					...rest,
+					ratePerUnit: toPaise(rest.ratePerUnit),
+					fixedCharge: toPaise(rest.fixedCharge),
+				};
 			}
 			if (utility.utilityType === "water" && values.water) {
 				const { isPaid: _isPaid, ...rest } = values.water;
-				return rest;
+				return { ...rest, fixedCharge: toPaise(rest.fixedCharge) };
 			}
 			if (utility.utilityType === "maintenance" && values.maintenance) {
 				const { isPaid: _isPaid, ...rest } = values.maintenance;
-				return rest;
+				return { ...rest, fixedCharge: toPaise(rest.fixedCharge) };
 			}
 			return {} as const;
 		})();
@@ -125,10 +136,12 @@ export function UtilityCardActions({
 			<UtilityCard
 				utility={utility}
 				actionsSlot={
-					<ActionsMenu
-						onEdit={editDialog.openDialog}
-						onDelete={deleteDialog.openDialog}
-					/>
+					!isPaid && !isFinanciallyLocked ? (
+						<ActionsMenu
+							onEdit={editDialog.openDialog}
+							onDelete={deleteDialog.openDialog}
+						/>
+					) : undefined
 				}
 				isDeleting={removeUtility.isPending}
 				onWhatsApp={utility.tenantPhone ? handleWhatsApp : undefined}

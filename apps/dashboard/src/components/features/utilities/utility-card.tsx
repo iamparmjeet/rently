@@ -72,8 +72,22 @@ export function UtilityCard({
 
 	const amountDue = (u as { amountDue?: number }).amountDue ?? u.totalAmount;
 	const isPaidDerived = amountDue <= 0;
-	const hasDiscount = (u.credits?.length ?? 0) > 0;
+	const hasReversedPayment = u.hasReversedPayment ?? false;
+	const creditTotal = (u.credits ?? []).reduce(
+		(sum, credit) => sum + credit.amount,
+		0,
+	);
+	const hasDiscount = creditTotal !== 0;
 	const showDiscount = hasDiscount && amountDue !== u.totalAmount;
+	const discountedAmount =
+		u.totalAmount +
+		(u.credits ?? []).reduce((sum, credit) => sum + credit.amount, 0);
+	const displayedAmount = isPaidDerived ? discountedAmount : amountDue;
+	const amountLabel = isPaidDerived
+		? "Bill amount"
+		: showDiscount
+			? "Amount due"
+			: "Amount";
 
 	const dateDisplay = new Date(u.currentReadingDate).toLocaleDateString(
 		"en-IN",
@@ -92,6 +106,10 @@ export function UtilityCard({
 		utilityId: u.id,
 		receiptPaymentId: u.receiptPaymentId,
 	});
+	const readingDate = format(new Date(u.currentReadingDate), "dd MMM yyyy");
+	const paidDate = u.receiptPaymentDate
+		? format(new Date(u.receiptPaymentDate), "dd MMM yyyy")
+		: null;
 
 	return (
 		<Card
@@ -139,7 +157,11 @@ export function UtilityCard({
 									: "bg-amber-50 text-amber-700"
 							}
 						>
-							{isPaidDerived ? "Paid" : "Unpaid"}
+							{isPaidDerived
+								? "Paid"
+								: hasReversedPayment
+									? "Payment voided"
+									: "Unpaid"}
 						</Badge>
 						{actionsSlot}
 					</div>
@@ -159,17 +181,25 @@ export function UtilityCard({
 									</span>
 								</p>
 							</div>
-							<div className="text-right">
-								<p className="text-muted-foreground text-xs">
-									{showDiscount ? "Amount due" : "Amount"}
-								</p>
-								<p className="mt-1 font-bold text-lg tabular-nums tracking-tight">
-									{formatRupees(amountDue)}
-								</p>
-								{showDiscount ? (
-									<p className="text-muted-foreground text-xs line-through">
-										{formatRupees(u.totalAmount)}
+							<div className="flex gap-4 text-right">
+								<div>
+									<p className="text-muted-foreground text-xs">{amountLabel}</p>
+									<p className="mt-1 font-bold text-lg tabular-nums tracking-tight">
+										{formatRupees(displayedAmount)}
 									</p>
+									{showDiscount ? (
+										<p className="text-muted-foreground text-xs line-through">
+											{formatRupees(u.totalAmount)}
+										</p>
+									) : null}
+								</div>
+								{isPaidDerived && hasDiscount ? (
+									<div>
+										<p className="text-muted-foreground text-xs">Due</p>
+										<p className="mt-1 font-bold text-emerald-700 text-lg tabular-nums tracking-tight">
+											{formatRupees(amountDue)}
+										</p>
+									</div>
 								) : null}
 							</div>
 						</div>
@@ -190,17 +220,25 @@ export function UtilityCard({
 					</>
 				) : (
 					<>
-						<div>
-							<p className="text-muted-foreground text-xs">
-								{showDiscount ? "Amount due" : "Amount"}
-							</p>
-							<p className="mt-1 font-bold text-lg tabular-nums tracking-tight">
-								{formatRupees(amountDue)}
-							</p>
-							{showDiscount ? (
-								<p className="text-muted-foreground text-xs line-through">
-									{formatRupees(u.totalAmount)}
+						<div className="flex gap-4">
+							<div>
+								<p className="text-muted-foreground text-xs">{amountLabel}</p>
+								<p className="mt-1 font-bold text-lg tabular-nums tracking-tight">
+									{formatRupees(displayedAmount)}
 								</p>
+								{showDiscount ? (
+									<p className="text-muted-foreground text-xs line-through">
+										{formatRupees(u.totalAmount)}
+									</p>
+								) : null}
+							</div>
+							{isPaidDerived && hasDiscount ? (
+								<div>
+									<p className="text-muted-foreground text-xs">Due</p>
+									<p className="mt-1 font-bold text-emerald-700 text-lg tabular-nums tracking-tight">
+										{formatRupees(amountDue)}
+									</p>
+								</div>
 							) : null}
 						</div>
 						<div>
@@ -217,15 +255,24 @@ export function UtilityCard({
 			</CardContent>
 
 			<CardFooter className="flex w-full items-center justify-between gap-3 border-t px-5 py-3.5">
-				<p className="min-w-0 truncate text-muted-foreground text-xs">
-					<span className="whitespace-nowrap">
-						Created {format(new Date(u.createdAt), "dd MMM yyyy")}
-					</span>
-					<span className="text-muted-foreground/60">&nbsp;·&nbsp;</span>
-					<span className="whitespace-nowrap">
-						Billed {format(new Date(u.currentReadingDate), "dd MMM yyyy")}
-					</span>
-				</p>
+				<div className="min-w-0 text-muted-foreground text-xs">
+					<p className="font-medium text-[10px] uppercase tracking-wide">
+						Reading
+					</p>
+					<p className="mt-0.5 whitespace-nowrap text-foreground">
+						{readingDate}
+					</p>
+				</div>
+				{paidDate ? (
+					<div className="mr-auto text-muted-foreground text-xs">
+						<p className="font-medium text-[10px] uppercase tracking-wide">
+							Paid
+						</p>
+						<p className="mt-0.5 whitespace-nowrap text-emerald-700">
+							{paidDate}
+						</p>
+					</div>
+				) : null}
 				<div className="flex shrink-0 items-center gap-1">
 					<button
 						type="button"

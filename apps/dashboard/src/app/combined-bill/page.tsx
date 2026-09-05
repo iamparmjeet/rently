@@ -128,12 +128,12 @@ function CombinedBillContent() {
 	const getDue = (u: (typeof items)[number]) =>
 		(u as { amountDue?: number }).amountDue ?? u.totalAmount;
 
-	const utilityTotalDue = items.reduce((s, u) => s + getDue(u), 0);
+	const utilityTotalDue = items.reduce((s, u) => s + Math.max(0, getDue(u)), 0);
 	const utilityOriginalTotal = items.reduce((s, u) => s + u.totalAmount, 0);
 	const statementTotal = utilityTotalDue + rent;
 	const originalStatementTotal = utilityOriginalTotal + rent;
-	const hasAnyDiscount = items.some(
-		(u) => (u.credits?.length ?? 0) > 0 && getDue(u) !== u.totalAmount,
+	const hasAnyDiscount = items.some((u) =>
+		(u.credits ?? []).some((credit) => credit.type === "discount"),
 	);
 	const allPaid = items.every((u) => getDue(u) <= 0);
 	const billedToName = first.tenantName ?? "Tenant";

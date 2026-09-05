@@ -10,6 +10,7 @@ import { PaymentRow } from "./payment-row";
 export interface PaymentGridProps {
 	payments: PaymentListItem[];
 	allPayments: PaymentListItem[];
+	reversedPaymentIds: Set<string>;
 	isLoading?: boolean;
 	viewMode: "cards" | "rows";
 	voidingId: string | null;
@@ -20,6 +21,7 @@ export interface PaymentGridProps {
 export function PaymentGrid({
 	payments,
 	allPayments,
+	reversedPaymentIds,
 	isLoading,
 	viewMode,
 	voidingId,
@@ -68,6 +70,7 @@ export function PaymentGrid({
 					<PaymentCard
 						key={payment.id}
 						payment={payment}
+						isReversed={reversedPaymentIds.has(payment.id)}
 						isVoiding={voidingId === payment.id}
 						onClick={() => onViewDetail(payment)}
 						onVoid={() => onVoid(payment)}
@@ -83,6 +86,7 @@ export function PaymentGrid({
 				<PaymentRow
 					key={payment.id}
 					payment={payment}
+					isReversed={reversedPaymentIds.has(payment.id)}
 					isVoiding={voidingId === payment.id}
 					isLast={index === payments.length - 1}
 					onClick={() => onViewDetail(payment)}

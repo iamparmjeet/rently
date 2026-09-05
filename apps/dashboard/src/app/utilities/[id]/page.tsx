@@ -83,6 +83,8 @@ export default function UtilityBillPage({
 		? `${formatDate(utility.previousReadingDate)} – ${formatDate(utility.currentReadingDate)}`
 		: formatDate(utility.currentReadingDate);
 	const credits = utility.credits ?? [];
+	const hasDiscount =
+		credits.reduce((sum, credit) => sum + credit.amount, 0) !== 0;
 	const amountDue = utility.amountDue ?? utility.totalAmount;
 	const paymentState = getUtilityBillPaymentState({
 		amountDue,
@@ -297,7 +299,7 @@ export default function UtilityBillPage({
 							<p className="mt-1 font-semibold text-sm">
 								{paymentState.statusLabel}
 							</p>
-							{credits?.length ? (
+							{hasDiscount ? (
 								<p className="mt-1 text-slate-500 text-xs line-through">
 									Original {formatRupees(utility.totalAmount)}
 								</p>

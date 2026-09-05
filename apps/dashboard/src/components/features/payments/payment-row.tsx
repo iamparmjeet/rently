@@ -17,6 +17,7 @@ import { getTypeConfig, MethodIcon } from "./payment-helpers";
 
 export interface PaymentRowProps {
 	payment: PaymentListItem;
+	isReversed?: boolean;
 	isVoiding?: boolean;
 	isLast?: boolean;
 	onClick: () => void;
@@ -25,12 +26,14 @@ export interface PaymentRowProps {
 
 export function PaymentRow({
 	payment,
+	isReversed = false,
 	isVoiding,
 	isLast,
 	onClick,
 	onVoid,
 }: PaymentRowProps) {
 	const config = getTypeConfig(payment.type);
+	const isReversal = payment.type === PAYMENT_TYPES.REVERSAL;
 
 	return (
 		<div
@@ -78,7 +81,7 @@ export function PaymentRow({
 			>
 				<span
 					className={`font-semibold text-sm tabular-nums leading-tight ${
-						payment.type === PAYMENT_TYPES.REVERSAL ? "text-destructive" : ""
+						isReversal ? "text-destructive" : ""
 					}`}
 				>
 					{formatRupees(payment.amount)}
@@ -86,12 +89,22 @@ export function PaymentRow({
 				<span className="text-[11px] text-muted-foreground">
 					{fmtDate(payment.paymentDate)}
 				</span>
-				<Badge
-					variant={config.badgeVariant}
-					className="mt-1 h-4 rounded-full px-1.5 py-0 text-[10px] capitalize"
-				>
-					{payment.type}
-				</Badge>
+				<div className="mt-1 flex items-center gap-1">
+					{!isReversal && !isReversed && (
+						<Badge
+							variant="default"
+							className="h-4 rounded-full px-1.5 py-0 text-[10px]"
+						>
+							Paid
+						</Badge>
+					)}
+					<Badge
+						variant={config.badgeVariant}
+						className="h-4 rounded-full px-1.5 py-0 text-[10px] capitalize"
+					>
+						{payment.type}
+					</Badge>
+				</div>
 			</button>
 
 			<DropdownMenu>

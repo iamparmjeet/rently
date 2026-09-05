@@ -80,7 +80,9 @@ export function MarkCombinedPaidDialog({
 	const rentDue = rent ?? 0;
 	// For combined, rent is considered due if any utility is unpaid or always? Use rentDue as is when combined and not all paid
 	const totalDue = utilityDue + rentDue;
-	const hasDiscount = items.some((u) => (u.credits?.length ?? 0) > 0);
+	const hasDiscount = items.some((u) =>
+		(u.credits ?? []).some((credit) => credit.type === "discount"),
+	);
 
 	async function onSubmit(values: FormValues) {
 		if (items.length === 0) return;

@@ -456,6 +456,7 @@ function ElectricityPanel({
 						<FieldError errors={[errors.electricity?.currentReading]} />
 					</Field>
 				</div>
+				<FieldError errors={[errors.electricity]} />
 
 				<div className="grid grid-cols-2 gap-3">
 					<Field>

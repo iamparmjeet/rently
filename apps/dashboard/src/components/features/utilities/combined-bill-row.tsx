@@ -14,7 +14,8 @@ export type CombinedBillGroup = {
 	waterTotal: number; // paise
 	maintenanceTotal: number; // paise
 	utilityTotal: number; // paise — sum of all utility totalAmounts
-	grandTotal: number; // paise — rent + utilityTotal
+	rentDue: number; // paise — outstanding rent balance
+	grandTotal: number; // paise — rentDue + utilityTotal
 	allPaid: boolean;
 };
 
@@ -29,8 +30,14 @@ export function CombinedBillRow({
 	onViewDetail,
 	onSendWhatsApp,
 }: CombinedBillRowProps) {
-	const { lease, grandTotal, electricityTotal, waterTotal, maintenanceTotal } =
-		group;
+	const {
+		lease,
+		grandTotal,
+		rentDue,
+		electricityTotal,
+		waterTotal,
+		maintenanceTotal,
+	} = group;
 
 	// Initials for avatar
 	const initials = (lease.tenantName ?? "?")
@@ -40,7 +47,7 @@ export function CombinedBillRow({
 		.toUpperCase()
 		.slice(0, 2);
 
-	const allPaid = group.utilities.every((u) => u.isPaid);
+	const allPaid = group.allPaid;
 	const periodLabel = group.period.toLocaleDateString("en-IN", {
 		month: "long",
 		year: "numeric",
@@ -52,7 +59,7 @@ export function CombinedBillRow({
 			[
 				`Dear ${lease.tenantName ?? "Tenant"},`,
 				"Your bill summary for this month:",
-				`• Rent: ${formatRupees(lease.rent)}`,
+				`• Rent: ${formatRupees(rentDue)}`,
 				electricityTotal > 0
 					? `• Electricity: ${formatRupees(electricityTotal)}`
 					: null,
@@ -102,7 +109,7 @@ export function CombinedBillRow({
 			</div>
 
 			<div className="grid grid-cols-2 gap-x-6 gap-y-2 border-y py-3 sm:grid-cols-4 lg:border-y-0 lg:py-0">
-				<BillAmount label="Rent" amount={lease.rent} />
+				<BillAmount label="Rent" amount={rentDue} />
 				{electricityTotal > 0 && (
 					<BillAmount label="Electricity" amount={electricityTotal} />
 				)}

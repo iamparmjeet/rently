@@ -146,10 +146,12 @@ function PaymentDetailDialog({
 	payment,
 	open,
 	onClose,
+	isReversed = false,
 }: {
 	payment: PaymentListItem | null;
 	open: boolean;
 	onClose: () => void;
+	isReversed?: boolean;
 }) {
 	const sendReceipt = useSendPaymentReceipt();
 
@@ -234,9 +236,16 @@ function PaymentDetailDialog({
 						>
 							{formatRupees(payment.amount)}
 						</p>
-						<Badge variant={config.badgeVariant} className="mt-1 capitalize">
-							{payment.type}
-						</Badge>
+						<div className="mt-1 flex justify-end gap-1">
+							{!isReversal && !isReversed && (
+								<Badge variant="default" className="capitalize">
+									Paid
+								</Badge>
+							)}
+							<Badge variant={config.badgeVariant} className="capitalize">
+								{payment.type}
+							</Badge>
+						</div>
 					</div>
 				</div>
 
@@ -363,6 +372,16 @@ export default function PaymentsPage() {
 	const [adjTypeFilter, setAdjTypeFilter] = useState<string>("all");
 
 	const payments = data?.payments ?? [];
+	const reversedPaymentIds = useMemo(
+		() =>
+			new Set(
+				payments
+					.filter((payment) => payment.type === PAYMENT_TYPES.REVERSAL)
+					.map((payment) => payment.referenceNumber)
+					.filter((id): id is string => id !== null),
+			),
+		[payments],
+	);
 
 	const filtered = payments.filter((p) => {
 		const matchType = typeFilter === "all" || p.type === typeFilter;
@@ -696,6 +715,7 @@ export default function PaymentsPage() {
 						<PaymentGrid
 							payments={sortedPayments}
 							allPayments={payments}
+							reversedPaymentIds={reversedPaymentIds}
 							isLoading={isLoading}
 							viewMode={viewMode}
 							voidingId={voidingId}
@@ -745,6 +765,11 @@ export default function PaymentsPage() {
 						{/* One dialog instance, driven by detailId — not N per row */}
 						<PaymentDetailDialog
 							payment={selectedPayment}
+							isReversed={
+								selectedPayment
+									? reversedPaymentIds.has(selectedPayment.id)
+									: false
+							}
 							open={detailId !== null}
 							onClose={() => setDetailId(null)}
 						/>

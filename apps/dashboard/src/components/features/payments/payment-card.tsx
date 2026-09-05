@@ -19,6 +19,7 @@ import { getTypeConfig, MethodIcon } from "./payment-helpers";
 
 export interface PaymentCardProps {
 	payment: PaymentListItem;
+	isReversed?: boolean;
 	isVoiding?: boolean;
 	actionsSlot?: React.ReactNode;
 	onClick?: () => void;
@@ -27,6 +28,7 @@ export interface PaymentCardProps {
 
 export function PaymentCard({
 	payment,
+	isReversed = false,
 	isVoiding,
 	actionsSlot,
 	onClick,
@@ -75,6 +77,14 @@ export function PaymentCard({
 						</CardTitle>
 					</div>
 					<div className="flex items-center gap-2">
+						{!isReversal && !isReversed && (
+							<Badge
+								variant="default"
+								className="h-4 rounded-full px-1.5 py-0 text-[10px]"
+							>
+								Paid
+							</Badge>
+						)}
 						<Badge
 							variant={config.badgeVariant}
 							className="h-4 rounded-full px-1.5 py-0 text-[10px] capitalize"

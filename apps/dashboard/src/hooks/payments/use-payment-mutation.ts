@@ -136,9 +136,11 @@ export function useDeletePayment() {
 			toast.success("Payment deleted", { id: context.toastId });
 		},
 		onSettled: () => {
-			// WHY: removeQueries on delete — no refetch needed, data is gone
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.payment.listPayments.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.stats.getRevenueDashboard.key(),
@@ -169,6 +171,9 @@ export function useVoidPaymentGroup() {
 		onSettled: () => {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.payment.listPayments.key(),
+			});
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.stats.getRevenueDashboard.key(),

@@ -19,6 +19,7 @@ import { NotFoundState } from "@rently/ui/shared/not-found-state";
 import {
 	IconChevronLeft,
 	IconPencil,
+	IconRefresh,
 	IconTrash,
 	IconUser,
 } from "@tabler/icons-react";
@@ -127,6 +128,9 @@ export default function LeaseDetailPage({
 	function handleTerminate() {
 		terminateLease.mutate({ id }, { onSuccess: terminateDialog.closeDialog });
 	}
+	function handleReactivate() {
+		updateLease.mutate({ id, data: { status: "active" } });
+	}
 
 	return (
 		<Container>
@@ -143,6 +147,16 @@ export default function LeaseDetailPage({
 						Leases
 					</Button>
 					<div className="flex items-center gap-2">
+						{isTerminated && (
+							<Button
+								variant="outline"
+								onClick={handleReactivate}
+								disabled={updateLease.isPending}
+							>
+								<IconRefresh className="mr-2 size-4" />
+								Reactivate
+							</Button>
+						)}
 						{isEditable && (
 							<Button variant="outline" onClick={editDialog.openDialog}>
 								<IconPencil className="mr-2 size-4" />

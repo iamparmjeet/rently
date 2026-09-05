@@ -468,11 +468,17 @@ export const updateLease = ownerProcedure
 			});
 		}
 
-		// Active leases are editable (rent, deposit, notice, description, dates).
-		// Only terminated/expired are immutable — they represent closed periods.
-		if (ownership.status === "terminated" || ownership.status === "expired") {
+		// Expired leases are immutable. A terminated lease may only be reactivated;
+		// its historical terms remain closed to ordinary edits.
+		if (
+			ownership.status === "expired" ||
+			(ownership.status === "terminated" && input.data.status !== "active")
+		) {
 			throw new ORPCError("BAD_REQUEST", {
-				message: "Terminated or expired leases cannot be edited.",
+				message:
+					ownership.status === "expired"
+						? "Expired leases cannot be edited."
+						: "Terminated leases can only be reactivated.",
 			});
 		}
 

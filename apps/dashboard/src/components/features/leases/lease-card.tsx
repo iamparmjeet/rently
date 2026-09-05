@@ -21,6 +21,7 @@ import {
 	IconCalendar,
 	IconDots,
 	IconPencil,
+	IconRefresh,
 	IconTrash,
 	IconUser,
 } from "@tabler/icons-react";
@@ -32,8 +33,10 @@ import LeaseStatusBadge from "./lease-status-badge";
 interface LeaseCardProps {
 	lease: LeaseWithDetails;
 	onEdit?: (lease: LeaseWithDetails) => void;
+	onReactivate?: (id: string) => void;
 	onDelete?: (id: string) => void;
 	isDeleting?: boolean;
+	isReactivating?: boolean;
 	createdAt: Date;
 	updatedAt: Date;
 }
@@ -41,8 +44,10 @@ interface LeaseCardProps {
 export function LeaseCard({
 	onEdit,
 	lease,
+	onReactivate,
 	onDelete,
 	isDeleting,
+	isReactivating,
 	createdAt,
 	updatedAt,
 }: LeaseCardProps) {
@@ -135,6 +140,15 @@ export function LeaseCard({
 												Edit
 											</Link>
 										)}
+									</DropdownMenuItem>
+								)}
+								{isTerminated && (
+									<DropdownMenuItem
+										disabled={isReactivating}
+										onClick={() => onReactivate?.(lease.leaseId)}
+									>
+										<IconRefresh className="mr-2 size-4" />
+										Reactivate
 									</DropdownMenuItem>
 								)}
 								<DropdownMenuSeparator />

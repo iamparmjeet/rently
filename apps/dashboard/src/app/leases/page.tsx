@@ -161,6 +161,10 @@ export default function LeasesPage() {
 		);
 	}
 
+	function handleReactivate(id: string) {
+		updateLease.mutate({ id, data: { status: "active" } });
+	}
+
 	if (isError) {
 		return (
 			<div className="col-span-12 py-20 text-center text-muted-foreground">
@@ -271,10 +275,15 @@ export default function LeasesPage() {
 								key={lease.leaseId}
 								lease={lease}
 								onEdit={setEditingLease}
+								onReactivate={handleReactivate}
 								onDelete={(id) => setTerminatingId(id)}
 								isDeleting={
 									terminateLease.isPending &&
 									terminateLease.variables?.id === lease.leaseId
+								}
+								isReactivating={
+									updateLease.isPending &&
+									updateLease.variables?.id === lease.leaseId
 								}
 								createdAt={lease.createdAt}
 								updatedAt={lease.updatedAt}

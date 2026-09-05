@@ -1,4 +1,4 @@
-# Handover — 2026-09-05 — model: Muse Spark — branch: fix/ci-test-gate (A02 in progress)
+# Handover — 2026-09-05 — model: Muse Spark — branch: fix/local-db-bootstrap (A03 implemented, uncommitted, awaiting review)
 
 Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is already merged into `main` via `d716bd9`/`2250e3f`) and records the new ledger/lifecycle bugfix branch.
 
@@ -101,3 +101,17 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Opened PR #6 (fix/ci-test-gate → main); triggers are PR-only + manual dispatch per owner constraint, so CI runs there and on no branch push.
 - A02 verified end-to-end 2026-09-05: PR #6 CI run fully green (install → drift → migrate → types → Biome → build → 160 Vitest). Fix-Plan A02 marked `[x]`.
 - Remaining manual owner step: required-status-checks branch protection on `main` after first green run. Then A03 from clean `main`.
+
+## A03 Local DB bootstrap (2026-09-05, Muse Spark, branch fix/local-db-bootstrap, tag pre-local-db-bootstrap)
+- Base: clean `main@8e27688` (PR #6 merged 2026-09-05T09:17:41Z; Fix-Plan A01/A02 `[x]`; tree clean). Fix-Plan A03 set to `[~]` (implemented+verified, awaiting Terra Medium review — do not mark `[x]` until reviewed).
+- Gap proven: compose `POSTGRES_DB` creates only `rently_db`; the only `CREATE DATABASE rently_test` lived in CI; nothing created `rently_dev`; no committed test-env template existed (local `apps/server/.env.test` is untracked and holds real secrets, so it must never be committed).
+- Changed (no migration; unrelated files untouched):
+  - `scripts/db-bootstrap-local.sh` (new, executable): idempotent `CREATE DATABASE rently_dev/rently_test` via `\gexec … WHERE NOT EXISTS`, localhost-guarded (refuses non-`localhost:5432` admin URLs), seeds `apps/server/.env.test` from the template only when missing.
+  - `apps/server/.env.test.example` (new): deterministic 8-line non-secret template, byte-parity with the CI heredoc.
+  - `apps/server/.gitignore`: `!.env.test.example` negation (same pattern as A01 docs un-ignore).
+  - `package.json` + `packages/db/package.json`: `db:bootstrap` wiring (root + `--filter @rently/db`).
+  - `README.md`: step 2 runs `db:start` (root-runnable, no `cd`) + `db:bootstrap`; step 4 adds `db:migrate:test`.
+- Tests: `packages/db/src/bootstrap-local.test.ts` (new, 5 tests — written first, failed 5/5 pre-fix): template determinism, gitignore committability, CI-parity, script guards + no-overwrite, script wiring + README docs.
+- Verification (in plan order): `db:generate` no drift → `check-types` 6/6 → Biome clean (fixed import order/format in new test) → `db:migrate:test` on freshly recreated empty `rently_test` → focused suite 27/27 (bootstrap + driver + invite + tenant-removal) → full suite 38 files / 165 tests pass.
+- Live proofs (container `pg_db_local_rently`, `rently_dev` never dropped): no-op rerun lists both DBs and leaves the 50-line `.env.test` checksum-identical; `DROP rently_test` → bootstrap recreates it; moving `.env.test` aside → bootstrap seeds the exact 8-line template, original restored afterwards.
+- Committed as `a3a1c4f`, pushed, opened PR #7 (fix/local-db-bootstrap → main) with user approval. Merging waits on Terra Medium review. Next allowed slice after merge: A04 from clean `main`.

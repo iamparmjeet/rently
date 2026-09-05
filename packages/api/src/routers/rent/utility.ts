@@ -401,8 +401,34 @@ export const listUtilities = ownerProcedure
 					from ${payments}
 					where ${payments.utilityId} = ${utilities.id}
 						and ${payments.type} = 'utility'
+						and not exists (
+							select 1 from ${payments} reversal
+							where reversal.type = 'reversal'
+								and reversal.reference_number = ${payments.id}::text
+						)
 					order by ${payments.createdAt} desc
 					limit 1
+				)`,
+				receiptPaymentDate: sql<Date | null>`(
+					select ${payments.paymentDate}
+					from ${payments}
+					where ${payments.utilityId} = ${utilities.id}
+						and ${payments.type} = 'utility'
+						and not exists (
+							select 1 from ${payments} reversal
+							where reversal.type = 'reversal'
+								and reversal.reference_number = ${payments.id}::text
+						)
+					order by ${payments.createdAt} desc
+					limit 1
+				)`.mapWith((value) => (value ? new Date(String(value)) : null)),
+				hasReversedPayment: sql<boolean>`exists (
+					select 1
+					from ${payments} payment
+					inner join ${payments} reversal
+						on reversal.reference_number = payment.id::text
+						and reversal.type = 'reversal'
+					where payment.utility_id = ${utilities.id}
 				)`,
 				// enriched context
 				unitNumber: units.unitNumber,
@@ -500,11 +526,12 @@ export const removeUtility = ownerProcedure
 					"Cannot delete a billed utility when GST is enabled — use a credit note instead.",
 			});
 		}
-		const [paid] = await db
-			.select({ sum: sql<number>`coalesce(sum(${payments.amount}), 0)` })
+		const [payment] = await db
+			.select({ id: payments.id })
 			.from(payments)
-			.where(eq(payments.utilityId, existing.id));
-		if ((paid?.sum ?? 0) > 0) {
+			.where(eq(payments.utilityId, existing.id))
+			.limit(1);
+		if (payment) {
 			throw new ORPCError("BAD_REQUEST", {
 				message:
 					"Cannot delete a utility with recorded payments — use a credit note or void the payment.",
@@ -513,17 +540,12 @@ export const removeUtility = ownerProcedure
 		const [credit] = await db
 			.select({ id: billCredits.id })
 			.from(billCredits)
-			.where(
-				and(
-					eq(billCredits.utilityId, existing.id),
-					isNull(billCredits.reversedAt),
-				),
-			)
+			.where(eq(billCredits.utilityId, existing.id))
 			.limit(1);
 		if (credit) {
 			throw new ORPCError("BAD_REQUEST", {
 				message:
-					"Cannot delete a utility with active credits — reverse the credit first.",
+					"Cannot delete a utility with recorded credits — keep the bill for audit history.",
 			});
 		}
 
@@ -620,7 +642,7 @@ export const recordUtilityPayment = ownerProcedure
 		successStatus: StatusCode.CREATED,
 	})
 	.input(RecordUtilityPaymentSchema)
-	.output(z.object({ success: z.boolean() }))
+	.output(z.object({ success: z.boolean(), paymentDate: z.date() }))
 	.handler(async ({ input, context }) => {
 		const { db, user } = context;
 
@@ -707,9 +729,13 @@ export const recordUtilityPayment = ownerProcedure
 			});
 		}
 
-		if (payment) {
-			await sendAutomaticPaymentReceipt(db, user.id, payment.id);
+		if (!payment) {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
+				message: "Failed to record utility payment",
+			});
 		}
 
-		return { success: true };
+		await sendAutomaticPaymentReceipt(db, user.id, payment.id);
+
+		return { success: true, paymentDate: payment.paymentDate };
 	});

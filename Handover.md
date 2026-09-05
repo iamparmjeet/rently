@@ -247,6 +247,14 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Build-generated `next-env.d.ts` changes were restored; no `.env` files were retained.
 - Sol/Terra final review remains tracked review debt before any `[x]` or `main` rollup.
 
+## C01 Rent-period business rules (2026-09-06, ZLM 5.3 Flash, branch docs/rent-period-rules)
+
+- Base: `integ/phase-a-baseline@e2b9ad6`; rollback tag `pre-rent-period-rules`; docs-only slice (no code, no migration, no tests per plan).
+- Output: `docs/Rent-Period-Rules.md` — the Phase C contract. Owner approved every decision point on 2026-09-06 (recorded in `docs/Decisions.md`): IST calendar-month periods; due-day clamping without carry-over; PRORATED first and last periods (`round_half_up(rent × activeDays ÷ daysInMonth)`); arbitrary partial payments allocated FIFO oldest-period-first; prepay allowed up to 1 future period beyond outstanding (cap); backdated lease registration creates all elapsed-period charges as immediate arrears settled FIFO (the owner's real scenario); termination accrues through the endDate period but arrears stay collectible; renewal is a new lease row.
+- Key consequences handed to later slices: C02 schema needs per-period charges + per-allocation rows + prepay cap; C03 backfill prorates edge periods and routes ambiguous dates to an exception report; C04 stages the first API contract change (partial amounts behind the dual-write); C08 must suppress the overdue-notice burst for pre-registration periods of backdated leases.
+- Verification: N/A (docs-only; worked examples in the doc are the checkable behavior). `check-types`/build unaffected.
+- Next allowed slice: C02 (design gate Sol High preferred) from a clean integration-branch cut.
+
 ## B11 One atomic combined-bill command (2026-09-06, ZLM 5.3 Flash, branch feat/atomic-combined-settlement)
 
 - Base confirmed: clean `integ/phase-a-baseline@600d99af`; rollback tag `pre-atomic-combined-settlement` created before work; `main` was not used or modified. Owner pre-authorized implement→commit→push→merge into integ and deferred the Terra High design gate until after implementation (owner re-verifies with Terra).

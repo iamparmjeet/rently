@@ -28,12 +28,13 @@ import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { openAPI } from "better-auth/plugins";
 import { and, eq, gt, isNull, or } from "drizzle-orm";
+import { resolveCookieDomain } from "./cookie-domain";
 
-const authHostname = new URL(env.BETTER_AUTH_URL).hostname;
 const isProduction = env.NODE_ENV === "production";
-const cookieDomain = isProduction
-	? `.${authHostname.split(".").slice(-2).join(".")}`
-	: undefined;
+const cookieDomain = resolveCookieDomain({
+	isProduction,
+	cookieDomain: env.COOKIE_DOMAIN,
+});
 
 const trustedOrigins = Array.isArray(env.CORS_ORIGINS)
 	? env.CORS_ORIGINS

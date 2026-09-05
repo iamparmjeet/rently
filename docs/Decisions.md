@@ -1,5 +1,44 @@
 # Decisions
 
+## 2026-09-06 - C04 rent-period dual-write
+
+**Decision:** Every rent-affecting writer now also maintains the period ledger
+while the lifetime model stays authoritative for reads. A shared helper emits
+single-statement SQL so node transactions and Neon batches execute identical
+logic: charge accrual (`ensureAccruedChargesSql`, wired into lease creation and
+every settlement — R13 makes a backdated start owe elapsed periods
+immediately), FIFO allocation of payments/credits into outstanding charges
+(`allocateRent*Sql`, the C03 interval-overlap scoped per operation), reversal
+mirrors (a reversal negates exactly its original's allocations), and a
+remainder reporter listing paise a divergent history cannot absorb.
+`createPayment` for rent relaxes its validation from "must equal the
+outstanding balance" to "must not exceed it" (C01 R8 partial payments go live;
+advances stay refused). Prepay (R6) is not activated yet — the old validation
+still bounds amounts; it opens with the C05 read model.
+
+**Why:** Dual-write keeps production behavior unchanged for existing flows
+while every new operation lands in both ledgers, so the C05 read model can be
+built and verified against data that reconciles by construction. The delta
+invariant (each operation moves both ledgers by the same paise) holds for
+clean leases in absolute terms; for backdated or pre-C04-divergent leases the
+accrued history is the documented Phase-C gap.
+
+**Alternatives:** Activating partial payments only at the C08 cutover
+(rejected: C04's acceptance list requires partial-payment reconciliation);
+prepay in C04 (deferred: needs the new read model to be meaningful); a
+period-arrival job creating charges on month boundaries (deferred: lazy
+accrual at operation time covers the dual-write phase, and C08 owns scheduled
+work).
+
+**Tradeoff:** Eleven existing API test suites needed period-ledger cleanup
+(the RESTRICT foreign keys make incomplete teardown loud); the lifetime and
+period ledgers diverge absolutely on pre-C04 histories by design — only
+operation deltas reconcile until the C08 cutover; vitest now runs with
+fileParallelism disabled because suites share one database and the period
+tables are global state.
+
+**Model:** ZLM 5.3 Flash (Luna scope); Terra review owed per plan.
+
 ## 2026-09-06 - C03 historical rent-period backfill
 
 **Decision:** Backfill the period ledger with one idempotent, hand-authored

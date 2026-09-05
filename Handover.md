@@ -247,6 +247,23 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Build-generated `next-env.d.ts` changes were restored; no `.env` files were retained.
 - Sol/Terra final review remains tracked review debt before any `[x]` or `main` rollup.
 
+## C04 Rent-period dual-write (2026-09-06, ZLM 5.3 Flash, branch feat/rent-period-dual-write)
+
+- Base: `integ/phase-a-baseline@ee13193b`; rollback tag `pre-rent-period-dual-write`; `main` untouched; no migration (per plan). Terra review deferred to owner.
+- New helper `packages/api/src/routers/helpers/rent-period.ts`: single-statement SQL usable identically in node transactions and Neon batches — `ensureAccruedChargesSql` (per lease or per agreement, optional existence gate so a suppressed Neon insert has zero side effects), `allocateRentPaymentsSql` (source-WHERE parameterized: by payment id or payment group; cumulative-interval FIFO pour, C02 sign convention), `allocateRentCreditSql`, `mirrorPaymentReversalSql` / `mirrorPaymentGroupReversalsSql` / `mirrorCreditReversalSql`, and `reportUnallocatedRentPaymentRemaindersSql` (divergent-history remainders → exception rows, never dropped).
+- Writers wired (all atomic within their existing tx/batch):
+  - `createLease` / `createCombinedLease`: explicit lease ids + charge accrual at creation (R13 — a backdated start owes elapsed periods immediately). Found and fixed a real trap here: drizzle's `$defaultFn` ids are NOT accessible app-side, so explicit ids are required before referencing the lease in batch statements.
+  - `createPayment` (rent): validation relaxed from `amount === due` to `amount > due` rejects (C01 R8 partial payments live; advances still refused — message updated); dual-write appended to the node tx and the Neon batch (Neon rent CTE gate `=` → `>=`); utility exact-balance rule untouched.
+  - `createAgreementPayment` (B10) and `createCombinedBillPayment` (B11): accrue + allocate per group, rent legs only for the combined command.
+  - `voidPayment` / `voidPaymentGroup`: reversal mirrors negate the original's allocations; idempotent via the (payment_id, charge_id) unique index.
+  - `createCredit` (rent-scoped) / `reverseCredit`: credit allocations and mirrors; reverseCredit retry path now self-heals a missing mirror.
+- Test suite (`rent-period-dual-write.test.ts`, 9): accrual at creation incl. prorated backdated start (IST-oracled), full payment → both ledgers zero, partial payment reconciled, advance refused with zero writes, discount FIFO + sign inversion, void reopens, credit reversal restores, group settlement delta-contract on a backdated combined agreement, combined-bill rent-leg-only allocation. Reconciliation helper: `getAmountDueForRent` must equal `Σ charges − Σ allocations` on current-month-start leases.
+- Legacy suites updated (mechanical): 11 test files now clear `rent_charges`/`rent_allocations` before their lease/credit/payment deletes — the RESTRICT foreign keys make incomplete teardown loud (this surfaced as ~104 cross-suite failures until each file's cleanup order was corrected: allocations → charges → payments → utilities → leases). payment-type-invariant additionally deletes allocations keyed by untracked payments.
+- Real edge fixed: proration can floor to 0 paise for sub-paise-per-day rents (a leaked B02 boundary lease with rent=1) — 0032 and the ensure helper now use `GREATEST(1, round(...))`. Note: 0032 was amended post-merge on this branch (pre-deployment; the file had not run anywhere but local test DBs).
+- Gates: `check-types` 6/6 → Biome clean → full suite 57 files / 302 tests → build 5/5. No migration in this slice; `db:generate` no drift.
+- Review debt: Terra review owed. Known limitation: absolute lifetime==period equality holds only for leases created in the current period; pre-C04 histories reconcile per-operation delta only (the accrual gap is the documented Phase-C subject).
+- Next allowed slice: C05 server balance read model from a clean integration-branch cut.
+
 ## C03 Historical rent-period backfill (2026-09-06, ZLM 5.3 Flash, branch feat/rent-period-backfill)
 
 - Base: `integ/phase-a-baseline@f7a4642b`; rollback tag `pre-rent-period-backfill`; `main` untouched. Sol review deferred to owner (Terra/Sol pass later, as with B11/C02).

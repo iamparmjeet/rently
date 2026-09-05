@@ -130,4 +130,21 @@ describe("tenant document authorization", () => {
 			code: "FORBIDDEN",
 		});
 	});
+
+	it("rejects Aadhaar uploads while they are disabled", async () => {
+		const owner = await createUser("owner", "Owner A");
+		const tenant = await createTenant(owner.id);
+
+		await expect(
+			clientFor(tenant).beginTenantDocumentUpload({
+				documentType: "aadhaar",
+				contentType: "application/pdf",
+				sizeBytes: 100,
+				target: { kind: "initial" },
+			}),
+		).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+			message: "AADHAAR_UPLOAD_DISABLED",
+		});
+	});
 });

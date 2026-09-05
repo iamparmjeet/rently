@@ -122,3 +122,14 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification (in plan order): `db:generate` no drift → `check-types` 6/6 → Biome clean (fixed import order/format in new test) → `db:migrate:test` on freshly recreated empty `rently_test` → focused suite 27/27 (bootstrap + driver + invite + tenant-removal) → full suite 38 files / 165 tests pass.
 - Live proofs (container `pg_db_local_rently`, `rently_dev` never dropped): no-op rerun lists both DBs and leaves the 50-line `.env.test` checksum-identical; `DROP rently_test` → bootstrap recreates it; moving `.env.test` aside → bootstrap seeds the exact 8-line template, original restored afterwards.
 - Committed as `a3a1c4f`, pushed, opened PR #7 (fix/local-db-bootstrap → main) with user approval. Merging waits on Terra Medium review. Next allowed slice after merge: A04 from clean `main`.
+
+## A04 Test DB safety guard (2026-09-05, Muse Spark, branch fix/test-db-safety-guard, tag pre-test-db-safety-guard)
+- Base: clean `integ/phase-a-baseline@c588e6d`. Fix-Plan A04 `[~]` (implemented+verified, Terra High review owed — stays `[~]` until then).
+- Hole proven: `vitest.config.ts` + `drizzle.config.ts` both checked only the `rently_test` pathname, so a remote database named `rently_test` passed. Root-cause fix in one shared dependency-free helper (both consumers rewired; drift pinned by test).
+- Changed (no migration):
+  - `packages/db/src/test-db-guard.ts` (new): requires pathname `/rently_test` AND host in {localhost, 127.0.0.1, [::1]} or explicit `RENTRY_TEST_EXTRA_HOSTS` (comma-separated, for disposable Neon branches).
+  - `vitest.config.ts`, `packages/db/drizzle.config.ts`: test guards routed through `assertAllowedTestDatabaseUrl`.
+- Tests: `packages/db/src/test-db-guard.test.ts` (new, 7 tests — written first, failed at import pre-fix): local accept, wrong-name reject, remote-name reject, lookalike/malformed reject, extra-host allowlist, assert-throws, consumer-wiring pin.
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → full suite 172/172.
+- Live proofs (zero connection risk): remote `rently_test` impostor in `.env.test` → `db:generate` refuses pre-connection; original `.env.test` restored checksum-identical. Note: dotenv `override:true` clobbers env-passed `DATABASE_URL`, so the file-swap (not env override) is the correct negative probe.
+- Committed as `add8db6`, opened PR #8 → `integ/phase-a-baseline` with user approval, CI green (~3m17s), merged as `74c6ec9`.

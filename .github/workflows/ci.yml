@@ -80,3 +80,4 @@ jobs:
         run: bun run test
         env:
           SKIP_ENV_VALIDATION: "true"
+          RESEND_API_KEY: test-only-placeholder

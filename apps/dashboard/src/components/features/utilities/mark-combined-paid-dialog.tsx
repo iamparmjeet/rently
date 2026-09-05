@@ -26,7 +26,7 @@ import { useIdempotencyKey } from "@rently/ui/shared/form-dialog";
 import type { UtilityListItem } from "@rently/validators";
 import { IconReceipt } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import z from "zod";
@@ -55,13 +55,9 @@ export function MarkCombinedPaidDialog({
 }) {
 	const queryClient = useQueryClient();
 	const [isSubmitting, setIsSubmitting] = useState(false);
-	// B07: legs share a lease, so each leg needs its own key — one per dialog
-	// open, stable across retries, cleared on close.
-	const rentKey = useIdempotencyKey(open);
-	const utilityKeysRef = useRef<Record<string, string>>({});
-	if (!open && Object.keys(utilityKeysRef.current).length > 0) {
-		utilityKeysRef.current = {};
-	}
+	// B11: one mutation for the whole combined bill, so one key per dialog open
+	// (stable across retries, cleared on close) deduplicates the settlement.
+	const idempotencyKey = useIdempotencyKey(open);
 
 	const {
 		register,
@@ -98,52 +94,47 @@ export function MarkCombinedPaidDialog({
 		if (!leaseId) return;
 		setIsSubmitting(true);
 		try {
-			const promises: Promise<unknown>[] = [];
-			// Record rent if due
-			if (rentDue > 0) {
-				promises.push(
-					client.rent.payment.createPayment({
+			// The server derives every allocation amount inside one atomic
+			// settlement; the client only names the utility bills that still show
+			// an outstanding balance and supplies payment metadata.
+			const utilityIds = items.filter((u) => getDue(u) > 0).map((u) => u.id);
+			const paymentDate = new Date(values.receivedAt);
+			const description = values.notes ?? null;
+			// Fallback only fires when closed (never submitted then).
+			const key = idempotencyKey ?? crypto.randomUUID();
+
+			let settledPaise = 0;
+			if (utilityIds.length === 0) {
+				// Every utility is already settled — the combined bill is
+				// rent-only, which belongs to the single-payment command.
+				const { payment } = await client.rent.payment.createPayment({
+					leaseId,
+					amount: rentDue,
+					paymentDate,
+					type: "rent",
+					paymentMethods: values.paymentMethod,
+					description,
+					referenceNumber: null,
+					utilityId: null,
+					idempotencyKey: key,
+				});
+				settledPaise = payment.amount;
+			} else {
+				const { payments: allocations } =
+					await client.rent.payment.createCombinedBillPayment({
 						leaseId,
-						amount: rentDue,
-						paymentDate: new Date(values.receivedAt),
-						type: "rent",
+						utilityIds,
+						paymentDate,
 						paymentMethods: values.paymentMethod,
-						description: values.notes ?? null,
+						description,
 						referenceNumber: null,
-						utilityId: null,
-						// Fallback only fires when closed (never submitted then).
-						idempotencyKey: rentKey ?? crypto.randomUUID(),
-					}),
-				);
+						idempotencyKey: key,
+					});
+				settledPaise = allocations.reduce((s, p) => s + p.amount, 0);
 			}
-			// Record each utility due
-			for (const u of items) {
-				const due = getDue(u);
-				if (due <= 0) continue;
-				let legKey = utilityKeysRef.current[u.id];
-				if (!legKey) {
-					legKey = crypto.randomUUID();
-					utilityKeysRef.current[u.id] = legKey;
-				}
-				promises.push(
-					client.rent.utility.recordUtilityPayment({
-						leaseId: u.leaseId,
-						utilityId: u.id,
-						amount: due,
-						paymentMethod: values.paymentMethod,
-						receivedAt: values.receivedAt,
-						notes: values.notes,
-						idempotencyKey: legKey,
-					}),
-				);
-			}
-			if (promises.length === 0) {
-				toast.info("Nothing to record — all paid");
-				onOpenChange(false);
-				return;
-			}
-			await Promise.all(promises);
-			toast.success(`Combined payment recorded — ${formatRupees(totalDue)}`);
+			toast.success(
+				`Combined payment recorded — ${formatRupees(settledPaise)}`,
+			);
 			// Invalidate caches
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
@@ -223,8 +214,9 @@ export function MarkCombinedPaidDialog({
 						</p>
 					) : null}
 					<p className="text-muted-foreground text-xs">
-						This will create {rentDue > 0 ? "1 rent" : "0 rent"} +{" "}
-						{items.filter((u) => getDue(u) > 0).length} utility payment(s).
+						This records {rentDue > 0 ? "1 rent" : "0 rent"} +{" "}
+						{items.filter((u) => getDue(u) > 0).length} utility payment(s) in
+						one payment group.
 					</p>
 				</div>
 

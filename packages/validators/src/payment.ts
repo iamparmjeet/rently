@@ -92,6 +92,24 @@ export const CreateAgreementPaymentSchema = PaymentGroupInsertSchema.omit({
 	idempotencyKey: z.uuid(),
 });
 
+// One atomic combined-bill settlement (B11): a single lease's outstanding rent
+// plus named unpaid utilities in one payment group. Callers name the bills and
+// supply payment metadata only — every allocation amount is derived by the
+// server from committed balances at settlement time.
+export const CreateCombinedBillPaymentSchema = PaymentGroupInsertSchema.omit({
+	id: true,
+	createdAt: true,
+	updatedAt: true,
+	agreementId: true,
+	reversesPaymentGroupId: true,
+	idempotencyKey: true,
+	requestFingerprint: true,
+}).extend({
+	leaseId: z.uuid(),
+	utilityIds: z.array(z.uuid()).min(1).max(10),
+	idempotencyKey: z.uuid(),
+});
+
 export const UpdatePaymentSchema = createUpdateSchema(payments).pick({
 	paymentDate: true,
 	paymentMethods: true,
@@ -157,6 +175,9 @@ export type NewPayment = z.infer<typeof PaymentInsertSchema>;
 export type PaymentGroup = z.infer<typeof PaymentGroupSelectSchema>;
 export type CreateAgreementPayment = z.infer<
 	typeof CreateAgreementPaymentSchema
+>;
+export type CreateCombinedBillPayment = z.infer<
+	typeof CreateCombinedBillPaymentSchema
 >;
 export type CreatePayment = z.infer<typeof CreatePaymentSchema>;
 export type UpdatePayment = z.infer<typeof UpdatePaymentSchema>;

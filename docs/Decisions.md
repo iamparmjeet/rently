@@ -1,5 +1,42 @@
 # Decisions
 
+## 2026-09-06 - B11 atomic combined-bill command
+
+**Decision:** Replace the dashboard's parallel per-leg combined-bill mutations
+with one server command, `createCombinedBillPayment`, that settles a single
+lease's outstanding rent plus named unpaid utilities into one payment group.
+Every allocation is derived from committed balances inside settlement
+protection (node-postgres: lease-then-utilities row locks; Neon HTTP: advisory
+locks plus one conditional CTE statement). Any named utility with no
+outstanding balance rejects the whole command. One grouped receipt is sent only
+after commit. Replay and fingerprint reuse the B09 group-level idempotency
+metadata on `payment_groups`; no schema change.
+
+**Why:** The dialog previously fired `createPayment` plus one
+`recordUtilityPayment` per bill through `Promise.all`, so a mid-flight failure
+left earlier legs committed as a partial settlement outside any group, and
+every leg emailed its own receipt. The payment group is the atomicity and
+idempotency unit the ledger already has, and B10 established the
+lock-first/recompute-inside pattern this command reuses.
+
+**Alternatives:** Per-leg compensation on failure (rejected: deleting or
+rewriting committed financial rows violates ledger immutability);
+client-orchestrated transactions (rejected: browsers cannot hold database
+transactions); extending `createAgreementPayment` to utilities (rejected: it
+spans a whole combined agreement and requires every unit positive, while the
+combined bill is per lease with optional rent).
+
+**Tradeoff:** A named utility with zero outstanding due fails the command
+loudly instead of being skipped — a race with a concurrent individual payment
+surfaces as an error and the owner retries after refreshing (same policy as
+B10's grouped rent). Rent is optional: a combined bill whose rent is already
+settled records only the utility legs. Both drivers share the lock order
+(lease first, then utilities by id) so combined and individual settlements
+serialize identically on either path.
+
+**Model:** ZLM 5.3 Flash (Luna backend + Muse UI scopes; Terra High design
+gate deferred by owner until after implementation).
+
 ## 2026-09-05 - B08 individual settlement serialization
 
 **Decision:** Serialize each individual settlement by its accounting scope: a

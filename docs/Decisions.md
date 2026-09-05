@@ -1,5 +1,43 @@
 # Decisions
 
+## 2026-09-06 - C03 historical rent-period backfill
+
+**Decision:** Backfill the period ledger with one idempotent, hand-authored
+migration (0032). Charges: one per lease per period the lease was active,
+through the current IST month for ongoing leases (never future periods),
+prorated at tenancy edges, with the clamped due date snapshotted. Allocations:
+historical positive rent payments and rent-scoped discount credits are poured
+into charges oldest-period-first via a cumulative-interval overlap (a charge
+occupies the paise range of the lease's charge total, a source the range of
+the lease's flow total — the overlap is the allocation). Payment reversals and
+credit reversals never enter the stream; they mirror their original's
+allocations negated. Everything that does not fit deterministically is listed
+in `rent_backfill_exceptions` (ambiguous accrual end for terminated/expired
+leases without an end date; per-source unallocated remainders) instead of
+being guessed. Date math uses the stored wall-clock date part.
+
+**Why:** The lifetime model under-recorded reality (only one month's rent was
+ever collectible per lease), so historical flows can legitimately overflow the
+deterministic charge set — the seed data does, by design of the old model. The
+interval-overlap formulation makes FIFO deterministic and expressible in one
+SQL statement (Neon-safe), and the exceptions table gives the owner a
+durable, queryable review artifact rather than a run-log nobody keeps.
+
+**Alternatives:** TypeScript backfill script (rejected: the plan specifies a
+backfill migration and deploy-time execution); allocating reversals as stream
+sources (rejected: a reversal must undo exactly its original's allocations,
+not re-flow chronologically); materializing outstanding on charges (rejected:
+derived state drifts — C05 computes it); silently clamping overpayments
+(rejected: that invents history).
+
+**Tradeoff:** Charges assume each lease's current `rent` applied to its whole
+history (rent edits were never modeled — documented limitation); the
+seed/sample leases' arbitrary historical payment amounts surface as exception
+rows the owner must acknowledge; "today" at migration time fixes the
+ongoing-lease charge set (later periods accrue via C04 writers).
+
+**Model:** ZLM 5.3 Flash (Luna scope); Sol review owed per plan.
+
 ## 2026-09-06 - C02 period rent charges and allocations schema
 
 **Decision:** Represent monthly rent independently of lifetime totals with two

@@ -26,5 +26,8 @@ export default defineConfig({
 		include: ["packages/**/*.test.{ts,tsx}", "apps/**/*.test.{ts,tsx}"],
 		exclude: ["**/node_modules/**", "**/.next/**"],
 		testTimeout: 10_000,
+		// Test files share one disposable database, and some suites (the C03
+		// backfill re-run) mutate global rows — parallel files would race on it.
+		fileParallelism: false,
 	},
 });

@@ -462,6 +462,46 @@ export const rentAllocations = pgTable(
 	],
 );
 
+// C03's exception report: every historical flow the deterministic backfill
+// could not allocate is listed here instead of being guessed (Fix-Plan C03).
+// Rows are produced only by the 0032 migration, which recomputes them on each
+// run. Kinds: 'lease_end_ambiguous' (terminated/expired without an end date —
+// accrual stop is unknowable), 'unallocated_source_remainder' (a payment or
+// credit larger than the deterministic charge set allows), and
+// 'unattributable_reversal' (a reversal whose original cannot be found).
+export const rentBackfillExceptions = pgTable(
+	"rent_backfill_exceptions",
+	{
+		...idColumn(),
+		leaseId: uuid("lease_id").references(() => leases.id, {
+			onDelete: "restrict",
+		}),
+		paymentId: uuid("payment_id").references(() => payments.id, {
+			onDelete: "restrict",
+		}),
+		creditId: uuid("credit_id").references(() => billCredits.id, {
+			onDelete: "restrict",
+		}),
+		kind: text("kind", {
+			enum: [
+				"lease_end_ambiguous",
+				"unallocated_source_remainder",
+				"unattributable_reversal",
+			],
+		}).notNull(),
+		// Paise involved; informational (0 for the ambiguous-end kind).
+		amount: integer("amount").notNull(),
+		detail: text("detail").notNull(),
+		...auditColumns(),
+	},
+	(table) => [
+		check(
+			"rent_backfill_exceptions_kind_check",
+			sql`${table.kind} in ('lease_end_ambiguous', 'unallocated_source_remainder', 'unattributable_reversal')`,
+		),
+	],
+);
+
 // ═══════════════════════════════════════════════════════════
 // TENANCY: Invites, Profiles
 // Order matters — tenantProfiles before documentUpdateRequests

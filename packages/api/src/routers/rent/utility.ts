@@ -6,7 +6,10 @@ import {
 	FIXEDCHARGE,
 	RATEPERUNIT,
 } from "@rently/db/constants/payment-constants";
-import { UTILITY_TYPES } from "@rently/db/constants/rent-constants";
+import {
+	PAYMENT_TYPES,
+	UTILITY_TYPES,
+} from "@rently/db/constants/rent-constants";
 import { user } from "@rently/db/schema/auth";
 import {
 	billCredits,
@@ -36,6 +39,7 @@ import {
 } from "../helpers/automatic-emails";
 import { getAmountDueForUtility } from "../helpers/credit.helpers";
 import { settlementAdvisoryLock } from "../helpers/settlement-lock";
+import { getSignedLedgerPayments } from "../helpers/signed-ledger";
 
 type BatchCapableDatabase = Database & {
 	batch<T extends readonly unknown[]>(
@@ -188,14 +192,6 @@ async function getOwnedUtility(
 			companyName: ownerProfiles.companyName,
 			ownerAddress: ownerProfiles.address,
 			gstNumber: ownerProfiles.gstNumber,
-			receiptPaymentId: sql<string | null>`(
-				select ${payments.id}
-				from ${payments}
-				where ${payments.utilityId} = ${utilities.id}
-					and ${payments.type} = 'utility'
-				order by ${payments.createdAt} desc
-				limit 1
-			)`,
 		})
 		.from(utilities)
 		.innerJoin(leases, eq(utilities.leaseId, leases.id))
@@ -224,6 +220,23 @@ async function getOwnedUtility(
 		});
 	}
 
+	const ledger = await getSignedLedgerPayments(db, {
+		utilityIds: [utilityId],
+	});
+	const receiptPayment = ledger
+		.filter(
+			(payment) =>
+				payment.category === PAYMENT_TYPES.UTILITY &&
+				!payment.isReversal &&
+				!payment.isReversed,
+		)
+		.sort(
+			(a, b) =>
+				b.createdAt.getTime() - a.createdAt.getTime() ||
+				b.id.localeCompare(a.id),
+		)
+		.at(0);
+
 	const credits = await db
 		.select({
 			amount: billCredits.amount,
@@ -236,16 +249,18 @@ async function getOwnedUtility(
 		.where(eq(billCredits.utilityId, utilityId))
 		.orderBy(billCredits.createdAt);
 
-	const [paidAgg] = await db
-		.select({ sum: sql<number>`coalesce(sum(${payments.amount}), 0)` })
-		.from(payments)
-		.where(eq(payments.utilityId, utilityId));
-
 	const creditsSum = credits.reduce((s, c) => s + c.amount, 0);
-	const paidSum = paidAgg?.sum ?? 0;
+	const paidSum = ledger
+		.filter((payment) => payment.category === PAYMENT_TYPES.UTILITY)
+		.reduce((sum, payment) => sum + payment.amount, 0);
 	const amountDue = row.totalAmount + creditsSum - paidSum;
 
-	return { ...row, credits, amountDue };
+	return {
+		...row,
+		credits,
+		amountDue,
+		receiptPaymentId: receiptPayment?.id ?? null,
+	};
 }
 
 // **********************************************
@@ -515,42 +530,6 @@ export const listUtilities = ownerProcedure
 				isPaid: utilities.isPaid,
 				createdAt: utilities.createdAt,
 				updatedAt: utilities.updatedAt,
-				// A utility can have historical payment attempts. Select only the
-				// latest utility payment so the list remains one row per utility.
-				receiptPaymentId: sql<string | null>`(
-					select ${payments.id}
-					from ${payments}
-					where ${payments.utilityId} = ${utilities.id}
-						and ${payments.type} = 'utility'
-						and not exists (
-							select 1 from ${payments} reversal
-							where reversal.type = 'reversal'
-								and reversal.reference_number = ${payments.id}::text
-						)
-					order by ${payments.createdAt} desc
-					limit 1
-				)`,
-				receiptPaymentDate: sql<Date | null>`(
-					select ${payments.paymentDate}
-					from ${payments}
-					where ${payments.utilityId} = ${utilities.id}
-						and ${payments.type} = 'utility'
-						and not exists (
-							select 1 from ${payments} reversal
-							where reversal.type = 'reversal'
-								and reversal.reference_number = ${payments.id}::text
-						)
-					order by ${payments.createdAt} desc
-					limit 1
-				)`.mapWith((value) => (value ? new Date(String(value)) : null)),
-				hasReversedPayment: sql<boolean>`exists (
-					select 1
-					from ${payments} payment
-					inner join ${payments} reversal
-						on reversal.reference_number = payment.id::text
-						and reversal.type = 'reversal'
-					where payment.utility_id = ${utilities.id}
-				)`,
 				// enriched context
 				unitNumber: units.unitNumber,
 				propertyName: properties.name,
@@ -569,6 +548,7 @@ export const listUtilities = ownerProcedure
 		if (results.length === 0) return { utilities: [] as never };
 
 		const utilityIds = results.map((r) => r.id);
+		const ledgerRows = await getSignedLedgerPayments(db, { utilityIds });
 
 		const creditRows = await db
 			.select({
@@ -583,15 +563,6 @@ export const listUtilities = ownerProcedure
 			.where(inArray(billCredits.utilityId, utilityIds))
 			.orderBy(billCredits.createdAt);
 
-		const paymentSums = await db
-			.select({
-				utilityId: payments.utilityId,
-				sum: sql<number>`coalesce(sum(${payments.amount}), 0)`,
-			})
-			.from(payments)
-			.where(inArray(payments.utilityId, utilityIds))
-			.groupBy(payments.utilityId);
-
 		const creditsByUtility = new Map<string, typeof creditRows>();
 		for (const cr of creditRows) {
 			if (!cr.utilityId) continue;
@@ -599,10 +570,12 @@ export const listUtilities = ownerProcedure
 			arr.push(cr);
 			creditsByUtility.set(cr.utilityId, arr);
 		}
-		const paidByUtility = new Map<string, number>();
-		for (const p of paymentSums) {
-			if (!p.utilityId) continue;
-			paidByUtility.set(p.utilityId, Number(p.sum));
+		const ledgerByUtility = new Map<string, typeof ledgerRows>();
+		for (const payment of ledgerRows) {
+			if (!payment.utilityId) continue;
+			const entries = ledgerByUtility.get(payment.utilityId) ?? [];
+			entries.push(payment);
+			ledgerByUtility.set(payment.utilityId, entries);
 		}
 
 		const enriched = results.map((r) => {
@@ -614,9 +587,36 @@ export const listUtilities = ownerProcedure
 				appliedAs: c.appliedAs,
 			}));
 			const creditsSum = credits.reduce((s, c) => s + c.amount, 0);
-			const paidSum = paidByUtility.get(r.id) ?? 0;
+			const ledger = ledgerByUtility.get(r.id) ?? [];
+			const paidSum = ledger
+				.filter((payment) => payment.category === PAYMENT_TYPES.UTILITY)
+				.reduce((sum, payment) => sum + payment.amount, 0);
+			const receiptPayment = ledger
+				.filter(
+					(payment) =>
+						payment.category === PAYMENT_TYPES.UTILITY &&
+						!payment.isReversal &&
+						!payment.isReversed,
+				)
+				.sort(
+					(a, b) =>
+						b.createdAt.getTime() - a.createdAt.getTime() ||
+						b.id.localeCompare(a.id),
+				)
+				.at(0);
+			const hasReversedPayment = ledger.some(
+				(payment) =>
+					payment.category === PAYMENT_TYPES.UTILITY && payment.isReversed,
+			);
 			const amountDue = r.totalAmount + creditsSum - paidSum;
-			return { ...r, credits, amountDue };
+			return {
+				...r,
+				credits,
+				amountDue,
+				receiptPaymentId: receiptPayment?.id ?? null,
+				receiptPaymentDate: receiptPayment?.paymentDate ?? null,
+				hasReversedPayment,
+			};
 		});
 
 		return {

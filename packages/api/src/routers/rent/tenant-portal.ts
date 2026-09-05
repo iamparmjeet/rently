@@ -12,7 +12,6 @@ import {
 	leaseAgreements,
 	leases,
 	notifications,
-	payments,
 	properties,
 	tenantProfiles,
 	units,
@@ -22,6 +21,7 @@ import { and, count, desc, eq, gte, lt, sql } from "drizzle-orm";
 import z from "zod";
 import { sendAutomaticUtilityBillEmail } from "../helpers/automatic-emails";
 import { getAmountDueForUtility } from "../helpers/credit.helpers";
+import { getSignedLedgerPayments } from "../helpers/signed-ledger";
 
 type BatchCapableDatabase = Database & {
 	batch<T extends readonly unknown[]>(
@@ -285,33 +285,24 @@ export const getMyPayments = protectedProcedure
 	.handler(async ({ context }) => {
 		const { db, user: authUser } = context;
 
-		const results = await db
-			.select({
-				id: payments.id,
-				leaseId: payments.leaseId,
-				unitNumber: units.unitNumber,
-				propertyName: properties.name,
-				paymentGroupId: payments.paymentGroupId,
-				amount: payments.amount,
-				paymentDate: payments.paymentDate,
-				type: payments.type,
-				paymentMethods: payments.paymentMethods,
-				referenceNumber: payments.referenceNumber,
-				description: payments.description,
-				// WHY: LEFT JOIN utilities to get the utility type label for display
-				// (e.g. "electricity" → "Electricity"). utilityId is nullable on payments.
-				utilityType: utilities.utilityType,
-				createdAt: payments.createdAt,
-			})
-			.from(payments)
-			.innerJoin(leases, eq(payments.leaseId, leases.id))
-			.innerJoin(units, eq(leases.unitId, units.id))
-			.innerJoin(properties, eq(units.propertyId, properties.id))
-			.leftJoin(utilities, eq(payments.utilityId, utilities.id))
-			// GOTCHA: This WHERE is the authorization. Only payments where the
-			// lease belongs to the logged-in tenant are returned.
-			.where(eq(leases.tenantId, authUser.id))
-			.orderBy(desc(payments.paymentDate));
+		const ledgerRows = await getSignedLedgerPayments(db, {
+			tenantId: authUser.id,
+		});
+		const results = ledgerRows.map((payment) => ({
+			id: payment.id,
+			leaseId: payment.leaseId,
+			unitNumber: payment.unitNumber,
+			propertyName: payment.propertyName,
+			paymentGroupId: payment.paymentGroupId,
+			amount: payment.amount,
+			paymentDate: payment.paymentDate,
+			type: payment.type,
+			paymentMethods: payment.paymentMethods,
+			referenceNumber: payment.referenceNumber,
+			description: payment.description,
+			utilityType: payment.utilityType,
+			createdAt: payment.createdAt,
+		}));
 
 		return { payments: results };
 	});

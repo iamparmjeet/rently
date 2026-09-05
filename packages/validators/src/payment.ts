@@ -16,12 +16,15 @@ import { DateRangeSchema } from "./date";
 // ******** Payment **********
 // ── Layer 1: DB-derived
 // Derive Zod Schemas - For Runtime
-// idempotencyKey is an internal dedupe column — not part of any API response.
+// Idempotency metadata is internal dedupe state — not part of any API response.
 export const PaymentSelectSchema = createSelectSchema(payments).omit({
 	idempotencyKey: true,
 });
 export const PaymentInsertSchema = createInsertSchema(payments);
-export const PaymentGroupSelectSchema = createSelectSchema(paymentGroups);
+export const PaymentGroupSelectSchema = createSelectSchema(paymentGroups).omit({
+	idempotencyKey: true,
+	requestFingerprint: true,
+});
 export const PaymentGroupInsertSchema = createInsertSchema(paymentGroups);
 
 // ── Layer 2: API input schemas
@@ -82,6 +85,8 @@ export const CreateAgreementPaymentSchema = PaymentGroupInsertSchema.omit({
 	createdAt: true,
 	updatedAt: true,
 	reversesPaymentGroupId: true,
+	idempotencyKey: true,
+	requestFingerprint: true,
 }).extend({
 	agreementId: z.uuid(),
 	idempotencyKey: z.uuid(),

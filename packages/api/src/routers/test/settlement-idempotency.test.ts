@@ -142,6 +142,68 @@ async function directBill(leaseId: string, totalAmount = 5_00_00) {
 	return utilityId;
 }
 
+async function additionalTenant(ownerId: string, name: string) {
+	const tenantId = crypto.randomUUID();
+	createdUserIds.push(tenantId);
+	await db.insert(user).values({
+		id: tenantId,
+		name,
+		email: `${tenantId}@test.keyhq.invalid`,
+		role: "tenant",
+	});
+	const profileId = crypto.randomUUID();
+	createdProfileIds.push(profileId);
+	await db.insert(tenantProfiles).values({
+		id: profileId,
+		userId: tenantId,
+		createdById: ownerId,
+	});
+	return tenantId;
+}
+
+async function combinedAgreement(
+	ownerId: string,
+	tenantId: string,
+	propertyId: string,
+	unitPrefix: string,
+) {
+	const createdUnits = await db
+		.insert(units)
+		.values([
+			{
+				id: crypto.randomUUID(),
+				propertyId,
+				unitNumber: `${unitPrefix}-A`,
+				type: UNIT_TYPES.ONEBHK,
+				baseRent: 1100,
+				status: UNIT_STATUSES.AVAILABLE,
+			},
+			{
+				id: crypto.randomUUID(),
+				propertyId,
+				unitNumber: `${unitPrefix}-B`,
+				type: UNIT_TYPES.ONEBHK,
+				baseRent: 1900,
+				status: UNIT_STATUSES.AVAILABLE,
+			},
+		])
+		.returning();
+	createdUnitIds.push(...createdUnits.map((unit) => unit.id));
+	const result = await clients(ownerId).createCombinedLease({
+		tenantId,
+		startDate: new Date("2026-09-01T00:00:00.000Z"),
+		endDate: new Date("2027-09-01T00:00:00.000Z"),
+		units: createdUnits.map((unit) => ({
+			unitId: unit.id,
+			rent: unit.baseRent,
+		})),
+	});
+	const agreementId = result.leases[0]?.agreementId;
+	if (!agreementId)
+		throw new Error("Combined lease did not create an agreement");
+	return { agreementId, leases: result.leases };
+}
+
 function clients(ownerId: string) {
 	mocks.getSession.mockResolvedValue({
 		user: { id: ownerId, role: "owner" },
@@ -337,6 +399,123 @@ describe("settlement idempotency keys (B07)", () => {
 			idempotencyKey: key,
 		});
 		expect(second.paymentGroup.id).toBe(first.paymentGroup.id);
+		const [storedGroup] = await db
+			.select({
+				idempotencyKey: paymentGroups.idempotencyKey,
+				requestFingerprint: paymentGroups.requestFingerprint,
+			})
+			.from(paymentGroups)
+			.where(eq(paymentGroups.id, first.paymentGroup.id));
+		expect(storedGroup?.idempotencyKey).toBe(key);
+		expect(storedGroup?.requestFingerprint).toBeTruthy();
+		const childKeys = await db
+			.select({ idempotencyKey: payments.idempotencyKey })
+			.from(payments)
+			.where(eq(payments.paymentGroupId, first.paymentGroup.id));
+		expect(childKeys.every((payment) => payment.idempotencyKey === null)).toBe(
+			true,
+		);
+	});
+
+	it("does not replay a same key across agreements", async () => {
+		const { ownerId, tenantId, propertyId } = await ownerPropertyUnit();
+		const secondTenantId = await additionalTenant(ownerId, "Tenant B");
+		const firstAgreement = await combinedAgreement(
+			ownerId,
+			tenantId,
+			propertyId,
+			"B09-A",
+		);
+		const secondAgreement = await combinedAgreement(
+			ownerId,
+			secondTenantId,
+			propertyId,
+			"B09-B",
+		);
+		const key = crypto.randomUUID();
+		const paymentDate = new Date("2026-09-05T00:00:00.000Z");
+		const first = await clients(ownerId).createAgreementPayment({
+			agreementId: firstAgreement.agreementId,
+			paymentDate,
+			paymentMethods: "upi",
+			idempotencyKey: key,
+		});
+		const second = await clients(ownerId).createAgreementPayment({
+			agreementId: secondAgreement.agreementId,
+			paymentDate,
+			paymentMethods: "upi",
+			idempotencyKey: key,
+		});
+		createdGroupIds.push(first.paymentGroup.id, second.paymentGroup.id);
+
+		expect(second.paymentGroup.id).not.toBe(first.paymentGroup.id);
+		expect(new Set(second.payments.map((payment) => payment.leaseId))).toEqual(
+			new Set(secondAgreement.leases.map((lease) => lease.id)),
+		);
+	});
+
+	it("does not replay a same key across owners", async () => {
+		const firstOwner = await ownerPropertyUnit();
+		const secondOwner = await ownerPropertyUnit();
+		const firstAgreement = await combinedAgreement(
+			firstOwner.ownerId,
+			firstOwner.tenantId,
+			firstOwner.propertyId,
+			"B09-owner-a",
+		);
+		const secondAgreement = await combinedAgreement(
+			secondOwner.ownerId,
+			secondOwner.tenantId,
+			secondOwner.propertyId,
+			"B09-owner-b",
+		);
+		const key = crypto.randomUUID();
+		const paymentDate = new Date("2026-09-05T00:00:00.000Z");
+		const first = await clients(firstOwner.ownerId).createAgreementPayment({
+			agreementId: firstAgreement.agreementId,
+			paymentDate,
+			paymentMethods: "upi",
+			idempotencyKey: key,
+		});
+		const second = await clients(secondOwner.ownerId).createAgreementPayment({
+			agreementId: secondAgreement.agreementId,
+			paymentDate,
+			paymentMethods: "upi",
+			idempotencyKey: key,
+		});
+		createdGroupIds.push(first.paymentGroup.id, second.paymentGroup.id);
+
+		expect(second.paymentGroup.id).not.toBe(first.paymentGroup.id);
+	});
+
+	it("rejects a same-key replay when the request fingerprint changes", async () => {
+		const { ownerId, tenantId, propertyId } = await ownerPropertyUnit();
+		const agreement = await combinedAgreement(
+			ownerId,
+			tenantId,
+			propertyId,
+			"B09-fingerprint",
+		);
+		const client = clients(ownerId);
+		const key = crypto.randomUUID();
+		const first = await client.createAgreementPayment({
+			agreementId: agreement.agreementId,
+			paymentDate: new Date("2026-09-05T00:00:00.000Z"),
+			paymentMethods: "upi",
+			referenceNumber: "allocation-request-a",
+			idempotencyKey: key,
+		});
+		createdGroupIds.push(first.paymentGroup.id);
+
+		await expect(
+			client.createAgreementPayment({
+				agreementId: agreement.agreementId,
+				paymentDate: new Date("2026-09-05T00:00:00.000Z"),
+				paymentMethods: "upi",
+				referenceNumber: "allocation-request-b",
+				idempotencyKey: key,
+			}),
+		).rejects.toMatchObject({ code: "CONFLICT" });
 	});
 
 	it("rejects an agreement payment without a key", async () => {

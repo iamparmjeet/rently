@@ -75,6 +75,85 @@ function violationCode(error: unknown): string | undefined {
 	return undefined;
 }
 
+function groupedPaymentRequestFingerprint(input: {
+	agreementId: string;
+	paymentDate: Date;
+	paymentMethods?: string | null;
+	referenceNumber?: string | null;
+	description?: string | null;
+}): string {
+	// Keep the representation deterministic across Node and Neon HTTP. The
+	// grouped command has no client-supplied allocation list; its allocation
+	// policy is server-owned, so the fingerprint covers the complete request
+	// accepted by this API and deliberately excludes server-side balances.
+	return JSON.stringify({
+		agreementId: input.agreementId,
+		paymentDate: input.paymentDate.toISOString(),
+		paymentMethods: input.paymentMethods ?? null,
+		referenceNumber: input.referenceNumber ?? null,
+		description: input.description ?? null,
+	});
+}
+
+async function readGroupedPaymentResult(
+	db: Pick<Database, "select">,
+	groupId: string,
+) {
+	const [paymentGroup] = await db
+		.select()
+		.from(paymentGroups)
+		.where(eq(paymentGroups.id, groupId));
+	if (!paymentGroup) {
+		throw new ORPCError("INTERNAL_SERVER_ERROR", {
+			message: "Grouped payment idempotency record is incomplete",
+		});
+	}
+	const createdPayments = await db
+		.select()
+		.from(payments)
+		.where(eq(payments.paymentGroupId, groupId));
+	return { paymentGroup, payments: createdPayments };
+}
+
+async function findGroupedPaymentReplay(
+	db: Pick<Database, "select">,
+	ownerId: string,
+	agreementId: string,
+	idempotencyKey: string,
+	requestFingerprint: string,
+) {
+	// Scope the key lookup before reading any financial rows. Agreement UUIDs
+	// are globally unique, while the property join is the authoritative owner
+	// boundary; neither owner nor agreement is inferred from the key itself.
+	const [existingGroup] = await db
+		.select({
+			id: paymentGroups.id,
+			requestFingerprint: paymentGroups.requestFingerprint,
+		})
+		.from(paymentGroups)
+		.innerJoin(
+			leaseAgreements,
+			eq(paymentGroups.agreementId, leaseAgreements.id),
+		)
+		.innerJoin(properties, eq(leaseAgreements.propertyId, properties.id))
+		.where(
+			and(
+				eq(paymentGroups.idempotencyKey, idempotencyKey),
+				eq(paymentGroups.agreementId, agreementId),
+				eq(properties.ownerId, ownerId),
+			),
+		)
+		.limit(1);
+	if (!existingGroup) return undefined;
+	if (existingGroup.requestFingerprint !== requestFingerprint) {
+		throw new ORPCError("CONFLICT", {
+			message:
+				"Idempotency key was already used with a different grouped payment request",
+		});
+	}
+	return readGroupedPaymentResult(db, existingGroup.id);
+}
+
 async function findReversalByOriginal(
 	db: Pick<Database, "select">,
 	originalId: string,
@@ -664,29 +743,17 @@ export const createAgreementPayment = ownerProcedure
 
 		// Idempotency: replay before any balance math — after a first success
 		// the dues are zero, so a retry must hit this before allocations.
-		// (B09 scopes replay to owner+agreement; the key lookup stays as is.)
 		const idempotencyKey = input.idempotencyKey ?? null;
+		const requestFingerprint = groupedPaymentRequestFingerprint(input);
 		if (idempotencyKey) {
-			const [existingGroupPayment] = await db
-				.select({ paymentGroupId: payments.paymentGroupId })
-				.from(payments)
-				.where(eq(payments.idempotencyKey, idempotencyKey))
-				.limit(1);
-			if (existingGroupPayment?.paymentGroupId) {
-				const [paymentGroup] = await db
-					.select()
-					.from(paymentGroups)
-					.where(eq(paymentGroups.id, existingGroupPayment.paymentGroupId));
-				const createdPayments = await db
-					.select()
-					.from(payments)
-					.where(
-						eq(payments.paymentGroupId, existingGroupPayment.paymentGroupId),
-					);
-				if (paymentGroup) {
-					return { paymentGroup, payments: createdPayments };
-				}
-			}
+			const replay = await findGroupedPaymentReplay(
+				db,
+				authUser.id,
+				agreement.id,
+				idempotencyKey,
+				requestFingerprint,
+			);
+			if (replay) return replay;
 		}
 
 		const agreementLeases = await db
@@ -722,6 +789,8 @@ export const createAgreementPayment = ownerProcedure
 			paymentMethods: input.paymentMethods ?? null,
 			referenceNumber: input.referenceNumber ?? null,
 			description: input.description ?? null,
+			idempotencyKey,
+			requestFingerprint,
 		};
 		const paymentValues = allocations.map(({ leaseId, amount }) => ({
 			leaseId,
@@ -732,7 +801,6 @@ export const createAgreementPayment = ownerProcedure
 			type: PAYMENT_TYPES.RENT,
 			description: input.description ?? null,
 			paymentGroupId: groupId,
-			idempotencyKey,
 		}));
 
 		if (supportsBatch(db)) {
@@ -743,38 +811,42 @@ export const createAgreementPayment = ownerProcedure
 				]);
 			} catch (error) {
 				if (violationCode(error) !== "23505" || !idempotencyKey) throw error;
-				// Concurrent retry won the race — return the winner's group.
-				const [winnerPayment] = await db
-					.select({ paymentGroupId: payments.paymentGroupId })
-					.from(payments)
-					.where(eq(payments.idempotencyKey, idempotencyKey))
-					.limit(1);
-				if (winnerPayment?.paymentGroupId) {
-					const [paymentGroup] = await db
-						.select()
-						.from(paymentGroups)
-						.where(eq(paymentGroups.id, winnerPayment.paymentGroupId));
-					const createdPayments = await db
-						.select()
-						.from(payments)
-						.where(eq(payments.paymentGroupId, winnerPayment.paymentGroupId));
-					if (paymentGroup) {
-						return { paymentGroup, payments: createdPayments };
-					}
-				}
+				// Concurrent retry won the agreement-scoped group race. Query the
+				// winner only through the authenticated owner and requested agreement.
+				const replay = await findGroupedPaymentReplay(
+					db,
+					authUser.id,
+					agreement.id,
+					idempotencyKey,
+					requestFingerprint,
+				);
+				if (replay) return replay;
 				throw error;
 			}
 		} else {
-			await db.transaction(async (tx) => {
-				// Serialize concurrent grouped payments for the same agreement leases.
-				for (const { leaseId } of allocations) {
-					await tx.execute(
-						sql`select 1 from ${leases} where ${leases.id} = ${leaseId} for update`,
-					);
-				}
-				await tx.insert(paymentGroups).values(groupValues);
-				await tx.insert(payments).values(paymentValues);
-			});
+			try {
+				await db.transaction(async (tx) => {
+					// Serialize concurrent grouped payments for the same agreement leases.
+					for (const { leaseId } of allocations) {
+						await tx.execute(
+							sql`select 1 from ${leases} where ${leases.id} = ${leaseId} for update`,
+						);
+					}
+					await tx.insert(paymentGroups).values(groupValues);
+					await tx.insert(payments).values(paymentValues);
+				});
+			} catch (error) {
+				if (violationCode(error) !== "23505" || !idempotencyKey) throw error;
+				const replay = await findGroupedPaymentReplay(
+					db,
+					authUser.id,
+					agreement.id,
+					idempotencyKey,
+					requestFingerprint,
+				);
+				if (replay) return replay;
+				throw error;
+			}
 		}
 
 		const [paymentGroup] = await db

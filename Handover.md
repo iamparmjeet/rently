@@ -199,3 +199,13 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Incidents: (1) DB test omitted the first void (no conflict possible) — fixed; (2) unused-param + bad-cast type errors — removed param, typed full shape; (3) early red runs leaked 20 groups — cleaned by B05 markers.
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → full suite 231/231, zero leaks → local `bun run build` 5/5 (next-env churn restored).
 - Committed as `03e3b5fa`, opened PR #14 → `integ/phase-a-baseline` with user approval, CI green (~3m25s) first run, merged 2026-09-05.
+
+## B06 Atomic credit reversal (2026-09-05, Muse Spark, branch fix/atomic-credit-reversal, tag pre-atomic-credit-reversal)
+- Base: clean `integ/phase-a-baseline@be7aca91`. Fix-Plan B06 `[~]` (Terra High review owed).
+- Pre-checks: dev has zero credit reversals (index trivially safe); nothing depends on CONFLICT "Already reversed".
+- Changed (one migration `0028`, partial unique on `bill_credits.reversesCreditId`): reverseCredit idempotent — marked-credit pre-check returns existing pair; uniform insert→catch-23505→adopt-winner→complete-original on both paths (abort-safe); insert-first order preserved (dangling reversal recoverable, dangling mark is not). Extracted `markCreditReversed` + `findReversalByCredit` + wrap-aware `violationCode`.
+- Behavior change (recorded): retry of a reversed credit returns the pair instead of CONFLICT.
+- Tests first (5): concurrent (same id, one row), retry, partial-orphan completion (mark set, no dupe), link+mark control, raw duplicate 23505.
+- Incidents: (1) uuidv7 timestamp-prefix collided on hand-rolled `KQ-CN-<8>` note numbers (false green) — notes now full-suffix via helper; scratch probe + leftovers removed. (2) stray `});` from a large edit + two missing undefined guards — repaired, tsc clean. (3) bare `tsc -p` showed phantom errors in untouched files — authoritative `check-types --force` 6/6 green; bare invocation disregarded.
+- Verification: `db:generate` no drift → `check-types --force` 6/6 → Biome clean → `db:migrate:test` → full suite 236/236, zero leaks → local `bun run build` 5/5 (next-env churn restored).
+- Committed as `15f5acd0`, opened PR #15 → `integ/phase-a-baseline` with user approval, CI green (~3m20s) first run, merged 2026-09-05.

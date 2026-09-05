@@ -69,6 +69,7 @@ jobs:
         run: bun run build
         env:
           SKIP_ENV_VALIDATION: "true"
+          RESEND_API_KEY: test-only-placeholder
           NEXT_PUBLIC_SERVER_URL: http://localhost:3000
           NEXT_PUBLIC_WEB_URL: http://localhost:3001
           NEXT_PUBLIC_DASHBOARD_URL: http://localhost:3002

@@ -26,9 +26,10 @@ export const PaymentGroupInsertSchema = createInsertSchema(paymentGroups);
 
 // ── Layer 2: API input schemas
 // Business Logic Schemas
-// Generic creation can never mint a reversal (voidPayment only) and must
-// pair type with utility: utility payments name their bill, every other
-// type forbids one. The database CHECK is the backstop.
+// Generic creation can never mint a reversal (voidPayment only). The
+// pairing rule (utility ⇔ utilityId) lives on CreatePaymentRequestSchema,
+// NOT here: dashboard's PaymentFormSchema overwrites keys via .extend(),
+// which zod forbids on schemas carrying refinements.
 type NonReversalPaymentType = Exclude<PaymentType, "reversal">;
 const NON_REVERSAL_PAYMENT_TYPES = PAYMENT_TYPE_VALUES.filter(
 	(t): t is NonReversalPaymentType => t !== PAYMENT_TYPES.REVERSAL,
@@ -39,17 +40,20 @@ export const CreatePaymentSchema = PaymentInsertSchema.omit({
 	createdAt: true,
 	updatedAt: true,
 	paymentGroupId: true,
-})
-	.extend({
-		leaseId: z.string({ error: "Please select a lease" }).min(1, {
-			error: "Please select a lease",
-		}),
-		// amount must be positive — reversals go via voidPayment only (also enforced in handler)
-		amount: z.number().int().positive({ error: "Amount must be > 0" }),
-		idempotencyKey: z.uuid().optional(),
-		type: z.enum(NON_REVERSAL_PAYMENT_TYPES).optional(),
-	})
-	.superRefine((value, ctx) => {
+}).extend({
+	leaseId: z.string({ error: "Please select a lease" }).min(1, {
+		error: "Please select a lease",
+	}),
+	// amount must be positive — reversals go via voidPayment only (also enforced in handler)
+	amount: z.number().int().positive({ error: "Amount must be > 0" }),
+	idempotencyKey: z.uuid().optional(),
+	type: z.enum(NON_REVERSAL_PAYMENT_TYPES).optional(),
+});
+
+// Strict API input: utility payments name their bill, every other type
+// forbids one. The database CHECK is the backstop.
+export const CreatePaymentRequestSchema = CreatePaymentSchema.superRefine(
+	(value, ctx) => {
 		const type = value.type ?? PAYMENT_TYPES.RENT;
 		const hasUtility = value.utilityId != null;
 		if (type === PAYMENT_TYPES.UTILITY && !hasUtility) {
@@ -65,7 +69,8 @@ export const CreatePaymentSchema = PaymentInsertSchema.omit({
 				path: ["type"],
 			});
 		}
-	});
+	},
+);
 
 // A combined agreement payment always settles every outstanding active-unit rent
 // balance. The server derives the individual allocations; callers cannot supply

@@ -7,6 +7,8 @@ import {
 	paymentGroups,
 	payments,
 	properties,
+	rentAllocations,
+	rentCharges,
 	tenantInvites,
 	tenantProfiles,
 	units,
@@ -192,6 +194,21 @@ afterEach(async () => {
 		...new Set([...createdUserIds, ...createdInviteIds]),
 	];
 
+	// C04: the period ledger references leases — clear it first.
+	await db
+		.delete(rentAllocations)
+		.where(
+			inArray(
+				rentAllocations.chargeId,
+				db
+					.select({ id: rentCharges.id })
+					.from(rentCharges)
+					.where(inArray(rentCharges.leaseId, createdLeaseIds)),
+			),
+		);
+	await db
+		.delete(rentCharges)
+		.where(inArray(rentCharges.leaseId, createdLeaseIds));
 	if (createdPaymentIds.length > 0) {
 		await db.delete(payments).where(inArray(payments.id, createdPaymentIds));
 	}

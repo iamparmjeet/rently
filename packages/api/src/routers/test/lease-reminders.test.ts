@@ -4,6 +4,8 @@ import { user } from "@rently/db/schema/auth";
 import {
 	leases,
 	properties,
+	rentAllocations,
+	rentCharges,
 	rentReminderSuppressions,
 	units,
 } from "@rently/db/schema/schema";
@@ -90,6 +92,19 @@ afterEach(async () => {
 	await db
 		.delete(rentReminderSuppressions)
 		.where(inArray(rentReminderSuppressions.leaseId, leaseIds));
+	// C04: the period ledger references leases — clear it first.
+	await db
+		.delete(rentAllocations)
+		.where(
+			inArray(
+				rentAllocations.chargeId,
+				db
+					.select({ id: rentCharges.id })
+					.from(rentCharges)
+					.where(inArray(rentCharges.leaseId, leaseIds)),
+			),
+		);
+	await db.delete(rentCharges).where(inArray(rentCharges.leaseId, leaseIds));
 	await db.delete(leases).where(inArray(leases.id, leaseIds));
 	await db.delete(units).where(inArray(units.id, unitIds));
 	await db.delete(properties).where(inArray(properties.id, propertyIds));

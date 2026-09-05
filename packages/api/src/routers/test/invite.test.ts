@@ -45,8 +45,17 @@ import {
 	resendInvite,
 } from "../rent/invite";
 import { createCombinedLease, createLease } from "../rent/lease";
-import { createAgreementPayment, voidPaymentGroup } from "../rent/payment";
-import { createTenant, listTenants } from "../rent/tenant";
+import {
+	createAgreementPayment,
+	listPayments,
+	voidPaymentGroup,
+} from "../rent/payment";
+import {
+	createTenant,
+	getTenantById,
+	listTenants,
+	updateTenant,
+} from "../rent/tenant";
 
 const db = createDb();
 const createdUserIds: string[] = [];
@@ -157,9 +166,12 @@ function clientFor(owner: Awaited<ReturnType<typeof createOwner>>) {
 			acceptInvite,
 			createTenant,
 			listTenants,
+			getTenantById,
+			updateTenant,
 			createLease,
 			createCombinedLease,
 			createAgreementPayment,
+			listPayments,
 			voidPaymentGroup,
 		},
 		{
@@ -592,6 +604,159 @@ describe("createTenant", () => {
 				status: "pending",
 				emailVerified: false,
 			}),
+		);
+	});
+
+	it("keeps a shared tenant as one owner-scoped relationship per owner", async () => {
+		const ownerA = await createOwner("Owner A");
+		const ownerB = await createOwner("Owner B");
+		const email = `${crypto.randomUUID()}@test.keyhq.invalid`;
+
+		const { invite: inviteA } = await clientFor(ownerA).createTenant({
+			name: "Shared Tenant",
+			email,
+			address: "Owner A address",
+		});
+		const { invite: inviteB } = await clientFor(ownerB).createTenant({
+			name: "Shared Tenant",
+			email,
+			address: "Owner B address",
+		});
+		createdInviteIds.push(inviteA.id, inviteB.id);
+		createdUserIds.push(inviteA.id);
+
+		const ownerATenants = await clientFor(ownerA).listTenants();
+		const ownerBTenants = await clientFor(ownerB).listTenants();
+
+		expect(ownerATenants.tenants).toHaveLength(1);
+		expect(ownerBTenants.tenants).toHaveLength(1);
+		expect(ownerATenants.tenants[0]?.inviteId).toBe(inviteA.id);
+		expect(ownerBTenants.tenants[0]?.inviteId).toBe(inviteB.id);
+
+		const [propertyA] = await db
+			.insert(properties)
+			.values({
+				ownerId: ownerA.id,
+				name: "Owner A Property",
+				address: "Owner A Road",
+				type: "residential",
+			})
+			.returning();
+		const [propertyB] = await db
+			.insert(properties)
+			.values({
+				ownerId: ownerB.id,
+				name: "Owner B Property",
+				address: "Owner B Road",
+				type: "residential",
+			})
+			.returning();
+		if (!propertyA || !propertyB)
+			throw new Error("Failed to create properties");
+		createdPropertyIds.push(propertyA.id, propertyB.id);
+
+		const [unitA] = await db
+			.insert(units)
+			.values({
+				propertyId: propertyA.id,
+				unitNumber: "A-1",
+				type: "1BHK",
+				baseRent: 1500,
+				status: "available",
+			})
+			.returning();
+		const [unitB] = await db
+			.insert(units)
+			.values({
+				propertyId: propertyB.id,
+				unitNumber: "B-1",
+				type: "1BHK",
+				baseRent: 1500,
+				status: "available",
+			})
+			.returning();
+		if (!unitA || !unitB) throw new Error("Failed to create units");
+		createdUnitIds.push(unitA.id, unitB.id);
+
+		const { lease: leaseA } = await clientFor(ownerA).createLease({
+			unitId: unitA.id,
+			tenantId: inviteA.id,
+			startDate: new Date("2026-08-07T00:00:00.000Z"),
+			endDate: new Date("2027-08-07T00:00:00.000Z"),
+			rent: 1500,
+			deposit: 100,
+		});
+		const { lease: leaseB } = await clientFor(ownerB).createLease({
+			unitId: unitB.id,
+			tenantId: inviteA.id,
+			startDate: new Date("2026-08-08T00:00:00.000Z"),
+			endDate: new Date("2027-08-08T00:00:00.000Z"),
+			rent: 1600,
+			deposit: 100,
+		});
+		createdLeaseIds.push(leaseA.id, leaseB.id);
+		if (leaseA.agreementId) createdAgreementIds.push(leaseA.agreementId);
+		if (leaseB.agreementId) createdAgreementIds.push(leaseB.agreementId);
+
+		const [paymentA] = await db
+			.insert(payments)
+			.values({
+				leaseId: leaseA.id,
+				amount: 140000,
+				paymentDate: new Date("2026-09-04T00:00:00.000Z"),
+				paymentMethods: "upi",
+				type: "rent",
+			})
+			.returning();
+		const [paymentB] = await db
+			.insert(payments)
+			.values({
+				leaseId: leaseB.id,
+				amount: 160000,
+				paymentDate: new Date("2026-09-04T00:00:00.000Z"),
+				paymentMethods: "upi",
+				type: "rent",
+			})
+			.returning();
+		if (!paymentA || !paymentB) throw new Error("Failed to create payments");
+		createdPaymentIds.push(paymentA.id, paymentB.id);
+
+		const ownerBPayments = await clientFor(ownerB).listPayments();
+		expect(ownerBPayments.payments.map((payment) => payment.id)).toEqual([
+			paymentB.id,
+		]);
+
+		const ownerBDetail = await clientFor(ownerB).getTenantById({
+			id: inviteA.id,
+		});
+		expect(ownerBDetail.tenant.activeLeases.map((lease) => lease.id)).toEqual([
+			leaseB.id,
+		]);
+
+		await clientFor(ownerB).updateTenant({
+			tenantId: inviteA.id,
+			address: "Owner B updated address",
+		});
+
+		const profiles = await db
+			.select({
+				createdById: tenantProfiles.createdById,
+				address: tenantProfiles.address,
+			})
+			.from(tenantProfiles)
+			.where(eq(tenantProfiles.userId, inviteA.id));
+
+		expect(profiles).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					createdById: ownerA.id,
+					address: "Owner A address",
+				}),
+				expect.objectContaining({
+					createdById: ownerB.id,
+					address: "Owner B updated address",
+				}),
+			]),
 		);
 	});
 

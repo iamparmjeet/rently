@@ -68,7 +68,13 @@ export const listTenants = ownerProcedure
 			)
 			// These two are conditional on leases existing — also LEFT JOIN
 			.leftJoin(units, eq(leases.unitId, units.id))
-			.leftJoin(properties, eq(units.propertyId, properties.id))
+			.leftJoin(
+				properties,
+				and(
+					eq(units.propertyId, properties.id),
+					eq(properties.ownerId, authUser.id),
+				),
+			)
 			// Ownership check: this owner created this tenant
 			.where(
 				and(
@@ -79,18 +85,22 @@ export const listTenants = ownerProcedure
 			.orderBy(desc(leases.startDate));
 
 		const tenantMap = new Map<string, z.infer<typeof TenantListItemSchema>>();
+		const profileInviteIds = new Set(
+			results.flatMap((row) => (row.inviteId ? [row.inviteId] : [])),
+		);
 
 		for (const row of results) {
-			const lease: TenantLeaseSummary | null = row.leaseId
-				? {
-						id: row.leaseId,
-						propertyName: row.propertyName ?? "",
-						unitNumber: row.unitNumber ?? "",
-						rent: row.rent ?? 0,
-						endDate: row.endDate ? row.endDate.toISOString() : null,
-						overdue: null,
-					}
-				: null;
+			const lease: TenantLeaseSummary | null =
+				row.leaseId && row.propertyName
+					? {
+							id: row.leaseId,
+							propertyName: row.propertyName ?? "",
+							unitNumber: row.unitNumber ?? "",
+							rent: row.rent ?? 0,
+							endDate: row.endDate ? row.endDate.toISOString() : null,
+							overdue: null,
+						}
+					: null;
 
 			if (!tenantMap.has(row.tenantId)) {
 				tenantMap.set(row.tenantId, {
@@ -136,7 +146,12 @@ export const listTenants = ownerProcedure
 			.orderBy(desc(tenantInvites.createdAt));
 
 		for (const invite of pendingInvites) {
-			if (invite.status === "accepted" || tenantMap.has(invite.id)) continue;
+			if (
+				invite.status === "accepted" ||
+				tenantMap.has(invite.id) ||
+				profileInviteIds.has(invite.id)
+			)
+				continue;
 
 			tenantMap.set(invite.id, {
 				id: invite.id,
@@ -231,7 +246,13 @@ export const getTenantById = ownerProcedure
 				and(eq(leases.tenantId, user.id), eq(leases.status, "active")),
 			)
 			.leftJoin(units, eq(leases.unitId, units.id))
-			.leftJoin(properties, eq(units.propertyId, properties.id))
+			.leftJoin(
+				properties,
+				and(
+					eq(units.propertyId, properties.id),
+					eq(properties.ownerId, authUser.id),
+				),
+			)
 			.where(
 				// Both conditions must be true:
 				// 1. This is the tenant being requested
@@ -306,7 +327,7 @@ export const getTenantById = ownerProcedure
 		};
 
 		const activeLeases: TenantLeaseSummary[] = results
-			.filter((row) => row.leaseId !== null)
+			.filter((row) => row.leaseId !== null && row.propertyName !== null)
 			.map((row) => ({
 				id: row.leaseId as string,
 				propertyName: row.propertyName ?? "",
@@ -564,7 +585,34 @@ export const updateTenant = ownerProcedure
 		const { db, user: authUser } = context;
 		const { tenantId, name, email, phone, ...profileFields } = input;
 
-		// Authorization: verify this tenant has a lease on one of the owner's properties
+		// An owner-scoped profile/invite authorizes edits before a lease exists.
+		const [tenantProfile] = await db
+			.select({ id: tenantProfiles.id })
+			.from(tenantProfiles)
+			.where(
+				and(
+					eq(tenantProfiles.userId, tenantId),
+					eq(tenantProfiles.createdById, authUser.id),
+					isNull(tenantProfiles.deletedAt),
+				),
+			)
+			.limit(1);
+
+		const [tenantInvite] = await db
+			.select({ id: tenantInvites.id })
+			.from(tenantInvites)
+			.where(
+				and(
+					eq(tenantInvites.id, tenantId),
+					eq(tenantInvites.invitedById, authUser.id),
+					eq(tenantInvites.status, "pending"),
+					isNull(tenantInvites.deletedAt),
+				),
+			)
+			.limit(1);
+
+		// Active leases also authorize the shared tenant account for older rows
+		// that predate owner-scoped profiles.
 		const [lease] = await db
 			.select({ leaseId: leases.id })
 			.from(leases)
@@ -579,7 +627,7 @@ export const updateTenant = ownerProcedure
 			)
 			.limit(1);
 
-		if (!lease) {
+		if (!lease && !tenantProfile && !tenantInvite) {
 			throw new ORPCError("FORBIDDEN", {
 				message: "This tenant is not associated with your properties.",
 			});
@@ -597,15 +645,17 @@ export const updateTenant = ownerProcedure
 		// Scope the profile write to the rows THIS owner created. A tenant shared
 		// across multiple owners must not have one owner overwrite another owner's
 		// KYC/contact profile.
-		await db
-			.update(tenantProfiles)
-			.set({ ...profileFields, phone, updatedAt: new Date() })
-			.where(
-				and(
-					eq(tenantProfiles.userId, tenantId),
-					eq(tenantProfiles.createdById, authUser.id),
-				),
-			);
+		if (tenantProfile) {
+			await db
+				.update(tenantProfiles)
+				.set({ ...profileFields, phone, updatedAt: new Date() })
+				.where(eq(tenantProfiles.id, tenantProfile.id));
+		} else if (tenantInvite) {
+			await db
+				.update(tenantInvites)
+				.set({ ...profileFields, phone, updatedAt: new Date() })
+				.where(eq(tenantInvites.id, tenantInvite.id));
+		}
 
 		// name/email are global login identity fields owned by the tenant account,
 		// not by any single property owner — never rewrite them here.

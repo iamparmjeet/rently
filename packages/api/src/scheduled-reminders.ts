@@ -14,7 +14,6 @@ import {
 	billCredits,
 	leases,
 	notificationPreferences,
-	payments,
 	properties,
 	rentReminderSuppressions,
 	scheduledEmailDeliveries,
@@ -37,6 +36,7 @@ import {
 	type RentCycleItem,
 	type RentCycleRow,
 } from "./routers/helpers/rent-cycle";
+import { getSignedLedgerPayments } from "./routers/helpers/signed-ledger";
 
 const tenantUser = alias(user, "scheduled_tenant");
 
@@ -101,20 +101,13 @@ export async function queryRentCycleRows(
 	const periodKey = getLocalPeriodKey(now);
 	const suppressionPeriodKeys = [periodKey, getAdjacentPeriodKey(periodKey, 1)];
 	const leaseIds = rows.map((row) => row.leaseId);
-	const paymentRows = await database
-		.select({
-			leaseId: payments.leaseId,
-			amount: payments.amount,
-			paymentDate: payments.paymentDate,
-			type: payments.type,
-		})
-		.from(payments)
-		.where(inArray(payments.leaseId, leaseIds));
+	const paymentRows = await getSignedLedgerPayments(database, { leaseIds });
 
 	const paidByLease = new Map<string, number>();
 	for (const payment of paymentRows) {
 		if (
-			payment.type !== PAYMENT_TYPES.RENT ||
+			payment.utilityId !== null ||
+			payment.category !== PAYMENT_TYPES.RENT ||
 			getLocalPeriodKey(payment.paymentDate) !== periodKey
 		)
 			continue;

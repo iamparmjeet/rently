@@ -2,7 +2,7 @@ name: CI
 
 on:
   pull_request:
-    branches: [main, integ/phase-a-baseline]
+    branches: [main]
   workflow_dispatch:
 
 jobs:

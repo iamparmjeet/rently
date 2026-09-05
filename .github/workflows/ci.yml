@@ -51,6 +51,8 @@ jobs:
 
       - name: Schema drift check
         run: bun run --filter @rently/db db:generate && git diff --exit-code -- packages/db/src/schema
+        env:
+          DATABASE_URL: postgresql://rently_db_user:rently_db_password@localhost:5432/rently_test
 
       - name: Migrate test database
         run: |

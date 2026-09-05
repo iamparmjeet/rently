@@ -144,11 +144,8 @@ export const createPayment = ownerProcedure
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
-		if (input.type === PAYMENT_TYPES.REVERSAL) {
-			throw new ORPCError("BAD_REQUEST", {
-				message: "Reversal payments must use voidPayment",
-			});
-		}
+		// Reversal exclusion + type/utility pairing are enforced by
+		// CreatePaymentSchema; the database CHECK is the backstop.
 
 		const ownsLease = await isLeaseOwner(db, authUser.id, input.leaseId);
 		if (!ownsLease) {

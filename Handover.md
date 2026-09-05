@@ -1,7 +1,7 @@
 # Handover — 2026-09-05 — model: Muse Spark — branch: integ/phase-a-baseline (batching A03+; see workflow note)
 
 ## Workflow note (2026-09-05, owner-directed)
-- Batching: slices merge one-branch-per-slice into `integ/phase-a-baseline` (cut from clean `main@8e27688`, rollback tag `pre-integ-phase-a-baseline`), then one rollup PR into `main`. Rollback tags per slice retained. CI gates PRs to both branches (trigger extended in `c0cfe04`; PR-only, no per-commit runs).
+- Batching: slices merge one-branch-per-slice into `integ/phase-a-baseline` (cut from clean `main@8e27688`, rollback tag `pre-integ-phase-a-baseline`), then one rollup PR into `main`. Rollback tags per slice retained. Lefthook is the fast local gate for integration PRs; GitHub CI runs only on PRs targeting `main` (PR-only, no per-commit runs).
 - A03 merged as PR #7 (CI green, merged 2026-09-05). Fix-Plan A03 stays `[~]` until Terra review.
 - Implementer is now Muse Spark throughout; Terra review is deferred, not waived.
 - Terra review debt (must clear before any `[x]` or `main` rollup): A03 (Terra Medium), A04 (Terra High), and every later slice per Fix-Plan §7.

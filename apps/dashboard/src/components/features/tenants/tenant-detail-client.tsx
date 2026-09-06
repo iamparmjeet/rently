@@ -17,6 +17,10 @@ import {
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { useMemo, useState } from "react";
+import {
+	balanceByLeaseId,
+	usePeriodBalance,
+} from "@/hooks/balance/use-period-balance";
 import { useResendInvite } from "@/hooks/invites";
 import { useLease } from "@/hooks/leases";
 import { usePayments } from "@/hooks/payments";
@@ -47,6 +51,14 @@ interface TenantStats {
 	thisMonthBill: number;
 	totalPaidYTD: number;
 	overdueAmount: number;
+	pendingRent: number;
+}
+
+// Structural subset of the C05/C06 period balance read model.
+interface TenantBalanceSlice {
+	leaseId: string;
+	totalRentDue: number;
+	overdueRent: number;
 }
 
 // WHY a pure function, not useMemo: computeStats has no side effects and
@@ -57,6 +69,7 @@ function computeStats(
 	tenant: TenantDetail,
 	paymentsData: { payments: PaymentListItem[] } | undefined,
 	utilitiesData: { utilities: UtilityListItem[] } | undefined,
+	balances: TenantBalanceSlice[],
 ): TenantStats {
 	const activeLeaseIds = new Set(
 		tenant.activeLeases.map((activeLease) => activeLease.id),
@@ -91,11 +104,31 @@ function computeStats(
 			}, 0);
 
 	const periodStart = new Date(year, month, 1);
-	const overdueAmount = allUtils
-		.filter((u) => !u.isPaid && new Date(u.currentReadingDate) < periodStart)
-		.reduce((sum, u) => sum + u.totalAmount, 0);
+	// C06: rent dues come from the period balance read model. Overdue is the
+	// rent in arrears plus past-due unpaid utilities; pending is everything
+	// outstanding (arrears + current period) instead of the old
+	// "any payment this month means zero" heuristic.
+	const overdueRent = balances.reduce(
+		(sum, balance) => sum + Math.max(0, balance.overdueRent),
+		0,
+	);
+	const overdueAmount =
+		overdueRent +
+		allUtils
+			.filter((u) => !u.isPaid && new Date(u.currentReadingDate) < periodStart)
+			.reduce((sum, u) => sum + u.totalAmount, 0);
+	const pendingRent = balances.reduce(
+		(sum, balance) => sum + Math.max(0, balance.totalRentDue),
+		0,
+	);
 
-	return { monthlyRent, thisMonthBill, totalPaidYTD, overdueAmount };
+	return {
+		monthlyRent,
+		thisMonthBill,
+		totalPaidYTD,
+		overdueAmount,
+		pendingRent,
+	};
 }
 
 // ******** Stat card ***********
@@ -202,6 +235,25 @@ export default function TenantDetailClient({ id }: { id: string }) {
 	// All owner payments — we filter by leaseId client-side (see computeStats + PaymentsTab)
 	const { data: paymentsData } = usePayments();
 
+	// C06: period balances for this tenant's active leases (shared query with
+	// the dashboard — TanStack dedupes the all-scope request).
+	const { data: balanceData } = usePeriodBalance({ all: true });
+	const tenantBalances = useMemo((): TenantBalanceSlice[] => {
+		const balancesById = balanceByLeaseId(balanceData?.leases);
+		return (tenant?.activeLeases ?? []).flatMap((activeLease) => {
+			const balance = balancesById.get(activeLease.id);
+			return balance
+				? [
+						{
+							leaseId: balance.leaseId,
+							totalRentDue: balance.totalRentDue,
+							overdueRent: balance.overdueRent,
+						},
+					]
+				: [];
+		});
+	}, [balanceData?.leases, tenant?.activeLeases]);
+
 	// Derived: payments for all active leases belonging to this tenant
 	const leasePayments = useMemo(() => {
 		const activeLeaseIds = new Set(
@@ -216,14 +268,15 @@ export default function TenantDetailClient({ id }: { id: string }) {
 	const stats = useMemo(
 		() =>
 			tenant
-				? computeStats(tenant, paymentsData, utilitiesData)
+				? computeStats(tenant, paymentsData, utilitiesData, tenantBalances)
 				: {
 						monthlyRent: 0,
 						thisMonthBill: 0,
 						totalPaidYTD: 0,
 						overdueAmount: 0,
+						pendingRent: 0,
 					},
-		[tenant, paymentsData, utilitiesData],
+		[tenant, paymentsData, utilitiesData, tenantBalances],
 	);
 
 	const removeTenant = useRemoveTenant();

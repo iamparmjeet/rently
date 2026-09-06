@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { invalidatePeriodBalances } from "@/hooks/balance/use-period-balance";
 import { client, orpc } from "@/utils/orpc";
 
 export function useCreateCredit() {
@@ -12,6 +13,7 @@ export function useCreateCredit() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.credit.listCredits.key(),
 			});
+			invalidatePeriodBalances(queryClient);
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
 			});

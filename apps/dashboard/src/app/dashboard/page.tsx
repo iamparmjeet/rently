@@ -11,13 +11,23 @@ import { RevenueChart } from "@/components/features/dashboard/revenue-chart";
 import { SampleLoader } from "@/components/features/dashboard/sample-loader";
 import { UpcomingDues } from "@/components/features/dashboard/upcoming-dues";
 import { Container } from "@/components/shared/container";
+import { usePeriodBalance } from "@/hooks/balance/use-period-balance";
 import { useDashboardStats, useRevenueDashboard } from "@/hooks/dashboard";
+import { countOverdueLeases, sumOverdueRent } from "@/lib/upcoming-dues";
 import { orpc } from "@/utils/orpc";
 
 export default function DashboardPage() {
 	const { data, isLoading } = useDashboardStats();
 	const { data: revenueData, isLoading: revenueLoading } =
 		useRevenueDashboard();
+	// C06: the overdue card reads the period balance model (arrears per
+	// charge), not the lifetime overdue snapshot in the revenue stats.
+	// Same query as UpcomingDues — TanStack dedupes by key.
+	const { data: balanceData, isLoading: balanceLoading } = usePeriodBalance({
+		all: true,
+	});
+	const overdueCount = countOverdueLeases(balanceData?.leases);
+	const overdueAmount = sumOverdueRent(balanceData?.leases);
 	const { data: experience } = useQuery(
 		orpc.workspace.getExperience.queryOptions(),
 	);
@@ -55,9 +65,9 @@ export default function DashboardPage() {
 				<div className="grid gap-4 lg:grid-cols-12">
 					<RecentProperties className="lg:col-span-8" />
 					<OverdueSummaryCard
-						overdueCount={revenueData?.overdueCount ?? 0}
-						overdueAmount={revenueData?.overdueAmount ?? 0}
-						isLoading={revenueLoading}
+						overdueCount={overdueCount}
+						overdueAmount={overdueAmount}
+						isLoading={balanceLoading}
 						className="lg:col-span-4"
 					/>
 				</div>

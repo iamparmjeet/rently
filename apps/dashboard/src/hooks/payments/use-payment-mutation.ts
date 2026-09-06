@@ -1,5 +1,6 @@
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { invalidatePeriodBalances } from "@/hooks/balance/use-period-balance";
 import { client, orpc } from "@/utils/orpc";
 
 // WHY: typed alias avoids repeating the long ReturnType expression
@@ -25,6 +26,7 @@ export function useRecordPayment() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.stats.getRevenueDashboard.key(),
 			});
+			invalidatePeriodBalances(queryClient);
 			toast.success("Payment recorded", { id: context.toastId });
 		},
 		onError: (error, _, context) => {
@@ -48,6 +50,7 @@ export function useRecordAgreementPayment() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.stats.getRevenueDashboard.key(),
 			});
+			invalidatePeriodBalances(queryClient);
 			toast.success("Combined payment recorded");
 		},
 		onError: (error) =>
@@ -79,6 +82,7 @@ export function useUpdatePayment() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.stats.getRevenueDashboard.key(),
 			});
+			invalidatePeriodBalances(queryClient);
 			toast.success("Payment updated", { id: context.toastId });
 		},
 		onError: (error, _, context) => {
@@ -145,6 +149,7 @@ export function useDeletePayment() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.stats.getRevenueDashboard.key(),
 			});
+			invalidatePeriodBalances(queryClient);
 		},
 	});
 }
@@ -178,6 +183,7 @@ export function useVoidPaymentGroup() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.stats.getRevenueDashboard.key(),
 			});
+			invalidatePeriodBalances(queryClient);
 		},
 	});
 }

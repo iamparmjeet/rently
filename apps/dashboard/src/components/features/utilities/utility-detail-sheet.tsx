@@ -76,8 +76,10 @@ export function UtilityDetailDialog({
 				(1000 * 60 * 60 * 24),
 		),
 	);
+	// C06: the printable bill fetches the authoritative rent due from the
+	// server balance model; no money travels through the URL.
 	const combinedBillHref = isCombinedBill
-		? `/combined-bill?ids=${items.map((i) => i.id).join(",")}&rent=${rent ?? 0}`
+		? `/combined-bill?ids=${items.map((i) => i.id).join(",")}`
 		: items.length === 1
 			? `/utilities/${items[0]!.id}`
 			: null;

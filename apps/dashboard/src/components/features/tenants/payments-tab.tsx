@@ -119,6 +119,7 @@ interface PaymentsTabProps {
 		monthlyRent: number;
 		totalPaidYTD: number;
 		overdueAmount: number;
+		pendingRent: number;
 	};
 }
 
@@ -131,18 +132,10 @@ export function PaymentsTab({ tenant, payments, stats }: PaymentsTabProps) {
 			new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime(),
 	);
 
-	// Pending = un-reversed rent this month
-	// Simplified: if any payment exists this month, pending = 0
-	const now = new Date();
-	const thisMonthPayments = payments.filter((p) => {
-		const d = new Date(p.paymentDate);
-		return (
-			d.getMonth() === now.getMonth() &&
-			d.getFullYear() === now.getFullYear() &&
-			p.amount > 0
-		);
-	});
-	const pendingAmount = thisMonthPayments.length > 0 ? 0 : stats.monthlyRent;
+	// C06: pending is the period-aware outstanding (arrears + current period)
+	// computed by the server balance read model — partial payments reduce it,
+	// a recorded payment alone no longer zeroes it.
+	const pendingAmount = stats.pendingRent;
 
 	// Mode of payment breakdown — count by method (positive payments only)
 	const positivePayments = payments.filter((p) => p.amount > 0);

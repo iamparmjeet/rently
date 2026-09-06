@@ -30,6 +30,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import z from "zod";
+import { invalidatePeriodBalances } from "@/hooks/balance/use-period-balance";
 import { client, orpc } from "@/utils/orpc";
 
 const FormSchema = z.object({
@@ -107,6 +108,13 @@ export function MarkCombinedPaidDialog({
 			if (utilityIds.length === 0) {
 				// Every utility is already settled — the combined bill is
 				// rent-only, which belongs to the single-payment command.
+				// C06: rentDue is period-aware, so a fully settled/prepaid
+				// period legitimately reads 0 — nothing to record.
+				if (rentDue <= 0) {
+					toast.error("Nothing outstanding on this combined bill.");
+					setIsSubmitting(false);
+					return;
+				}
 				const { payment } = await client.rent.payment.createPayment({
 					leaseId,
 					amount: rentDue,
@@ -145,6 +153,7 @@ export function MarkCombinedPaidDialog({
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.stats.getRevenueDashboard.key(),
 			});
+			invalidatePeriodBalances(queryClient);
 			for (const u of items) {
 				queryClient.invalidateQueries({
 					queryKey: orpc.rent.utility.getUtilityById.key({

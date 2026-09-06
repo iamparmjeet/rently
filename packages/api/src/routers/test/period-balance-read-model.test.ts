@@ -638,4 +638,59 @@ describe("C05 period balance read model", () => {
 		expect(balance.currentRentDue).toBe(RENT);
 		expect(balance.totalRentDue).toBe(RENT);
 	});
+
+	it("all-scope returns exactly the caller's visible leases, empty portfolio included (C06 dashboards)", async () => {
+		// Regression: the all-scope is the owner dashboard's data source — a
+		// cross-owner leak here would broadcast every landlord's arrears to one
+		// page, and a FORBIDDEN on an empty portfolio would blank the dashboard
+		// of every new owner.
+		const ownerA = await insertPerson("C05 All Owner A", "owner");
+		const ownerB = await insertPerson("C05 All Owner B", "owner");
+		const tenantA = await insertPerson("C05 All Tenant A", "tenant");
+		const tenantB = await insertPerson("C05 All Tenant B", "tenant");
+		await insertProfile(tenantA, ownerA);
+		await insertProfile(tenantB, ownerB);
+		const propertyA = await insertProperty(ownerA, "C05 All Prop A");
+		const propertyB = await insertProperty(ownerB, "C05 All Prop B");
+		const unitA = await insertUnit(propertyA, "C05-ALA");
+		const unitB = await insertUnit(propertyB, "C05-ALB");
+		asSession(ownerA, "owner");
+		const { lease: leaseA } = await api.createLease({
+			tenantId: tenantA,
+			unitId: unitA,
+			startDate: istMonthStart(),
+			endDate: new Date("2027-09-01T00:00:00.000Z"),
+			rent: RENT,
+		});
+		asSession(ownerB, "owner");
+		const { lease: leaseB } = await api.createLease({
+			tenantId: tenantB,
+			unitId: unitB,
+			startDate: istMonthStart(),
+			endDate: new Date("2027-09-01T00:00:00.000Z"),
+			rent: RENT,
+		});
+		createdLeaseIds.push(leaseA.id, leaseB.id);
+		createdAgreementIds.push(
+			leaseA.agreementId as string,
+			leaseB.agreementId as string,
+		);
+
+		const ownerView = await readBalance(ownerA, "owner", { all: true });
+		expect(ownerView.scope).toBe("all");
+		expect(ownerView.leases.map((l) => l.leaseId)).toEqual([leaseA.id]);
+
+		const tenantView = await readBalance(tenantB, "tenant", { all: true });
+		expect(tenantView.leases.map((l) => l.leaseId)).toEqual([leaseB.id]);
+
+		// Empty portfolio is a valid empty dashboard state, not an error.
+		const emptyOwner = await insertPerson("C05 All Owner C", "owner");
+		const emptyView = await readBalance(emptyOwner, "owner", { all: true });
+		expect(emptyView.leases).toHaveLength(0);
+
+		// Supervisory roles still get nothing.
+		await expect(
+			readBalance(tenantB, "admin", { all: true }),
+		).rejects.toMatchObject({ code: "FORBIDDEN" });
+	});
 });

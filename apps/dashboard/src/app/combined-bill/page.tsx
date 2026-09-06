@@ -9,6 +9,7 @@ import { IconArrowLeft, IconPrinter } from "@tabler/icons-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
+import { usePeriodBalance } from "@/hooks/balance/use-period-balance";
 import { useUtilities } from "@/hooks/utilities";
 import {
 	getUtilityBillChargeLines,
@@ -35,16 +36,25 @@ function CombinedBillContent() {
 	const searchParams = useSearchParams();
 	const { data: utilData, isLoading } = useUtilities();
 	const idsParam = searchParams.get("ids");
-	const rentParam = searchParams.get("rent");
 	const shouldPrint = searchParams.get("print") === "true";
 	const ids = idsParam ? idsParam.split(",").filter(Boolean) : [];
-	const rent = rentParam ? Number.parseInt(rentParam, 10) : 0;
 	const printed = useRef(false);
 
 	const allUtilities = utilData?.utilities ?? [];
 	const items = ids.length
 		? allUtilities.filter((u) => ids.includes(u.id))
 		: [];
+
+	// C06: the rent line is the lease's period-aware outstanding from the
+	// server balance model — the URL no longer carries (or is trusted for)
+	// money. The query waits for the utilities to resolve a lease id.
+	const balanceLeaseId = items[0]?.leaseId;
+	const { data: balanceData, isLoading: balanceLoading } = usePeriodBalance(
+		{ leaseId: balanceLeaseId ?? "" },
+		{ enabled: Boolean(balanceLeaseId) },
+	);
+	const balanceLoadingOrPending = Boolean(balanceLeaseId) && balanceLoading;
+	const rent = balanceData?.leases[0]?.totalRentDue ?? 0;
 
 	useEffect(() => {
 		if (!ids.length || items.length === 0) return;
@@ -80,7 +90,7 @@ function CombinedBillContent() {
 		};
 	}, [shouldPrint, items.length]);
 
-	if (isLoading) return <PageLoader rows={2} />;
+	if (isLoading || balanceLoadingOrPending) return <PageLoader rows={2} />;
 	if (!idsParam || items.length === 0) {
 		return (
 			<NotFoundState message="Combined bill not found. Missing utilities for this bill." />

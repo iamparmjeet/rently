@@ -1,76 +1,23 @@
-import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import { Skeleton } from "@rently/ui/components/skeleton";
 import { formatRupees } from "@rently/ui/lib/currency";
-import type { PaymentListItem } from "@rently/validators";
 import { IconArrowRight } from "@tabler/icons-react";
 import Link from "next/link";
 import { useMemo } from "react";
+import {
+	balanceByLeaseId,
+	usePeriodBalance,
+} from "@/hooks/balance/use-period-balance";
 import { useLeases } from "@/hooks/leases";
-import { usePayments } from "@/hooks/payments";
+import {
+	type DueEntry,
+	type DueUrgency,
+	selectDueEntries,
+} from "@/lib/upcoming-dues";
 
-type DueUrgency = "overdue" | "today" | "soon" | "upcoming";
-
-interface DueEntry {
-	leaseId: string;
-	tenantName: string;
-	unitNumber: string;
-	propertyName: string;
-	amount: number;
-	dueDate: Date;
-	daysUntil: number;
-	urgency: DueUrgency;
-}
-
-function getNextDueDate(
-	startDate: Date | string,
-	rentDueDate: number | null,
-): Date {
-	const dueDay = rentDueDate ?? new Date(startDate).getDate();
-	const today = new Date();
-	today.setHours(0, 0, 0, 0);
-
-	const thisMonthDue = new Date(today.getFullYear(), today.getMonth(), dueDay);
-
-	return thisMonthDue >= today
-		? thisMonthDue
-		: new Date(today.getFullYear(), today.getMonth() + 1, dueDay);
-}
-
-function getDaysUntil(date: Date): number {
-	const today = new Date();
-	today.setHours(0, 0, 0, 0);
-	return Math.round((date.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
-}
-
-function classifyUrgency(days: number): DueUrgency {
-	if (days < 0) return "overdue";
-	if (days === 0) return "today";
-	if (days <= 7) return "soon";
-	return "upcoming";
-}
-
-function isRentPaidThisMonth(
-	leaseId: string,
-	rent: number,
-	payments: PaymentListItem[],
-): boolean {
-	const now = new Date();
-	const thisMonth = now.getMonth();
-	const thisYear = now.getFullYear();
-
-	const paidThisMonth = payments.reduce((total, p) => {
-		if (p.leaseId !== leaseId || p.type !== PAYMENT_TYPES.RENT) return total;
-
-		const pd = new Date(p.paymentDate);
-		if (pd.getMonth() !== thisMonth || pd.getFullYear() !== thisYear) {
-			return total;
-		}
-
-		return total + Math.max(p.amount, 0);
-	}, 0);
-
-	return paidThisMonth >= rent;
-}
+// C06: dues come from the period balance read model (per-charge outstanding,
+// clamped due dates, arrears) — the old client-side payment-sum heuristic is
+// gone. Financial values are server-computed paise; this component only
+// renders them.
 
 const URGENCY_CONFIG: Record<
 	DueUrgency,
@@ -83,7 +30,7 @@ const URGENCY_CONFIG: Record<
 	overdue: {
 		dotCls: "bg-destructive",
 		textCls: "text-destructive",
-		label: (days) => `${Math.abs(days)}d overdue`,
+		label: (days) => (days < 0 ? `${Math.abs(days)}d overdue` : "Overdue"),
 	},
 	today: {
 		dotCls: "bg-amber-500",
@@ -104,33 +51,33 @@ const URGENCY_CONFIG: Record<
 
 export function UpcomingDues({ className = "" }) {
 	const { data: leasesData, isLoading: leasesLoading } = useLeases("active");
-	const { data: paymentsData, isLoading: paymentsLoading } = usePayments();
+	const { data: balanceData, isLoading: balanceLoading } = usePeriodBalance({
+		all: true,
+	});
 
 	const activeLeases = leasesData?.leases ?? [];
-	const allPayments = paymentsData?.payments ?? [];
-	const isLoading = leasesLoading || paymentsLoading;
+	const balancesById = useMemo(
+		() => balanceByLeaseId(balanceData?.leases),
+		[balanceData?.leases],
+	);
+	const isLoading = leasesLoading || balanceLoading;
 
 	const dueEntries = useMemo((): DueEntry[] => {
 		if (isLoading) return [];
-		return activeLeases
-			.filter((l) => !isRentPaidThisMonth(l.leaseId, l.rent, allPayments))
-			.map((l): DueEntry => {
-				const dueDate = getNextDueDate(l.startDate, l.rentDueDate);
-				const daysUntil = getDaysUntil(dueDate);
-				return {
-					leaseId: l.leaseId,
-					tenantName: l.tenantName ?? "Unknown Tenant",
-					unitNumber: l.unitNumber,
-					propertyName: l.propertyName,
-					amount: l.rent,
-					dueDate,
-					daysUntil,
-					urgency: classifyUrgency(daysUntil),
-				};
-			})
-			.sort((a, b) => a.daysUntil - b.daysUntil)
-			.slice(0, 6);
-	}, [activeLeases, allPayments, isLoading]);
+		return selectDueEntries(
+			activeLeases.map((l) => ({
+				leaseId: l.leaseId,
+				tenantName: l.tenantName ?? null,
+				unitNumber: l.unitNumber,
+				propertyName: l.propertyName,
+				rent: l.rent,
+				rentDueDate: l.rentDueDate,
+				startDate: l.startDate,
+			})),
+			balancesById,
+			new Date(),
+		);
+	}, [activeLeases, balancesById, isLoading]);
 
 	const overdueCount = dueEntries.filter((e) => e.urgency === "overdue").length;
 

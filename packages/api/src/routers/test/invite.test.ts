@@ -1418,6 +1418,58 @@ describe("acceptInvite", () => {
 		expect(storedInvite?.privacyVersion).toBe("keyhq-beta-v1");
 	});
 
+	it("accepts a concurrent duplicate exactly once without orphaned identity rows", async () => {
+		const owner = await createOwner("Owner A");
+		const invite = await createPendingInvite(owner.id);
+		const input = {
+			token: invite.token,
+			password: "TenantPass1",
+			termsAccepted: true as const,
+			privacyAcknowledged: true as const,
+		};
+
+		const results = await Promise.allSettled([
+			clientFor(owner).acceptInvite(input),
+			clientFor(owner).acceptInvite(input),
+		]);
+		const fulfilled = results.filter(
+			(result): result is PromiseFulfilledResult<unknown> =>
+				result.status === "fulfilled",
+		);
+		const rejected = results.filter(
+			(result): result is PromiseRejectedResult => result.status === "rejected",
+		);
+
+		expect(fulfilled).toHaveLength(1);
+		expect(rejected).toHaveLength(1);
+		expect(rejected[0]?.reason).toMatchObject({ code: "CONFLICT" });
+
+		const [tenantUser] = await db
+			.select({ id: user.id })
+			.from(user)
+			.where(eq(user.email, invite.email));
+		expect(tenantUser).toBeDefined();
+		if (!tenantUser) throw new Error("Accepted tenant user was not created");
+		createdUserIds.push(tenantUser.id);
+
+		const credentials = await db
+			.select({ id: account.id })
+			.from(account)
+			.where(eq(account.userId, tenantUser.id));
+		const profiles = await db
+			.select({ id: tenantProfiles.id })
+			.from(tenantProfiles)
+			.where(eq(tenantProfiles.userId, tenantUser.id));
+		const [storedInvite] = await db
+			.select({ status: tenantInvites.status })
+			.from(tenantInvites)
+			.where(eq(tenantInvites.id, invite.id));
+
+		expect(credentials).toHaveLength(1);
+		expect(profiles).toHaveLength(1);
+		expect(storedInvite?.status).toBe("accepted");
+	});
+
 	it("uses owner-prepared profile fields without collecting identity values", async () => {
 		const owner = await createOwner("Owner A");
 		const invite = await createOwnerPreparedInvite(owner.id);

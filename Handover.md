@@ -288,6 +288,15 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift; `check-types` 6/6; focused Biome clean; fresh local `rently_test` migration passed; focused invite/tenant-limit/auth tests 37/37; build 5/5; Vitest excluding the pre-existing B10 lock-order suite passed 61 files / 349 tests.
 - Full Vitest remains blocked by unrelated `group-payment-lock-order.test.ts` failures (3 B10 tests: lock serialization/race expectations and teardown after timeout). Terra review should scrutinize migration cleanup semantics, the advisory-lock quota function, and the pre-read of an existing global user before the atomic owner-prepared batch.
 
+## D08 Atomic invite acceptance (2026-09-06, Terra High review owed)
+
+- Base: `integ/phase-a-baseline@0ebaf20c`; branch `fix/atomic-invite-acceptance`; rollback tag `pre-atomic-invite-acceptance`; no migration. `main` untouched.
+- Replaced the split transaction/manual-compensation acceptance path with one conditional SQL state transition. The invite row is claimed first; user, credential account, and owner-scoped profile writes depend on that claim in the same statement. A concurrent loser therefore performs no identity writes on either driver.
+- Owner-prepared acceptance now updates only the profile linked to the exact invite and owner, preserving the global user and other owner relationships. Existing provisional credentials remain rejected; tenant-completed invites still reject an existing account.
+- Regression coverage includes concurrent duplicate acceptance and asserts exactly one user, credential account, profile, and accepted invite. Existing tenant-completed, owner-prepared, consent, conflict, and expiry tests remain green.
+- Verification: `db:generate` no drift; `check-types` 6/6; focused Biome clean; `db:migrate:test` passed; focused invite/auth/tenant-limit tests 38/38; build 5/5; Vitest excluding unrelated B10 lock-order and overdue-query suites passed 60 files / 348 tests.
+- Full Vitest remains blocked by unrelated `group-payment-lock-order.test.ts` lock/teardown failures and `overdue-query.test.ts` timeout/period-charge teardown failures. Terra review should scrutinize CTE write dependencies, the owner-prepared profile predicate, and the behavior when a concurrent account signup races a tenant-completed acceptance.
+
 ## D03 Renewal entitlement/invoice alignment (2026-09-06, ZLM 5.3 Flash, branch fix/subscription-renewal-period)
 
 - Base: `integ/phase-a-baseline@926c5b8c` (D02 merge); rollback tag `pre-subscription-renewal-period`; `main` untouched; **no migration** (stated explicitly — pure read/write logic change in `recordSubscriptionPayment`). Terra Medium review owed.

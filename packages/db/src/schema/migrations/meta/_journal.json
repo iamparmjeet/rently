@@ -260,6 +260,13 @@
       "when": 1788720000001,
       "tag": "0036_green_wiccan",
       "breakpoints": true
+    },
+    {
+      "idx": 37,
+      "version": "7",
+      "when": 1788720000002,
+      "tag": "0037_left_brood",
+      "breakpoints": true
     }
   ]
 }

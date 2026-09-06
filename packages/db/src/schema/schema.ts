@@ -770,6 +770,10 @@ export const ownerProfiles = pgTable(
 			"owner_profiles_gst_rate_maintenance_check",
 			sql`${table.gstRateMaintenance} IN (0,5,12,18)`,
 		),
+		check(
+			"owner_profiles_gst_enabled_check",
+			sql`${table.gstEnabled} = false OR (${table.gstNumber} IS NOT NULL AND ${table.gstNumber} <> '')`,
+		),
 	],
 );
 

@@ -14,6 +14,10 @@ export const OwnerProfileUpdateSchema = createUpdateSchema(ownerProfiles);
 
 // ── Layer 2: API input shapes ──
 
+// Single source for GSTIN shape — the zod schema below and the
+// upsert handler's merged-state check must agree.
+export const GSTIN_PATTERN = /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/;
+
 // .partial(): this is an upsert — on first save the profile may not exist,
 // and we don't want to force the user to fill every field before saving.
 // companyName is notNull in DB — we default to "" on insert if not provided.
@@ -21,11 +25,7 @@ export const UpsertOwnerProfileSchema = z
 	.object({
 		companyName: z.string().optional(),
 		address: z.string().optional(),
-		gstNumber: z
-			.string()
-			.regex(/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/)
-			.optional()
-			.or(z.literal("")),
+		gstNumber: z.string().regex(GSTIN_PATTERN).optional().or(z.literal("")),
 		gstEnabled: z.boolean().optional(),
 		gstRateRent: z
 			.number()
@@ -52,11 +52,7 @@ export const UpsertOwnerProfileSchema = z
 				message: "Add GSTIN before enabling GST",
 			});
 		}
-		if (
-			v.gstNumber &&
-			v.gstNumber !== "" &&
-			!/^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z][1-9A-Z]Z[0-9A-Z]$/.test(v.gstNumber)
-		) {
+		if (v.gstNumber && v.gstNumber !== "" && !GSTIN_PATTERN.test(v.gstNumber)) {
 			ctx.addIssue({
 				code: "custom",
 				path: ["gstNumber"],

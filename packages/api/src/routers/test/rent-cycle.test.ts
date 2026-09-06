@@ -7,6 +7,12 @@ import {
 	type RentCycleRow,
 } from "../helpers/rent-cycle";
 
+const charge = (
+	periodKey: string,
+	dueDate: string,
+	outstanding = 100_000,
+): RentCycleRow["charges"][number] => ({ periodKey, dueDate, outstanding });
+
 const baseRow = (overrides: Partial<RentCycleRow> = {}): RentCycleRow => ({
 	leaseId: "lease-1",
 	ownerId: "owner-1",
@@ -20,7 +26,7 @@ const baseRow = (overrides: Partial<RentCycleRow> = {}): RentCycleRow => ({
 	endDate: new Date("2026-09-06T00:00:00Z"),
 	rentDueDate: 10,
 	leaseStatus: "active",
-	paidAmount: 0,
+	charges: [charge("2026-08", "2026-08-10")],
 	leaseExpiryAlert: true,
 	rentDueReminder: true,
 	overdueAlert: true,
@@ -45,7 +51,7 @@ describe("rent-cycle date helpers", () => {
 });
 
 describe("computeRentCycleItem", () => {
-	it("emits the configured rent-due reminder", () => {
+	it("emits the configured rent-due reminder for a charge still outstanding", () => {
 		const items = computeRentCycleItem(
 			baseRow({ endDate: null }),
 			"2026-08-07",
@@ -59,7 +65,7 @@ describe("computeRentCycleItem", () => {
 		});
 	});
 
-	it("emits one overdue reminder after the grace period", () => {
+	it("emits one overdue reminder after the charge's own grace period", () => {
 		const items = computeRentCycleItem(
 			baseRow({ endDate: null }),
 			"2026-08-12",
@@ -73,12 +79,24 @@ describe("computeRentCycleItem", () => {
 	});
 
 	it("finds a next-month due date when the lead window crosses a month", () => {
+		// The next period's charge may not exist yet (lazy accrual); the lease
+		// is guaranteed full that month, so the reminder reads full rent.
 		const items = computeRentCycleItem(
-			baseRow({ endDate: null, rentDueDate: 1 }),
+			baseRow({ endDate: null, rentDueDate: 1, charges: [] }),
 			"2026-12-29",
 		);
 		expect(items).toMatchObject([
 			{ type: "rent_due", periodKey: "2027-01", dueDate: "2027-01-01" },
+		]);
+	});
+
+	it("clamps the due day into short months (dueDay 31 in February)", () => {
+		const items = computeRentCycleItem(
+			baseRow({ endDate: null, rentDueDate: 31, charges: [] }),
+			"2027-02-25",
+		);
+		expect(items).toMatchObject([
+			{ type: "rent_due", periodKey: "2027-02", dueDate: "2027-02-28" },
 		]);
 	});
 
@@ -96,22 +114,76 @@ describe("computeRentCycleItem", () => {
 		}
 	});
 
-	it("does not remind a fully paid cycle but does remind a partial cycle", () => {
-		expect(
-			computeRentCycleItem(baseRow({ paidAmount: 100_000 }), "2026-08-07"),
-		).toHaveLength(1); // expiry remains independently eligible
+	it("does not remind a settled period but reminds a partially paid one", () => {
+		// Expiry remains independently eligible even when rent is settled.
 		expect(
 			computeRentCycleItem(
-				baseRow({ endDate: null, paidAmount: 50_000 }),
+				baseRow({ charges: [charge("2026-08", "2026-08-10", 0)] }),
+				"2026-08-07",
+			),
+		).toHaveLength(1); // expiry only
+		expect(
+			computeRentCycleItem(
+				baseRow({
+					endDate: null,
+					charges: [charge("2026-08", "2026-08-10", 50_000)],
+				}),
 				"2026-08-07",
 			),
 		).toHaveLength(1);
 		expect(
 			computeRentCycleItem(
-				baseRow({ endDate: null, paidAmount: 100_000 }),
+				baseRow({
+					endDate: null,
+					charges: [charge("2026-08", "2026-08-10", 0)],
+				}),
 				"2026-08-07",
 			),
 		).toHaveLength(0);
+	});
+
+	it("reopens reminders after a void (the charge is outstanding again)", () => {
+		// A settled period produced no reminder; voiding the payment restores
+		// the outstanding paise, so the next cycle reminds again.
+		const items = computeRentCycleItem(
+			baseRow({
+				endDate: null,
+				charges: [charge("2026-08", "2026-08-10", 100_000)],
+			}),
+			"2026-08-07",
+		);
+		expect(items.some((item) => item.type === "rent_due")).toBe(true);
+	});
+
+	it("reminds a past period on its own grace day without bursting other arrears", () => {
+		// July arrears exist, but July's grace day passed long ago: only the
+		// period whose (dueDate + graceDays) is today notifies (R13).
+		const items = computeRentCycleItem(
+			baseRow({
+				endDate: null,
+				charges: [
+					charge("2026-07", "2026-07-10"),
+					charge("2026-08", "2026-08-10"),
+				],
+			}),
+			"2026-07-12",
+		);
+		expect(items).toHaveLength(1);
+		expect(items[0]).toMatchObject({ type: "overdue", periodKey: "2026-07" });
+	});
+
+	it("skips a pre-start charge whose snapshotted due date precedes the lease start", () => {
+		// Start on the 15th, due day 10: the first period's due date (the 10th)
+		// precedes the start (R3 skip) — no overdue notice for it.
+		const items = computeRentCycleItem(
+			baseRow({
+				endDate: null,
+				startDate: new Date("2026-08-15T00:00:00Z"),
+				charges: [charge("2026-08", "2026-08-10")],
+			}),
+			"2026-08-12",
+		);
+		expect(items).toHaveLength(0);
 	});
 
 	it("skips missing due dates and inactive leases, while exposing suppression to the job", () => {

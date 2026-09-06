@@ -39,7 +39,7 @@ vi.mock("@rently/email", () => ({
 	sendInviteEmail: mocks.sendInviteEmail,
 }));
 
-import { getAmountDueForRent } from "../helpers/credit.helpers";
+import { getLeasePeriodDue } from "../helpers/period-balance";
 import {
 	acceptInvite,
 	createInvite,
@@ -516,8 +516,11 @@ describe("createTenant", () => {
 		const agreementId = combinedLeases[0]?.agreementId;
 		if (!agreementId) throw new Error("Combined leases need an agreement ID");
 		createdAgreementIds.push(agreementId);
+		// C08: the group pays each lease's period outstanding.
 		const dueByLease = await Promise.all(
-			combinedLeases.map(async (lease) => getAmountDueForRent(db, lease.id)),
+			combinedLeases.map(
+				async (lease) => (await getLeasePeriodDue(db, lease.id)).outstanding,
+			),
 		);
 
 		const result = await client.createAgreementPayment({

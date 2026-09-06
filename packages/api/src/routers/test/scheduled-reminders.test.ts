@@ -4,6 +4,8 @@ import {
 	leases,
 	notificationPreferences,
 	properties,
+	rentAllocations,
+	rentCharges,
 	rentReminderSuppressions,
 	scheduledEmailDeliveries,
 	units,
@@ -120,6 +122,22 @@ afterEach(async () => {
 		await db
 			.delete(notificationPreferences)
 			.where(inArray(notificationPreferences.ownerId, created.users));
+		// C08: the job accrues charges for its leases — clear the period
+		// ledger before the leases (RESTRICT makes an incomplete order loud).
+		await db
+			.delete(rentAllocations)
+			.where(
+				inArray(
+					rentAllocations.chargeId,
+					db
+						.select({ id: rentCharges.id })
+						.from(rentCharges)
+						.where(inArray(rentCharges.leaseId, created.leases)),
+				),
+			);
+		await db
+			.delete(rentCharges)
+			.where(inArray(rentCharges.leaseId, created.leases));
 		await db.delete(leases).where(inArray(leases.id, created.leases));
 		await db.delete(units).where(inArray(units.id, created.units));
 		await db

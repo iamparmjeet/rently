@@ -1,13 +1,12 @@
 // C04 dual-write tests. Per the AGENTS.md test rule, each case pins a
-// Fix-Plan C04 acceptance contract — the operation list is the plan's own:
-// create, credit, partial payment, full payment, void, credit reversal, and
-// group settlement must all move the period ledger (charges − allocations) by
-// the same paise as the lifetime ledger (rent + credits − paid). Charge
-// accrual at lease creation (R13 backdated arrears) is included because every
-// later allocation depends on it. For leases starting in the current month
-// the two ledgers are equal in absolute terms; for backdated leases only the
-// operation delta can reconcile (the accrued history is the known gap the
-// Fix-Plan's Phase C exists to fix).
+// Fix-Plan C04 acceptance contract — create, credit, partial payment, full
+// payment, void, credit reversal, and group settlement must all land in the
+// period ledger (charges − allocations). Charge accrual at lease creation
+// (R13 backdated arrears) is included because every later allocation depends
+// on it. Since the C08 cutover the period ledger IS the production rent read
+// (the lifetime comparison this suite once made was removed with
+// getAmountDueForRent), and the writers validate against the period
+// outstanding plus the R6 one-period prepay cap.
 import { createRouterClient } from "@orpc/server";
 import { createDb } from "@rently/db";
 import {
@@ -51,7 +50,7 @@ import {
 	sendAgreementPaymentReceiptEmail,
 	sendPaymentReceiptEmail,
 } from "@rently/email";
-import { getAmountDueForRent } from "../helpers/credit.helpers";
+
 import { createCredit, reverseCredit } from "../rent/credit";
 import { createCombinedLease, createLease } from "../rent/lease";
 import {
@@ -176,12 +175,11 @@ function prorated(rent: number, days: number, daysInMonth: number) {
 	return Math.round((rent * days) / daysInMonth);
 }
 
-// The dual-write invariant on a clean lease (started this month): the
-// lifetime calculation and the period ledger agree in absolute terms.
+// The period ledger is the only rent ledger since the C08 cutover; the
+// lifetime read was removed with it.
 async function outstanding(leaseId: string) {
-	const lifetime = await getAmountDueForRent(db, leaseId);
 	const charges = await db
-		.select({ amount: rentCharges.amount })
+		.select({ amount: rentCharges.amount, periodKey: rentCharges.periodKey })
 		.from(rentCharges)
 		.where(eq(rentCharges.leaseId, leaseId));
 	const allocations = await db
@@ -192,13 +190,11 @@ async function outstanding(leaseId: string) {
 	const period =
 		charges.reduce((s, c) => s + c.amount, 0) -
 		allocations.reduce((s, a) => s + a.amount, 0);
-	return { lifetime, period, charges, allocations };
+	return { period, charges, allocations };
 }
 
 async function expectReconciled(leaseId: string) {
-	const state = await outstanding(leaseId);
-	expect(state.period).toBe(state.lifetime);
-	return state;
+	return outstanding(leaseId);
 }
 
 afterEach(async () => {
@@ -324,8 +320,7 @@ describe("C04 rent-period dual-write", () => {
 			.where(eq(rentAllocations.paymentId, payment.id));
 		expect(allocations).toHaveLength(1);
 		expect(allocations[0]?.amount).toBe(RENT);
-		const { lifetime, period } = await expectReconciled(lease.id);
-		expect(lifetime).toBe(0);
+		const { period } = await expectReconciled(lease.id);
 		expect(period).toBe(0);
 	});
 
@@ -346,12 +341,11 @@ describe("C04 rent-period dual-write", () => {
 			idempotencyKey: crypto.randomUUID(),
 		});
 
-		const { lifetime, period } = await expectReconciled(lease.id);
-		expect(lifetime).toBe(100_000);
+		const { period } = await expectReconciled(lease.id);
 		expect(period).toBe(100_000);
 	});
 
-	it("refuses an advance (more than owed) with nothing written", async () => {
+	it("accepts prepay into the next period up to the R6 cap and refuses beyond it", async () => {
 		const { ownerId, tenantId, propertyId } = await ownerProperty();
 		const lease = await singleLease(
 			ownerId,
@@ -360,23 +354,37 @@ describe("C04 rent-period dual-write", () => {
 			istMonthStart(),
 		);
 		const api = clients(ownerId);
+		// Beyond outstanding + one future period: refused, nothing written.
 		await expect(
 			api.createPayment({
 				leaseId: lease.id,
-				amount: RENT + 1,
+				amount: 2 * RENT + 1,
 				paymentDate: PAYMENT_DATE,
 				type: PAYMENT_TYPES.RENT,
 				idempotencyKey: crypto.randomUUID(),
 			}),
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
-		const { lifetime, period } = await expectReconciled(lease.id);
-		expect(lifetime).toBe(RENT);
-		expect(period).toBe(RENT);
-		const paymentCount = await db
+		const refused = await db
 			.select({ id: payments.id })
 			.from(payments)
 			.where(eq(payments.leaseId, lease.id));
-		expect(paymentCount).toHaveLength(0);
+		expect(refused).toHaveLength(0);
+
+		// Within the cap: the surplus prepays the next period's charge (R6/R7).
+		await api.createPayment({
+			leaseId: lease.id,
+			amount: RENT + 1,
+			paymentDate: PAYMENT_DATE,
+			type: PAYMENT_TYPES.RENT,
+			idempotencyKey: crypto.randomUUID(),
+		});
+		const state = await expectReconciled(lease.id);
+		expect(state.charges).toHaveLength(2);
+		// Current period settled; 1 paise of the surplus sits on next period.
+		expect(state.period).toBe(RENT - 1);
+		const futureKey = istMonthKey(1);
+		const future = state.charges.find((c) => c.periodKey === futureKey);
+		expect(future?.amount).toBe(RENT);
 	});
 
 	it("a rent discount settles the oldest charge in both ledgers", async () => {
@@ -401,8 +409,7 @@ describe("C04 rent-period dual-write", () => {
 			.where(eq(rentAllocations.creditId, credit.id));
 		expect(allocations).toHaveLength(1);
 		expect(allocations[0]?.amount).toBe(50_000); // sign inversion (C02)
-		const { lifetime, period } = await expectReconciled(lease.id);
-		expect(lifetime).toBe(100_000);
+		const { period } = await expectReconciled(lease.id);
 		expect(period).toBe(100_000);
 	});
 
@@ -424,8 +431,7 @@ describe("C04 rent-period dual-write", () => {
 		});
 		await api.voidPayment({ id: payment.id, reason: "C04 void test" });
 
-		const { lifetime, period } = await expectReconciled(lease.id);
-		expect(lifetime).toBe(RENT);
+		const { period } = await expectReconciled(lease.id);
 		expect(period).toBe(RENT);
 	});
 
@@ -447,17 +453,16 @@ describe("C04 rent-period dual-write", () => {
 		});
 		await api.reverseCredit({ creditId: credit.id });
 
-		const { lifetime, period } = await expectReconciled(lease.id);
-		expect(lifetime).toBe(RENT);
+		const { period } = await expectReconciled(lease.id);
 		expect(period).toBe(RENT);
 	});
 
 	it("a group settlement allocates every lease's payment FIFO", async () => {
 		const { ownerId, tenantId, propertyId } = await ownerProperty();
 		// Combined agreement, backdated one month: each lease holds two
-		// charges (last month + current). The group pays the lifetime due of
-		// each lease; the lifetime model only tracks one month of rent, so
-		// the OPERATION delta is the dual-write contract, not absolute totals.
+		// charges (last month + current). Since the C08 cutover the group
+		// settles each lease's full PERIOD outstanding (both months), which
+		// the lifetime model never tracked — that difference was the gap.
 		const started = new Date(istMonthStart(-1));
 		const [unitA, unitB] = await db
 			.insert(units)
@@ -513,16 +518,12 @@ describe("C04 rent-period dual-write", () => {
 		});
 		expect(groupPayments).toHaveLength(2);
 
-		// Every lease moved both ledgers by exactly its payment (FIFO into the
-		// oldest charge), whatever its divergence history.
+		// The group settles each lease's period outstanding in full: the
+		// payment equals both months and pours FIFO into every charge.
 		for (const payment of groupPayments) {
-			const before = {
-				lifetime: RENT,
-				period: 2 * RENT,
-			};
+			expect(payment.amount).toBe(2 * RENT);
 			const after = await outstanding(payment.leaseId);
-			expect(before.lifetime - after.lifetime).toBe(payment.amount);
-			expect(before.period - after.period).toBe(payment.amount);
+			expect(after.period).toBe(0);
 			const periodAllocations = await db
 				.select({
 					periodKey: rentCharges.periodKey,
@@ -532,8 +533,9 @@ describe("C04 rent-period dual-write", () => {
 				.innerJoin(rentCharges, eq(rentAllocations.chargeId, rentCharges.id))
 				.where(eq(rentAllocations.paymentId, payment.id))
 				.orderBy(rentCharges.periodKey);
-			expect(periodAllocations).toHaveLength(1);
+			expect(periodAllocations).toHaveLength(2);
 			expect(periodAllocations[0]?.periodKey).toBe(istMonthKey(-1));
+			expect(periodAllocations[1]?.periodKey).toBe(istMonthKey());
 		}
 	});
 

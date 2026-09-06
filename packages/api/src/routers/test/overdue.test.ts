@@ -1,92 +1,130 @@
+// C08 overdue-state tests. Per the AGENTS.md test rule, each case pins a
+// regression the period-ledger cutover must prevent:
+// - overdue is a property of stored CHARGES (due date passed + outstanding
+//   paise), never of the lifetime one-month heuristic;
+// - a paid charge must not surface, but a charge reopened by a reversal must
+//   (the void-then-repay regression);
+// - the earliest overdue charge anchors dueDate/daysOverdue while arrears
+//   aggregate into outstandingAmount — historical arrears stay visible
+//   without inventing per-period noise (R13);
+// - the R3 pre-start guard holds on snapshotted due dates: a first-period
+//   charge whose due date precedes the lease start is not overdue;
+// - paidTowardOverdue reports what settled those periods, not contract rent.
 import { describe, expect, it } from "vitest";
-import { computeOverdueState, type OverdueCandidate } from "../helpers/overdue";
+import { computeLeaseOverdue, type OverdueCharge } from "../helpers/overdue";
 
-const baseRow = (
-	overrides: Partial<OverdueCandidate> = {},
-): OverdueCandidate => ({
-	rent: 100_000,
-	paidAmount: 0,
-	creditAmount: 0,
-	startDate: new Date("2026-01-01T00:00:00.000Z"),
-	endDate: null,
-	rentDueDate: 10,
-	leaseStatus: "active",
+const charge = (overrides: Partial<OverdueCharge> = {}): OverdueCharge => ({
+	periodKey: "2026-08",
+	dueDate: "2026-08-10",
+	amount: 100_000,
+	outstanding: 100_000,
 	...overrides,
 });
 
-describe("computeOverdueState", () => {
-	it("does not mark a lease overdue before the due date", () => {
-		expect(computeOverdueState(baseRow(), "2026-08-10")).toBeNull();
-	});
-
-	it("does not mark rent due today as overdue", () => {
-		expect(computeOverdueState(baseRow(), "2026-08-10")).toBeNull();
-	});
-
-	it("marks an unpaid lease overdue after the due date", () => {
-		expect(computeOverdueState(baseRow(), "2026-08-13")).toEqual({
-			dueDate: "2026-08-10",
-			daysOverdue: 3,
-			paidAmount: 0,
-			outstandingAmount: 100_000,
-		});
-	});
-
-	it("reports the remaining amount for a partial payment", () => {
+describe("computeLeaseOverdue", () => {
+	it("does not mark a lease overdue while the charge's due date is ahead", () => {
 		expect(
-			computeOverdueState(baseRow({ paidAmount: 40_000 }), "2026-08-13"),
-		).toMatchObject({
-			paidAmount: 40_000,
-			outstandingAmount: 60_000,
-		});
-	});
-
-	it("does not mark a fully paid lease overdue", () => {
-		expect(
-			computeOverdueState(baseRow({ paidAmount: 100_000 }), "2026-08-13"),
+			computeLeaseOverdue(
+				[charge()],
+				new Date("2026-08-01T00:00:00.000Z"),
+				"2026-08-10",
+			),
 		).toBeNull();
-	});
-
-	it("counts a rent discount against the outstanding amount", () => {
 		expect(
-			computeOverdueState(
-				baseRow({ paidAmount: 80_000, creditAmount: -20_000 }),
-				"2026-08-13",
+			computeLeaseOverdue(
+				[charge()],
+				new Date("2026-08-01T00:00:00.000Z"),
+				"2026-08-09",
 			),
 		).toBeNull();
 	});
 
-	it("nets a reversal back into the outstanding amount", () => {
-		// 100k rent, 100k paid but one 100k payment was reversed -> still owes 100k.
+	it("marks an outstanding charge overdue the day after its due date", () => {
 		expect(
-			computeOverdueState(baseRow({ paidAmount: 0 }), "2026-08-13"),
-		).toMatchObject({ outstandingAmount: 100_000 });
+			computeLeaseOverdue(
+				[charge()],
+				new Date("2026-08-01T00:00:00.000Z"),
+				"2026-08-12",
+			),
+		).toMatchObject({
+			periodKey: "2026-08",
+			dueDate: "2026-08-10",
+			daysOverdue: 2,
+			outstandingAmount: 100_000,
+		});
 	});
 
-	it("ignores leases that start after the due date", () => {
+	it("skips a settled charge and reports a reopened one after a reversal", () => {
+		const settled = charge({ outstanding: 0 });
+		const reopened = charge({ periodKey: "2026-09", dueDate: "2026-09-10" });
 		expect(
-			computeOverdueState(
-				baseRow({
-					startDate: new Date("2026-08-15T00:00:00.000Z"),
-				}),
+			computeLeaseOverdue(
+				[settled, reopened],
+				new Date("2026-08-01T00:00:00.000Z"),
+				"2026-09-12",
+			),
+		).toMatchObject({
+			periodKey: "2026-09",
+			dueDate: "2026-09-10",
+			outstandingAmount: 100_000,
+		});
+	});
+
+	it("aggregates arrears onto the earliest overdue charge's anchor", () => {
+		const july = charge({ periodKey: "2026-07", dueDate: "2026-07-10" });
+		const august = charge();
+		const state = computeLeaseOverdue(
+			[august, july],
+			new Date("2026-07-01T00:00:00.000Z"),
+			"2026-08-13",
+		);
+		expect(state).toMatchObject({
+			periodKey: "2026-07",
+			dueDate: "2026-07-10",
+			daysOverdue: 34,
+			outstandingAmount: 200_000,
+		});
+	});
+
+	it("reports the paise already settled toward the overdue periods", () => {
+		const partial = charge({ amount: 100_000, outstanding: 60_000 });
+		expect(
+			computeLeaseOverdue(
+				[partial],
+				new Date("2026-08-01T00:00:00.000Z"),
+				"2026-08-13",
+			),
+		).toMatchObject({ paidAmount: 40_000, outstandingAmount: 60_000 });
+	});
+
+	it("applies the R3 pre-start guard to snapshotted due dates", () => {
+		// Lease starts on the 15th; the first period's charge is due on the 5th.
+		const first = charge({ periodKey: "2026-08", dueDate: "2026-08-05" });
+		expect(
+			computeLeaseOverdue(
+				[first],
+				new Date("2026-08-15T00:00:00.000Z"),
 				"2026-08-20",
 			),
 		).toBeNull();
 	});
 
-	it("ignores inactive leases and falls back to the lease start day", () => {
+	it("ignores a due date today but includes yesterday's", () => {
+		const today = charge({ dueDate: "2026-08-13" });
+		const yesterday = charge({ periodKey: "2026-08", dueDate: "2026-08-12" });
 		expect(
-			computeOverdueState(baseRow({ leaseStatus: "terminated" }), "2026-08-13"),
-		).toBeNull();
-
-		expect(
-			computeOverdueState(
-				baseRow({
-					rentDueDate: null,
-					startDate: new Date("2026-08-01T00:00:00.000Z"),
-				}),
+			computeLeaseOverdue(
+				[today],
+				new Date("2026-08-01T00:00:00.000Z"),
 				"2026-08-13",
 			),
-		).toMatchObject({ dueDate: "2026-08-01", daysOverdue: 12 });
+		).toBeNull();
+		expect(
+			computeLeaseOverdue(
+				[yesterday],
+				new Date("2026-08-01T00:00:00.000Z"),
+				"2026-08-13",
+			),
+		).not.toBeNull();
 	});
 });

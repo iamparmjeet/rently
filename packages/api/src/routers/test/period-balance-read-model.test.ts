@@ -300,8 +300,6 @@ describe("C05 period balance read model", () => {
 		expect(charge.isFuture).toBe(false);
 		expect(balance.currentRentDue).toBe(50_000);
 		expect(balance.totalRentDue).toBe(50_000);
-		expect(balance.lifetimeRentDue).toBe(50_000);
-		expect(balance.accruedGap).toBe(0);
 		expect(balance.paid.lifetime).toBe(50_000);
 		expect(balance.paid.period).toBe(50_000);
 		expect(balance.credits.total).toBe(-50_000);
@@ -352,10 +350,6 @@ describe("C05 period balance read model", () => {
 		}
 		expect(balance.currentRentDue).toBe(RENT);
 		expect(balance.totalRentDue).toBe(2 * RENT);
-		// The lifetime model only ever tracked one month of rent: the second
-		// month of arrears is the gap Phase C exists to make visible.
-		expect(balance.lifetimeRentDue).toBe(RENT);
-		expect(balance.accruedGap).toBe(RENT);
 		// Last month is overdue for certain; the current period only if its
 		// clamped due date (the 10th) has already passed.
 		const currentDue = dueDateKey(currentKey, 10);
@@ -434,10 +428,6 @@ describe("C05 period balance read model", () => {
 		expect(balance.currentRentDue).toBe(0);
 		expect(balance.overdueRent).toBe(0);
 		expect(balance.totalRentDue).toBe(0);
-		// The lifetime model cannot see where the second payment went and reads
-		// negative; the gap absorbs exactly that blindness.
-		expect(balance.lifetimeRentDue).toBe(-RENT);
-		expect(balance.accruedGap).toBe(RENT);
 		expect(balance.paid.lifetime).toBe(2 * RENT);
 		expect(balance.paid.period).toBe(2 * RENT);
 	});
@@ -526,8 +516,6 @@ describe("C05 period balance read model", () => {
 		expect(balance.paid.lifetime).toBe(0);
 		expect(balance.paid.period).toBe(0);
 		expect(balance.totalRentDue).toBe(RENT);
-		expect(balance.lifetimeRentDue).toBe(RENT);
-		expect(balance.accruedGap).toBe(0);
 	});
 
 	it("scopes balances to the caller: owners by property, tenants by lease, no supervisory access", async () => {

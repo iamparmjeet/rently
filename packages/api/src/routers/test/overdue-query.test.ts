@@ -6,11 +6,22 @@ import {
 	notifications,
 	payments,
 	properties,
+	rentAllocations,
+	rentCharges,
 	units,
 } from "@rently/db/schema/schema";
 import { inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
+// C08 cutover tests for the overdue report. Per the AGENTS.md test rule,
+// each case pins a regression:
+// - overdue state derives from stored charges (seeded directly, so the real
+//   clock's lazy accrual cannot pollute fake-date assertions);
+// - the earliest overdue charge anchors the state while arrears aggregate —
+//   a backdated lease surfaces as ONE overdue entry, never a per-period
+//   burst (R13);
+// - owner scoping holds (E01-class) and settled charges do not appear;
+// - the in-app notification dedupes per lease + period (one poll, one row).
 const mocks = vi.hoisted(() => ({
 	getSession: vi.fn(),
 }));
@@ -33,6 +44,8 @@ const created = {
 	units: [] as string[],
 	leases: [] as string[],
 	payments: [] as string[],
+	charges: [] as string[],
+	allocations: [] as string[],
 };
 
 async function seedUser(role: "owner" | "tenant", name: string) {
@@ -85,16 +98,44 @@ async function seedLease(ownerId: string, tenantId: string, rentDueDate = 10) {
 	return leaseId;
 }
 
-async function seedPayment(leaseId: string, amount: number) {
-	const id = crypto.randomUUID();
-	created.payments.push(id);
-	await db.insert(payments).values({
-		id,
+// Direct charge seeding (deterministic regardless of the real clock).
+async function seedCharge(
+	leaseId: string,
+	periodKey: string,
+	dueDate: string,
+	amount: number,
+	outstandingAfter = 0,
+) {
+	const chargeId = crypto.randomUUID();
+	created.charges.push(chargeId);
+	await db.insert(rentCharges).values({
+		id: chargeId,
 		leaseId,
+		periodKey,
+		dueDate,
 		amount,
-		paymentDate: new Date("2026-08-05T00:00:00.000Z"),
-		type: "rent",
 	});
+	const settled = amount - outstandingAfter;
+	if (settled > 0) {
+		const paymentId = crypto.randomUUID();
+		created.payments.push(paymentId);
+		await db.insert(payments).values({
+			id: paymentId,
+			leaseId,
+			amount: settled,
+			paymentDate: new Date(`${dueDate}T00:00:00.000Z`),
+			type: "rent",
+		});
+		const allocationId = crypto.randomUUID();
+		created.allocations.push(allocationId);
+		await db.insert(rentAllocations).values({
+			id: allocationId,
+			chargeId,
+			paymentId,
+			amount: settled,
+		});
+	}
+	return chargeId;
 }
 
 afterEach(async () => {
@@ -102,6 +143,16 @@ afterEach(async () => {
 		await db
 			.delete(notifications)
 			.where(inArray(notifications.userId, created.users));
+	}
+	if (created.allocations.length) {
+		await db
+			.delete(rentAllocations)
+			.where(inArray(rentAllocations.id, created.allocations));
+	}
+	if (created.charges.length) {
+		await db
+			.delete(rentCharges)
+			.where(inArray(rentCharges.id, created.charges));
 	}
 	if (created.payments.length) {
 		await db.delete(payments).where(inArray(payments.id, created.payments));
@@ -129,7 +180,7 @@ afterEach(async () => {
 });
 
 describe("queryOverdueLeases", () => {
-	it("is owner-scoped and reports partial rent outstanding", async () => {
+	it("is owner-scoped, aggregates arrears onto one entry, and skips settled charges", async () => {
 		const owner = await seedUser("owner", "Owner A");
 		const otherOwner = await seedUser("owner", "Owner B");
 		const tenantA = await seedUser("tenant", "Tenant A");
@@ -137,39 +188,35 @@ describe("queryOverdueLeases", () => {
 		const tenantC = await seedUser("tenant", "Tenant C");
 		const tenantOther = await seedUser("tenant", "Tenant Other");
 
-		const unpaidLease = await seedLease(owner.id, tenantA.id);
-		const partialLease = await seedLease(owner.id, tenantB.id);
-		const paidLease = await seedLease(owner.id, tenantC.id);
-		await seedLease(otherOwner.id, tenantOther.id);
+		// Arrears lease: July fully owed + August partially paid (40k of 100k).
+		const arrearsLease = await seedLease(owner.id, tenantA.id);
+		await seedCharge(arrearsLease, "2026-07", "2026-07-10", 100_000, 100_000);
+		await seedCharge(arrearsLease, "2026-08", "2026-08-10", 100_000, 60_000);
+		// Settled lease: its only charge is fully allocated.
+		const settledLease = await seedLease(owner.id, tenantB.id);
+		await seedCharge(settledLease, "2026-08", "2026-08-10", 100_000, 0);
+		await seedLease(owner.id, tenantC.id); // no charges yet
+		const foreignLease = await seedLease(otherOwner.id, tenantOther.id);
+		await seedCharge(foreignLease, "2026-07", "2026-07-10", 100_000, 100_000);
 
-		await seedPayment(partialLease, 40_000);
-		await seedPayment(paidLease, 100_000);
 		const result = await queryOverdueLeases(
 			db,
 			new Date("2026-08-13T00:00:00.000Z"),
 			owner.id,
 		);
 
-		expect(result).toHaveLength(2);
-		expect(result).toEqual(
-			expect.arrayContaining([
-				expect.objectContaining({
-					leaseId: unpaidLease,
-					tenantId: tenantA.id,
-					daysOverdue: 3,
-					paidAmount: 0,
-					outstandingAmount: 100_000,
-				}),
-				expect.objectContaining({
-					leaseId: partialLease,
-					tenantId: tenantB.id,
-					daysOverdue: 3,
-					paidAmount: 40_000,
-					outstandingAmount: 60_000,
-				}),
-			]),
-		);
-	}, 30_000);
+		// One aggregated entry for the arrears lease (never a per-period burst).
+		expect(result).toHaveLength(1);
+		expect(result[0]).toMatchObject({
+			leaseId: arrearsLease,
+			tenantId: tenantA.id,
+			paidAmount: 40_000,
+			outstandingAmount: 160_000,
+			// Anchored on the earliest overdue charge (July 10).
+			dueDate: "2026-07-10",
+			daysOverdue: 34,
+		});
+	});
 });
 
 describe("overdue notifications", () => {
@@ -180,6 +227,7 @@ describe("overdue notifications", () => {
 		const owner = await seedUser("owner", "Owner");
 		const tenant = await seedUser("tenant", "Tenant");
 		const leaseId = await seedLease(owner.id, tenant.id);
+		await seedCharge(leaseId, "2026-08", "2026-08-10", 100_000, 100_000);
 
 		mocks.getSession.mockResolvedValue({
 			user: owner,

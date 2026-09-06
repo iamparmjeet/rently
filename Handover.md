@@ -586,3 +586,13 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift (×2) → `check-types` 6/6 → Biome clean → `db:migrate:test` + fresh-install proof → focused 44/44 (incl. payment-export/receipt regression-adjacent) → FULL suite 69 files / 401 tests pass → local `bun run build` 5/5; zero fixture residue; no `next-env.d.ts` churn this time.
 - Terra pointers: partial (reuse-after-archive) vs full uniqueness — confirm the approved reading; exact-match (case-sensitive) numbers; catch-only 23505 mapping with no pre-check query.
 - Next allowed slice: F01 notification recipients from a clean integration-branch cut.
+
+## F01 Notification recipients (2026-09-06, Muse Spark, branch fix/notification-recipient-model, tag pre-notification-recipient-model)
+
+- Base: clean `integ/phase-a-baseline@349e6c97` (E09 merge); no migration. `main` untouched. Terra Medium review owed — stays `[~]`. Standing authorization applies. Small test footprint per owner request (2 tests).
+- Gap proven (2 red pre-fix): `createCombinedLease` and `createAgreementPayment` addressed their notifications to the tenant, but every read path (`list/unread-count/mark-read/mark-all`) is owner-only and the tenant app has no notification surface — those rows were visible to nobody. All other writers (invite-accepted ×2, meter-reading, lazy expiry/overdue, seeds) already address the owner.
+- Decision (this slice's scoped call, Terra to confirm): both events concern the owner's books, so both rows are addressed to the acting owner with owner-facing copy; no tenant read surface added, no audience/type columns needed. Alternatives recorded: a tenant notification surface (procedures + bell UI — larger slice), or deleting the writes (B11 precedent — loses the record).
+- Changed (3 commits, `25dfedc`..`21f5d64`): lease.ts (owner + "covering N units" copy), payment.ts (owner, tenant-lookup fallback chain deleted).
+- Tests (`notification-recipients.test.ts`, 2): combined-lease and agreement-payment rows appear in the owner's bell with zero rows addressed to the tenant. Teardown clears allocations before group payments (C04 RESTRICT lesson).
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 70 files / 403 tests pass → local `bun run build` 5/5; zero fixture residue; `next-env.d.ts` churn restored.
+- Next allowed slice: F02 notification deduplication from a clean integration-branch cut.

@@ -297,6 +297,13 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift; `check-types` 6/6; focused Biome clean; `db:migrate:test` passed; focused invite/auth/tenant-limit tests 38/38; build 5/5; Vitest excluding unrelated B10 lock-order and overdue-query suites passed 60 files / 348 tests.
 - Full Vitest remains blocked by unrelated `group-payment-lock-order.test.ts` lock/teardown failures and `overdue-query.test.ts` timeout/period-charge teardown failures. Terra review should scrutinize CTE write dependencies, the owner-prepared profile predicate, and the behavior when a concurrent account signup races a tenant-completed acceptance.
 
+## E01 Owner-scoped receipt profiles (2026-09-06, Terra High review owed)
+
+- Base: `integ/phase-a-baseline@df175fcb`; branch `fix/receipt-profile-scope`; rollback tag `pre-receipt-profile-scope`; no migration. `main` untouched.
+- Receipt profile lookup now joins the tenant relationship using both `tenantProfiles.userId` and `tenantProfiles.createdById = properties.ownerId`, while retaining the deleted-profile filter. Owner and tenant receipt paths therefore render the profile for the lease's property owner rather than an arbitrary shared-tenant relationship.
+- Regression coverage creates two owner-scoped tenant profiles with different addresses and verifies the property owner's receipt uses its own address.
+- Verification: `db:generate` no drift; `check-types` 6/6; focused Biome clean; focused receipt tests 6/6; build 5/5.
+
 ## D03 Renewal entitlement/invoice alignment (2026-09-06, ZLM 5.3 Flash, branch fix/subscription-renewal-period)
 
 - Base: `integ/phase-a-baseline@926c5b8c` (D02 merge); rollback tag `pre-subscription-renewal-period`; `main` untouched; **no migration** (stated explicitly — pure read/write logic change in `recordSubscriptionPayment`). Terra Medium review owed.

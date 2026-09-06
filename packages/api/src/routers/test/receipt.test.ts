@@ -116,6 +116,7 @@ async function createReceiptFixture(type: PaymentType = PAYMENT_TYPES.RENT) {
 	await db.insert(tenantProfiles).values({
 		id: tenantProfileId,
 		userId: tenant.id,
+		createdById: owner.id,
 		address: "12 Tenant Road, Mumbai",
 	});
 
@@ -231,7 +232,16 @@ afterEach(async () => {
 
 describe("payment receipts", () => {
 	it("returns the enriched receipt to the owning landlord", async () => {
-		const { owner, paymentId } = await createReceiptFixture();
+		const { owner, tenant, paymentId } = await createReceiptFixture();
+		const otherOwner = await createUser(USER_ROLES.OWNER, "Owner B");
+		const otherProfileId = crypto.randomUUID();
+		createdTenantProfileIds.push(otherProfileId);
+		await db.insert(tenantProfiles).values({
+			id: otherProfileId,
+			userId: tenant.id,
+			createdById: otherOwner.id,
+			address: "99 Other Owner Road, Mumbai",
+		});
 
 		const result = await clientFor(owner).getPaymentReceiptData({
 			paymentId,

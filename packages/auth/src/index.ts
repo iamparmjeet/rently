@@ -1,9 +1,5 @@
 import { createDb } from "@rently/db";
 import { NOTIFICATION_TYPES } from "@rently/db/constants/notification-constants";
-import {
-	BILLING_INTERVAL,
-	PLAN_STATUS,
-} from "@rently/db/constants/payment-constants";
 import { INVITE_STATUSES } from "@rently/db/constants/rent-constants";
 import { USER_ROLES } from "@rently/db/constants/user-roles";
 import {
@@ -16,7 +12,7 @@ import {
 	tenantInvites,
 	tenantProfiles,
 } from "@rently/db/schema/schema";
-import { plans, subscriptions } from "@rently/db/schema/subscription";
+import { ensureFreeSubscriptionSql } from "@rently/db/subscription-provisioning";
 import { generatedId } from "@rently/db/utils/id";
 import {
 	sendPasswordResetEmail,
@@ -189,30 +185,10 @@ export function createAuth() {
 						if (role !== USER_ROLES.OWNER) return;
 
 						try {
-							const [freePlan] = await db
-								.select({ id: plans.id })
-								.from(plans)
-								.where(eq(plans.slug, "free"))
-								.limit(1);
-
-							if (!freePlan) {
-								console.error(
-									"[auth:hook] Free plan not seeded — owner has no subscription. Run db:seed.",
-								);
-								return;
-							}
-
-							await db.insert(subscriptions).values({
-								id: generatedId(),
-								userId: user.id,
-								planId: freePlan.id,
-								status: PLAN_STATUS.ACTIVE,
-								billingInterval: BILLING_INTERVAL.MONTHLY,
-								currentPeriodStart: new Date(),
-								// null: the free plan never expires. No billing date needed.
-								currentPeriodEnd: null,
-								expired: false,
-							});
+							// D01: idempotent provisioning — same upsert as the
+							// GET-time path; the user_id unique index arbitrates
+							// concurrent/replayed hook runs.
+							await db.execute(ensureFreeSubscriptionSql(user.id));
 						} catch (err) {
 							console.error(
 								"[auth:hook] Failed to provision free subscription:",

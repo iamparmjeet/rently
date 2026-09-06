@@ -10,7 +10,7 @@ import { USER_ROLES } from "@rently/db/constants/user-roles";
 import { user } from "@rently/db/schema/auth";
 import { tenantInvites, tenantProfiles } from "@rently/db/schema/schema";
 import { sendInviteEmail } from "@rently/email";
-import { and, eq, isNull } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 import { enforcePendingInviteQuota } from "../helpers/tenant-limit";
 
 type PendingTenantInviteInput = {
@@ -40,8 +40,13 @@ async function findPendingInvite(
 				eq(tenantInvites.invitedById, invitedById),
 				eq(tenantInvites.status, "pending"),
 				isNull(tenantInvites.deletedAt),
+				or(
+					isNull(tenantInvites.expiresAt),
+					gt(tenantInvites.expiresAt, new Date()),
+				),
 			),
 		)
+		.orderBy(desc(tenantInvites.createdAt), desc(tenantInvites.id))
 		.limit(1);
 
 	return existing;

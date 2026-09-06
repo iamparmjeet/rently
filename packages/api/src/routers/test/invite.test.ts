@@ -276,6 +276,47 @@ afterEach(async () => {
 });
 
 describe("createInvite", () => {
+	it("replaces expired and deleted pending invitations for the same owner", async () => {
+		const owner = await createOwner("D05 Owner");
+		const email = `${crypto.randomUUID()}@test.keyhq.invalid`;
+		const [expiredInvite, deletedInvite] = await db
+			.insert(tenantInvites)
+			.values([
+				{
+					name: "Expired Tenant",
+					email,
+					token: crypto.randomUUID(),
+					expiresAt: new Date(Date.now() - 60 * 1000),
+					invitedById: owner.id,
+					status: "pending",
+				},
+				{
+					name: "Deleted Tenant",
+					email,
+					token: crypto.randomUUID(),
+					expiresAt: new Date(Date.now() + 60 * 60 * 1000),
+					invitedById: owner.id,
+					status: "pending",
+					deletedAt: new Date(),
+				},
+			])
+			.returning();
+
+		if (!expiredInvite || !deletedInvite) {
+			throw new Error("Failed to create D05 invitation fixtures");
+		}
+		createdInviteIds.push(expiredInvite.id, deletedInvite.id);
+
+		const result = await clientFor(owner).createInvite({
+			name: "Replacement Tenant",
+			email,
+		});
+		createdInviteIds.push(result.invite.id);
+
+		expect(result.invite.email).toBe(email);
+		expect(result.invite.status).toBe("pending");
+	});
+
 	it("preserves the pending invite when email delivery fails", async () => {
 		const owner = await createOwner("Owner A");
 		const email = `${crypto.randomUUID()}@test.keyhq.invalid`;

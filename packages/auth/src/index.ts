@@ -23,7 +23,7 @@ import { env } from "@rently/env/server";
 import { betterAuth } from "better-auth";
 import { drizzleAdapter } from "better-auth/adapters/drizzle";
 import { openAPI } from "better-auth/plugins";
-import { and, eq, gt, isNull, or } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 import { resolveCookieDomain } from "./cookie-domain";
 
 const isProduction = env.NODE_ENV === "production";
@@ -240,14 +240,13 @@ async function findPendingInviteByEmail(
 		.where(
 			and(
 				eq(tenantInvites.email, email),
+				eq(tenantInvites.status, INVITE_STATUSES.PENDING),
 				isNull(tenantInvites.deletedAt),
 				or(isNull(tenantInvites.expiresAt), gt(tenantInvites.expiresAt, now)),
 			),
 		)
-		.orderBy(tenantInvites.createdAt)
+		.orderBy(desc(tenantInvites.createdAt), desc(tenantInvites.id))
 		.limit(1);
-
-	if (!invite || invite.status !== INVITE_STATUSES.PENDING) return undefined;
 
 	return invite;
 }

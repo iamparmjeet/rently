@@ -22,10 +22,12 @@ import {
 } from "@rently/db/schema/schema";
 import { generatedId } from "@rently/db/utils/id";
 import {
+	AgreementSelectSchema,
 	CreateCombinedLeaseSchema,
 	CreateLeaseSchema,
 	LeaseSelectSchema,
 	LeaseWithDetailsSchema,
+	UpdateAgreementSchema,
 	UpdateLeaseSchema,
 } from "@rently/validators";
 import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
@@ -61,6 +63,7 @@ async function getLeaseWithOwner(db: Database, leaseId: string) {
 			status: leases.status,
 			startDate: leases.startDate,
 			endDate: leases.endDate,
+			agreementId: leases.agreementId,
 		})
 		.from(leases)
 		.innerJoin(units, eq(leases.unitId, units.id))
@@ -595,6 +598,38 @@ export const updateLease = ownerProcedure
 				: input.data.status === "active"
 					? "occupied"
 					: undefined;
+		// E05: shared agreement terms belong to the parent. A date patch on a
+		// lease with siblings would diverge that child from the agreement, so
+		// it must go through updateAgreement instead. A single-child
+		// (independent) agreement propagates the dates to the parent in the
+		// same atomic operation below; agreement-less legacy rows are
+		// untouched by this rule.
+		const editsSharedDates =
+			input.data.startDate !== undefined || input.data.endDate !== undefined;
+		let propagateAgreementDates = false;
+		if (editsSharedDates && ownership.agreementId) {
+			const siblings = await db
+				.select({ id: leases.id })
+				.from(leases)
+				.where(eq(leases.agreementId, ownership.agreementId));
+			if (siblings.length > 1) {
+				throw new ORPCError("BAD_REQUEST", {
+					message:
+						"Shared agreement terms cannot be changed on one lease. Update the agreement instead.",
+				});
+			}
+			propagateAgreementDates = true;
+		}
+		const agreementDatePatch = propagateAgreementDates
+			? {
+					...(input.data.startDate !== undefined
+						? { startDate: input.data.startDate }
+						: {}),
+					...(input.data.endDate !== undefined
+						? { endDate: input.data.endDate }
+						: {}),
+				}
+			: null;
 		// D04: a reactivation is an activation — the tenant consumes a seat
 		// unless they already hold another active lease under this owner.
 		const reactivating =
@@ -605,6 +640,16 @@ export const updateLease = ownerProcedure
 			.set({ ...input.data, updatedAt: new Date() })
 			.where(eq(leases.id, input.id))
 			.returning();
+
+		// E05: appended last so the existing positional destructuring below is
+		// unaffected. A raise here aborts the whole batch/transaction.
+		const propagateAgreementQuery =
+			agreementDatePatch && ownership.agreementId
+				? db
+						.update(leaseAgreements)
+						.set({ ...agreementDatePatch, updatedAt: new Date() })
+						.where(eq(leaseAgreements.id, ownership.agreementId))
+				: null;
 
 		// Neon HTTP does not support callback transactions. Use its batch API so the
 		// lease and unit updates remain atomic in every database environment.
@@ -622,17 +667,22 @@ export const updateLease = ownerProcedure
 							db.execute(assertTenantSeatSql(authUser.id, ownership.tenantId)),
 							updateLeaseQuery,
 							unitStatusQuery,
+							...(propagateAgreementQuery ? [propagateAgreementQuery] : []),
 						]);
 						lease = updatedLeases[0];
 					} else {
 						const [updatedLeases] = await db.batch([
 							updateLeaseQuery,
 							unitStatusQuery,
+							...(propagateAgreementQuery ? [propagateAgreementQuery] : []),
 						]);
 						lease = updatedLeases[0];
 					}
 				} else {
-					const [updatedLeases] = await db.batch([updateLeaseQuery]);
+					const [updatedLeases] = await db.batch([
+						updateLeaseQuery,
+						...(propagateAgreementQuery ? [propagateAgreementQuery] : []),
+					]);
 					lease = updatedLeases[0];
 				}
 			} else {
@@ -651,6 +701,13 @@ export const updateLease = ownerProcedure
 						.returning();
 
 					if (!updated) return undefined;
+
+					if (agreementDatePatch && ownership.agreementId) {
+						await tx
+							.update(leaseAgreements)
+							.set({ ...agreementDatePatch, updatedAt: new Date() })
+							.where(eq(leaseAgreements.id, ownership.agreementId));
+					}
 
 					if (unitStatus) {
 						await tx
@@ -676,6 +733,127 @@ export const updateLease = ownerProcedure
 		}
 
 		return { lease };
+	});
+
+// E05: update shared agreement terms on the parent and every child together.
+// One child can no longer change shared terms independently (updateLease
+// refuses that); this is the only path for combined agreements.
+export const updateAgreement = ownerProcedure
+	.route({ method: "PATCH", path: "/rent/lease-agreement/update" })
+	.input(z.object({ id: z.string(), data: UpdateAgreementSchema }))
+	.output(
+		z.object({
+			agreement: AgreementSelectSchema,
+			leases: z.array(LeaseSelectSchema),
+		}),
+	)
+	.handler(async ({ context, input }) => {
+		const { db, user: authUser } = context;
+
+		const [agreement] = await db
+			.select({
+				id: leaseAgreements.id,
+				ownerId: properties.ownerId,
+				startDate: leaseAgreements.startDate,
+				endDate: leaseAgreements.endDate,
+			})
+			.from(leaseAgreements)
+			.innerJoin(properties, eq(leaseAgreements.propertyId, properties.id))
+			.where(
+				and(eq(leaseAgreements.id, input.id), isNull(properties.deletedAt)),
+			)
+			.limit(1);
+
+		if (!agreement) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "Agreement not found",
+			});
+		}
+
+		if (agreement.ownerId !== authUser.id) {
+			throw new ORPCError("FORBIDDEN", {
+				message: "You do not own this agreement",
+			});
+		}
+
+		// Partial updates carry only the patch — validate merged dates so a
+		// shrunken end date fails here, not at the database constraint.
+		// Explicit null clears the end date (open-ended agreement).
+		const finalEnd =
+			input.data.endDate === undefined ? agreement.endDate : input.data.endDate;
+		const finalStart = input.data.startDate ?? agreement.startDate;
+		if (finalEnd && finalStart && finalEnd < finalStart) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "End date must be after start date",
+			});
+		}
+
+		// Defined keys only — an absent key leaves parent and children as-is,
+		// an explicit null clears the nullable columns on both.
+		const { ...patch } = input.data;
+		const sharedPatch = Object.fromEntries(
+			Object.entries(patch).filter(([, value]) => value !== undefined),
+		);
+
+		const updateAgreementQuery = db
+			.update(leaseAgreements)
+			.set({ ...sharedPatch, updatedAt: new Date() })
+			.where(eq(leaseAgreements.id, input.id))
+			.returning();
+		const updateChildrenQuery = db
+			.update(leases)
+			.set({ ...sharedPatch, updatedAt: new Date() })
+			.where(eq(leases.agreementId, input.id))
+			.returning();
+
+		// Neon HTTP does not support callback transactions — batch both writes
+		// so parent and children stay in sync in every database environment.
+		let updatedAgreement:
+			| Awaited<typeof updateAgreementQuery>[number]
+			| undefined;
+		let updatedChildren: Awaited<typeof updateChildrenQuery>[number][];
+		if (supportsBatch(db)) {
+			const [agreements, children] = await db.batch([
+				updateAgreementQuery,
+				updateChildrenQuery,
+			]);
+			updatedAgreement = agreements[0];
+			updatedChildren = [...children].sort((a, b) =>
+				a.unitId.localeCompare(b.unitId),
+			);
+		} else {
+			const result = await db.transaction(async (tx) => {
+				const [parent] = await tx
+					.update(leaseAgreements)
+					.set({ ...sharedPatch, updatedAt: new Date() })
+					.where(eq(leaseAgreements.id, input.id))
+					.returning();
+				if (!parent) return undefined;
+				const children = await tx
+					.update(leases)
+					.set({ ...sharedPatch, updatedAt: new Date() })
+					.where(eq(leases.agreementId, input.id))
+					.returning();
+				return { parent, children };
+			});
+			if (!result) {
+				throw new ORPCError("NOT_FOUND", {
+					message: "Agreement not found",
+				});
+			}
+			updatedAgreement = result.parent;
+			updatedChildren = [...result.children].sort((a, b) =>
+				a.unitId.localeCompare(b.unitId),
+			);
+		}
+
+		if (!updatedAgreement) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "Agreement not found",
+			});
+		}
+
+		return { agreement: updatedAgreement, leases: updatedChildren };
 	});
 
 // getbyId

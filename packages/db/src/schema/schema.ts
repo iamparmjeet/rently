@@ -97,7 +97,14 @@ export const units = pgTable(
 		...auditColumns(),
 		...softDeleteColumn(),
 	},
-	(table) => [check("units_base_rent_check", sql`${table.baseRent} > 0`)],
+	(table) => [
+		check("units_base_rent_check", sql`${table.baseRent} > 0`),
+		// E09: one live unit number per property. The partial predicate
+		// keeps archived rows historical — their numbers stay reusable.
+		uniqueIndex("units_property_number_live_unique")
+			.on(table.propertyId, table.unitNumber)
+			.where(sql`${table.deletedAt} is null`),
+	],
 );
 
 export const leaseAgreements = pgTable(

@@ -14,6 +14,22 @@ import { and, eq, isNull } from "drizzle-orm";
 import z from "zod";
 import { VerifyUnitOwnership } from "../helpers";
 
+// Drizzle wraps driver errors (the Postgres code nests under cause); read
+// both so the uniqueness arbitration works on every path.
+function violationCode(error: unknown): string | undefined {
+	const top = error as { code?: unknown; cause?: unknown } | null;
+	if (typeof top?.code === "string") return top.code;
+	const cause = top?.cause as { code?: unknown } | null | undefined;
+	if (typeof cause?.code === "string") return cause.code;
+	return undefined;
+}
+
+function unitNumberConflict() {
+	return new ORPCError("CONFLICT", {
+		message: "A live unit with this number already exists in this property",
+	});
+}
+
 //1) create
 export const createUnit = ownerProcedure
 	.route({
@@ -49,13 +65,21 @@ export const createUnit = ownerProcedure
 		}
 
 		//
-		const [unit] = await db
-			.insert(units)
-			.values({
-				...input,
-				status: "available",
-			})
-			.returning();
+		// E09: the partial unique index arbitrates concurrent duplicates;
+		// map its collision to a Conflict instead of leaking a 500.
+		let unit: typeof units.$inferSelect | undefined;
+		try {
+			[unit] = await db
+				.insert(units)
+				.values({
+					...input,
+					status: "available",
+				})
+				.returning();
+		} catch (error) {
+			if (violationCode(error) !== "23505") throw error;
+			throw unitNumberConflict();
+		}
 
 		if (!unit) {
 			throw new ORPCError("INTERNAL_SERVER_ERROR", {
@@ -77,11 +101,19 @@ export const updateUnit = ownerProcedure
 		// Verfiy ownership
 		await VerifyUnitOwnership(db, authUser.id, input.id);
 
-		const [unit] = await db
-			.update(units)
-			.set({ ...input.data, updatedAt: new Date() })
-			.where(eq(units.id, input.id))
-			.returning();
+		// E09: renaming onto a live sibling number collides on the partial
+		// unique index — report it instead of leaking a 500.
+		let unit: typeof units.$inferSelect | undefined;
+		try {
+			[unit] = await db
+				.update(units)
+				.set({ ...input.data, updatedAt: new Date() })
+				.where(eq(units.id, input.id))
+				.returning();
+		} catch (error) {
+			if (violationCode(error) !== "23505") throw error;
+			throw unitNumberConflict();
+		}
 
 		if (!unit) {
 			throw new ORPCError("NOT_FOUND", {

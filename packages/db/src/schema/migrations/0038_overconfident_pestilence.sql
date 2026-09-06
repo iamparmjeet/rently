@@ -1,0 +1,1 @@
+CREATE UNIQUE INDEX "units_property_number_live_unique" ON "units" USING btree ("property_id","unit_number") WHERE "units"."deleted_at" is null;

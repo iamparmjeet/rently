@@ -205,7 +205,13 @@ async function getOwnedUtility(
 				isNull(ownerProfiles.deletedAt),
 			),
 		)
-		.where(eq(utilities.id, utilityId))
+		.where(
+			and(
+				eq(utilities.id, utilityId),
+				isNull(units.deletedAt),
+				isNull(properties.deletedAt),
+			),
+		)
 		.limit(1);
 
 	if (!row) {

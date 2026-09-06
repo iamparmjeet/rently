@@ -17,7 +17,8 @@ import {
 	units,
 	utilities,
 } from "@rently/db/schema/schema";
-import { and, count, desc, eq, gte, lt, sql } from "drizzle-orm";
+import { and, asc, count, desc, eq, gte, isNull, lt, sql } from "drizzle-orm";
+import { alias } from "drizzle-orm/pg-core";
 import z from "zod";
 import { sendAutomaticUtilityBillEmail } from "../helpers/automatic-emails";
 import { getAmountDueForUtility } from "../helpers/credit.helpers";
@@ -375,68 +376,86 @@ export const getMyUtilities = protectedProcedure
 	});
 
 //  4. Get My Profile
-// WHY: Powers the tenant profile summary. Document state comes from the private
-// tenant-document list procedure, not the legacy profile verification columns.
+const ownerUser = alias(user, "profile_owner");
 export const getMyProfile = protectedProcedure
 	.route({ method: "GET", path: "/rent/tenant-portal/profile" })
 	.output(
 		z.object({
-			profile: z.object({
+			user: z.object({
 				name: z.string(),
 				email: z.string(),
 				phone: z.string().nullable(),
-				address: z.string().nullable(),
-				emergencyContactName: z.string().nullable(),
-				emergencyContact: z.string().nullable(),
-				aadhaarLastFour: z
-					.string()
-					.regex(/^\d{4}$/)
-					.nullable(),
-				panHint: z.string().nullable(),
 			}),
+			profiles: z.array(
+				z.object({
+					ownerId: z.string(),
+					ownerName: z.string(),
+					address: z.string().nullable(),
+					emergencyContactName: z.string().nullable(),
+					emergencyContact: z.string().nullable(),
+					aadhaarLastFour: z
+						.string()
+						.regex(/^\d{4}$/)
+						.nullable(),
+					panHint: z.string().nullable(),
+				}),
+			),
 		}),
 	)
 	.handler(async ({ context }) => {
 		const { db, user: authUser } = context;
 
-		// WHY: LEFT JOIN tenantProfiles because there's a theoretical edge case
-		// where a user exists but no profile row was created (race condition during
-		// createTenant transaction failure). The portal should still show basic info.
-		const [row] = await db
+		const [self] = await db
+			.select({ name: user.name, email: user.email, phone: user.phone })
+			.from(user)
+			.where(eq(user.id, authUser.id))
+			.limit(1);
+
+		if (!self) {
+			throw new ORPCError("NOT_FOUND", {
+				message: "User not found",
+			});
+		}
+
+		const rows = await db
 			.select({
-				name: user.name,
-				email: user.email,
-				phone: user.phone,
+				ownerId: tenantProfiles.createdById,
+				ownerName: ownerUser.name,
 				address: tenantProfiles.address,
 				emergencyContactName: tenantProfiles.emergencyContactName,
 				emergencyContact: tenantProfiles.emergencyContact,
 				aadhaarLastFour: tenantProfiles.aadhaarLastFour,
 				legacyPanNumber: tenantProfiles.panNumber,
 			})
-			.from(user)
-			.leftJoin(tenantProfiles, eq(tenantProfiles.userId, user.id))
-			.where(eq(user.id, authUser.id))
-			.limit(1);
-
-		if (!row) {
-			throw new ORPCError("NOT_FOUND", {
-				message: "User not found",
-			});
-		}
+			.from(tenantProfiles)
+			.innerJoin(ownerUser, eq(ownerUser.id, tenantProfiles.createdById))
+			.where(
+				and(
+					eq(tenantProfiles.userId, authUser.id),
+					isNull(tenantProfiles.deletedAt),
+				),
+			)
+			.orderBy(asc(tenantProfiles.createdAt), asc(tenantProfiles.id));
 
 		return {
-			profile: {
-				name: row.name,
-				email: row.email,
-				phone: row.phone,
-				address: row.address,
-				emergencyContactName: row.emergencyContactName,
-				emergencyContact: row.emergencyContact,
-				aadhaarLastFour: row.aadhaarLastFour,
-				panHint: row.legacyPanNumber
-					? `${row.legacyPanNumber.slice(0, 2)}••••${row.legacyPanNumber.slice(-2)}`
-					: null,
-			},
+			user: self,
+			profiles: rows.flatMap((row) =>
+				row.ownerId
+					? [
+							{
+								ownerId: row.ownerId,
+								ownerName: row.ownerName ?? "Your Landlord",
+								address: row.address,
+								emergencyContactName: row.emergencyContactName,
+								emergencyContact: row.emergencyContact,
+								aadhaarLastFour: row.aadhaarLastFour,
+								panHint: row.legacyPanNumber
+									? `${row.legacyPanNumber.slice(0, 2)}••••${row.legacyPanNumber.slice(-2)}`
+									: null,
+							},
+						]
+					: [],
+			),
 		};
 	});
 

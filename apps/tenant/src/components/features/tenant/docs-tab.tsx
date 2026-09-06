@@ -109,7 +109,8 @@ export function DocsTab() {
 		url: string | null;
 		error: string | null;
 	} | null>(null);
-	const profile = profileData?.profile;
+	const self = profileData?.user;
+	const ownerProfiles = profileData?.profiles ?? [];
 	const activeUnits = (agreementsData?.agreements ?? []).flatMap((agreement) =>
 		agreement.units
 			.filter((unit) => unit.status === "active")
@@ -306,9 +307,9 @@ export function DocsTab() {
 						<IconUser className="h-5 w-5 text-primary" />
 					</div>
 					<div>
-						<p className="font-bold">{profile?.name ?? "—"}</p>
+						<p className="font-bold">{self?.name ?? "—"}</p>
 						<p className="text-muted-foreground text-xs">
-							{profile?.email ?? "—"}
+							{self?.email ?? "—"}
 						</p>
 					</div>
 					<div className="ml-auto flex items-center gap-1 rounded-full bg-muted px-2.5 py-1 font-semibold text-muted-foreground text-xs">
@@ -316,11 +317,18 @@ export function DocsTab() {
 					</div>
 				</div>
 				<div className="divide-y divide-border">
-					<ProfileRow label="Phone" value={profile?.phone ?? "Not provided"} />
-					<ProfileRow
-						label="Address"
-						value={profile?.address ?? "Not provided"}
-					/>
+					<ProfileRow label="Phone" value={self?.phone ?? "Not provided"} />
+					{ownerProfiles.map((ownerProfile) => (
+						<ProfileRow
+							key={ownerProfile.ownerId}
+							label={
+								ownerProfiles.length > 1
+									? `Address (${ownerProfile.ownerName})`
+									: "Address"
+							}
+							value={ownerProfile.address ?? "Not provided"}
+						/>
+					))}
 					{activeUnits.length > 0 && (
 						<ProfileRow
 							label={

@@ -313,6 +313,16 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift; `check-types` 6/6; focused Biome clean; `db:migrate:test` passed; focused tenant-document tests 6/6; build 5/5; Vitest excluding unrelated B10 lock-order and overdue-query suites passed 60 files / 350 tests.
 - Full Vitest remains blocked by unrelated `group-payment-lock-order.test.ts` and `overdue-query.test.ts` failures (pre-existing, also present without this slice). Terra review should scrutinize the retained-read fallback, the earliest-relationship tenant default, and that in-flight transitions on removed relationships stay permitted.
 
+## E03 Tenant profile context (2026-09-06, Muse Spark, branch fix/tenant-profile-context, tag pre-tenant-profile-context)
+
+- Base: `integ/phase-a-baseline@d01d4464` (E02 merge); no migration. `main` untouched. Terra High review owed — stays `[~]` until then.
+- `getMyProfile` no longer `LEFT JOIN`s one arbitrary `tenantProfiles` row onto the user. It returns global self data (`user`: name/email/phone from the `user` row) plus explicit per-owner `profiles` (`ownerId`, `ownerName`, address, emergency contacts, aadhaarLastFour, panHint), ordered deterministically, soft-deleted relationships excluded, ownerless rows dropped.
+- Tenant UI (`docs-tab.tsx`) renders the header/phone from global self data and one `Address` row per owner relationship (labeled `Address (OwnerName)` when shared) instead of a single arbitrary address.
+- Regression coverage (`tenant-profile-context.test.ts`, 2): shared tenant with two owners and different profile metadata returns both profiles keyed by owner; soft-deleted relationship excluded.
+- Verification: `db:generate` no drift; `check-types` 6/6; Biome clean; `db:migrate:test` passed; focused profile/document/invite/removal/receipt 40/40; full suite excluding the two pre-existing blocker files 61 files / 352 tests; build 5/5.
+- Full Vitest remains blocked by unrelated pre-existing `group-payment-lock-order.test.ts` and `overdue-query.test.ts` failures. Terra review should scrutinize the output-shape break (any other `getMyProfile` consumers must migrate to `user`+`profiles`) and that ownerless profile rows are dropped rather than surfaced.
+- Next allowed slice: E04 GST merged-state validation from a clean integration-branch cut.
+
 ## D03 Renewal entitlement/invoice alignment (2026-09-06, ZLM 5.3 Flash, branch fix/subscription-renewal-period)
 
 - Base: `integ/phase-a-baseline@926c5b8c` (D02 merge); rollback tag `pre-subscription-renewal-period`; `main` untouched; **no migration** (stated explicitly — pure read/write logic change in `recordSubscriptionPayment`). Terra Medium review owed.

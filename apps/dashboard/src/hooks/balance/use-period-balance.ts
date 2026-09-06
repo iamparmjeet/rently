@@ -10,8 +10,16 @@ export type PeriodBalanceInput = {
 
 // C06: single source of period-aware balances for owner screens. The input
 // mirrors the server contract: exactly one of leaseId, agreementId, or all.
-export function usePeriodBalance(input: PeriodBalanceInput) {
-	return useQuery(orpc.rent.balance.getPeriodBalance.queryOptions({ input }));
+// `options` flows into useQuery (e.g. `enabled`) for screens whose lease id
+// only becomes known after another query resolves.
+export function usePeriodBalance(
+	input: PeriodBalanceInput,
+	options?: { enabled?: boolean },
+) {
+	return useQuery({
+		...orpc.rent.balance.getPeriodBalance.queryOptions({ input }),
+		...options,
+	});
 }
 
 export function useSuspensePeriodBalance(input: PeriodBalanceInput) {

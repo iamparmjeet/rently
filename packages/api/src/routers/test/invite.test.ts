@@ -1,5 +1,5 @@
 import { createRouterClient } from "@orpc/server";
-import { createDb } from "@rently/db";
+import { createDb, type Database } from "@rently/db";
 import { account, user } from "@rently/db/schema/auth";
 import {
 	leaseAgreements,
@@ -155,12 +155,48 @@ async function createOwnerPreparedInvite(ownerId: string) {
 	return ownerPreparedInvite;
 }
 
-function clientFor(authUser: {
-	id: string;
-	name: string;
-	email: string;
-	role: string;
-}) {
+function neonPathDatabase() {
+	const toCamel = (key: string) =>
+		key.replace(/_([a-z0-9])/g, (_, c: string) => c.toUpperCase());
+	const timestampKeys = new Set(["created_at", "updated_at"]);
+	const mapRow = (row: Record<string, unknown>) =>
+		Object.fromEntries(
+			Object.entries(row).map(([key, value]) => [
+				toCamel(key),
+				timestampKeys.has(key) && typeof value === "string"
+					? new Date(value)
+					: value,
+			]),
+		);
+
+	return new Proxy(db, {
+		get(target, property, receiver) {
+			if (property === "batch") {
+				return (queries: Array<{ getSQL: () => unknown }>) =>
+					target.transaction(async (tx) => {
+						const results = [];
+						for (const query of queries) {
+							const raw = await tx.execute(query.getSQL() as never);
+							const rows = (raw.rows ?? raw) as Array<Record<string, unknown>>;
+							results.push(rows.map(mapRow));
+						}
+						return results;
+					});
+			}
+			return Reflect.get(target, property, receiver);
+		},
+	});
+}
+
+function clientFor(
+	authUser: {
+		id: string;
+		name: string;
+		email: string;
+		role: string;
+	},
+	target: Database = db,
+) {
 	mocks.getSession.mockResolvedValue({
 		user: authUser,
 		session: { id: "test-session" },
@@ -185,7 +221,7 @@ function clientFor(authUser: {
 		},
 		{
 			context: {
-				db,
+				db: target,
 				headers: new Headers(),
 			},
 		},
@@ -651,6 +687,77 @@ describe("createTenant", () => {
 			.where(eq(user.email, email));
 
 		expect(tenantUser).toEqual({ id: result.invite.id });
+	});
+
+	it("creates the owner-prepared identity atomically through the Neon batch path", async () => {
+		const owner = await createOwner("Neon Batch Owner");
+		const email = `${crypto.randomUUID()}@test.keyhq.invalid`;
+
+		const result = await clientFor(owner, neonPathDatabase()).createTenant({
+			name: "Neon Batch Tenant",
+			email,
+			address: "Neon Batch Road",
+		});
+		createdInviteIds.push(result.invite.id);
+		createdUserIds.push(result.invite.id);
+
+		const [tenantUser] = await db
+			.select({ id: user.id })
+			.from(user)
+			.where(eq(user.email, email));
+		const [profile] = await db
+			.select({
+				userId: tenantProfiles.userId,
+				address: tenantProfiles.address,
+			})
+			.from(tenantProfiles)
+			.where(eq(tenantProfiles.invitedId, result.invite.id));
+
+		expect(tenantUser?.id).toBe(result.invite.id);
+		expect(profile).toEqual({
+			userId: result.invite.id,
+			address: "Neon Batch Road",
+		});
+	});
+
+	it("allows only one concurrent normalized pending invite per owner", async () => {
+		const owner = await createOwner("Concurrent Invite Owner");
+		const email = `${crypto.randomUUID()}@test.keyhq.invalid`;
+
+		const results = await Promise.allSettled([
+			clientFor(owner).createInvite({
+				name: "Concurrent Tenant A",
+				email: email.toUpperCase(),
+			}),
+			clientFor(owner).createInvite({
+				name: "Concurrent Tenant B",
+				email,
+			}),
+		]);
+
+		const fulfilled = results.filter(
+			(result): result is PromiseFulfilledResult<{ invite: { id: string } }> =>
+				result.status === "fulfilled",
+		);
+		const rejected = results.filter(
+			(result): result is PromiseRejectedResult => result.status === "rejected",
+		);
+		expect(fulfilled).toHaveLength(1);
+		expect(rejected).toHaveLength(1);
+		expect(rejected[0]?.reason).toMatchObject({ code: "CONFLICT" });
+		createdInviteIds.push(fulfilled[0]?.value.invite.id ?? "");
+
+		const invites = await db
+			.select({ id: tenantInvites.id, email: tenantInvites.email })
+			.from(tenantInvites)
+			.where(
+				and(
+					eq(tenantInvites.invitedById, owner.id),
+					eq(tenantInvites.status, "pending"),
+				),
+			);
+		expect(invites).toHaveLength(1);
+		expect(invites[0]?.email).toBe(email);
 	});
 
 	it("lists a newly created invitation as an unverified pending tenant", async () => {

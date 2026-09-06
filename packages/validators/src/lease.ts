@@ -1,5 +1,5 @@
 import { LEASE_STATUS_VALUES } from "@rently/db/constants/rent-constants";
-import { leases } from "@rently/db/schema/schema";
+import { leaseAgreements, leases } from "@rently/db/schema/schema";
 import {
 	createInsertSchema,
 	createSelectSchema,
@@ -61,6 +61,7 @@ const leaseMoneyError = {
 // Derive Zod Schemas - For Runtime
 export const LeaseSelectSchema = createSelectSchema(leases);
 export const LeaseInsertSchema = createInsertSchema(leases);
+export const AgreementSelectSchema = createSelectSchema(leaseAgreements);
 
 // ── Layer 2: API input schemas
 // Business Logic Schemas
@@ -115,6 +116,28 @@ export const UpdateLeaseSchema = createUpdateSchema(leases)
 	.refine(dateOrderRefine, dateOrderError)
 	.refine(leaseMoneyRefine, leaseMoneyError);
 
+// E05: shared agreement terms. The agreement owns start/end dates, due day,
+// notice, and description; children duplicate them at creation. One command
+// updates the parent and every child together so siblings cannot diverge.
+export const UpdateAgreementSchema = createUpdateSchema(leaseAgreements)
+	.pick({
+		startDate: true,
+		endDate: true,
+		rentDueDate: true,
+		notice: true,
+		description: true,
+	})
+	.refine(dateOrderRefine, dateOrderError)
+	.refine(
+		(data) =>
+			data.rentDueDate === undefined ||
+			data.rentDueDate === null ||
+			(Number.isInteger(data.rentDueDate) &&
+				data.rentDueDate >= 1 &&
+				data.rentDueDate <= 31),
+		{ message: "Due day must be 1-31", path: ["rentDueDate"] },
+	);
+
 // ── Layer 3: API output schemas
 export const LeaseWithDetailsSchema = z.object({
 	leaseId: z.string(),
@@ -142,4 +165,5 @@ export type Lease = z.infer<typeof LeaseSelectSchema>;
 export type CreateLease = z.infer<typeof CreateLeaseSchema>;
 export type CreateCombinedLease = z.infer<typeof CreateCombinedLeaseSchema>;
 export type UpdateLease = z.infer<typeof UpdateLeaseSchema>;
+export type UpdateAgreement = z.infer<typeof UpdateAgreementSchema>;
 export type LeaseWithDetails = z.infer<typeof LeaseWithDetailsSchema>;

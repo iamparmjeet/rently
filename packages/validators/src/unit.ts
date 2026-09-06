@@ -47,7 +47,15 @@ export const UpdateUnitSchema = createUpdateSchema(units)
 		baseRent: true,
 		furnishing: true,
 		description: true,
-		status: true,
+	})
+	.extend({
+		// E07: occupancy is derived from leases — declare the key only to
+		// forbid it. Zod strips unknown keys silently, which would turn a
+		// direct status patch into a misleading success; never() rejects a
+		// present value while optional() keeps the key freely absent.
+		status: z
+			.never({ error: "Unit occupancy is derived from leases." })
+			.optional(),
 	})
 	.refine(baseRentRefine, baseRentError);
 

@@ -247,6 +247,16 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Build-generated `next-env.d.ts` changes were restored; no `.env` files were retained.
 - Sol/Terra final review remains tracked review debt before any `[x]` or `main` rollup.
 
+## D03 Renewal entitlement/invoice alignment (2026-09-06, ZLM 5.3 Flash, branch fix/subscription-renewal-period)
+
+- Base: `integ/phase-a-baseline@926c5b8c` (D02 merge); rollback tag `pre-subscription-renewal-period`; `main` untouched; **no migration** (stated explicitly — pure read/write logic change in `recordSubscriptionPayment`). Terra Medium review owed.
+- Defect: the invoice derived its own period (`paidAt → paidAt + interval`) while the subscription derived the granted window independently (SQL fragments: keep the old start and extend the end on early renewal). For an early renewal the invoice therefore claimed a window (e.g. [paidAt, +1mo]) the payment did not grant (the extension [oldEnd, oldEnd+1mo]) — revenue reporting and entitlement disagreed.
+- Fix: ONE effective pair computed in TypeScript (single source, replacing both the SQL fragments and the invoice's independent math): `earlyRenewal = currentPeriodEnd > paidAt`; `effectiveStart = earlyRenewal ? currentPeriodEnd : paidAt`; `effectiveEnd = effectiveStart + intervalMonths`. The invoice always records `[effectiveStart, effectiveEnd]`. The subscription keeps its shipped semantics: early renewal extends the end and keeps the row's original `currentPeriodStart` (the row describes the occupied span); a lapsed or never-set period starts at `paidAt`. `nextBillingDate = effectiveEnd`. Edge: paying exactly on the period-end day counts as lapsed (start = paidAt — no zero-length overlap).
+- Tests (4 in `admin.test.ts`, rationale inline): early renewal → invoice [oldEnd, oldEnd+1mo] with the row's start kept; lapsed renewal → invoice [paidAt, +1mo] on both row and invoice; provisioned row with null period behaves lapsed; repeated renewals chain (`second.invoice.periodStart == first.invoice.periodEnd`, end extends to +1mo from that, totalPaid accumulates) — no gaps, no overlaps. Note: `paidAt` must be in the past (the "cannot be in the future" guard is real-time, so test dates sit before 2026-09-06).
+- Known limitation (pre-existing, unchanged): two concurrent admin payments for the same owner with different references can both read the same `currentPeriodEnd` and double-extend — D03 aligns coverage but does not add row locking; flag to Terra whether that needs its own slice (the batch/tx split makes a node-only `for update` asymmetric with Neon).
+- Gates: `db:generate` no drift → `check-types --force` 6/6 → Biome clean → full suite **61 files / 341 tests + 1 conditional skip** → build 5/5.
+- Next allowed slice: D04 enforce tenant limits at activation from a clean integration-branch cut.
+
 ## D02 Atomic beta-code redemption (2026-09-06, ZLM 5.3 Flash, branch fix/beta-code-redemption)
 
 - Base: `integ/phase-a-baseline@6e866df2` (D01 merge); rollback tag `pre-beta-code-redemption`; `main` untouched. Terra/Sol design gate deferred to owner.

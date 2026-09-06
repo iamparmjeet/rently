@@ -571,3 +571,18 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean (format/import autofix, diff confirmed to touched regions) → `db:migrate:test` → focused 5-file 24/24 → FULL suite 68 files / 395 tests pass → local `bun run build` 5/5; zero fixture residue; `next-env.d.ts` churn restored.
 - Terra pointers: FORBIDDEN vs NOT_FOUND split (helper-boolean paths report FORBIDDEN, lookup paths NOT_FOUND — same as cross-owner semantics); getOwnedUtility/getOwnedPayment now NOT_FOUND historical single-reads under archived resources (receipt/export surfaces untouched); confirm the D04 non-fix reasoning and the closed-books reading of voids under archived resources.
 - Next allowed slice: E09 unit-number uniqueness from a clean integration-branch cut.
+
+## E09 Live unit-number uniqueness (2026-09-06, Muse Spark, branch fix/unit-number-uniqueness, tag pre-unit-number-uniqueness)
+
+- Base: clean `integ/phase-a-baseline@1bfd83ec` (E08 merge); one migration `0038_overconfident_pestilence`. `main` untouched. Terra High review owed — stays `[~]`. Standing authorization applies.
+- Gap proven (4 red pre-fix): two live units in one property could share a unitNumber through create, rename, raw insert, and concurrent double-create — bills, leases, and readings could name an ambiguous unit.
+- Preflight on production-shaped `rently_dev`: 14 live units, zero `(property_id, unit_number)` duplicates — migration dev-safe, no repair needed.
+- Changed (4 commits, `0403ec0`..`63a3f49`):
+  - `schema.ts` + migration `0038`: partial unique index `units_property_number_live_unique` on `(property_id, unit_number)` WHERE `deleted_at IS NULL` — the database arbitrates races; archiving frees the number (the plan's approved reuse semantics).
+  - `unit.ts`: createUnit/updateUnit map 23505 to CONFLICT ("A live unit with this number already exists in this property") via a cause-aware `violationCode` (utility.ts precedent); PK collisions are impossible with generated ids, so catch-only is precise and race-safe.
+  - Journal surgery per D07/E04 precedent: generated `when` fell below 0037's hand-advanced stamp, so the entry was added surgically (`when` → 1788720000003, minimal diff) — proven by a fresh drop/create/migrate (39/39 in order, index present).
+- Seeding safe: sample-workspace upserts units by id with distinct numbers per property, so re-seeding cannot trip the index.
+- Tests (`unit-number-uniqueness.test.ts`, 6, rationale header; 4 red pre-fix): same-property duplicate refused with count pinned at 1, cross-property reuse (scope control), reuse after archive (approved-semantics pin), rename onto a live sibling refused with number intact, raw duplicate 23505, concurrent double-create (exactly one succeeds, loser CONFLICT).
+- Verification: `db:generate` no drift (×2) → `check-types` 6/6 → Biome clean → `db:migrate:test` + fresh-install proof → focused 44/44 (incl. payment-export/receipt regression-adjacent) → FULL suite 69 files / 401 tests pass → local `bun run build` 5/5; zero fixture residue; no `next-env.d.ts` churn this time.
+- Terra pointers: partial (reuse-after-archive) vs full uniqueness — confirm the approved reading; exact-match (case-sensitive) numbers; catch-only 23505 mapping with no pre-check query.
+- Next allowed slice: F01 notification recipients from a clean integration-branch cut.

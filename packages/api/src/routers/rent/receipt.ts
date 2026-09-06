@@ -71,6 +71,7 @@ async function findReceipt(
 			tenantProfiles,
 			and(
 				eq(tenantProfiles.userId, tenantUser.id),
+				eq(tenantProfiles.createdById, properties.ownerId),
 				isNull(tenantProfiles.deletedAt),
 			),
 		)

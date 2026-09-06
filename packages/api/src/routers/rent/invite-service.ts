@@ -11,7 +11,7 @@ import { user } from "@rently/db/schema/auth";
 import { tenantInvites, tenantProfiles } from "@rently/db/schema/schema";
 import { sendInviteEmail } from "@rently/email";
 import { and, eq, isNull } from "drizzle-orm";
-import { enforceSubscriptionLimit } from "../helpers";
+import { enforcePendingInviteQuota } from "../helpers/tenant-limit";
 
 type PendingTenantInviteInput = {
 	name: string;
@@ -153,7 +153,10 @@ export async function createPendingTenantInvite(
 		});
 	}
 
-	await enforceSubscriptionLimit(db, ownerId);
+	// D04: invites are quotaed separately from active seats — creating an
+	// invite no longer consumes or checks a plan seat; the seat is enforced
+	// atomically when a lease activates the tenant.
+	await enforcePendingInviteQuota(db, ownerId);
 
 	const token = crypto.randomUUID();
 	const expiresAt =

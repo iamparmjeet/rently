@@ -289,25 +289,14 @@ describe("admin user support queries", () => {
 });
 
 describe("truthful subscription payment workflow", () => {
-	it("uses only each owner's latest subscription in overview counts", async () => {
+	it("provisions exactly one subscription row per owner (D01 invariant)", async () => {
+		// C08-era tests created historic + current rows per owner; the D01
+		// unique index makes that state impossible — overview counts must be
+		// derivable from the single row, and a duplicate insert is refused.
 		const before = await queryAdminOverview(db);
 		const owner = await createUser(USER_ROLES.OWNER, "Plan History Owner");
-		const oldPlan = await createPlan("Historic Plan");
 		const currentPlan = await createPlan("Current Plan");
-		const historic = await createSubscription(owner.id, oldPlan.id);
-		const current = await createSubscription(owner.id, currentPlan.id);
-
-		await db
-			.update(subscriptions)
-			.set({ createdAt: new Date("2026-01-01T00:00:00.000Z") })
-			.where(eq(subscriptions.id, historic.id));
-		await db
-			.update(subscriptions)
-			.set({
-				status: PLAN_STATUS.ACTIVE,
-				createdAt: new Date("2026-08-01T00:00:00.000Z"),
-			})
-			.where(eq(subscriptions.id, current.id));
+		await createSubscription(owner.id, currentPlan.id);
 
 		const after = await queryAdminOverview(db);
 		const beforePlanCount = (planId: string) =>
@@ -316,12 +305,28 @@ describe("truthful subscription payment workflow", () => {
 		const afterPlanCount = (planId: string) =>
 			after.planDistribution.find((item) => item.planId === planId)?.count ?? 0;
 
-		expect(afterPlanCount(oldPlan.id) - beforePlanCount(oldPlan.id)).toBe(0);
 		expect(
 			afterPlanCount(currentPlan.id) - beforePlanCount(currentPlan.id),
 		).toBe(1);
-		expect(after.subscriptions.active - before.subscriptions.active).toBe(1);
-		expect(after.subscriptions.trial - before.subscriptions.trial).toBe(0);
+		// The fixture creates the row as TRIAL (admin-created pre-activation).
+		expect(after.subscriptions.trial - before.subscriptions.trial).toBe(1);
+
+		// The duplicate-data preflight the Fix-Plan asks for: the unique index
+		// is the arbiter, a second row for the same owner is refused (23505;
+		// drizzle nests the driver code under cause).
+		const duplicateError = await createSubscription(
+			owner.id,
+			currentPlan.id,
+		).then(
+			() => null,
+			(error: unknown) => {
+				const top = error as { code?: unknown; cause?: unknown } | null;
+				if (typeof top?.code === "string") return top.code;
+				const cause = top?.cause as { code?: unknown } | null | undefined;
+				return typeof cause?.code === "string" ? cause.code : null;
+			},
+		);
+		expect(duplicateError).toBe("23505");
 	});
 
 	it("counts only paid invoices as platform revenue", async () => {

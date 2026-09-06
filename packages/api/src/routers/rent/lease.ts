@@ -504,12 +504,14 @@ export const createCombinedLease = ownerProcedure
 			.from(leases)
 			.where(eq(leases.agreementId, agreementId));
 		try {
+			// F01: every notification read path is owner-only and the tenant app
+			// has no notification surface, so a tenant-addressed row would be
+			// visible to nobody. Address the record to the acting owner.
 			await db.insert(notifications).values({
-				userId: input.tenantId,
+				userId: authUser.id,
 				type: "combined_agreement_created",
 				title: "Combined lease agreement created",
-				message:
-					"Your landlord created a combined agreement covering multiple units.",
+				message: `Combined agreement created covering ${createdLeases.length} units.`,
 				entityId: agreementId,
 				entityType: "lease_agreement",
 			});

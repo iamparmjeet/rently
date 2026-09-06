@@ -3,6 +3,7 @@ import { ownerProcedure } from "@rently/api/procedures";
 import { ownerProfiles } from "@rently/db/schema/schema";
 import { generatedId } from "@rently/db/utils/id";
 import {
+	GSTIN_PATTERN,
 	OwnerProfileSelectSchema,
 	UpsertOwnerProfileSchema,
 } from "@rently/validators";
@@ -46,6 +47,29 @@ export const upsertOwnerProfile = ownerProcedure
 			)
 			.limit(1);
 
+		// E04: the patch alone cannot prove the invariant — validate the merged
+		// state. Blank GSTIN normalizes to NULL (the business form sends "" for
+		// empty), and a GST-enabled profile requires a valid GSTIN.
+		const patchedGstNumber =
+			input.gstNumber === undefined
+				? undefined
+				: input.gstNumber === ""
+					? null
+					: input.gstNumber;
+		const mergedGstNumber =
+			patchedGstNumber !== undefined
+				? patchedGstNumber
+				: (existing?.gstNumber ?? null);
+		const mergedGstEnabled = input.gstEnabled ?? existing?.gstEnabled ?? false;
+		if (mergedGstEnabled && !mergedGstNumber) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Add GSTIN before enabling GST",
+			});
+		}
+		if (mergedGstNumber && !GSTIN_PATTERN.test(mergedGstNumber)) {
+			throw new ORPCError("BAD_REQUEST", { message: "Invalid GSTIN" });
+		}
+
 		if (existing) {
 			// UPDATE path — merge input over existing values
 			const [updated] = await db
@@ -53,8 +77,8 @@ export const upsertOwnerProfile = ownerProcedure
 				.set({
 					companyName: input.companyName ?? existing.companyName,
 					address: input.address ?? existing.address,
-					gstNumber: input.gstNumber ?? existing.gstNumber,
-					gstEnabled: input.gstEnabled ?? existing.gstEnabled,
+					gstNumber: mergedGstNumber,
+					gstEnabled: mergedGstEnabled,
 					gstRateRent: input.gstRateRent ?? existing.gstRateRent,
 					gstRateMaintenance:
 						input.gstRateMaintenance ?? existing.gstRateMaintenance,
@@ -82,8 +106,8 @@ export const upsertOwnerProfile = ownerProcedure
 				// without it in the UI and let the user fill it in later.
 				companyName: input.companyName ?? "",
 				address: input.address ?? null,
-				gstNumber: input.gstNumber ?? null,
-				gstEnabled: input.gstEnabled ?? false,
+				gstNumber: mergedGstNumber,
+				gstEnabled: mergedGstEnabled,
 				gstRateRent: input.gstRateRent ?? 0,
 				gstRateMaintenance: input.gstRateMaintenance ?? 0,
 				upiId: input.upiId ?? null,

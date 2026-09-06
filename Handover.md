@@ -247,6 +247,19 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Build-generated `next-env.d.ts` changes were restored; no `.env` files were retained.
 - Sol/Terra final review remains tracked review debt before any `[x]` or `main` rollup.
 
+## D01 One current subscription (2026-09-06, ZLM 5.3 Flash, branch fix/subscription-uniqueness)
+
+- Base: `integ/phase-a-baseline@c9e1fab3` (C08 merge); rollback tag `pre-subscription-uniqueness`; `main` untouched. Terra High design gate deferred to owner per Fix-Plan §7.
+- Migration **0033_graceful_living_tribunal** (hand-edited after generation, 0032 precedent): (1) dedupe backfill — per user, keep the newest row (`created_at DESC, id DESC` tiebreak) and DELETE the rest (invoices reference the deleted rows with ON DELETE SET NULL — duplicates carry no invoices in practice, noted for Terra); (2) `subscriptions_user_id_unique` — a FULL unique index on `user_id`, i.e. one row per user, chosen because no code path ever writes a non-active/cancelled/expired row (survey confirmed zero status-transition writers), so "one current subscription" and "one row" coincide today; D03 can evolve it.
+- Idempotent provisioning: new `packages/db/src/subscription-provisioning.ts` — `ensureFreeSubscriptionSql(userId)` is a single upsert (`INSERT … SELECT FROM plans WHERE slug='free' ON CONFLICT (user_id) DO NOTHING`, table defaults carry status/interval/period) usable on node and Neon paths. Both racy creators rewired:
+  - `getMySubscription` GET-time lazy creation → upsert + deterministic re-read (`createdAt DESC, id DESC` — the owner router now matches the admin definition of "current").
+  - better-auth signup hook (`packages/auth/src/index.ts`) → same upsert; concurrent/replayed hook runs converge instead of duplicating.
+  - The beta-redeem update-then-insert fallbacks (`subscriptions.ts:168-191`, `241-263`) are left for D02: their INSERT only fires when the user has NO rows, so the unique index cannot make them fail; D02 reworks them into the atomic claim.
+- Tests (`subscription-provisioning.test.ts`, 5): five concurrent first GETs converge on one row with the same id; three concurrent upserts → one active row; a raw duplicate insert is refused (23505, cause-aware assertion); an existing subscription is returned untouched; unseeded free plan → null subscription without crashing (conditionally skipped when the shared test DB has the seeded plan). `admin.test.ts`'s deliberate historic+current fixture was rewritten as the D01 invariant pin (one row per owner; overview counts move by exactly the one row; duplicate insert refused) — the "latest row wins" semantics it pinned are now structural.
+- Gates: `db:generate` no drift after the migration → `check-types --force` 6/6 → Biome clean → `db:migrate:test` (dedupe + index applied) → full suite **60 files / 332 tests + 1 conditional skip** → build 5/5.
+- Review debt: Terra High. Scrutinize: (1) the dedupe DELETE keeping newest-per-user on production data (owner should check admin subscription history shrinks as expected; invoices' subscription_id nulls); (2) full-unique vs partial-unique choice and its interplay with D03 (a future CANCELLED row would block a new row — D03 must flip the index to partial or transition in place); (3) the auth hook now needs the free plan seeded or silently provisions nothing (same as before, but now also true on the GET path).
+- Next allowed slice: D02 atomic beta-code redemption from a clean integration-branch cut.
+
 ## C08 Reminders/reports cutover (2026-09-06, ZLM 5.3 Flash, branch feat/rent-period-job-cutover)
 
 - Base: `integ/phase-a-baseline@73fe704f` (C07 merge); rollback tag `pre-rent-period-job-cutover`; `main` untouched; **no migration**. Phase C is now functionally complete: the period ledger IS the production rent read.

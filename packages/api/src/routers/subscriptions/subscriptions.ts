@@ -11,6 +11,7 @@ import {
 	plans,
 	subscriptions,
 } from "@rently/db/schema/subscription";
+import { ensureFreeSubscriptionSql } from "@rently/db/subscription-provisioning";
 import { generatedId } from "@rently/db/utils/id";
 import {
 	MySubscriptionResponseSchema,
@@ -71,35 +72,20 @@ export const getMySubscription = ownerProcedure
 			.limit(1);
 
 		if (!subRow) {
-			const [freePlan] = await db
-				.select({ id: plans.id })
-				.from(plans)
-				.where(eq(plans.slug, "free"))
+			// D01: idempotent provisioning — the upsert races on the
+			// subscriptions_user_id_unique index, so concurrent first GETs
+			// converge on one row instead of duplicating.
+			await db.execute(ensureFreeSubscriptionSql(user.id));
+			[subRow] = await db
+				.select({
+					...getTableColumns(subscriptions),
+					plan: { ...getTableColumns(plans) },
+				})
+				.from(subscriptions)
+				.innerJoin(plans, eq(subscriptions.planId, plans.id))
+				.where(eq(subscriptions.userId, user.id))
+				.orderBy(desc(subscriptions.createdAt), desc(subscriptions.id))
 				.limit(1);
-
-			if (freePlan) {
-				await db.insert(subscriptions).values({
-					id: generatedId(),
-					userId: user.id,
-					planId: freePlan.id,
-					status: PLAN_STATUS.ACTIVE,
-					billingInterval: BILLING_INTERVAL.MONTHLY,
-					currentPeriodStart: new Date(),
-					currentPeriodEnd: null,
-					trialEndsAt: null,
-					expired: false,
-				});
-				// Re-fetch so the return shape is consistent
-				[subRow] = await db
-					.select({
-						...getTableColumns(subscriptions),
-						plan: { ...getTableColumns(plans) },
-					})
-					.from(subscriptions)
-					.innerJoin(plans, eq(subscriptions.planId, plans.id))
-					.where(eq(subscriptions.userId, user.id))
-					.limit(1);
-			}
 		}
 
 		const userInvoices = await db

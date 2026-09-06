@@ -16,6 +16,7 @@ import {
 	pgTable,
 	text,
 	timestamp,
+	uniqueIndex,
 	uuid,
 } from "drizzle-orm/pg-core";
 import { auditColumns, idColumn } from "../utils/columns";
@@ -73,6 +74,9 @@ export const subscriptions = pgTable(
 			table.userId,
 			table.createdAt,
 		),
+		// D01: one subscription row per user. The provisioning upsert races on
+		// this index — the loser reads the winner's row instead of inserting.
+		uniqueIndex("subscriptions_user_id_unique").on(table.userId),
 	],
 );
 

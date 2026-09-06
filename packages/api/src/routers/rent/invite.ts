@@ -9,7 +9,6 @@ import { StatusCode } from "@rently/api/utils";
 import { auth } from "@rently/auth";
 import { supportsDatabaseBatch } from "@rently/db";
 import { NOTIFICATION_TYPES } from "@rently/db/constants/notification-constants";
-import { USER_ROLES } from "@rently/db/constants/user-roles";
 import { account, user } from "@rently/db/schema/auth";
 import {
 	notifications,
@@ -25,7 +24,7 @@ import {
 	InviteListItemSchema,
 	InvitePublicSchema,
 } from "@rently/validators";
-import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
+import { and, desc, eq, gt, isNull, or, sql } from "drizzle-orm";
 import z from "zod";
 import { KEYHQ_PRIVACY_VERSION, KEYHQ_TERMS_VERSION } from "../../constants";
 import {
@@ -442,19 +441,10 @@ export const acceptInvite = publicProcedure
 		const authContext = await auth.$context;
 		const passwordHash = await authContext.password.hash(input.password);
 
-		// Core logic extracted so it can run inside a real transaction (local Pg)
-		// or sequentially with manual cleanup (Neon HTTP on Cloudflare Workers).
-		// See packages/db/src/index.ts:12 — neon-http has no callback transaction.
-		const executeAcceptInvite = async (
-			executor: typeof db,
-			tracker?: {
-				tenantUserId?: string;
-				createdUserId?: string;
-				createdAccountId?: string;
-				createdProfileId?: string;
-				claimsOwnerPreparedIdentity?: boolean;
-			},
-		) => {
+		// The claim/update CTE is the durable gate. Every identity write depends
+		// on its returned row, so a concurrent loser performs no writes on either
+		// node-postgres or Neon HTTP.
+		const executeAcceptInvite = async (executor: typeof db) => {
 			const tx = executor;
 			const [invite] = await tx
 				.select({
@@ -528,7 +518,6 @@ export const acceptInvite = publicProcedure
 				.where(eq(user.email, invite.email.toLowerCase()))
 				.limit(1);
 
-			let claimsOwnerPreparedIdentity = false;
 			if (existingUser) {
 				if (invite.onboardingMode !== "owner_prepared") {
 					throw new ORPCError("CONFLICT", {
@@ -566,8 +555,6 @@ export const acceptInvite = publicProcedure
 							"An account with this email already exists. Please log in.",
 					});
 				}
-
-				claimsOwnerPreparedIdentity = true;
 			}
 
 			const tenantCompletedFieldsWereSupplied = [
@@ -587,173 +574,138 @@ export const acceptInvite = publicProcedure
 						"This invitation uses owner-prepared profile details. Contact your landlord to correct them.",
 				});
 			}
-
 			const profileSource =
 				invite.onboardingMode === "owner_prepared" ? invite : input;
 
-			const tenantUserId = existingUser?.id ?? generatedId();
-			if (tracker) {
-				tracker.tenantUserId = tenantUserId;
-				tracker.claimsOwnerPreparedIdentity = claimsOwnerPreparedIdentity;
-			}
-
-			if (claimsOwnerPreparedIdentity) {
-				await tx
-					.update(user)
-					.set({
-						emailVerified: true,
-						phone: profileSource.phone ?? null,
-						updatedAt: now,
-					})
-					.where(eq(user.id, tenantUserId));
-			} else {
-				await tx.insert(user).values({
-					id: tenantUserId,
-					name: invite.name,
-					email: invite.email.toLowerCase(),
-					emailVerified: true,
-					role: USER_ROLES.TENANT,
-					phone: profileSource.phone ?? null,
-				});
-				if (tracker) tracker.createdUserId = tenantUserId;
-			}
-
-			const accountId = generatedId();
-			await tx.insert(account).values({
-				id: accountId,
-				userId: tenantUserId,
-				accountId: tenantUserId,
-				providerId: "credential",
-				password: passwordHash,
-			});
-			if (tracker) tracker.createdAccountId = accountId;
-
-			if (claimsOwnerPreparedIdentity) {
-				await tx
-					.update(tenantProfiles)
-					.set({
-						updatedAt: now,
-					})
-					.where(eq(tenantProfiles.userId, tenantUserId));
-			} else {
-				const profileId = generatedId();
-				await tx.insert(tenantProfiles).values({
-					id: profileId,
-					userId: tenantUserId,
-					email: invite.email.toLowerCase(),
-					phone: profileSource.phone ?? null,
-					address: profileSource.address ?? null,
-					emergencyContact: profileSource.emergencyContact ?? null,
-					emergencyContactName: profileSource.emergencyContactName ?? null,
-					emergencyContactLocation:
-						profileSource.emergencyContactLocation ?? null,
-					invitedId: invite.id,
-					createdById: invite.invitedById,
-				});
-				if (tracker) tracker.createdProfileId = profileId;
-			}
-
-			// Conditional transition protects against a concurrent acceptance or
-			// an invite expiring while this transaction is in progress. In the
-			// transactional path throwing rolls back the user/credential/profile.
-			// In the Neon HTTP path we manually clean up (see caller).
-			const [updatedInvite] = await tx
-				.update(tenantInvites)
-				.set({
-					status: "accepted",
-					termsAcceptedAt: now,
-					termsVersion: KEYHQ_TERMS_VERSION,
-					privacyAcknowledgedAt: now,
-					privacyVersion: KEYHQ_PRIVACY_VERSION,
-				})
-				.where(
-					and(
-						eq(tenantInvites.id, invite.id),
-						eq(tenantInvites.status, "pending"),
-						isNull(tenantInvites.deletedAt),
-						or(
-							isNull(tenantInvites.expiresAt),
-							gt(tenantInvites.expiresAt, now),
-						),
-					),
+			const result = await executor.execute<{
+				id: string;
+				name: string;
+				invitedById: string;
+			}>(sql`
+				WITH claimed AS (
+					UPDATE ${tenantInvites} i
+					SET "status" = 'accepted',
+						"terms_accepted_at" = now(),
+						"terms_version" = ${KEYHQ_TERMS_VERSION},
+						"privacy_acknowledged_at" = now(),
+						"privacy_version" = ${KEYHQ_PRIVACY_VERSION}
+					FROM ${user} inviter
+					WHERE i."token" = ${input.token}
+						AND i."status" = 'pending'
+						AND i."deleted_at" IS NULL
+						AND (i."expires_at" IS NULL OR i."expires_at" > now())
+						AND inviter."id" = i."invited_by"
+						AND (
+							(i."onboarding_mode" = 'tenant_completed' AND NOT EXISTS (
+								SELECT 1 FROM ${user} existing_user
+								WHERE lower(existing_user."email") = lower(i."email")
+							))
+							OR (i."onboarding_mode" = 'owner_prepared' AND (
+								NOT EXISTS (
+									SELECT 1 FROM ${user} existing_user
+									WHERE lower(existing_user."email") = lower(i."email")
+								)
+								OR EXISTS (
+									SELECT 1
+									FROM ${user} prepared_user
+									JOIN ${tenantProfiles} prepared_profile
+										ON prepared_profile."user_id" = prepared_user."id"
+									WHERE lower(prepared_user."email") = lower(i."email")
+										AND prepared_profile."invite_id" = i."id"
+										AND prepared_profile."created_by" = i."invited_by"
+										AND NOT EXISTS (
+											SELECT 1 FROM ${account} prepared_account
+											WHERE prepared_account."user_id" = prepared_user."id"
+												AND prepared_account."provider_id" = 'credential'
+										)
+								)
+							))
+						)
+					RETURNING i."id", i."name", i."email", i."onboarding_mode", i."phone",
+						i."address", i."emergency_contact", i."emergency_contact_name",
+						i."emergency_contact_location", i."invited_by"
+				), existing_identity AS (
+					SELECT c."id" AS invite_id, c."name", c."email", c."onboarding_mode",
+						c."phone", c."address", c."emergency_contact", c."emergency_contact_name",
+						c."emergency_contact_location", c."invited_by", existing_user."id" AS user_id
+					FROM claimed c
+					JOIN ${user} existing_user
+						ON lower(existing_user."email") = lower(c."email")
+				), new_identity AS (
+					INSERT INTO ${user} ("id", "name", "email", "email_verified", "role", "phone")
+					SELECT gen_random_uuid(), c."name", lower(c."email"), true, 'tenant', c."phone"
+					FROM claimed c
+					WHERE NOT EXISTS (SELECT 1 FROM existing_identity)
+					RETURNING "id"
+				), identities AS (
+					SELECT user_id FROM existing_identity
+					UNION ALL
+					SELECT "id" AS user_id FROM new_identity
+				), created_accounts AS (
+					INSERT INTO ${account} ("id", "user_id", "account_id", "provider_id", "password")
+					SELECT gen_random_uuid(), user_id, user_id, 'credential', ${passwordHash}
+					FROM identities
+					RETURNING "user_id"
+				), updated_users AS (
+					UPDATE ${user} updated_user
+					SET "email_verified" = true,
+						"phone" = existing_identity."phone",
+						"updated_at" = now()
+					FROM existing_identity
+					JOIN created_accounts ON created_accounts."user_id" = existing_identity.user_id
+					WHERE updated_user."id" = existing_identity.user_id
+					RETURNING updated_user."id"
+				), updated_profiles AS (
+					UPDATE ${tenantProfiles} profile
+					SET "updated_at" = now()
+					FROM existing_identity
+					JOIN created_accounts ON created_accounts."user_id" = existing_identity.user_id
+					WHERE existing_identity."onboarding_mode" = 'owner_prepared'
+						AND profile."user_id" = existing_identity.user_id
+						AND profile."invite_id" = existing_identity.invite_id
+						AND profile."created_by" = existing_identity."invited_by"
+					RETURNING profile."id"
+				), created_profiles AS (
+					INSERT INTO ${tenantProfiles} (
+						"id", "user_id", "email", "phone", "address", "emergency_contact",
+						"emergency_contact_name", "emergency_contact_location", "invite_id", "created_by"
+					)
+					SELECT gen_random_uuid(), identities.user_id, lower(claimed."email"),
+						CASE WHEN claimed."onboarding_mode" = 'owner_prepared' THEN claimed."phone" ELSE ${profileSource.phone ?? null} END,
+						CASE WHEN claimed."onboarding_mode" = 'owner_prepared' THEN claimed."address" ELSE ${profileSource.address ?? null} END,
+						CASE WHEN claimed."onboarding_mode" = 'owner_prepared' THEN claimed."emergency_contact" ELSE ${profileSource.emergencyContact ?? null} END,
+						CASE WHEN claimed."onboarding_mode" = 'owner_prepared' THEN claimed."emergency_contact_name" ELSE ${profileSource.emergencyContactName ?? null} END,
+						CASE WHEN claimed."onboarding_mode" = 'owner_prepared' THEN claimed."emergency_contact_location" ELSE ${profileSource.emergencyContactLocation ?? null} END,
+						claimed."id", claimed."invited_by"
+					FROM claimed
+					JOIN identities ON true
+					JOIN created_accounts ON created_accounts."user_id" = identities.user_id
+					WHERE NOT EXISTS (
+						SELECT 1 FROM ${tenantProfiles} existing_profile
+						WHERE existing_profile."user_id" = identities.user_id
+							AND existing_profile."invite_id" = claimed."id"
+							AND existing_profile."created_by" = claimed."invited_by"
+					)
+					RETURNING "id"
 				)
-				.returning();
+				SELECT c."id", c."name", c."invited_by" AS "invitedById"
+				FROM claimed c
+				WHERE EXISTS (SELECT 1 FROM created_accounts)
+					AND (EXISTS (SELECT 1 FROM updated_profiles) OR EXISTS (SELECT 1 FROM created_profiles))
+			`);
 
-			if (!updatedInvite) {
+			const [acceptedInvite] = result.rows;
+			if (!acceptedInvite) {
 				throw new ORPCError("CONFLICT", {
 					message:
 						"This invitation is no longer available. Refresh the page and try again.",
 				});
 			}
 
-			return updatedInvite;
+			return acceptedInvite;
 		};
 
-		let acceptedInvite: Awaited<ReturnType<typeof executeAcceptInvite>>;
-
-		if (supportsDatabaseBatch(db)) {
-			// Neon HTTP: no interactive transaction — run sequentially and
-			// compensate on failure to mimic atomicity.
-			const tracker: {
-				tenantUserId?: string;
-				createdUserId?: string;
-				createdAccountId?: string;
-				createdProfileId?: string;
-				claimsOwnerPreparedIdentity?: boolean;
-			} = {};
-			try {
-				acceptedInvite = await executeAcceptInvite(db, tracker);
-			} catch (error) {
-				// Best-effort rollback of partially created rows.
-				// Order matters: profile -> account -> user (FK restrict on profile).
-				if (tracker.createdProfileId) {
-					await db
-						.delete(tenantProfiles)
-						.where(eq(tenantProfiles.id, tracker.createdProfileId))
-						.catch(() => {});
-				}
-				if (tracker.createdAccountId) {
-					await db
-						.delete(account)
-						.where(eq(account.id, tracker.createdAccountId))
-						.catch(() => {});
-				}
-				if (tracker.createdUserId) {
-					await db
-						.delete(user)
-						.where(eq(user.id, tracker.createdUserId))
-						.catch(() => {});
-				}
-				if (tracker.claimsOwnerPreparedIdentity && tracker.tenantUserId) {
-					// Revert the provisional verification we just applied.
-					// The account delete above already removed the credential we inserted.
-					await db
-						.delete(account)
-						.where(
-							and(
-								eq(account.userId, tracker.tenantUserId),
-								eq(account.providerId, "credential"),
-							),
-						)
-						.catch(() => {});
-					await db
-						.update(user)
-						.set({ emailVerified: false, updatedAt: now })
-						.where(eq(user.id, tracker.tenantUserId))
-						.catch(() => {});
-				}
-				throw error;
-			}
-		} else {
-			// Local Postgres: use real transaction for true atomicity.
-			acceptedInvite = await (
-				db as unknown as {
-					transaction: (
-						fn: (tx: typeof db) => Promise<typeof acceptedInvite>,
-					) => Promise<typeof acceptedInvite>;
-				}
-			).transaction((tx) => executeAcceptInvite(tx as unknown as typeof db));
-		}
+		const acceptedInvite = await executeAcceptInvite(db);
 
 		try {
 			await db.insert(notifications).values({

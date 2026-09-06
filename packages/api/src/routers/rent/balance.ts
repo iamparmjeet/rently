@@ -8,13 +8,17 @@ import { getLeasePeriodBalances } from "../helpers/period-balance";
 
 // C05: the single owner/tenant-safe period balance read model. Returns
 // current rent, overdue rent, outstanding utilities, credits, paid amounts,
-// and period identity per lease. This is additive — no existing reader or
-// screen is cut over here (C06/C07 own screen migration; C08 owns cutover).
+// and period identity per lease. C06 begins migrating owner screens onto it
+// (Upcoming Dues, tenant pending, combined bills); the remaining lifetime
+// readers inside other API responses (tenant list overdue snapshot, stats,
+// reminders) cut over in C08.
 //
 // Scoping (E01-class): an owner sees only leases on their own properties; a
 // tenant only leases where they are the tenant (an agreement read therefore
 // returns the caller's own leases, never another shared tenant's). Admin and
 // other roles are refused — the balance model carries no supervisory access.
+// The `all` scope returns exactly the leases those same rules make visible,
+// in one request, for dashboard surfaces.
 
 const periodChargeSchema = z.object({
 	periodKey: z.string(),
@@ -72,28 +76,36 @@ export const getPeriodBalance = protectedProcedure
 			.object({
 				leaseId: z.uuid().optional(),
 				agreementId: z.uuid().optional(),
+				all: z.boolean().optional(),
 			})
 			.refine(
 				(value) =>
-					(value.leaseId !== undefined) !== (value.agreementId !== undefined),
+					[
+						value.leaseId !== undefined,
+						value.agreementId !== undefined,
+						value.all === true,
+					].filter((present) => present).length === 1,
 				{
-					message: "Provide exactly one of leaseId or agreementId",
+					message: "Provide exactly one of leaseId, agreementId, or all",
 				},
 			),
 	)
 	.output(
 		z.object({
-			scope: z.enum(["lease", "agreement"]),
+			scope: z.enum(["lease", "agreement", "all"]),
 			leases: z.array(leaseBalanceSchema),
 		}),
 	)
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
-		const scopeCondition =
-			input.leaseId !== undefined
-				? eq(leases.id, input.leaseId)
-				: eq(leases.agreementId, input.agreementId as string);
+		const isOwner = authUser.role === USER_ROLES.OWNER;
+		const isTenant = authUser.role === USER_ROLES.TENANT;
+		if (!isOwner && !isTenant) {
+			throw new ORPCError("FORBIDDEN", {
+				message: "You do not have access to this balance.",
+			});
+		}
 
 		const rows = await db
 			.select({
@@ -104,21 +116,25 @@ export const getPeriodBalance = protectedProcedure
 			.from(leases)
 			.innerJoin(units, eq(leases.unitId, units.id))
 			.innerJoin(properties, eq(units.propertyId, properties.id))
-			.where(scopeCondition);
+			.where(
+				input.leaseId !== undefined
+					? eq(leases.id, input.leaseId)
+					: input.agreementId !== undefined
+						? eq(leases.agreementId, input.agreementId)
+						: undefined,
+			);
 
 		const visibleLeaseIds = rows
-			.filter((row) => {
-				if (authUser.role === USER_ROLES.OWNER) {
-					return row.ownerId === authUser.id;
-				}
-				if (authUser.role === USER_ROLES.TENANT) {
-					return row.tenantId === authUser.id;
-				}
-				return false;
-			})
+			.filter((row) =>
+				isOwner ? row.ownerId === authUser.id : row.tenantId === authUser.id,
+			)
 			.map((row) => row.id);
 
-		if (visibleLeaseIds.length === 0) {
+		// A specific lease/agreement that yields nothing is an access error;
+		// an empty `all` scope is a legitimate empty portfolio.
+		const requestedSpecific =
+			input.leaseId !== undefined || input.agreementId !== undefined;
+		if (visibleLeaseIds.length === 0 && requestedSpecific) {
 			throw new ORPCError("FORBIDDEN", {
 				message: "You do not have access to this balance.",
 			});
@@ -130,7 +146,9 @@ export const getPeriodBalance = protectedProcedure
 			scope:
 				input.leaseId !== undefined
 					? ("lease" as const)
-					: ("agreement" as const),
+					: input.agreementId !== undefined
+						? ("agreement" as const)
+						: ("all" as const),
 			leases: balances,
 		};
 	});

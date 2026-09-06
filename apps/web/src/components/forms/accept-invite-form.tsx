@@ -2,7 +2,7 @@
 
 import { zodResolver } from "@hookform/resolvers/zod";
 import { env } from "@rently/env/web";
-import { useAcceptInvite } from "@rently/hooks";
+import { useAcceptInvite, useClaimInvite } from "@rently/hooks";
 import { Button } from "@rently/ui/components/button";
 import { Field, FieldError } from "@rently/ui/components/field";
 import { Input } from "@rently/ui/components/input";
@@ -22,6 +22,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import z from "zod";
+import { useSession } from "@/lib/auth-client";
 
 const acceptFormSchema = AcceptInviteSchema.omit({
 	token: true,
@@ -49,16 +50,20 @@ interface AcceptInviteFormProps {
 	emergencyContactLocation: string | null;
 }
 
-function SuccessState() {
+function SuccessState({ existingAccount }: { existingAccount: boolean }) {
 	return (
 		<div className="flex flex-col items-center gap-4 py-8 text-center">
 			<div className="flex size-16 items-center justify-center rounded-full bg-green-100">
 				<IconCircleCheck className="size-8 text-green-600" />
 			</div>
 			<div>
-				<h3 className="font-semibold text-lg">Account Created</h3>
+				<h3 className="font-semibold text-lg">
+					{existingAccount ? "Invitation Accepted" : "Account Created"}
+				</h3>
 				<p className="mt-1 text-muted-foreground text-sm">
-					Your KeyHQ account is ready. Please log in to continue.
+					{existingAccount
+						? "Your rental relationship has been added."
+						: "Your KeyHQ account is ready. Please log in to continue."}
 				</p>
 			</div>
 			<Button className="mt-2 w-full">
@@ -102,13 +107,21 @@ export function AcceptInviteForm({
 	const [showPassword, setShowPassword] = useState(false);
 	const [showConfirm, setShowConfirm] = useState(false);
 	const [isSuccess, setIsSuccess] = useState(false);
+	const [claimedExistingAccount, setClaimedExistingAccount] = useState(false);
 	const [linkCopied, setLinkCopied] = useState(false);
 
 	const acceptInvite = useAcceptInvite();
+	const claimInvite = useClaimInvite();
+	const { data: session } = useSession();
 
 	// Why: the invite link is re-usable until it expires, so if the tenant
 	// closes the tab or forgets to finish, they can come back to this exact URL.
 	const inviteUrl = `${env.NEXT_PUBLIC_WEB_URL}/invite/${token}`;
+	const loginHref = `/login?${new URLSearchParams({
+		callbackUrl: `/invite/${token}`,
+	}).toString()}`;
+	const hasMatchingSession =
+		session?.user.email?.trim().toLowerCase() === email.trim().toLowerCase();
 
 	function handleCopyLink() {
 		void navigator.clipboard.writeText(inviteUrl).then(() => {
@@ -140,7 +153,41 @@ export function AcceptInviteForm({
 		);
 	}
 
-	if (isSuccess) return <SuccessState />;
+	if (isSuccess)
+		return <SuccessState existingAccount={claimedExistingAccount} />;
+
+	if (hasMatchingSession) {
+		return (
+			<div className="space-y-4">
+				<div className="rounded-lg border border-blue-100 bg-blue-50 px-4 py-3 text-blue-800 text-sm">
+					You are signed in as {email}. Claim this invitation to add this rental
+					relationship to your account.
+				</div>
+				<Button
+					type="button"
+					className="w-full"
+					disabled={claimInvite.isPending}
+					onClick={() =>
+						claimInvite.mutate(
+							{ token },
+							{
+								onSuccess: () => {
+									setClaimedExistingAccount(true);
+									setIsSuccess(true);
+								},
+								onError: (error) =>
+									toast.error(error.message || "Failed to claim invitation."),
+							},
+						)
+					}
+				>
+					{claimInvite.isPending
+						? "Claiming invitation..."
+						: "Claim Invitation"}
+				</Button>
+			</div>
+		);
+	}
 
 	return (
 		<form onSubmit={handleSubmit(onSubmit)} className="space-y-4">
@@ -365,6 +412,16 @@ export function AcceptInviteForm({
 					{linkCopied ? "Invite link copied!" : "Copy my invite link"}
 				</Button>
 			</div>
+
+			<p className="text-center text-muted-foreground text-sm">
+				Already have an account?{" "}
+				<Link
+					href={loginHref as Route}
+					className="text-primary hover:underline"
+				>
+					Sign in to claim this invitation
+				</Link>
+			</p>
 		</form>
 	);
 }

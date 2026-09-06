@@ -42,6 +42,7 @@ vi.mock("@rently/email", () => ({
 import { getLeasePeriodDue } from "../helpers/period-balance";
 import {
 	acceptInvite,
+	claimInvite,
 	createInvite,
 	getInviteByToken,
 	resendInvite,
@@ -154,9 +155,14 @@ async function createOwnerPreparedInvite(ownerId: string) {
 	return ownerPreparedInvite;
 }
 
-function clientFor(owner: Awaited<ReturnType<typeof createOwner>>) {
+function clientFor(authUser: {
+	id: string;
+	name: string;
+	email: string;
+	role: string;
+}) {
 	mocks.getSession.mockResolvedValue({
-		user: owner,
+		user: authUser,
 		session: { id: "test-session" },
 	});
 
@@ -164,6 +170,7 @@ function clientFor(owner: Awaited<ReturnType<typeof createOwner>>) {
 		{
 			resendInvite,
 			createInvite,
+			claimInvite,
 			getInviteByToken,
 			acceptInvite,
 			createTenant,
@@ -1017,6 +1024,185 @@ describe("getInviteByToken", () => {
 			.where(eq(tenantInvites.id, invite.id));
 
 		expect(storedInvite?.status).toBe("expired");
+	});
+});
+
+describe("claimInvite", () => {
+	// Regression rationale (Fix-Plan D06): an existing tenant was blocked by the
+	// public account-creation flow, so a second owner could not establish their
+	// own relationship without recreating or mutating the tenant's identity.
+	it("claims exact pending invites for multiple owners without recreating the tenant", async () => {
+		const ownerA = await createOwner("D06 Owner A");
+		const ownerB = await createOwner("D06 Owner B");
+		const ownerC = await createOwner("D06 Owner C");
+		const tenant = {
+			id: crypto.randomUUID(),
+			name: "D06 Existing Tenant",
+			email: `${crypto.randomUUID()}@test.keyhq.invalid`,
+			role: "tenant",
+		};
+		createdUserIds.push(tenant.id);
+		await db.insert(user).values(tenant);
+		await db.insert(tenantProfiles).values({
+			userId: tenant.id,
+			email: tenant.email,
+			address: "Owner A address",
+			createdById: ownerA.id,
+		});
+
+		const { invite: inviteB } = await clientFor(ownerB).createInvite({
+			name: tenant.name,
+			email: tenant.email,
+		});
+		const { invite: inviteC } = await clientFor(ownerC).createInvite({
+			name: tenant.name,
+			email: tenant.email,
+		});
+		createdInviteIds.push(inviteB.id, inviteC.id);
+
+		const inviteTokens = await db
+			.select({ id: tenantInvites.id, token: tenantInvites.token })
+			.from(tenantInvites)
+			.where(
+				or(eq(tenantInvites.id, inviteB.id), eq(tenantInvites.id, inviteC.id)),
+			);
+		const inviteTokenById = new Map(
+			inviteTokens.map((invite) => [invite.id, invite.token]),
+		);
+
+		await clientFor(tenant).claimInvite({
+			token: inviteTokenById.get(inviteC.id) ?? "",
+		});
+		await clientFor(tenant).claimInvite({
+			token: inviteTokenById.get(inviteB.id) ?? "",
+		});
+
+		const profiles = await db
+			.select({
+				userId: tenantProfiles.userId,
+				createdById: tenantProfiles.createdById,
+				invitedId: tenantProfiles.invitedId,
+				address: tenantProfiles.address,
+			})
+			.from(tenantProfiles)
+			.where(eq(tenantProfiles.userId, tenant.id));
+		expect(profiles).toEqual(
+			expect.arrayContaining([
+				expect.objectContaining({
+					createdById: ownerA.id,
+					address: "Owner A address",
+				}),
+				expect.objectContaining({
+					createdById: ownerB.id,
+					invitedId: inviteB.id,
+				}),
+				expect.objectContaining({
+					createdById: ownerC.id,
+					invitedId: inviteC.id,
+				}),
+			]),
+		);
+
+		const [storedB, storedC] = await db
+			.select({ id: tenantInvites.id, status: tenantInvites.status })
+			.from(tenantInvites)
+			.where(
+				or(eq(tenantInvites.id, inviteB.id), eq(tenantInvites.id, inviteC.id)),
+			);
+		expect([storedB, storedC]).toEqual(
+			expect.arrayContaining([
+				{ id: inviteB.id, status: "accepted" },
+				{ id: inviteC.id, status: "accepted" },
+			]),
+		);
+
+		const tenantRows = await db
+			.select({ id: user.id, role: user.role })
+			.from(user)
+			.where(eq(user.email, tenant.email));
+		expect(tenantRows).toEqual([{ id: tenant.id, role: "tenant" }]);
+	});
+
+	it("refuses a claim from a different authenticated email without writes", async () => {
+		const owner = await createOwner("D06 Owner");
+		const tenant = {
+			id: crypto.randomUUID(),
+			name: "D06 Tenant",
+			email: `${crypto.randomUUID()}@test.keyhq.invalid`,
+			role: "tenant",
+		};
+		const otherTenant = {
+			id: crypto.randomUUID(),
+			name: "D06 Other Tenant",
+			email: `${crypto.randomUUID()}@test.keyhq.invalid`,
+			role: "tenant",
+		};
+		createdUserIds.push(tenant.id, otherTenant.id);
+		await db.insert(user).values([tenant, otherTenant]);
+
+		const { invite } = await clientFor(owner).createInvite({
+			name: tenant.name,
+			email: tenant.email,
+		});
+		createdInviteIds.push(invite.id);
+		const [storedInvite] = await db
+			.select({ token: tenantInvites.token })
+			.from(tenantInvites)
+			.where(eq(tenantInvites.id, invite.id));
+
+		await expect(
+			clientFor(otherTenant).claimInvite({ token: storedInvite?.token ?? "" }),
+		).rejects.toMatchObject({ code: "NOT_FOUND" });
+
+		const [inviteAfterClaim] = await db
+			.select({ status: tenantInvites.status })
+			.from(tenantInvites)
+			.where(eq(tenantInvites.id, invite.id));
+		expect(inviteAfterClaim?.status).toBe("pending");
+
+		const profiles = await db
+			.select({ id: tenantProfiles.id })
+			.from(tenantProfiles)
+			.where(eq(tenantProfiles.invitedId, invite.id));
+		expect(profiles).toEqual([]);
+	});
+
+	it("reuses an owner-prepared relationship for an existing tenant", async () => {
+		const owner = await createOwner("D06 Owner");
+		const tenant = {
+			id: crypto.randomUUID(),
+			name: "D06 Existing Tenant",
+			email: `${crypto.randomUUID()}@test.keyhq.invalid`,
+			role: "tenant",
+		};
+		createdUserIds.push(tenant.id);
+		await db.insert(user).values(tenant);
+
+		const { invite } = await clientFor(owner).createTenant({
+			name: tenant.name,
+			email: tenant.email,
+			address: "Owner prepared address",
+		});
+		createdInviteIds.push(invite.id);
+		const [beforeClaim] = await db
+			.select({ id: tenantProfiles.id, invitedId: tenantProfiles.invitedId })
+			.from(tenantProfiles)
+			.where(eq(tenantProfiles.invitedId, invite.id));
+		expect(beforeClaim?.invitedId).toBe(invite.id);
+
+		const [storedInvite] = await db
+			.select({ token: tenantInvites.token })
+			.from(tenantInvites)
+			.where(eq(tenantInvites.id, invite.id));
+		await clientFor(tenant).claimInvite({ token: storedInvite?.token ?? "" });
+
+		const profiles = await db
+			.select({ id: tenantProfiles.id, address: tenantProfiles.address })
+			.from(tenantProfiles)
+			.where(eq(tenantProfiles.invitedId, invite.id));
+		expect(profiles).toEqual([
+			{ id: beforeClaim?.id, address: "Owner prepared address" },
+		]);
 	});
 });
 

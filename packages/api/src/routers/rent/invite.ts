@@ -1,6 +1,10 @@
 import { ORPCError } from "@orpc/server";
 import { isNonLiveWorkspace } from "@rently/api/modules/sample-workspace";
-import { ownerProcedure, publicProcedure } from "@rently/api/procedures";
+import {
+	ownerProcedure,
+	publicProcedure,
+	tenantProcedure,
+} from "@rently/api/procedures";
 import { StatusCode } from "@rently/api/utils";
 import { auth } from "@rently/auth";
 import { supportsDatabaseBatch } from "@rently/db";
@@ -15,6 +19,7 @@ import {
 import { generatedId } from "@rently/db/utils/id";
 import {
 	AcceptInviteSchema,
+	ClaimInviteSchema,
 	CreateInviteSchema,
 	InviteDetailSchema,
 	InviteListItemSchema,
@@ -56,6 +61,165 @@ export const createInvite = ownerProcedure
 			},
 			suppressDelivery: isNonLiveWorkspace(user),
 		});
+	});
+
+// An existing tenant must claim the precise invitation after authenticating.
+// D06 intentionally leaves the durable, cross-driver acceptance transition to D08.
+export const claimInvite = tenantProcedure
+	.route({ method: "POST", path: "/rent/invite/claim" })
+	.input(ClaimInviteSchema)
+	.output(z.object({ success: z.literal(true) }))
+	.handler(async ({ context, input }) => {
+		const { db, user: authUser } = context;
+		const now = new Date();
+		const email = authUser.email.trim().toLowerCase();
+
+		const claim = async (
+			executor: typeof db,
+			tracker?: { createdProfileId?: string },
+		) => {
+			const [invite] = await executor
+				.select({
+					id: tenantInvites.id,
+					name: tenantInvites.name,
+					email: tenantInvites.email,
+					phone: tenantInvites.phone,
+					address: tenantInvites.address,
+					emergencyContact: tenantInvites.emergencyContact,
+					emergencyContactName: tenantInvites.emergencyContactName,
+					emergencyContactLocation: tenantInvites.emergencyContactLocation,
+					invitedById: tenantInvites.invitedById,
+				})
+				.from(tenantInvites)
+				.where(
+					and(
+						eq(tenantInvites.token, input.token),
+						eq(tenantInvites.email, email),
+						eq(tenantInvites.status, "pending"),
+						isNull(tenantInvites.deletedAt),
+						or(
+							isNull(tenantInvites.expiresAt),
+							gt(tenantInvites.expiresAt, now),
+						),
+					),
+				)
+				.limit(1);
+
+			if (!invite) {
+				throw new ORPCError("NOT_FOUND", {
+					message: "Invitation not found.",
+				});
+			}
+
+			const [profile] = await executor
+				.select({
+					id: tenantProfiles.id,
+					userId: tenantProfiles.userId,
+					createdById: tenantProfiles.createdById,
+				})
+				.from(tenantProfiles)
+				.where(
+					and(
+						eq(tenantProfiles.invitedId, invite.id),
+						isNull(tenantProfiles.deletedAt),
+					),
+				)
+				.limit(1);
+
+			if (profile) {
+				if (
+					profile.userId !== authUser.id ||
+					profile.createdById !== invite.invitedById
+				) {
+					throw new ORPCError("CONFLICT", {
+						message: "Invitation relationship is inconsistent.",
+					});
+				}
+			} else {
+				const profileId = generatedId();
+				await executor.insert(tenantProfiles).values({
+					id: profileId,
+					userId: authUser.id,
+					email,
+					phone: invite.phone,
+					address: invite.address,
+					emergencyContact: invite.emergencyContact,
+					emergencyContactName: invite.emergencyContactName,
+					emergencyContactLocation: invite.emergencyContactLocation,
+					invitedId: invite.id,
+					createdById: invite.invitedById,
+				});
+				if (tracker) tracker.createdProfileId = profileId;
+			}
+
+			const [acceptedInvite] = await executor
+				.update(tenantInvites)
+				.set({ status: "accepted", updatedAt: now })
+				.where(
+					and(
+						eq(tenantInvites.id, invite.id),
+						eq(tenantInvites.status, "pending"),
+						isNull(tenantInvites.deletedAt),
+						or(
+							isNull(tenantInvites.expiresAt),
+							gt(tenantInvites.expiresAt, now),
+						),
+					),
+				)
+				.returning();
+
+			if (!acceptedInvite) {
+				throw new ORPCError("CONFLICT", {
+					message:
+						"This invitation is no longer available. Refresh the page and try again.",
+				});
+			}
+
+			return invite;
+		};
+
+		let invite: Awaited<ReturnType<typeof claim>>;
+		if (supportsDatabaseBatch(db)) {
+			const tracker: { createdProfileId?: string } = {};
+			try {
+				invite = await claim(db, tracker);
+			} catch (error) {
+				if (tracker.createdProfileId) {
+					await db
+						.delete(tenantProfiles)
+						.where(eq(tenantProfiles.id, tracker.createdProfileId))
+						.catch(() => {});
+				}
+				throw error;
+			}
+		} else {
+			invite = await (
+				db as unknown as {
+					transaction: (
+						fn: (tx: typeof db) => Promise<typeof invite>,
+					) => Promise<typeof invite>;
+				}
+			).transaction((tx) => claim(tx as unknown as typeof db));
+		}
+
+		try {
+			await db.insert(notifications).values({
+				id: generatedId(),
+				userId: invite.invitedById,
+				type: NOTIFICATION_TYPES.INVITE_ACCEPTED,
+				title: "Tenant joined",
+				message: `${authUser.name ?? ""} accepted your invite and joined KeyHQ`,
+				entityId: invite.id,
+				entityType: "invite",
+			});
+		} catch (error) {
+			console.error("[invite-claim] invite-accepted notification failed", {
+				inviteId: invite.id,
+				error,
+			});
+		}
+
+		return { success: true as const };
 	});
 
 // 2) ResendInvite

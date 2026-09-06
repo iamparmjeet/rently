@@ -271,6 +271,14 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Terra review pointers: confirm newest-valid selection (`createdAt DESC, id DESC`) is the intended deterministic rule while D06 still owns multi-owner identity relationships; confirm expired pending rows should be re-invitable rather than merely lazily marked expired.
 - Next allowed slice: D06 support existing tenants across owners, after D05 review/merge policy permits it.
 
+## D06 Existing tenant claim (2026-09-06, Terra High review owed)
+
+- Base: `integ/phase-a-baseline@4c84f97b`; branch `fix/multi-owner-invite-claim`; rollback tag `pre-multi-owner-invite-claim`; no migration. `main` untouched.
+- Added protected `claimInvite`: the authenticated tenant may claim only an exact, pending, non-deleted, unexpired invite with the same normalized email. It reuses the owner-scoped profile prepared by the owner or creates only that relationship, then accepts only that invite. It does not alter the global user, account, password, role, or another owner's profile.
+- The invite page now lets a matching signed-in session claim directly and sends other visitors to login with the invite URL as the trusted callback target. Claim errors remain on the page.
+- Regression tests cover claims for multiple owners, mismatched-email refusal with no writes, and reuse of the owner-prepared profile. Verification: `db:generate` no drift; `check-types` 6/6; focused Biome clean; `db:migrate:test` passed; focused auth/invite tests 27/27; full Vitest 62 files / 354 tests + 1 conditional skip; local build 5/5.
+- D08 still owns durable cross-driver acceptance atomicity and compensation. Terra review should scrutinize the claim transition's intentional use of the existing accept semantics until that slice lands.
+
 ## D03 Renewal entitlement/invoice alignment (2026-09-06, ZLM 5.3 Flash, branch fix/subscription-renewal-period)
 
 - Base: `integ/phase-a-baseline@926c5b8c` (D02 merge); rollback tag `pre-subscription-renewal-period`; `main` untouched; **no migration** (stated explicitly — pure read/write logic change in `recordSubscriptionPayment`). Terra Medium review owed.

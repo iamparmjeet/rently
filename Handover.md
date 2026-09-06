@@ -610,3 +610,13 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` + fresh-install proof → FULL suite 71 files / 406 tests pass → local `bun run build` 5/5; zero fixture residue; `next-env.d.ts` churn restored.
 - Terra pointers: earliest-wins repair (keeps the read row — history preserved, unread copy dropped); entity-less rows exempt from dedupe; a lease whose endDate is extended after notification stays suppressed (no re-notify); target-less DO NOTHING swallows any conflict on those inserts by design.
 - Next allowed slice: F03 reminder retry claiming from a clean integration-branch cut.
+
+## F03 Reminder retry claiming (2026-09-06, Muse Spark, branch fix/reminder-retry-claim, tag pre-reminder-retry-claim)
+
+- Base: clean `integ/phase-a-baseline@10db84b4` (F02 merge); no migration. `main` untouched. Terra High review owed — stays `[~]`. Standing authorization applies. Small test footprint per owner request (2 tests).
+- Gap proven (deterministic red `['claimed', 'claimed']`): a FAILED delivery older than 1h became retry-eligible, but the reclaim UPDATE was unconditional — two simultaneous workers both re-claimed and both sent. Job-level concurrency could not pin it (two full runs serialize on this driver, 5/5 green pre-fix), so the test gates the reclaim unit directly: a query gate holds the first reclaim UPDATE until both workers pass the eligibility read.
+- Changed (2 commits, `7a4c4a0`..`d71aa7f`, `scheduled-reminders.ts` only + test): the reclaim is one conditional statement (still `failed` AND `updated_at < now() - 1h`); a loser matches zero rows → duplicate. `claimDelivery` exported as the test seam. The app-side age pre-check stays as a fast path; the WHERE clause is the arbiter.
+- Tests (`reminder-retry-claim.test.ts`, 2): gated concurrent reclaim (exactly one claimed, stable 3/3 post-fix), retry only after the 1h delay (early run duplicates, aged run claims+sends once).
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 72 files / 408 tests pass → local `bun run build` 5/5; zero fixture residue; `next-env.d.ts` churn restored.
+- Terra pointers: DB-clock `now()` vs app-clock `Date.now()` for the 1h rule (both workers share the DB); attemptedAt untouched on reclaim; the exported seam.
+- Next allowed slice: G01 India business dates from a clean integration-branch cut.

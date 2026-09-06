@@ -127,7 +127,8 @@ export const listNotifications = ownerProcedure
 			);
 
 		if (expiringLeases.length > 0) {
-			// Find which ones already have an unread notification — avoid duplicates
+			// F02: identity is the lease, not its read state — a read
+			// notification must not reappear on the next poll.
 			const existing = await db
 				.select({ entityId: notifications.entityId })
 				.from(notifications)
@@ -135,7 +136,6 @@ export const listNotifications = ownerProcedure
 					and(
 						eq(notifications.userId, user.id),
 						eq(notifications.type, NOTIFICATION_TYPES.LEASE_EXPIRING_SOON),
-						eq(notifications.isRead, false),
 						inArray(
 							notifications.entityId,
 							expiringLeases.map((l) => l.id),
@@ -152,21 +152,27 @@ export const listNotifications = ownerProcedure
 				.filter((l): l is typeof l & { endDate: Date } => l.endDate !== null);
 
 			if (toInsert.length > 0) {
-				await db.insert(notifications).values(
-					toInsert.map((lease) => {
-						const daysLeft = Math.ceil(
-							(lease.endDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24),
-						);
-						return {
-							userId: user.id,
-							type: NOTIFICATION_TYPES.LEASE_EXPIRING_SOON as NotificationType,
-							title: "Lease expiring soon",
-							message: `Lease for Unit ${lease.unitNumber} expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
-							entityId: lease.id,
-							entityType: "lease",
-						};
-					}),
-				);
+				// F02: the dedupe index arbitrates concurrent polls — a loser
+				// inserts nothing and the poll below reads the winner's row.
+				await db
+					.insert(notifications)
+					.values(
+						toInsert.map((lease) => {
+							const daysLeft = Math.ceil(
+								(lease.endDate.getTime() - now.getTime()) /
+									(1000 * 60 * 60 * 24),
+							);
+							return {
+								userId: user.id,
+								type: NOTIFICATION_TYPES.LEASE_EXPIRING_SOON as NotificationType,
+								title: "Lease expiring soon",
+								message: `Lease for Unit ${lease.unitNumber} expires in ${daysLeft} day${daysLeft === 1 ? "" : "s"}`,
+								entityId: lease.id,
+								entityType: "lease",
+							};
+						}),
+					)
+					.onConflictDoNothing();
 			}
 		}
 
@@ -202,25 +208,29 @@ export const listNotifications = ownerProcedure
 			);
 
 			if (toInsert.length > 0) {
-				await db.insert(notifications).values(
-					toInsert.map((lease) => ({
-						userId: user.id,
-						type: NOTIFICATION_TYPES.RENT_OVERDUE as NotificationType,
-						title: "Rent payment overdue",
-						message:
-							"Rent for Unit " +
-							lease.unitNumber +
-							" is " +
-							lease.daysOverdue +
-							" day" +
-							(lease.daysOverdue === 1 ? "" : "s") +
-							" overdue. " +
-							formatNotificationAmount(lease.outstandingAmount) +
-							" remains outstanding.",
-						entityId: lease.leaseId,
-						entityType: overduePeriodEntityType,
-					})),
-				);
+				// F02: same race arbitration as the expiry path above.
+				await db
+					.insert(notifications)
+					.values(
+						toInsert.map((lease) => ({
+							userId: user.id,
+							type: NOTIFICATION_TYPES.RENT_OVERDUE as NotificationType,
+							title: "Rent payment overdue",
+							message:
+								"Rent for Unit " +
+								lease.unitNumber +
+								" is " +
+								lease.daysOverdue +
+								" day" +
+								(lease.daysOverdue === 1 ? "" : "s") +
+								" overdue. " +
+								formatNotificationAmount(lease.outstandingAmount) +
+								" remains outstanding.",
+							entityId: lease.leaseId,
+							entityType: overduePeriodEntityType,
+						})),
+					)
+					.onConflictDoNothing();
 			}
 		}
 

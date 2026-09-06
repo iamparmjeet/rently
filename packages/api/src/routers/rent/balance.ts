@@ -53,8 +53,6 @@ const leaseBalanceSchema = z.object({
 	currentRentDue: z.number().int(),
 	overdueRent: z.number().int(),
 	totalRentDue: z.number().int(),
-	lifetimeRentDue: z.number().int(),
-	accruedGap: z.number().int(),
 	credits: z.object({
 		total: z.number().int(),
 		allocatedToCharges: z.number().int(),

@@ -1,18 +1,16 @@
 import type { Database } from "@rently/db";
-import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import { user } from "@rently/db/schema/auth";
-import {
-	billCredits,
-	leases,
-	properties,
-	units,
-} from "@rently/db/schema/schema";
+import { leases, properties, units } from "@rently/db/schema/schema";
 import type { OverdueLease } from "@rently/validators";
-import { and, eq, inArray, isNull } from "drizzle-orm";
-import { computeOverdueState } from "./overdue";
-import { getLocalDateKey, getLocalPeriodKey } from "./rent-cycle";
-import { getSignedLedgerPayments } from "./signed-ledger";
+import { and, eq, isNull } from "drizzle-orm";
+import { computeLeaseOverdue } from "./overdue";
+import { readChargeOutstandingRows } from "./period-balance";
+import { getLocalDateKey } from "./rent-cycle";
 
+// C08 cutover: the overdue list reads the period ledger (per-charge due dates
+// and outstanding paise), not the lifetime heuristic. Pure read — no accrual
+// here; the nightly reminder job keeps the charge set fresh, and the C05
+// balance read model accrues on its own reads.
 export async function queryOverdueLeases(
 	db: Database,
 	now: Date,
@@ -27,8 +25,6 @@ export async function queryOverdueLeases(
 			unitNumber: units.unitNumber,
 			rent: leases.rent,
 			startDate: leases.startDate,
-			endDate: leases.endDate,
-			rentDueDate: leases.rentDueDate,
 			leaseStatus: leases.status,
 		})
 		.from(leases)
@@ -46,59 +42,17 @@ export async function queryOverdueLeases(
 
 	if (rows.length === 0) return [];
 
-	const periodKey = getLocalPeriodKey(now);
 	const leaseIds = rows.map((row) => row.leaseId);
-	const paymentRows = await getSignedLedgerPayments(db, { leaseIds });
-
-	const paidByLease = new Map<string, number>();
-	for (const payment of paymentRows) {
-		if (getLocalPeriodKey(payment.paymentDate) !== periodKey) {
-			continue;
-		}
-
-		// Net the current period from the canonical category: reversal rows keep
-		// their signed amount but only rent originals affect rent due.
-		if (payment.utilityId !== null || payment.category !== PAYMENT_TYPES.RENT) {
-			continue;
-		}
-
-		paidByLease.set(
-			payment.leaseId,
-			(paidByLease.get(payment.leaseId) ?? 0) + payment.amount,
-		);
-	}
-
-	// Rent/general credits (utilityId null) net against rent — negative discounts
-	// plus positive reversals. Matches rent-cycle.ts effectiveRent accounting.
-	const creditRows = await db
-		.select({
-			leaseId: billCredits.leaseId,
-			amount: billCredits.amount,
-		})
-		.from(billCredits)
-		.where(
-			and(
-				inArray(billCredits.leaseId, leaseIds),
-				isNull(billCredits.utilityId),
-			),
-		);
-	const creditByLease = new Map<string, number>();
-	for (const credit of creditRows) {
-		creditByLease.set(
-			credit.leaseId,
-			(creditByLease.get(credit.leaseId) ?? 0) + credit.amount,
-		);
-	}
-
+	const chargeRows = await readChargeOutstandingRows(db, leaseIds);
 	const localToday = getLocalDateKey(now);
 
 	return rows.flatMap((row) => {
-		const state = computeOverdueState(
-			{
-				...row,
-				paidAmount: paidByLease.get(row.leaseId) ?? 0,
-				creditAmount: creditByLease.get(row.leaseId) ?? 0,
-			},
+		// Active-lease filter is already applied; computeLeaseOverdue aggregates
+		// every past-due charge into one state anchored on the earliest one, so
+		// historical arrears surface without inventing per-period noise (R13).
+		const state = computeLeaseOverdue(
+			chargeRows.filter((charge) => charge.leaseId === row.leaseId),
+			row.startDate,
 			localToday,
 		);
 
@@ -112,7 +66,10 @@ export async function queryOverdueLeases(
 				propertyName: row.propertyName,
 				unitNumber: row.unitNumber,
 				rent: row.rent,
-				...state,
+				paidAmount: state.paidAmount,
+				outstandingAmount: state.outstandingAmount,
+				dueDate: state.dueDate,
+				daysOverdue: state.daysOverdue,
 			},
 		];
 	});

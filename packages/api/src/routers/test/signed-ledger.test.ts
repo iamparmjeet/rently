@@ -17,18 +17,23 @@ import {
 	paymentGroups,
 	payments,
 	properties,
+	rentAllocations,
+	rentCharges,
 	units,
 	utilities,
 } from "@rently/db/schema/schema";
 import { generatedId } from "@rently/db/utils/id";
-import { inArray } from "drizzle-orm";
+import { eq, inArray, sql } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { queryRentCycleRows } from "../../scheduled-reminders";
-import {
-	getAmountDueForRent,
-	getAmountDueForUtility,
-} from "../helpers/credit.helpers";
+import { getAmountDueForUtility } from "../helpers/credit.helpers";
 import { queryOverdueLeases } from "../helpers/overdue-query";
+import { getChargeOutstandingRows } from "../helpers/period-balance";
+import {
+	allocateRentPaymentsSql,
+	ensureAccruedChargesSql,
+	mirrorPaymentReversalSql,
+} from "../helpers/rent-period";
 import { getSignedLedgerPayments } from "../helpers/signed-ledger";
 import { getRevenueDashboard } from "../rent/stats";
 
@@ -146,6 +151,21 @@ async function createFixture() {
 }
 
 afterEach(async () => {
+	// C08: the rent payment is poured into charges — allocations must go
+	// before their payment sources (RESTRICT makes a wrong order loud).
+	if (created.leases.length) {
+		await db
+			.delete(rentAllocations)
+			.where(
+				inArray(
+					rentAllocations.chargeId,
+					db
+						.select({ id: rentCharges.id })
+						.from(rentCharges)
+						.where(inArray(rentCharges.leaseId, created.leases)),
+				),
+			);
+	}
 	if (created.payments.length) {
 		await db.delete(payments).where(inArray(payments.id, created.payments));
 	}
@@ -158,6 +178,20 @@ afterEach(async () => {
 		await db.delete(utilities).where(inArray(utilities.id, created.utilities));
 	}
 	if (created.leases.length) {
+		await db
+			.delete(rentAllocations)
+			.where(
+				inArray(
+					rentAllocations.chargeId,
+					db
+						.select({ id: rentCharges.id })
+						.from(rentCharges)
+						.where(inArray(rentCharges.leaseId, created.leases)),
+				),
+			);
+		await db
+			.delete(rentCharges)
+			.where(inArray(rentCharges.leaseId, created.leases));
 		await db.delete(leases).where(inArray(leases.id, created.leases));
 	}
 	if (created.agreements.length) {
@@ -298,9 +332,20 @@ describe("signed ledger reads", () => {
 		expect(byId.get(otherReversalId)?.category).toBe(PAYMENT_TYPES.OTHER);
 		expect(byId.get(utilityReversalId)?.category).toBe(PAYMENT_TYPES.UTILITY);
 
-		// Rent is lifetime in this phase: the rent pair nets to zero, while the
-		// mixed deposit/other group never contributes to rent.
-		await expect(getAmountDueForRent(db, leaseId)).resolves.toBe(100_000);
+		// C08: attribution holds on the period ledger — accrue the charge set,
+		// pour the rent payment FIFO, and mirror its reversal; the pair's net
+		// effect on its own period is zero, while the mixed deposit/other group
+		// never touches rent.
+		await db.execute(ensureAccruedChargesSql({ leaseId }));
+		await db.execute(allocateRentPaymentsSql(sql`p."id" = ${rentId}`));
+		await db.execute(mirrorPaymentReversalSql(rentReversalId, rentId));
+		const pairAllocations = await db
+			.select({ amount: rentAllocations.amount })
+			.from(rentAllocations)
+			.where(inArray(rentAllocations.paymentId, [rentId, rentReversalId]));
+		expect(pairAllocations.map((a) => a.amount).sort()).toEqual([
+			-100_000, 100_000,
+		]);
 		// Utility has a reversed 30,000 attempt plus a live 25,000 partial payment.
 		await expect(getAmountDueForUtility(db, utilityId)).resolves.toBe(75_000);
 
@@ -309,11 +354,13 @@ describe("signed ledger reads", () => {
 			new Date("2026-09-13T00:00:00.000Z"),
 			ownerId,
 		);
+		// Nine accrued periods (Jan–Sep), each fully reopened by the reversal:
+		// the earliest anchors the state, arrears aggregate (C08).
 		expect(overdue).toEqual([
 			expect.objectContaining({
 				leaseId,
 				paidAmount: 0,
-				outstandingAmount: 100_000,
+				outstandingAmount: 900_000,
 			}),
 		]);
 
@@ -322,9 +369,11 @@ describe("signed ledger reads", () => {
 			new Date("2026-09-05T00:00:00.000Z"),
 			ownerId,
 		);
-		expect(reminderRows).toEqual([
-			expect.objectContaining({ leaseId, paidAmount: 0 }),
-		]);
+		expect(reminderRows).toHaveLength(1);
+		expect(reminderRows[0]?.charges).toHaveLength(9);
+		for (const charge of reminderRows[0]?.charges ?? []) {
+			expect(charge.outstanding).toBe(100_000);
+		}
 	});
 
 	it("nets signed revenue and keeps reversal rows in recent activity", async () => {

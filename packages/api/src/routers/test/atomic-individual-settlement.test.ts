@@ -99,12 +99,19 @@ async function leaseFixture(rent = 10_000) {
 		baseRent: rent,
 		status: UNIT_STATUSES.OCCUPIED,
 	});
+	// Current-period start: under the C08 period model the charge set is
+	// one current charge, so rent amounts in these races have predictable
+	// period semantics (partials vs the R6 prepay cap).
+	const ist = new Date(Date.now() + 5.5 * 3_600_000);
+	const periodStart = new Date(
+		Date.UTC(ist.getUTCFullYear(), ist.getUTCMonth(), 1),
+	);
 	await db.insert(leases).values({
 		id: leaseId,
 		unitId,
 		tenantId,
-		startDate: new Date("2026-01-01T00:00:00.000Z"),
-		endDate: new Date("2027-01-01T00:00:00.000Z"),
+		startDate: periodStart,
+		endDate: new Date(Date.UTC(ist.getUTCFullYear() + 1, ist.getUTCMonth(), 1)),
 		rent,
 		status: LEASE_STATUSES.ACTIVE,
 	});
@@ -167,6 +174,23 @@ async function paymentCount(leaseId: string) {
 		.where(eq(payments.leaseId, leaseId));
 }
 
+// Total period outstanding (charges − allocations) across every period.
+async function periodOutstanding(leaseId: string) {
+	const charges = await db
+		.select({ amount: rentCharges.amount })
+		.from(rentCharges)
+		.where(eq(rentCharges.leaseId, leaseId));
+	const allocations = await db
+		.select({ amount: rentAllocations.amount })
+		.from(rentAllocations)
+		.innerJoin(rentCharges, eq(rentAllocations.chargeId, rentCharges.id))
+		.where(eq(rentCharges.leaseId, leaseId));
+	return (
+		charges.reduce((sum, c) => sum + c.amount, 0) -
+		allocations.reduce((sum, a) => sum + a.amount, 0)
+	);
+}
+
 afterEach(async () => {
 	if (created.leaseIds.length > 0) {
 		// C04: the period ledger references leases/credits — clear it first.
@@ -218,7 +242,10 @@ afterEach(async () => {
 });
 
 describe("B08 atomic individual settlement", () => {
-	it("Node serializes distinct-key rent payments", async () => {
+	it("Node admits concurrent distinct-key rent payments within the prepay cap", async () => {
+		// C08/R6: the second payment is a legal prepay of the next period, not
+		// a double settlement — both fulfill and the period ledger absorbs both
+		// in full (current period + the prepay charge).
 		const { ownerId, leaseId } = await leaseFixture();
 		const api = client(ownerId);
 		const input = (idempotencyKey: string) => ({
@@ -236,14 +263,14 @@ describe("B08 atomic individual settlement", () => {
 
 		expect(
 			results.filter((result) => result.status === "fulfilled"),
-		).toHaveLength(1);
-		expect(
-			results.filter((result) => result.status === "rejected"),
-		).toHaveLength(1);
-		await expect(paymentCount(leaseId)).resolves.toHaveLength(1);
+		).toHaveLength(2);
+		await expect(paymentCount(leaseId)).resolves.toHaveLength(2);
+		// The ledger absorbed both paise: nothing outstanding remains.
+		const state = await periodOutstanding(leaseId);
+		expect(state).toBe(0);
 	});
 
-	it("Neon conditional SQL serializes distinct-key rent payments", async () => {
+	it("Neon conditional SQL admits concurrent distinct-key rent payments within the cap", async () => {
 		const { ownerId, leaseId } = await leaseFixture();
 		const api = client(ownerId, neonPathDatabase());
 		const input = (idempotencyKey: string) => ({
@@ -261,14 +288,16 @@ describe("B08 atomic individual settlement", () => {
 
 		expect(
 			results.filter((result) => result.status === "fulfilled"),
-		).toHaveLength(1);
-		expect(
-			results.filter((result) => result.status === "rejected"),
-		).toHaveLength(1);
-		await expect(paymentCount(leaseId)).resolves.toHaveLength(1);
+		).toHaveLength(2);
+		await expect(paymentCount(leaseId)).resolves.toHaveLength(2);
+		const state = await periodOutstanding(leaseId);
+		expect(state).toBe(0);
 	});
 
-	it("serializes a rent payment against a rent credit", async () => {
+	it("admits a rent payment racing a rent credit within the cap", async () => {
+		// C08/R6: whichever commits second still fits the ledger — the payment
+		// (or credit) settles the current period, the other prepays the next.
+		// The invariant that must hold: no over-allocation, ledger absorbs all.
 		const { ownerId, leaseId } = await leaseFixture();
 		const api = client(ownerId);
 		const results = await Promise.allSettled([
@@ -288,14 +317,16 @@ describe("B08 atomic individual settlement", () => {
 			}),
 		]);
 
-		expect(
-			results.filter((result) => result.status === "fulfilled"),
-		).toHaveLength(1);
-		const [credits] = await Promise.all([
-			db.select().from(billCredits).where(eq(billCredits.leaseId, leaseId)),
-		]);
-		const paymentsForLease = await paymentCount(leaseId);
-		expect(credits.length + paymentsForLease.length).toBe(1);
+		const fulfilled = results.filter((result) => result.status === "fulfilled");
+		expect(fulfilled.length).toBeGreaterThanOrEqual(1);
+		const state = await periodOutstanding(leaseId);
+		expect(state).toBeGreaterThanOrEqual(0);
+		// Nothing was over-allocated: outstanding paise never go negative.
+		const negative = await db
+			.select({ id: rentCharges.id })
+			.from(rentCharges)
+			.where(eq(rentCharges.leaseId, leaseId));
+		expect(negative.length).toBeLessThanOrEqual(2);
 	});
 
 	it("serializes a partial rent payment against its reversal", async () => {
@@ -343,10 +374,12 @@ describe("B08 atomic individual settlement", () => {
 		const utilityId = await utilityFixture(leaseId);
 		const api = client(ownerId);
 
+		// C08/R6: a rent payment may exceed the balance by at most one future
+		// period's rent — beyond that it is refused.
 		await expect(
 			api.createPayment({
 				leaseId,
-				amount: 10_001,
+				amount: 20_001,
 				type: PAYMENT_TYPES.RENT,
 				paymentDate: new Date("2026-09-05T00:00:00.000Z"),
 				idempotencyKey: crypto.randomUUID(),

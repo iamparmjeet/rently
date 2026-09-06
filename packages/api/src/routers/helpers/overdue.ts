@@ -1,72 +1,57 @@
-import {
-	differenceInCalendarDays,
-	getDueDateKey,
-	getLocalDateKey,
-	getLocalDateParts,
-} from "./rent-cycle";
+import { differenceInCalendarDays } from "./rent-cycle";
 
-export type OverdueCandidate = {
-	rent: number;
-	paidAmount: number;
-	/** Sum of rent/general bill_credits (negative discounts + positive reversals net). */
-	creditAmount: number;
-	startDate: Date;
-	endDate: Date | null;
-	rentDueDate: number | null;
-	leaseStatus: "active" | "expired" | "terminated";
+// C08 cutover: overdue state derives from the period ledger — one entry per
+// charge (rent_charges with its snapshotted clamped due date and remaining
+// paise), never from the lifetime heuristic. The earliest overdue charge
+// anchors the state; older arrears aggregate into `outstandingAmount` so the
+// owner sees the full arrear while reminders stay per-period (R14).
+
+export type OverdueCharge = {
+	periodKey: string;
+	dueDate: string;
+	amount: number;
+	outstanding: number;
 };
 
 export type OverdueState = {
+	/** Period key of the earliest overdue charge (notification dedupe anchor). */
+	periodKey: string;
 	dueDate: string;
 	daysOverdue: number;
 	paidAmount: number;
 	outstandingAmount: number;
 };
 
-export function computeOverdueState(
-	row: OverdueCandidate,
+export function computeLeaseOverdue(
+	charges: OverdueCharge[],
+	startDate: Date,
 	localToday: string,
 ): OverdueState | null {
-	if (row.leaseStatus !== "active") {
-		return null;
+	// Stored timestamps are UTC; their wall-clock date part is the business
+	// date (R1, C03 convention — the accrual formula uses the same part).
+	const startDateKey = startDate.toISOString().slice(0, 10);
+
+	let earliest: OverdueCharge | null = null;
+	let outstandingAmount = 0;
+	let paidTowardOverdue = 0;
+	for (const charge of charges) {
+		if (charge.outstanding <= 0) continue;
+		// A lease beginning after its period's due date is not overdue for that
+		// period (R3 — the shipped overdue skip, generalized to stored charges).
+		if (charge.dueDate < startDateKey) continue;
+		if (charge.dueDate >= localToday) continue;
+		if (!earliest || charge.dueDate < earliest.dueDate) earliest = charge;
+		outstandingAmount += charge.outstanding;
+		paidTowardOverdue += Math.max(charge.amount - charge.outstanding, 0);
 	}
 
-	// Older leases and the current lease form may not have an explicit due day.
-	// Keep the dashboard and upcoming-dues widget consistent by falling back to
-	// the lease start day in that case.
-	const dueDay = row.rentDueDate ?? getLocalDateParts(row.startDate).day;
-	if (dueDay < 1 || dueDay > 31) {
-		return null;
-	}
-
-	const startDate = getLocalDateKey(row.startDate);
-	const endDate = row.endDate ? getLocalDateKey(row.endDate) : null;
-
-	if (localToday < startDate || (endDate && localToday > endDate)) {
-		return null;
-	}
-
-	const periodKey = localToday.slice(0, 7);
-	const dueDate = getDueDateKey(periodKey, dueDay);
-
-	// A lease beginning after this month's due date should not be overdue yet.
-	if (startDate > dueDate || localToday <= dueDate) {
-		return null;
-	}
-
-	const paidAmount = Math.max(row.paidAmount, 0);
-
-	// Effective rent after discounts/credits (rent + negative credits + positive reversals).
-	const effectiveRent = row.rent + (row.creditAmount ?? 0);
-
-	if (paidAmount >= effectiveRent) {
-		return null;
-	}
+	if (!earliest) return null;
 
 	return {
-		dueDate,
-		daysOverdue: differenceInCalendarDays(dueDate, localToday),
-		paidAmount,
-		outstandingAmount: Math.max(effectiveRent - paidAmount, 0),
+		periodKey: earliest.periodKey,
+		dueDate: earliest.dueDate,
+		daysOverdue: differenceInCalendarDays(earliest.dueDate, localToday),
+		paidAmount: paidTowardOverdue,
+		outstandingAmount,
 	};
 }

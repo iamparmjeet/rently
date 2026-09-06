@@ -68,14 +68,15 @@ function supportsBatch(db: Database): db is BatchCapableDatabase {
 }
 
 import {
-	getAmountDueForRent,
 	getAmountDueForUtility,
 	syncUtilityPaidState,
 } from "../helpers/credit.helpers";
+import { getLeasePeriodDue } from "../helpers/period-balance";
 import {
 	allocateRentCreditSql,
 	ensureAccruedChargesSql,
 	mirrorCreditReversalSql,
+	rentOutstandingSql,
 } from "../helpers/rent-period";
 import { settlementAdvisoryLock } from "../helpers/settlement-lock";
 
@@ -157,26 +158,8 @@ async function insertNeonCredit(
 		`)
 		: db.execute<{ id: string }>(sql`
 			WITH balance AS MATERIALIZED (
-				SELECT l."rent"
-					+ COALESCE((
-						SELECT sum(c."amount")
-						FROM ${billCredits} c
-						WHERE c."lease_id" = l."id" AND c."utility_id" IS NULL
-					), 0)
-					- COALESCE((
-						SELECT sum(p."amount")
-						FROM ${payments} p
-						LEFT JOIN ${payments} original_payment
-							ON p."type" = 'reversal'
-							AND p."reference_number" = original_payment."id"::text
-							AND original_payment."lease_id" = p."lease_id"
-						WHERE p."lease_id" = l."id"
-							AND p."utility_id" IS NULL
-							AND (
-								p."type" = 'rent'
-								OR (p."type" = 'reversal' AND original_payment."type" = 'rent')
-							)
-					), 0) AS "amount_due"
+				-- C08: the period outstanding IS the rent due a discount may cover.
+				SELECT ${rentOutstandingSql()} AS "amount_due"
 				FROM ${leases} l
 				WHERE l."id" = ${input.leaseId}
 			), inserted AS (
@@ -195,22 +178,22 @@ async function insertNeonCredit(
 			SELECT inserted."id" AS "id" FROM inserted
 			`);
 
-	// C04 dual-write: a rent-scoped discount also settles the oldest period
-	// charges. The gate keeps a suppressed (over-limit) insert side-effect free.
-	const batch: Array<{ getSQL: () => unknown }> = [lockQuery, insertQuery];
+	// C08: a rent-scoped discount settles the oldest period charges. Accrual
+	// runs BEFORE the insert so the outstanding bound sees the full charge set
+	// (idempotent; a refused insert leaves correct charges and allocates
+	// nothing — allocation joins on the credit row, so it no-ops).
+	const batch: Array<{ getSQL: () => unknown }> = [lockQuery];
 	if (!input.utilityId) {
-		batch.push(
-			db.execute(
-				ensureAccruedChargesSql(
-					{ leaseId: input.leaseId },
-					sql`SELECT 1 FROM "bill_credits" WHERE "id" = ${input.id}`,
-				),
-			),
-			db.execute(allocateRentCreditSql(input.id)),
-		);
+		batch.push(db.execute(ensureAccruedChargesSql({ leaseId: input.leaseId })));
+	}
+	batch.push(insertQuery);
+	// The insert's position shifts when rent accrual precedes it.
+	const insertIndex = batch.length - 1;
+	if (!input.utilityId) {
+		batch.push(db.execute(allocateRentCreditSql(input.id)));
 	}
 	const results = await db.batch(batch);
-	const result = results[1] as (typeof results)[number] & {
+	const result = results[insertIndex] as (typeof results)[number] & {
 		rows: Array<{ id: string }>;
 	};
 	return result.rows[0]?.id;
@@ -317,9 +300,9 @@ export const createCredit = ownerProcedure
 			if (!row) {
 				const due = input.utilityId
 					? await getAmountDueForUtility(db, input.utilityId)
-					: await getAmountDueForRent(db, input.leaseId);
+					: (await getLeasePeriodDue(db, input.leaseId)).outstanding;
 				throw new ORPCError("BAD_REQUEST", {
-					message: `Discount exceeds amountDue: ${due}`,
+					message: `Discount exceeds the outstanding rent balance of ${due}`,
 				});
 			}
 			return { credit: row };
@@ -351,13 +334,18 @@ export const createCredit = ownerProcedure
 				if (existing) return { credit: existing };
 			}
 
+			// C08: accrue first so a rent discount is bounded by the complete
+			// period outstanding (tx rollback keeps this side-effect free).
+			if (!input.utilityId) {
+				await tx.execute(ensureAccruedChargesSql({ leaseId: input.leaseId }));
+			}
 			const due = input.utilityId
 				? await getAmountDueForUtility(tx, input.utilityId)
-				: await getAmountDueForRent(tx, input.leaseId);
+				: (await getLeasePeriodDue(tx, input.leaseId)).outstanding;
 
 			if (Math.abs(input.amount) > due)
 				throw new ORPCError("BAD_REQUEST", {
-					message: `Discount exceeds amountDue: ${due}`,
+					message: `Discount exceeds the outstanding rent balance of ${due}`,
 				});
 
 			const id = generatedId();
@@ -387,8 +375,8 @@ export const createCredit = ownerProcedure
 			if (input.utilityId) {
 				await syncUtilityPaidState(tx, input.utilityId);
 			} else {
-				// C04 dual-write: the discount settles the oldest period charges.
-				await tx.execute(ensureAccruedChargesSql({ leaseId: input.leaseId }));
+				// C08: charges were accrued before validation; the discount
+				// settles the oldest period charges.
 				await tx.execute(allocateRentCreditSql(row.id));
 			}
 			return { credit: row };

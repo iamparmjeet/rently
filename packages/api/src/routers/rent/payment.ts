@@ -18,6 +18,8 @@ import {
 	paymentGroups,
 	payments,
 	properties,
+	rentAllocations,
+	rentCharges,
 	tenantProfiles,
 	units,
 	utilities,
@@ -42,15 +44,15 @@ import {
 	sendAutomaticAgreementPaymentReceipt,
 	sendAutomaticPaymentReceipt,
 } from "../helpers/automatic-emails";
-import {
-	getAmountDueForRent,
-	getAmountDueForUtility,
-} from "../helpers/credit.helpers";
+import { getAmountDueForUtility } from "../helpers/credit.helpers";
+import { getLeasePeriodDue } from "../helpers/period-balance";
 import {
 	allocateRentPaymentsSql,
 	ensureAccruedChargesSql,
+	ensureNextFuturePeriodChargeSql,
 	mirrorPaymentGroupReversalsSql,
 	mirrorPaymentReversalSql,
+	rentOutstandingSql,
 	reportUnallocatedRentPaymentRemaindersSql,
 } from "../helpers/rent-period";
 import { settlementAdvisoryLock } from "../helpers/settlement-lock";
@@ -281,28 +283,31 @@ async function insertNeonPayment(
 		`)
 		: db.execute<{ id: string }>(sql`
 			WITH balance AS MATERIALIZED (
-				SELECT l."rent"
-					+ COALESCE((
-						SELECT sum(c."amount")
-						FROM ${billCredits} c
-						WHERE c."lease_id" = l."id" AND c."utility_id" IS NULL
-					), 0)
-					- COALESCE((
-						SELECT sum(p."amount")
-						FROM ${payments} p
-						LEFT JOIN ${payments} original_payment
-							ON p."type" = 'reversal'
-							AND p."reference_number" = original_payment."id"::text
-							AND original_payment."lease_id" = p."lease_id"
-						WHERE p."lease_id" = l."id"
-							AND p."utility_id" IS NULL
-							AND (
-								p."type" = 'rent'
-								OR (p."type" = 'reversal' AND original_payment."type" = 'rent')
-							)
-					), 0) AS "amount_due"
+				-- C08: the period outstanding IS the rent due; an accepted payment
+				-- may also prepay at most one future period (R6) MINUS whatever
+				-- earlier prepays already sit there — never beyond one month's
+				-- rent of headroom. The R6 charge is created below the batch when
+				-- this insert survives and the amount exceeds the current dues.
+				SELECT
+					COALESCE(SUM(CASE WHEN c."period_key" < x."next"
+						THEN c."amount" - COALESCE(ra."allocated", 0) ELSE 0 END), 0)
+					+ CASE
+						WHEN l."status" = 'active'
+							AND l."start_date"::date < (date_trunc('month', now() AT TIME ZONE 'Asia/Kolkata') + interval '1 month')
+							AND (l."end_date" IS NULL OR l."end_date"::date >= (date_trunc('month', now() AT TIME ZONE 'Asia/Kolkata') + interval '2 months'))
+						THEN GREATEST(l."rent" - COALESCE(SUM(CASE WHEN c."period_key" >= x."next"
+							THEN c."amount" - COALESCE(ra."allocated", 0) ELSE 0 END), 0), 0)
+						ELSE 0
+					END AS "amount_due"
 				FROM ${leases} l
+				CROSS JOIN (SELECT to_char(date_trunc('month', now() AT TIME ZONE 'Asia/Kolkata') + interval '1 month', 'YYYY-MM') AS "next") x
+				LEFT JOIN ${rentCharges} c ON c."lease_id" = l."id"
+				LEFT JOIN (
+					SELECT "charge_id", SUM("amount") AS "allocated"
+					FROM ${rentAllocations} GROUP BY "charge_id"
+				) ra ON ra."charge_id" = c."id"
 				WHERE l."id" = ${input.leaseId}
+				GROUP BY l."id", l."status", l."rent", l."start_date", l."end_date", x."next"
 			), inserted AS (
 				INSERT INTO ${payments} (
 					"id", "lease_id", "amount", "payment_date", "payment_method",
@@ -319,16 +324,28 @@ async function insertNeonPayment(
 			SELECT inserted."id" AS "id" FROM inserted
 		`);
 
-	// C04 dual-write: rent settlements also accrue charges and allocate FIFO
-	// into the period ledger. The gate keeps a suppressed (advance) insert
-	// side-effect free; the batch is one transaction, so all-or-nothing holds.
-	const batch: Array<{ getSQL: () => unknown }> = [lockQuery, insertQuery];
+	// C04/C08: accrue charges (through the current period and, for a legal
+	// prepay, the next one) BEFORE the insert so the outstanding bound sees
+	// them, then allocate FIFO. Accrual is idempotent and represents rent the
+	// lease owes regardless of the payment outcome; only the allocation is
+	// gated on the payment row existing, so a refused insert allocates nothing.
+	const batch: Array<{ getSQL: () => unknown }> = [lockQuery];
 	if (!input.utilityId && input.type === PAYMENT_TYPES.RENT) {
+		batch.push(db.execute(ensureAccruedChargesSql({ leaseId: input.leaseId })));
+	}
+	batch.push(insertQuery);
+	// The insert's position shifts when rent accrual statements precede it.
+	const insertIndex = batch.length - 1;
+	if (!input.utilityId && input.type === PAYMENT_TYPES.RENT) {
+		// R6: the next period's charge exists only when the (now-inserted)
+		// payment actually prepays beyond the outstanding charges.
 		batch.push(
 			db.execute(
-				ensureAccruedChargesSql(
+				ensureNextFuturePeriodChargeSql(
 					{ leaseId: input.leaseId },
-					sql`SELECT 1 FROM "payments" WHERE "id" = ${input.id}`,
+					sql`SELECT 1 FROM "payments" p
+						WHERE p."id" = ${input.id}
+							AND p."amount" > ${rentOutstandingSql()}`,
 				),
 			),
 			db.execute(allocateRentPaymentsSql(sql`p."id" = ${input.id}`)),
@@ -338,7 +355,7 @@ async function insertNeonPayment(
 		);
 	}
 	const results = await db.batch(batch);
-	const result = results[1] as (typeof results)[number] & {
+	const result = results[insertIndex] as (typeof results)[number] & {
 		rows: Array<{ id: string }>;
 	};
 	return result.rows[0]?.id;
@@ -678,11 +695,11 @@ export const createPayment = ownerProcedure
 			) {
 				const due = utilityId
 					? await getAmountDueForUtility(db, utilityId)
-					: await getAmountDueForRent(db, input.leaseId);
+					: (await getLeasePeriodDue(db, input.leaseId)).maxAllowed;
 				throw new ORPCError("BAD_REQUEST", {
 					message: utilityId
 						? `Payment must equal the outstanding utility balance of ${formatRupees(due)}. Advance payments are not supported.`
-						: `Payment exceeds the outstanding rent balance of ${formatRupees(due)}. Advance payments are not supported.`,
+						: `Payment exceeds the outstanding rent balance plus the one-period advance cap of ${formatRupees(due)}.`,
 				});
 			}
 		} else {
@@ -719,13 +736,25 @@ export const createPayment = ownerProcedure
 						});
 					}
 				} else if (input.type === PAYMENT_TYPES.RENT) {
-					const due = await getAmountDueForRent(tx, input.leaseId);
-					// C01 R8: partial payments settle part of the balance; only
-					// advances (exceeding what is owed) are refused.
-					if (input.amount > due) {
+					// C08: the period outstanding IS the rent due. Accrue first so
+					// the bound sees the full charge set (the tx rolls back on a
+					// failed validation, so this is side-effect free); partials
+					// settle part of it (R8); anything beyond it prepays at most
+					// one future period (R6), whose charge the accrual creates.
+					await tx.execute(ensureAccruedChargesSql({ leaseId: input.leaseId }));
+					const bound = await getLeasePeriodDue(tx, input.leaseId);
+					if (input.amount > bound.maxAllowed) {
 						throw new ORPCError("BAD_REQUEST", {
-							message: `Payment exceeds the outstanding rent balance of ${formatRupees(due)}. Advance payments are not supported.`,
+							message: `Payment exceeds the outstanding rent balance plus the one-period advance cap of ${formatRupees(bound.maxAllowed)}.`,
 						});
+					}
+					// R6: the next period's charge exists only when this payment
+					// actually prepays beyond the outstanding charges — never as a
+					// side effect of an ordinary settlement.
+					if (input.amount > bound.outstanding) {
+						await tx.execute(
+							ensureNextFuturePeriodChargeSql({ leaseId: input.leaseId }),
+						);
 					}
 				}
 
@@ -751,14 +780,14 @@ export const createPayment = ownerProcedure
 						.set({ isPaid: dueAfter <= 0 })
 						.where(eq(utilities.id, utilityId));
 				} else if ((input.type ?? PAYMENT_TYPES.RENT) === PAYMENT_TYPES.RENT) {
-					// C04 dual-write: accrue charges, allocate FIFO, and list any
-					// remainder a divergent history cannot absorb — atomically.
+					// C04/C08: charges were accrued before validation; pour the
+					// payment FIFO and list any remainder a divergent history
+					// cannot absorb — atomically.
 					if (!newPayment) {
 						throw new ORPCError("INTERNAL_SERVER_ERROR", {
 							message: "Failed to record payment",
 						});
 					}
-					await tx.execute(ensureAccruedChargesSql({ leaseId: input.leaseId }));
 					await tx.execute(
 						allocateRentPaymentsSql(sql`p."id" = ${newPayment.id}`),
 					);
@@ -814,9 +843,9 @@ function groupedNeonInsertQuery(
 		requestFingerprint: string;
 	},
 ) {
-	// The due expression mirrors getAmountDueForRent: rent plus non-utility
-	// credits minus the signed rent ledger, with reversal categories taken from
-	// the reversesPaymentId link (referenceNumber as the legacy fallback).
+	// The due expression is the C08 period outstanding: charges minus
+	// allocations per lease (rentOutstandingSql), the same value the balance
+	// read model reports as totalRentDue.
 	return db.execute<{
 		group_id: string | null;
 		payment_count: number;
@@ -825,32 +854,7 @@ function groupedNeonInsertQuery(
 	}>(sql`
 		with dues as materialized (
 			select l."id" as "lease_id",
-				l."rent"
-				+ coalesce((
-					select sum(bc."amount")
-					from ${billCredits} bc
-					where bc."lease_id" = l."id" and bc."utility_id" is null
-				), 0)
-				- coalesce((
-					select sum(p."amount")
-					from ${payments} p
-					left join ${payments} op
-						on p."type" = 'reversal'
-						and op."lease_id" = p."lease_id"
-						and (
-							op."id" = p."reverses_payment_id"
-							or (
-								p."reverses_payment_id" is null
-								and p."reference_number" = op."id"::text
-							)
-						)
-					where p."lease_id" = l."id"
-						and p."utility_id" is null
-						and (
-							p."type" = 'rent'
-							or (p."type" = 'reversal' and op."type" = 'rent')
-						)
-				), 0) as "due"
+				${rentOutstandingSql()} as "due"
 			from ${leases} l
 			where l."agreement_id" = ${params.agreementId} and l."status" = 'active'
 		),
@@ -938,40 +942,16 @@ function combinedNeonInsertQuery(
 		requestFingerprint: string;
 	},
 ) {
-	// The rent due expression mirrors getAmountDueForRent and the utility due
-	// expression mirrors getAmountDueForUtility (as in B10/B08): server-derived
+	// The rent due expression is the C08 period outstanding (rentOutstandingSql,
+	// charges − allocations); the utility due expression still mirrors
+	// getAmountDueForUtility (utilities have no period ledger): server-derived
 	// balances computed from committed rows inside the same statement, with the
 	// group and allocation inserts gated on the validation predicate. The rent
 	// leg is optional — included only when outstanding rent is positive; every
 	// named utility must be positive or nothing is written.
 	return db.execute<{ group_id: string | null; payment_count: number }>(sql`
 		with rent_due as materialized (
-			select l."rent"
-				+ coalesce((
-					select sum(bc."amount")
-					from ${billCredits} bc
-					where bc."lease_id" = l."id" and bc."utility_id" is null
-				), 0)
-				- coalesce((
-					select sum(p."amount")
-					from ${payments} p
-					left join ${payments} op
-						on p."type" = 'reversal'
-						and op."lease_id" = p."lease_id"
-						and (
-							op."id" = p."reverses_payment_id"
-							or (
-								p."reverses_payment_id" is null
-								and p."reference_number" = op."id"::text
-							)
-						)
-					where p."lease_id" = l."id"
-						and p."utility_id" is null
-						and (
-							p."type" = 'rent'
-							or (p."type" = 'reversal' and op."type" = 'rent')
-						)
-				), 0) as "due"
+			select ${rentOutstandingSql()} as "due"
 			from ${leases} l
 			where l."id" = ${params.leaseId}
 		),
@@ -1155,17 +1135,13 @@ export const createAgreementPayment = ownerProcedure
 				requestFingerprint,
 			});
 			try {
-				const [, result] = await db.batch([
+				const [, , result] = await db.batch([
 					groupedNeonLockQuery(db, agreement.id),
+					// C08: accrue BEFORE the insert so the dues CTE sees the full
+					// charge set (idempotent; a refused insert leaves correct
+					// charges and allocates nothing).
+					db.execute(ensureAccruedChargesSql({ agreementId: agreement.id })),
 					insertQuery,
-					// C04 dual-write: accrue every active lease's charges and
-					// allocate the group's rent payments FIFO — same transaction.
-					db.execute(
-						ensureAccruedChargesSql(
-							{ agreementId: agreement.id },
-							sql`SELECT 1 FROM "payment_groups" WHERE "id" = ${groupId}`,
-						),
-					),
 					db.execute(
 						allocateRentPaymentsSql(sql`p."payment_group_id" = ${groupId}`),
 					),
@@ -1255,10 +1231,17 @@ export const createAgreementPayment = ownerProcedure
 						if (txReplay) return;
 					}
 
+					// C08: accrue before computing dues so each lease's period
+					// outstanding is complete (tx rollback keeps a failed
+					// validation side-effect free).
+					await tx.execute(
+						ensureAccruedChargesSql({ agreementId: agreement.id }),
+					);
+
 					const allocations = await Promise.all(
 						lockedLeases.map(async ({ id }) => ({
 							leaseId: id,
-							amount: await getAmountDueForRent(tx, id),
+							amount: (await getLeasePeriodDue(tx, id)).outstanding,
 						})),
 					);
 					if (allocations.some(({ amount }) => amount <= 0)) {
@@ -1283,11 +1266,8 @@ export const createAgreementPayment = ownerProcedure
 						})),
 					);
 
-					// C04 dual-write: accrue every active lease's charges and
-					// allocate the group's rent payments FIFO — same transaction.
-					await tx.execute(
-						ensureAccruedChargesSql({ agreementId: agreement.id }),
-					);
+					// C08: charges were accrued before the dues computation; pour
+					// the group's rent payments FIFO — same transaction.
 					await tx.execute(
 						allocateRentPaymentsSql(sql`p."payment_group_id" = ${groupId}`),
 					);
@@ -1450,9 +1430,14 @@ export const createCombinedBillPayment = ownerProcedure
 
 		if (supportsBatch(db)) {
 			try {
-				const [, , result] = await db.batch([
+				const [, , , result] = await db.batch([
 					combinedNeonLeaseLockQuery(db, leaseRow.id),
 					combinedNeonUtilityLockQuery(db, leaseRow.id, utilityIdList),
+					// C08: accrue BEFORE the insert so the rent_due CTE sees the
+					// full charge set (idempotent; a refused insert leaves correct
+					// charges and allocates nothing). Rent leg only — utility legs
+					// never touch the rent ledger.
+					db.execute(ensureAccruedChargesSql({ leaseId: leaseRow.id })),
 					combinedNeonInsertQuery(db, {
 						agreementId,
 						leaseId: leaseRow.id,
@@ -1466,14 +1451,6 @@ export const createCombinedBillPayment = ownerProcedure
 						idempotencyKey,
 						requestFingerprint,
 					}),
-					// C04 dual-write: accrue + allocate the rent leg only —
-					// utility legs never touch the rent ledger.
-					db.execute(
-						ensureAccruedChargesSql(
-							{ leaseId: leaseRow.id },
-							sql`SELECT 1 FROM "payment_groups" WHERE "id" = ${groupId}`,
-						),
-					),
 					db.execute(
 						allocateRentPaymentsSql(
 							sql`p."payment_group_id" = ${groupId} AND p."type" = 'rent'`,
@@ -1559,7 +1536,13 @@ export const createCombinedBillPayment = ownerProcedure
 						});
 					}
 
-					const rentDue = await getAmountDueForRent(tx, leaseRow.id);
+					// C08: accrue before computing dues so the rent leg uses the
+					// complete period outstanding (tx rollback keeps a failed
+					// validation side-effect free).
+					await tx.execute(ensureAccruedChargesSql({ leaseId: leaseRow.id }));
+
+					const rentDue = (await getLeasePeriodDue(tx, leaseRow.id))
+						.outstanding;
 					const utilityDues: Array<{ utilityId: string; amount: number }> = [];
 					for (const { id } of lockedUtilities) {
 						const due = await getAmountDueForUtility(tx, id);
@@ -1612,9 +1595,8 @@ export const createCombinedBillPayment = ownerProcedure
 						await syncUtilityPaidFlag(tx, utilityId);
 					}
 
-					// C04 dual-write: accrue + allocate the rent leg only —
-					// utility legs never touch the rent ledger.
-					await tx.execute(ensureAccruedChargesSql({ leaseId: leaseRow.id }));
+					// C08: charges were accrued before the dues computation; pour
+					// the rent leg only — utility legs never touch the rent ledger.
 					await tx.execute(
 						allocateRentPaymentsSql(
 							sql`p."payment_group_id" = ${groupId} AND p."type" = 'rent'`,

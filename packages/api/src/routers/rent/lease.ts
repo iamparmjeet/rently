@@ -559,6 +559,24 @@ export const updateLease = ownerProcedure
 			});
 		}
 
+		// E06: reactivation is status-only. A terminated→active transition
+		// must not rewrite rent, deposit, dates, or references on a closed
+		// lease — those terms price already-recorded history.
+		const reactivating =
+			input.data.status === "active" && ownership.status !== "active";
+		if (
+			reactivating &&
+			(input.data.rent !== undefined ||
+				input.data.deposit !== undefined ||
+				input.data.startDate !== undefined ||
+				input.data.endDate !== undefined ||
+				input.data.referenceId !== undefined)
+		) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Reactivation cannot change lease terms.",
+			});
+		}
+
 		// Reactivating a non-active lease must not evict a unit that is already
 		// occupied by another active lease.
 		if (input.data.status === "active" && ownership.status !== "active") {
@@ -632,8 +650,7 @@ export const updateLease = ownerProcedure
 			: null;
 		// D04: a reactivation is an activation — the tenant consumes a seat
 		// unless they already hold another active lease under this owner.
-		const reactivating =
-			input.data.status === "active" && ownership.status !== "active";
+		// (E06 defines `reactivating` with the guards above; reuse it here.)
 
 		const updateLeaseQuery = db
 			.update(leases)

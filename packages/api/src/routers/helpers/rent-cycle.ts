@@ -22,9 +22,12 @@ export type RentCycleRow = {
 	endDate: Date | null;
 	rentDueDate: number | null;
 	leaseStatus: "active" | "expired" | "terminated";
-	paidAmount: number;
-	/** Sum of rent/general bill_credits (negative discounts + positive reversals net) */
-	creditAmount: number;
+	/** Period-ledger charges with their snapshotted clamped due dates and remaining paise (C08). */
+	charges: Array<{
+		periodKey: string;
+		dueDate: string;
+		outstanding: number;
+	}>;
 	leaseExpiryAlert: boolean;
 	rentDueReminder: boolean;
 	overdueAlert: boolean;
@@ -137,15 +140,17 @@ export function computeRentCycleItem(
 		}
 	}
 
-	// Effective rent after discounts/credits (rent + negative credits + positive reversals)
-	const effectiveRent = row.rent + (row.creditAmount ?? 0);
-	if (
-		row.rentDueDate === null ||
-		row.rentDueDate < 1 ||
-		row.rentDueDate > 31 ||
-		row.paidAmount >= effectiveRent
-	)
+	// ── C08: rent reminders are per period (R14) ──
+	// RENT_DUE fires leadDays before a period's clamped due date when that
+	// period still has outstanding paise. The candidate periods are computed
+	// from the lease's due day (the lead window may cross into the next
+	// month, whose charge may not exist yet under lazy accrual): a missing
+	// charge for a period the lease is guaranteed to occupy in full reads as
+	// the full rent — it will accrue to exactly that; a period the lease ends
+	// midway is skipped (its prorated amount is not yet knowable).
+	if (row.rentDueDate === null || row.rentDueDate < 1 || row.rentDueDate > 31) {
 		return items;
+	}
 
 	const currentPeriodKey = localToday.slice(0, 7);
 	const duePeriodKey = [
@@ -164,30 +169,44 @@ export function computeRentCycleItem(
 
 	if (duePeriodKey) {
 		const dueDate = getDueDateKey(duePeriodKey, row.rentDueDate);
-		items.push({
-			type: SCHEDULED_EMAIL_TYPES.RENT_DUE,
-			periodKey: duePeriodKey,
-			thresholdDays: row.rentDueLeadDays,
-			dueDate,
-			endDate,
-			row,
-		});
+		const charge = row.charges.find((c) => c.periodKey === duePeriodKey);
+		// Missing charge: the period is only guaranteed a full month when the
+		// tenancy reaches (at least) its last day — getDueDateKey with day 31
+		// clamps to the month's length.
+		const guaranteedFull =
+			!endDate || endDate >= getDueDateKey(duePeriodKey, 31);
+		const outstanding = charge?.outstanding ?? (guaranteedFull ? row.rent : 0);
+		if (outstanding > 0) {
+			items.push({
+				type: SCHEDULED_EMAIL_TYPES.RENT_DUE,
+				periodKey: duePeriodKey,
+				thresholdDays: row.rentDueLeadDays,
+				dueDate,
+				endDate,
+				row,
+			});
+		}
 	}
 
-	const currentDueDate = getDueDateKey(currentPeriodKey, row.rentDueDate);
-	const daysUntilCurrentDue = differenceInCalendarDays(
-		localToday,
-		currentDueDate,
-	);
-	if (daysUntilCurrentDue === -row.overdueGraceDays) {
-		items.push({
-			type: SCHEDULED_EMAIL_TYPES.OVERDUE,
-			periodKey: currentPeriodKey,
-			thresholdDays: row.overdueGraceDays,
-			dueDate: currentDueDate,
-			endDate,
-			row,
-		});
+	// OVERDUE fires graceDays after a period's own due date while that period
+	// is still outstanding — past periods whose day passed silently stay in
+	// the read model instead of bursting notices for a backdated lease (R13).
+	for (const charge of row.charges) {
+		if (charge.outstanding <= 0) continue;
+		if (charge.dueDate < getLocalDateKey(row.startDate)) continue;
+		if (
+			differenceInCalendarDays(localToday, charge.dueDate) ===
+			-row.overdueGraceDays
+		) {
+			items.push({
+				type: SCHEDULED_EMAIL_TYPES.OVERDUE,
+				periodKey: charge.periodKey,
+				thresholdDays: row.overdueGraceDays,
+				dueDate: charge.dueDate,
+				endDate,
+				row,
+			});
+		}
 	}
 
 	return items;

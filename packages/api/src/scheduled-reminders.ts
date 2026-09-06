@@ -1,6 +1,5 @@
 import type { Database } from "@rently/db";
 import { db as defaultDb } from "@rently/db";
-import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import {
 	SCHEDULED_EMAIL_DELIVERY_STATUSES,
 	SCHEDULED_EMAIL_TYPES,
@@ -11,7 +10,6 @@ import {
 } from "@rently/db/constants/workspace-modes";
 import { user } from "@rently/db/schema/auth";
 import {
-	billCredits,
 	leases,
 	notificationPreferences,
 	properties,
@@ -26,6 +24,7 @@ import {
 } from "@rently/email";
 import { and, asc, eq, inArray, isNull } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
+import { getChargeOutstandingRows } from "./routers/helpers/period-balance";
 import {
 	computeRentCycleItem,
 	DEFAULT_OVERDUE_GRACE_DAYS,
@@ -36,7 +35,6 @@ import {
 	type RentCycleItem,
 	type RentCycleRow,
 } from "./routers/helpers/rent-cycle";
-import { getSignedLedgerPayments } from "./routers/helpers/signed-ledger";
 
 const tenantUser = alias(user, "scheduled_tenant");
 
@@ -101,41 +99,17 @@ export async function queryRentCycleRows(
 	const periodKey = getLocalPeriodKey(now);
 	const suppressionPeriodKeys = [periodKey, getAdjacentPeriodKey(periodKey, 1)];
 	const leaseIds = rows.map((row) => row.leaseId);
-	const paymentRows = await getSignedLedgerPayments(database, { leaseIds });
 
-	const paidByLease = new Map<string, number>();
-	for (const payment of paymentRows) {
-		if (
-			payment.utilityId !== null ||
-			payment.category !== PAYMENT_TYPES.RENT ||
-			getLocalPeriodKey(payment.paymentDate) !== periodKey
-		)
-			continue;
-		paidByLease.set(
-			payment.leaseId,
-			(paidByLease.get(payment.leaseId) ?? 0) + payment.amount,
-		);
-	}
-
-	// Rent/general credits (utilityId null) net against rent — negative discounts + positive reversals
-	const creditRows = await database
-		.select({
-			leaseId: billCredits.leaseId,
-			amount: billCredits.amount,
-		})
-		.from(billCredits)
-		.where(
-			and(
-				inArray(billCredits.leaseId, leaseIds),
-				isNull(billCredits.utilityId),
-			),
-		);
-	const creditByLease = new Map<string, number>();
-	for (const row of creditRows) {
-		creditByLease.set(
-			row.leaseId,
-			(creditByLease.get(row.leaseId) ?? 0) + row.amount,
-		);
+	// C08 cutover: reminders read the period ledger. Charges are ensured
+	// first (lazy accrual — an idle lease still has its current-period row),
+	// and each row carries its per-period outstanding instead of the old
+	// "this month's payments vs rent" heuristic.
+	const chargeRows = await getChargeOutstandingRows(database, leaseIds);
+	const chargesByLease = new Map<string, typeof chargeRows>();
+	for (const charge of chargeRows) {
+		const list = chargesByLease.get(charge.leaseId) ?? [];
+		list.push(charge);
+		chargesByLease.set(charge.leaseId, list);
 	}
 
 	const suppressions = await database
@@ -152,8 +126,11 @@ export async function queryRentCycleRows(
 		);
 	return rows.map((row) => ({
 		...row,
-		paidAmount: paidByLease.get(row.leaseId) ?? 0,
-		creditAmount: creditByLease.get(row.leaseId) ?? 0,
+		charges: (chargesByLease.get(row.leaseId) ?? []).map((charge) => ({
+			periodKey: charge.periodKey,
+			dueDate: charge.dueDate,
+			outstanding: charge.outstanding,
+		})),
 		leaseExpiryAlert: row.leaseExpiryAlert ?? true,
 		rentDueReminder: row.rentDueReminder ?? true,
 		overdueAlert: row.overdueAlert ?? true,

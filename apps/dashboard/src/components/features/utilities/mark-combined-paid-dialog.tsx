@@ -30,6 +30,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import z from "zod";
+import { invalidatePeriodBalances } from "@/hooks/balance/use-period-balance";
 import { client, orpc } from "@/utils/orpc";
 
 const FormSchema = z.object({
@@ -145,6 +146,7 @@ export function MarkCombinedPaidDialog({
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.stats.getRevenueDashboard.key(),
 			});
+			invalidatePeriodBalances(queryClient);
 			for (const u of items) {
 				queryClient.invalidateQueries({
 					queryKey: orpc.rent.utility.getUtilityById.key({

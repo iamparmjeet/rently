@@ -239,6 +239,13 @@
       "when": 1788690431035,
       "tag": "0033_graceful_living_tribunal",
       "breakpoints": true
+    },
+    {
+      "idx": 34,
+      "version": "7",
+      "when": 1788691075617,
+      "tag": "0034_kind_blindfold",
+      "breakpoints": true
     }
   ]
 }

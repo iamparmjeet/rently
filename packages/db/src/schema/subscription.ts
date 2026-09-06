@@ -125,3 +125,26 @@ export const betaAccessCodes = pgTable("beta_access_codes", {
 	expiresAt: timestamp("expires_at"), // null = never expires
 	createdAt: timestamp("created_at").defaultNow().notNull(),
 });
+
+// D02: one redemption per (code, user). The unique index is the same-user
+// retry arbiter — a repeated redeem reads as already-redeemed instead of
+// burning another use. RESTRICT FKs keep granted entitlements auditable.
+export const betaCodeRedemptions = pgTable(
+	"beta_code_redemptions",
+	{
+		...idColumn(),
+		codeId: uuid("code_id")
+			.notNull()
+			.references(() => betaAccessCodes.id, { onDelete: "restrict" }),
+		userId: uuid("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "restrict" }),
+		...auditColumns(),
+	},
+	(table) => [
+		uniqueIndex("beta_code_redemptions_code_user_unique").on(
+			table.codeId,
+			table.userId,
+		),
+	],
+);

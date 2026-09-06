@@ -371,7 +371,11 @@ afterEach(async () => {
 });
 
 describe("tenant plan limit at activation", () => {
-	it("lets exactly one of two concurrent activations pass on a full plan (node path)", async () => {
+	// The races wait on real advisory-lock contention; under a loaded machine
+	// that can exceed vitest's 5s default, so these get an explicit budget.
+	it("lets exactly one of two concurrent activations pass on a full plan (node path)", {
+		timeout: 30_000,
+	}, async () => {
 		// Pre-fix both activations succeeded: nothing checked seats at
 		// activation, so the plan limit was unenforceable under concurrency.
 		const owner = await createOwner();
@@ -431,7 +435,9 @@ describe("tenant plan limit at activation", () => {
 		expect(loserUnit?.status).toBe("available");
 	});
 
-	it("lets exactly one of two concurrent activations pass on a full plan (Neon batch path)", async () => {
+	it("lets exactly one of two concurrent activations pass on a full plan (Neon batch path)", {
+		timeout: 30_000,
+	}, async () => {
 		// The batch path wires the seat assert as batch[0]; a raise there must
 		// abort every statement of the production Neon batch, not just the
 		// lease insert.

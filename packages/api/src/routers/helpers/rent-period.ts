@@ -200,3 +200,46 @@ export function reportUnallocatedRentPaymentRemaindersSql(
 				WHERE ra."payment_id" = p."id"
 			), 0) > 0`;
 }
+
+// ── C08 cutover: the period outstanding IS the rent due ──
+// Scalar expression of a lease's period outstanding (charges − allocations,
+// C02 sign convention), usable inside CTEs that alias the lease as `l`.
+// This replaces every lifetime due mirror (rent + credits − signed ledger).
+export function rentOutstandingSql(): SQL {
+	return sql`(COALESCE((SELECT SUM(c."amount") FROM "rent_charges" c WHERE c."lease_id" = l."id"), 0) - COALESCE((SELECT SUM(ra."amount") FROM "rent_allocations" ra JOIN "rent_charges" c2 ON c2."id" = ra."charge_id" WHERE c2."lease_id" = l."id"), 0))`;
+}
+
+// R6 prepay: create THE next future period's charge (current IST month + 1)
+// so a payment beyond the outstanding charges can pour into it. The charge is
+// a full month (R4/R5 proration only applies at tenancy edges, so a future
+// period is only created when the lease is guaranteed active all of it — no
+// end date, or an end date beyond the whole next month — and the lease has
+// already started). Idempotent via the (lease_id, period_key) unique index.
+export function ensureNextFuturePeriodChargeSql(
+	scope: { leaseId: string },
+	gate?: SQL,
+): SQL {
+	const gateFilter = gate ? sql` AND EXISTS (${gate})` : sql``;
+	return sql`
+		INSERT INTO "rent_charges" ("id", "lease_id", "period_key", "due_date", "amount")
+		SELECT
+			gen_random_uuid(),
+			l."id",
+			to_char(x.p_next, 'YYYY-MM'),
+			make_date(
+				extract(year from x.p_next)::int,
+				extract(month from x.p_next)::int,
+				least(
+					coalesce(l."rent_due_date", extract(day from l."start_date")::int),
+					extract(day from (x.p_next + interval '1 month - 1 day'))::int
+				)
+			),
+			l."rent"
+		FROM "leases" l
+		CROSS JOIN (SELECT (date_trunc('month', now() AT TIME ZONE 'Asia/Kolkata') + interval '1 month') AS p_next) x
+		WHERE l."id" = ${scope.leaseId}
+			AND l."status" = 'active'
+			AND l."start_date"::date < x.p_next::date
+			AND (l."end_date" IS NULL OR l."end_date"::date >= (x.p_next + interval '1 month')::date)${gateFilter}
+		ON CONFLICT ("lease_id", "period_key") DO NOTHING`;
+}

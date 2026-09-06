@@ -1,3 +1,4 @@
+import { ORPCError } from "@orpc/server";
 import type { Database } from "@rently/db";
 import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import {
@@ -8,17 +9,23 @@ import {
 	utilities,
 } from "@rently/db/schema/schema";
 import { and, eq, inArray, isNull, sql } from "drizzle-orm";
-import { getAmountDueForRent, getAmountDueForUtility } from "./credit.helpers";
-import { getLocalDateKey, getLocalPeriodKey } from "./rent-cycle";
+import type { DbTx } from "./credit.helpers";
+import { getAmountDueForUtility } from "./credit.helpers";
+import {
+	getLocalDateKey,
+	getLocalPeriodKey,
+	getNextLocalPeriodKey,
+} from "./rent-cycle";
 import { ensureAccruedChargesSql } from "./rent-period";
 import { getSignedLedgerPayments } from "./signed-ledger";
 
 // ── Period-aware balance read model (C05; rules in docs/Rent-Period-Rules.md) ──
 // One owner/tenant-safe server model answering "what does this lease actually
 // owe": per-period charges minus allocations (C02 sign convention — an
-// allocation is the paise that SETTLES the charge), the lifetime compatibility
-// read, credits, paid amounts, and utilities. This does not replace any
-// existing reader (C08 cutover); screens migrate in C06/C07.
+// allocation is the paise that SETTLES the charge), credits, paid amounts, and
+// utilities. Since the C08 cutover this IS the production rent read: writers
+// validate against it and reminders/overdue/statistics consume it — no
+// lifetime rent read remains (getAmountDueForRent was removed with C08).
 //
 // Charges are ensured before reading: during the lazy-accrual phase (C04
 // decision) charges appear at operation time, so a lease idle across a month
@@ -68,12 +75,6 @@ export type LeasePeriodBalance = {
 	// Every outstanding paise across all charges (arrears + current; future
 	// prepaid charges are fully allocated, so they contribute nothing).
 	totalRentDue: number;
-	// The compatibility lifetime read (getAmountDueForRent) — kept until C08.
-	lifetimeRentDue: number;
-	// totalRentDue − lifetimeRentDue: the accrued history the lifetime model
-	// cannot see (0 for leases created in the current period; the visible
-	// backdated gap on R13 arrears).
-	accruedGap: number;
 	// Net rent-scoped bill_credits (negative discounts + positive reversals)
 	// and the signed paise of those credits already poured into charges.
 	credits: { total: number; allocatedToCharges: number };
@@ -233,7 +234,6 @@ export async function getLeasePeriodBalances(
 			});
 		}
 
-		const lifetimeRentDue = await getAmountDueForRent(db, lease.id);
 		const totalRentDue = charges.reduce(
 			(sum, charge) => sum + charge.outstanding,
 			0,
@@ -258,8 +258,6 @@ export async function getLeasePeriodBalances(
 				.filter((charge) => charge.isOverdue)
 				.reduce((sum, charge) => sum + charge.outstanding, 0),
 			totalRentDue,
-			lifetimeRentDue,
-			accruedGap: totalRentDue - lifetimeRentDue,
 			credits: {
 				total: aggregateAmount(credits?.total),
 				allocatedToCharges: aggregateAmount(split?.creditAllocated),
@@ -283,4 +281,134 @@ export async function getLeasePeriodBalances(
 		const byStart = a.startDate.getTime() - b.startDate.getTime();
 		return byStart !== 0 ? byStart : a.leaseId.localeCompare(b.leaseId);
 	});
+}
+
+// ── C08: writer validation bound ──
+// The period outstanding plus the R6 prepay cap (at most one future period,
+// and only when the lease is guaranteed active for that entire month — the
+// same eligibility `ensureNextFuturePeriodChargeSql` enforces, so an accepted
+// payment can always be poured in full).
+export type LeaseSettlementBound = {
+	/** Outstanding on current + past periods (arrears + current due). */
+	outstanding: number;
+	/** Headroom left under the one-future-period prepay cap (R6). */
+	prepayCap: number;
+	/** The largest rent payment the period ledger can absorb in full. */
+	maxAllowed: number;
+};
+
+export async function getLeasePeriodDue(
+	db: DbTx | Database,
+	leaseId: string,
+): Promise<LeaseSettlementBound> {
+	const [lease] = await db
+		.select({
+			rent: leases.rent,
+			status: leases.status,
+			startDate: leases.startDate,
+			endDate: leases.endDate,
+		})
+		.from(leases)
+		.where(eq(leases.id, leaseId))
+		.limit(1);
+
+	if (!lease) throw new ORPCError("NOT_FOUND", { message: "Lease not found" });
+
+	const [sums] = await db
+		.select({
+			charged: sql<string | number>`coalesce(sum(${rentCharges.amount}), 0)`,
+		})
+		.from(rentCharges)
+		.where(eq(rentCharges.leaseId, leaseId));
+	const [allocations] = await db
+		.select({
+			allocated: sql<
+				string | number
+			>`coalesce(sum(${rentAllocations.amount}), 0)`,
+		})
+		.from(rentAllocations)
+		.innerJoin(rentCharges, eq(rentAllocations.chargeId, rentCharges.id))
+		.where(eq(rentCharges.leaseId, leaseId));
+
+	const outstanding =
+		aggregateAmount(sums?.charged) - aggregateAmount(allocations?.allocated);
+
+	// Prepay eligibility mirrors ensureNextFuturePeriodChargeSql: active,
+	// already started, and no end date inside the next period.
+	let prepayCap = 0;
+	if (lease.status === "active") {
+		const nextPeriodStart = `${getNextLocalPeriodKey(new Date())}-01`;
+		const nextPeriodEnd = new Date(`${nextPeriodStart}T00:00:00Z`);
+		nextPeriodEnd.setUTCMonth(nextPeriodEnd.getUTCMonth() + 1);
+		const startedBeforeNextPeriod =
+			getLocalDateKey(lease.startDate) < nextPeriodStart;
+		const activeWholeNextPeriod =
+			!lease.endDate ||
+			getLocalDateKey(lease.endDate) >= getLocalDateKey(nextPeriodEnd);
+		if (startedBeforeNextPeriod && activeWholeNextPeriod) {
+			prepayCap = lease.rent;
+		}
+	}
+
+	return { outstanding, prepayCap, maxAllowed: outstanding + prepayCap };
+}
+
+// Per-lease charge outstanding rows for reminder/overdue consumers: ensures
+// the charge set exists (lazy accrual) and returns one row per charge with
+// its snapshotted due date and remaining paise.
+export type ChargeOutstandingRow = {
+	leaseId: string;
+	periodKey: string;
+	dueDate: string;
+	amount: number;
+	outstanding: number;
+};
+
+export async function getChargeOutstandingRows(
+	db: DbTx | Database,
+	leaseIds: string[],
+): Promise<ChargeOutstandingRow[]> {
+	if (leaseIds.length === 0) return [];
+	for (const leaseId of leaseIds) {
+		await db.execute(ensureAccruedChargesSql({ leaseId }));
+	}
+	return readChargeOutstandingRows(db, leaseIds);
+}
+
+// Pure read: no accrual side effect. The overdue report uses this — the
+// nightly reminder job (queryRentCycleRows) owns keeping the charge set
+// fresh, so a report must not depend on the wall clock of its caller.
+export async function readChargeOutstandingRows(
+	db: DbTx | Pick<Database, "select">,
+	leaseIds: string[],
+): Promise<ChargeOutstandingRow[]> {
+	if (leaseIds.length === 0) return [];
+	const rows = await db
+		.select({
+			leaseId: rentCharges.leaseId,
+			periodKey: rentCharges.periodKey,
+			dueDate: rentCharges.dueDate,
+			amount: rentCharges.amount,
+			allocated: sql<
+				string | number
+			>`coalesce(sum(${rentAllocations.amount}), 0)`,
+		})
+		.from(rentCharges)
+		.leftJoin(rentAllocations, eq(rentAllocations.chargeId, rentCharges.id))
+		.where(inArray(rentCharges.leaseId, leaseIds))
+		.groupBy(
+			rentCharges.id,
+			rentCharges.leaseId,
+			rentCharges.periodKey,
+			rentCharges.dueDate,
+			rentCharges.amount,
+		)
+		.orderBy(rentCharges.periodKey);
+	return rows.map((row) => ({
+		leaseId: row.leaseId,
+		periodKey: row.periodKey,
+		dueDate: row.dueDate,
+		amount: row.amount,
+		outstanding: row.amount - aggregateAmount(row.allocated),
+	}));
 }

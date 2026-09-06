@@ -6,6 +6,7 @@
 - Implementer is now Muse Spark throughout; Terra review is deferred, not waived.
 - Terra review debt (must clear before any `[x]` or `main` rollup): A03 (Terra Medium), A04 (Terra High), and every later slice per Fix-Plan §7.
 - Muse rules until debt is paid: no business-semantic decisions without stopping to ask; nothing production-touching; slices stay `[~]` at best.
+- Standing owner authorization (2026-09-06): implement → verify → commit file-by-file (conventional, no emoji) → push each commit → merge into `integ/phase-a-baseline` after gates + Lefthook pass. No per-step approval, no PRs, no rollup PR into `main`, never touch `main`. Terra batch review happens on the final integ branch.
 
 Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is already merged into `main` via `d716bd9`/`2250e3f`) and records the new ledger/lifecycle bugfix branch.
 

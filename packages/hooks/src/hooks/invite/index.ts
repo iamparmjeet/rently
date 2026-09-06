@@ -1,4 +1,4 @@
-export { useAcceptInvite } from "./use-accept-invite";
+export { useAcceptInvite, useClaimInvite } from "./use-accept-invite";
 export { useCreateInvite } from "./use-invite-mutation";
 export { useInvites } from "./use-invites";
 

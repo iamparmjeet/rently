@@ -38,3 +38,12 @@ export function useAcceptInvite() {
 		},
 	});
 }
+
+export function useClaimInvite() {
+	const client = useClient();
+
+	return useMutation({
+		mutationFn: (input: Parameters<typeof client.rent.invite.claimInvite>[0]) =>
+			client.rent.invite.claimInvite(input),
+	});
+}

@@ -59,6 +59,10 @@ export const AcceptInviteSchema = z
 	})
 	.extend(TenantCompletedProfileSchema.shape);
 
+export const ClaimInviteSchema = z.object({
+	token: z.uuid("Invalid invite link"),
+});
+
 export const CreateReferrerSchema = ReferrerInsertSchema.omit({
 	id: true,
 	createdAt: true,

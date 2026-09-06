@@ -22,7 +22,7 @@ import {
 	sendOverdueRentReminderEmail,
 	sendRentDueReminderEmail,
 } from "@rently/email";
-import { and, asc, eq, inArray, isNull } from "drizzle-orm";
+import { and, asc, eq, inArray, isNull, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import { getChargeOutstandingRows } from "./routers/helpers/period-balance";
 import {
@@ -195,7 +195,9 @@ async function sendReminder(item: RentCycleItem): Promise<void> {
 	});
 }
 
-async function claimDelivery(
+// Exported as a test seam: F03 pins the reclaim race at this unit because
+// two full job runs serialize on this driver and cannot overlap here.
+export async function claimDelivery(
 	database: Database,
 	item: RentCycleItem,
 ): Promise<{ state: "claimed" | "duplicate"; id?: string }> {
@@ -259,13 +261,25 @@ async function claimDelivery(
 		existing.updatedAt &&
 		Date.now() - new Date(existing.updatedAt).getTime() > 60 * 60 * 1000
 	) {
+		// F03: the reclaim is one conditional statement — still failed AND
+		// still old — so exactly one simultaneous worker wins the retry and
+		// only the winner sends. A loser matches zero rows below.
 		const [retried] = await database
 			.update(scheduledEmailDeliveries)
 			.set({
 				status: SCHEDULED_EMAIL_DELIVERY_STATUSES.CLAIMED,
 				updatedAt: new Date(),
 			})
-			.where(eq(scheduledEmailDeliveries.id, existing.id))
+			.where(
+				and(
+					eq(scheduledEmailDeliveries.id, existing.id),
+					eq(
+						scheduledEmailDeliveries.status,
+						SCHEDULED_EMAIL_DELIVERY_STATUSES.FAILED,
+					),
+					sql`${scheduledEmailDeliveries.updatedAt} < now() - interval '1 hour'`,
+				),
+			)
 			.returning();
 		if (retried) return { state: "claimed", id: retried.id };
 	}

@@ -518,7 +518,8 @@ function assertMethodAllowedForRole(
 		});
 	}
 }
-// Fetches a payment + walks the JOIN chain to get ownerId for auth
+// Fetches a payment + walks the JOIN chain to get ownerId for auth.
+// E08: payments under archived properties/units are historical-only.
 async function getOwnedPayment(
 	db: Database,
 	paymentId: string,
@@ -545,7 +546,13 @@ async function getOwnedPayment(
 		.innerJoin(leases, eq(payments.leaseId, leases.id))
 		.innerJoin(units, eq(leases.unitId, units.id))
 		.innerJoin(properties, eq(units.propertyId, properties.id))
-		.where(eq(payments.id, paymentId))
+		.where(
+			and(
+				eq(payments.id, paymentId),
+				isNull(units.deletedAt),
+				isNull(properties.deletedAt),
+			),
+		)
 		.limit(1);
 
 	if (!row) {
@@ -1064,6 +1071,7 @@ export const createAgreementPayment = ownerProcedure
 				and(
 					eq(leaseAgreements.id, input.agreementId),
 					eq(properties.ownerId, authUser.id),
+					isNull(properties.deletedAt),
 				),
 			)
 			.limit(1);
@@ -1371,7 +1379,12 @@ export const createCombinedBillPayment = ownerProcedure
 			.innerJoin(units, eq(leases.unitId, units.id))
 			.innerJoin(properties, eq(units.propertyId, properties.id))
 			.where(
-				and(eq(leases.id, input.leaseId), eq(properties.ownerId, authUser.id)),
+				and(
+					eq(leases.id, input.leaseId),
+					eq(properties.ownerId, authUser.id),
+					isNull(units.deletedAt),
+					isNull(properties.deletedAt),
+				),
 			)
 			.limit(1);
 		if (!leaseRow) {
@@ -1909,6 +1922,7 @@ export const voidPaymentGroup = ownerProcedure
 				and(
 					eq(paymentGroups.id, input.id),
 					eq(properties.ownerId, authUser.id),
+					isNull(properties.deletedAt),
 				),
 			)
 			.limit(1);

@@ -91,7 +91,8 @@ export const createLease = ownerProcedure
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
-		// Verify user owns the units before allowing lease creation
+		// Verify user owns the units before allowing lease creation.
+		// E08: archived units/properties are historical-only — no new leases.
 		const [unit] = await db
 			.select({
 				unitId: units.id,
@@ -102,7 +103,12 @@ export const createLease = ownerProcedure
 			.from(units)
 			.innerJoin(properties, eq(units.propertyId, properties.id))
 			.where(
-				and(eq(units.id, input.unitId), eq(properties.ownerId, authUser.id)),
+				and(
+					eq(units.id, input.unitId),
+					eq(properties.ownerId, authUser.id),
+					isNull(units.deletedAt),
+					isNull(properties.deletedAt),
+				),
 			)
 			.limit(1);
 
@@ -332,7 +338,12 @@ export const createCombinedLease = ownerProcedure
 			.from(units)
 			.innerJoin(properties, eq(units.propertyId, properties.id))
 			.where(
-				and(inArray(units.id, unitIds), eq(properties.ownerId, authUser.id)),
+				and(
+					inArray(units.id, unitIds),
+					eq(properties.ownerId, authUser.id),
+					isNull(units.deletedAt),
+					isNull(properties.deletedAt),
+				),
 			);
 
 		if (selectedUnits.length !== unitIds.length) {

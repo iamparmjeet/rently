@@ -26,11 +26,14 @@ export const createUnit = ownerProcedure
 	.handler(async ({ context, input }) => {
 		const { db, user } = context;
 
-		// Verify user ownes the parent property before allowing unit creation
+		// Verify user ownes the parent property before allowing unit creation.
+		// E08: archived properties are historical-only — no new units under them.
 		const [property] = await db
 			.select({ ownerId: properties.ownerId })
 			.from(properties)
-			.where(eq(properties.id, input.propertyId))
+			.where(
+				and(eq(properties.id, input.propertyId), isNull(properties.deletedAt)),
+			)
 			.limit(1);
 
 		if (!property) {
@@ -121,7 +124,13 @@ export const getUnitById = ownerProcedure
 			})
 			.from(units)
 			.innerJoin(properties, eq(units.propertyId, properties.id))
-			.where(and(eq(units.id, input.id), isNull(units.deletedAt)))
+			.where(
+				and(
+					eq(units.id, input.id),
+					isNull(units.deletedAt),
+					isNull(properties.deletedAt),
+				),
+			)
 			.limit(1);
 
 		if (!result) {
@@ -169,13 +178,20 @@ export const listUnits = ownerProcedure
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
+		// E08: normal lists exclude deleted rows — archived units and units
+		// under archived properties are historical-only.
 		const whereClause = input.propertyId
 			? and(
 					eq(properties.ownerId, authUser.id),
 					eq(units.propertyId, input.propertyId),
 					isNull(units.deletedAt),
+					isNull(properties.deletedAt),
 				)
-			: and(eq(properties.ownerId, authUser.id), isNull(units.deletedAt));
+			: and(
+					eq(properties.ownerId, authUser.id),
+					isNull(units.deletedAt),
+					isNull(properties.deletedAt),
+				);
 
 		const rows = await db
 			.select({

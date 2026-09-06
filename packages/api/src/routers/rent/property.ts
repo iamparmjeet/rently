@@ -139,11 +139,12 @@ export const updateProperty = ownerProcedure
 	.handler(async ({ context, input }) => {
 		const { db, user } = context;
 
-		// First Verify ownership
+		// First Verify ownership. E08: archived properties are
+		// historical-only — they cannot be edited.
 		const [existing] = await db
 			.select()
 			.from(properties)
-			.where(eq(properties.id, input.id));
+			.where(and(eq(properties.id, input.id), isNull(properties.deletedAt)));
 
 		if (!existing) throw new ORPCError("NOT_FOUND");
 
@@ -202,11 +203,13 @@ export const getUnits = ownerProcedure
 	.handler(async ({ context, input }) => {
 		const { db, user } = context;
 
-		// Verify Ownership
+		// Verify Ownership. E08: archived properties are historical-only.
 		const [property] = await db
 			.select({ ownerId: properties.ownerId })
 			.from(properties)
-			.where(eq(properties.id, input.propertyId));
+			.where(
+				and(eq(properties.id, input.propertyId), isNull(properties.deletedAt)),
+			);
 
 		if (!property) {
 			throw new ORPCError("NOT_FOUND", {
@@ -222,7 +225,9 @@ export const getUnits = ownerProcedure
 		const unitsList = await db
 			.select()
 			.from(units)
-			.where(eq(units.propertyId, input.propertyId));
+			.where(
+				and(eq(units.propertyId, input.propertyId), isNull(units.deletedAt)),
+			);
 
 		return { units: unitsList };
 	});

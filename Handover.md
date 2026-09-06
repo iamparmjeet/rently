@@ -266,7 +266,7 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Base: `integ/phase-a-baseline@34a6ed2c`; branch `fix/pending-invite-selection`; rollback tag `pre-pending-invite-selection`; no migration. `main` untouched.
 - `findPendingInviteByEmail` now filters status `pending`, non-deleted, and unexpired invitations in SQL before `LIMIT`; it selects newest first with `createdAt DESC, id DESC`. This prevents an older accepted invitation from suppressing a newer valid tenant claim during Better Auth signup.
 - `createPendingTenantInvite` uses the same valid-pending definition and deterministic ordering, so expired or soft-deleted pending rows no longer block a replacement invite. This matches D04's pending-invite quota definition.
-- Regression tests: the real Better Auth signup path proves an older accepted plus older pending rows do not hide the newest pending invite; API coverage proves expired and soft-deleted rows permit a replacement invite. Test teardown removes profiles before their invitations and users.
+- Regression tests: the real Better Auth signup path proves an older accepted row does not hide the newest valid pending invite; API coverage proves expired and soft-deleted rows permit a replacement invite. Test teardown removes profiles before their invitations and users.
 - Verification: `db:generate` no drift; `check-types` 6/6; focused Biome clean; `db:migrate:test` passed; focused auth/invite tests 24/24; full Vitest 62 files / 351 tests + 1 conditional skip; local build 5/5. Build-generated `next-env.d.ts` changes restored.
 - Terra review pointers: confirm newest-valid selection (`createdAt DESC, id DESC`) is the intended deterministic rule while D06 still owns multi-owner identity relationships; confirm expired pending rows should be re-invitable rather than merely lazily marked expired.
 - Next allowed slice: D06 support existing tenants across owners, after D05 review/merge policy permits it.
@@ -278,6 +278,15 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - The invite page now lets a matching signed-in session claim directly and sends other visitors to login with the invite URL as the trusted callback target. Claim errors remain on the page.
 - Regression tests cover claims for multiple owners, mismatched-email refusal with no writes, and reuse of the owner-prepared profile. Verification: `db:generate` no drift; `check-types` 6/6; focused Biome clean; `db:migrate:test` passed; focused auth/invite tests 27/27; full Vitest 62 files / 354 tests + 1 conditional skip; local build 5/5.
 - D08 still owns durable cross-driver acceptance atomicity and compensation. Terra review should scrutinize the claim transition's intentional use of the existing accept semantics until that slice lands.
+
+## D07 Atomic invite creation (2026-09-06, Terra High review owed)
+
+- Base: `integ/phase-a-baseline@760a7699`; branch `fix/atomic-invite-create`; rollback tag `pre-atomic-invite-create`; one migration. `main` untouched.
+- `createPendingTenantInvite` now creates the pending invite, owner-prepared provisional user/profile, expired-row cleanup, and pending-quota check inside one node-postgres transaction or one Neon batch. Delivery remains after the durable core commits because email is an external side effect.
+- Migration `0036_green_wiccan` normalizes uniqueness with a partial unique index on `(invited_by, lower(email))` for non-deleted pending invites, retires already-expired/duplicate pending rows before the index, and adds the transaction-scoped advisory-lock quota assertion used by both drivers. The migration journal timestamp was advanced past D04's hand-authored timestamp so fresh test migrations apply D07 in order.
+- Regression coverage adds concurrent same-owner case-insensitive duplicate creation: exactly one invite succeeds and the loser returns `CONFLICT`; the D05 signup fixture now respects the D07 invariant while still proving an accepted invite does not hide the valid pending invite.
+- Verification: `db:generate` no drift; `check-types` 6/6; focused Biome clean; fresh local `rently_test` migration passed; focused invite/tenant-limit/auth tests 37/37; build 5/5; Vitest excluding the pre-existing B10 lock-order suite passed 61 files / 349 tests.
+- Full Vitest remains blocked by unrelated `group-payment-lock-order.test.ts` failures (3 B10 tests: lock serialization/race expectations and teardown after timeout). Terra review should scrutinize migration cleanup semantics, the advisory-lock quota function, and the pre-read of an existing global user before the atomic owner-prepared batch.
 
 ## D03 Renewal entitlement/invoice alignment (2026-09-06, ZLM 5.3 Flash, branch fix/subscription-renewal-period)
 

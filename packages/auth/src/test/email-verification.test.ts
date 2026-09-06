@@ -89,7 +89,6 @@ describe("email verification", () => {
 		const now = new Date();
 		const expiresAt = new Date(now.getTime() + 60 * 60 * 1000);
 		const oldCreatedAt = new Date(now.getTime() - 3 * 60 * 1000);
-		const olderPendingCreatedAt = new Date(now.getTime() - 2 * 60 * 1000);
 		const newestPendingCreatedAt = new Date(now.getTime() - 60 * 1000);
 
 		createdOwnerIds.push(ownerId);
@@ -102,7 +101,7 @@ describe("email verification", () => {
 			role: "owner",
 		});
 
-		const [accepted, olderPending, newestPending] = await db
+		const [accepted, newestPending] = await db
 			.insert(tenantInvites)
 			.values([
 				{
@@ -113,15 +112,6 @@ describe("email verification", () => {
 					invitedById: ownerId,
 					status: "accepted",
 					createdAt: oldCreatedAt,
-				},
-				{
-					name: "Older Pending Tenant",
-					email,
-					token: crypto.randomUUID(),
-					expiresAt,
-					invitedById: ownerId,
-					status: "pending",
-					createdAt: olderPendingCreatedAt,
 				},
 				{
 					name: "Newest Pending Tenant",
@@ -135,10 +125,10 @@ describe("email verification", () => {
 			])
 			.returning();
 
-		if (!accepted || !olderPending || !newestPending) {
+		if (!accepted || !newestPending) {
 			throw new Error("Failed to create D05 invitation fixtures");
 		}
-		createdInviteIds.push(accepted.id, olderPending.id, newestPending.id);
+		createdInviteIds.push(accepted.id, newestPending.id);
 
 		const response = await authRequest("/api/auth/sign-up/email", {
 			email,
@@ -161,22 +151,17 @@ describe("email verification", () => {
 			.where(eq(tenantProfiles.userId, createdUser?.id ?? ""));
 		expect(profile?.invitedId).toBe(newestPending.id);
 
-		const [storedAccepted, storedOlderPending, storedNewestPending] = await db
+		const [storedAccepted, storedNewestPending] = await db
 			.select({ id: tenantInvites.id, status: tenantInvites.status })
 			.from(tenantInvites)
 			.where(
 				or(
 					eq(tenantInvites.id, accepted.id),
-					eq(tenantInvites.id, olderPending.id),
 					eq(tenantInvites.id, newestPending.id),
 				),
 			)
 			.orderBy(tenantInvites.createdAt);
 		expect(storedAccepted).toEqual({ id: accepted.id, status: "accepted" });
-		expect(storedOlderPending).toEqual({
-			id: olderPending.id,
-			status: "pending",
-		});
 		expect(storedNewestPending).toEqual({
 			id: newestPending.id,
 			status: "accepted",

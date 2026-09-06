@@ -1,5 +1,5 @@
 import { ORPCError } from "@orpc/server";
-import type { Database } from "@rently/db";
+import { type Database, supportsDatabaseBatch } from "@rently/db";
 import {
 	INVITE_DELIVERY_ERROR_CODES,
 	INVITE_DELIVERY_STATUSES,
@@ -9,9 +9,14 @@ import {
 import { USER_ROLES } from "@rently/db/constants/user-roles";
 import { user } from "@rently/db/schema/auth";
 import { tenantInvites, tenantProfiles } from "@rently/db/schema/schema";
+import { generatedId } from "@rently/db/utils/id";
 import { sendInviteEmail } from "@rently/email";
-import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
-import { enforcePendingInviteQuota } from "../helpers/tenant-limit";
+import { and, desc, eq, gt, isNull, lte, or } from "drizzle-orm";
+import {
+	assertPendingInviteQuotaSql,
+	isPendingInviteQuotaError,
+	pendingInviteQuotaError,
+} from "../helpers/tenant-limit";
 
 type PendingTenantInviteInput = {
 	name: string;
@@ -58,6 +63,33 @@ type DeliverableInvite = {
 	name: string;
 	token: string;
 };
+
+function isPendingInviteConflictError(error: unknown): boolean {
+	let current: unknown = error;
+	for (let depth = 0; current && depth < 5; depth += 1) {
+		const candidate = current as {
+			code?: unknown;
+			constraint?: unknown;
+			message?: unknown;
+			cause?: unknown;
+		};
+		if (
+			candidate.code === "23505" &&
+			((typeof candidate.message === "string" &&
+				candidate.message.includes(
+					"tenant_invites_pending_owner_email_unique",
+				)) ||
+				(typeof candidate.constraint === "string" &&
+					candidate.constraint.includes(
+						"tenant_invites_pending_owner_email_unique",
+					)))
+		) {
+			return true;
+		}
+		current = candidate.cause;
+	}
+	return false;
+}
 
 function getSafeDeliveryErrorCode(error: unknown): InviteDeliveryErrorCode {
 	const message = error instanceof Error ? error.message.toLowerCase() : "";
@@ -149,105 +181,186 @@ export async function createPendingTenantInvite(
 	},
 ) {
 	const email = input.email.trim().toLowerCase();
-
+	const inviteId = generatedId();
+	const token = crypto.randomUUID();
+	const expiresAt =
+		input.expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
+	const inviteValues = {
+		id: inviteId,
+		name: input.name,
+		email,
+		onboardingMode: input.onboardingMode,
+		phone: input.phone ?? null,
+		address: input.address ?? null,
+		emergencyContact: input.emergencyContact ?? null,
+		emergencyContactName: input.emergencyContactName ?? null,
+		emergencyContactLocation: input.emergencyContactLocation ?? null,
+		notes: input.notes ?? null,
+		token,
+		expiresAt,
+		invitedById: ownerId,
+		status: "pending" as const,
+	};
 	const existing = await findPendingInvite(db, email, ownerId);
-
 	if (existing) {
 		throw new ORPCError("CONFLICT", {
 			message: `A pending invite already exists for ${email}. Revoke it first.`,
 		});
 	}
+	const [existingUser] =
+		input.onboardingMode === "owner_prepared"
+			? await db
+					.select({ id: user.id })
+					.from(user)
+					.where(eq(user.email, email))
+					.limit(1)
+			: [];
 
-	// D04: invites are quotaed separately from active seats — creating an
-	// invite no longer consumes or checks a plan seat; the seat is enforced
-	// atomically when a lease activates the tenant.
-	await enforcePendingInviteQuota(db, ownerId);
-
-	const token = crypto.randomUUID();
-	const expiresAt =
-		input.expiresAt ?? new Date(Date.now() + 7 * 24 * 60 * 60 * 1000);
-
-	const [invite] = await db
-		.insert(tenantInvites)
-		.values({
-			name: input.name,
+	const createProfile = (executor: Database, userId: string) =>
+		executor.insert(tenantProfiles).values({
+			id: generatedId(),
+			userId,
 			email,
-			onboardingMode: input.onboardingMode,
 			phone: input.phone ?? null,
 			address: input.address ?? null,
 			emergencyContact: input.emergencyContact ?? null,
 			emergencyContactName: input.emergencyContactName ?? null,
 			emergencyContactLocation: input.emergencyContactLocation ?? null,
-			notes: input.notes ?? null,
-			token,
-			expiresAt,
-			invitedById: ownerId,
-			status: "pending",
-		})
-		.returning();
+			invitedId: inviteId,
+			createdById: ownerId,
+		});
+
+	let invite: typeof tenantInvites.$inferSelect | undefined;
+	try {
+		if (supportsDatabaseBatch(db)) {
+			if (input.onboardingMode === "owner_prepared") {
+				if (existingUser) {
+					const [, , createdInvites] = await db.batch([
+						db.execute(assertPendingInviteQuotaSql(ownerId)),
+						db
+							.update(tenantInvites)
+							.set({ status: "expired", updatedAt: new Date() })
+							.where(
+								and(
+									eq(tenantInvites.invitedById, ownerId),
+									eq(tenantInvites.status, "pending"),
+									isNull(tenantInvites.deletedAt),
+									lte(tenantInvites.expiresAt, new Date()),
+								),
+							),
+						db.insert(tenantInvites).values(inviteValues).returning(),
+						createProfile(db, existingUser.id),
+					]);
+					invite = createdInvites[0];
+				} else {
+					const [, , createdInvites] = await db.batch([
+						db.execute(assertPendingInviteQuotaSql(ownerId)),
+						db
+							.update(tenantInvites)
+							.set({ status: "expired", updatedAt: new Date() })
+							.where(
+								and(
+									eq(tenantInvites.invitedById, ownerId),
+									eq(tenantInvites.status, "pending"),
+									isNull(tenantInvites.deletedAt),
+									lte(tenantInvites.expiresAt, new Date()),
+								),
+							),
+						db.insert(tenantInvites).values(inviteValues).returning(),
+						db.insert(user).values({
+							id: inviteId,
+							name: input.name,
+							email,
+							emailVerified: false,
+							role: USER_ROLES.TENANT,
+							phone: input.phone ?? null,
+						}),
+						createProfile(db, inviteId),
+					]);
+					invite = createdInvites[0];
+				}
+			} else {
+				const [, , createdInvites] = await db.batch([
+					db.execute(assertPendingInviteQuotaSql(ownerId)),
+					db
+						.update(tenantInvites)
+						.set({ status: "expired", updatedAt: new Date() })
+						.where(
+							and(
+								eq(tenantInvites.invitedById, ownerId),
+								eq(tenantInvites.status, "pending"),
+								isNull(tenantInvites.deletedAt),
+								lte(tenantInvites.expiresAt, new Date()),
+							),
+						),
+					db.insert(tenantInvites).values(inviteValues).returning(),
+				]);
+				invite = createdInvites[0];
+			}
+		} else {
+			invite = await db.transaction(async (tx) => {
+				const executor = tx as unknown as Database;
+				await executor.execute(assertPendingInviteQuotaSql(ownerId));
+				await executor
+					.update(tenantInvites)
+					.set({ status: "expired", updatedAt: new Date() })
+					.where(
+						and(
+							eq(tenantInvites.invitedById, ownerId),
+							eq(tenantInvites.status, "pending"),
+							isNull(tenantInvites.deletedAt),
+							lte(tenantInvites.expiresAt, new Date()),
+						),
+					);
+
+				const existing = await findPendingInvite(executor, email, ownerId);
+				if (existing) {
+					throw new ORPCError("CONFLICT", {
+						message: `A pending invite already exists for ${email}. Revoke it first.`,
+					});
+				}
+
+				const [createdInvite] = await executor
+					.insert(tenantInvites)
+					.values(inviteValues)
+					.returning();
+				if (!createdInvite) throw new Error("Failed to create invitation.");
+
+				if (input.onboardingMode === "owner_prepared") {
+					if (!existingUser) {
+						await executor.insert(user).values({
+							id: inviteId,
+							name: input.name,
+							email,
+							emailVerified: false,
+							role: USER_ROLES.TENANT,
+							phone: input.phone ?? null,
+						});
+						await createProfile(executor, inviteId);
+					} else {
+						await createProfile(executor, existingUser.id);
+					}
+				}
+
+				return createdInvite;
+			});
+		}
+	} catch (error) {
+		if (isPendingInviteQuotaError(error)) {
+			throw await pendingInviteQuotaError(db, ownerId);
+		}
+		if (isPendingInviteConflictError(error)) {
+			throw new ORPCError("CONFLICT", {
+				message: `A pending invite already exists for ${email}. Revoke it first.`,
+			});
+		}
+		throw error;
+	}
 
 	if (!invite) {
 		throw new ORPCError("INTERNAL_SERVER_ERROR", {
 			message: "Failed to create invitation.",
 		});
-	}
-
-	// Option-A: owner_prepared gets provisional tenantProfiles (+ user) immediately so owner can upload docs / create lease / send email/whatsapp while tenant is still pending
-	// Tenant will later claim this provisional identity in acceptInvite (claimsOwnerPreparedIdentity)
-	if (input.onboardingMode === "owner_prepared") {
-		const [existingUser] = await db
-			.select({ id: user.id })
-			.from(user)
-			.where(eq(user.email, email))
-			.limit(1);
-
-		if (!existingUser) {
-			// No user yet — create provisional user with id = invite.id and profile linked to invite
-			await db.insert(user).values({
-				id: invite.id,
-				name: input.name,
-				email,
-				emailVerified: false,
-				role: USER_ROLES.TENANT,
-				phone: input.phone ?? null,
-			});
-			await db.insert(tenantProfiles).values({
-				userId: invite.id,
-				email,
-				phone: input.phone ?? null,
-				address: input.address ?? null,
-				emergencyContact: input.emergencyContact ?? null,
-				emergencyContactName: input.emergencyContactName ?? null,
-				emergencyContactLocation: input.emergencyContactLocation ?? null,
-				invitedId: invite.id,
-				createdById: ownerId,
-			});
-		} else {
-			// User already exists (e.g. previous tenant) — ensure a profile for this invite exists so owner can act
-			const [existingProfile] = await db
-				.select({ id: tenantProfiles.id })
-				.from(tenantProfiles)
-				.where(
-					and(
-						eq(tenantProfiles.userId, existingUser.id),
-						eq(tenantProfiles.invitedId, invite.id),
-					),
-				)
-				.limit(1);
-			if (!existingProfile) {
-				await db.insert(tenantProfiles).values({
-					userId: existingUser.id,
-					email,
-					phone: input.phone ?? null,
-					address: input.address ?? null,
-					emergencyContact: input.emergencyContact ?? null,
-					emergencyContactName: input.emergencyContactName ?? null,
-					emergencyContactLocation: input.emergencyContactLocation ?? null,
-					invitedId: invite.id,
-					createdById: ownerId,
-				});
-			}
-		}
 	}
 
 	if (suppressDelivery) {

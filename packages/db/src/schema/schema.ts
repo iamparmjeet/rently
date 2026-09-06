@@ -507,52 +507,60 @@ export const rentBackfillExceptions = pgTable(
 // Order matters — tenantProfiles before documentUpdateRequests
 // ═══════════════════════════════════════════════════════════
 
-export const tenantInvites = pgTable("tenant_invites", {
-	...idColumn(),
-	// Owner controlled invitation identity
-	name: text("name").notNull(),
-	email: text("email").notNull(), // to invite
-	notes: text("notes"), // Owner-private, never shown to tenant
-	onboardingMode: text("onboarding_mode", {
-		enum: TENANT_ONBOARDING_MODE_VALUES,
-	})
-		.default(TENANT_ONBOARDING_MODES.TENANT_COMPLETED)
-		.notNull(),
-	//owner prepared profile draft
-	phone: text("phone"),
-	address: text("address"),
-	emergencyContact: text("emergency_contact"),
-	emergencyContactName: text("emergency_contact_name"),
-	emergencyContactLocation: text("emergency_contact_location"),
-	//Invitation lifecycle
-	token: text("token").unique().notNull(), // secret to validate user
-	expiresAt: timestamp("expires_at"),
-	invitedById: uuid("invited_by")
-		.notNull()
-		.references(() => user.id),
-	status: text("status", {
-		enum: INVITE_STATUS_VALUES,
-	})
-		.default(INVITE_STATUSES.PENDING)
-		.notNull(),
-	// Latest email delivery result, independent of invitation lifecycle
-	deliveryStatus: text("delivery_status", {
-		enum: INVITE_DELIVERY_STATUS_VALUES,
-	})
-		.default(INVITE_DELIVERY_STATUSES.NOT_ATTEMPTED)
-		.notNull(),
-	lastSentAt: timestamp("last_sent_at"),
-	deliveryErrorCode: text("delivery_error_code", {
-		enum: INVITE_DELIVERY_ERROR_CODE_VALUES,
-	}),
-	// Tenant consent evidence, populated only during acceptance
-	termsAcceptedAt: timestamp("terms_accepted_at"),
-	termsVersion: text("terms_version"),
-	privacyAcknowledgedAt: timestamp("privacy_acknowledged_at"),
-	privacyVersion: text("privacy_version"),
-	...auditColumns(),
-	...softDeleteColumn(),
-});
+export const tenantInvites = pgTable(
+	"tenant_invites",
+	{
+		...idColumn(),
+		// Owner controlled invitation identity
+		name: text("name").notNull(),
+		email: text("email").notNull(), // to invite
+		notes: text("notes"), // Owner-private, never shown to tenant
+		onboardingMode: text("onboarding_mode", {
+			enum: TENANT_ONBOARDING_MODE_VALUES,
+		})
+			.default(TENANT_ONBOARDING_MODES.TENANT_COMPLETED)
+			.notNull(),
+		//owner prepared profile draft
+		phone: text("phone"),
+		address: text("address"),
+		emergencyContact: text("emergency_contact"),
+		emergencyContactName: text("emergency_contact_name"),
+		emergencyContactLocation: text("emergency_contact_location"),
+		//Invitation lifecycle
+		token: text("token").unique().notNull(), // secret to validate user
+		expiresAt: timestamp("expires_at"),
+		invitedById: uuid("invited_by")
+			.notNull()
+			.references(() => user.id),
+		status: text("status", {
+			enum: INVITE_STATUS_VALUES,
+		})
+			.default(INVITE_STATUSES.PENDING)
+			.notNull(),
+		// Latest email delivery result, independent of invitation lifecycle
+		deliveryStatus: text("delivery_status", {
+			enum: INVITE_DELIVERY_STATUS_VALUES,
+		})
+			.default(INVITE_DELIVERY_STATUSES.NOT_ATTEMPTED)
+			.notNull(),
+		lastSentAt: timestamp("last_sent_at"),
+		deliveryErrorCode: text("delivery_error_code", {
+			enum: INVITE_DELIVERY_ERROR_CODE_VALUES,
+		}),
+		// Tenant consent evidence, populated only during acceptance
+		termsAcceptedAt: timestamp("terms_accepted_at"),
+		termsVersion: text("terms_version"),
+		privacyAcknowledgedAt: timestamp("privacy_acknowledged_at"),
+		privacyVersion: text("privacy_version"),
+		...auditColumns(),
+		...softDeleteColumn(),
+	},
+	(table) => [
+		uniqueIndex("tenant_invites_pending_owner_email_unique")
+			.on(table.invitedById, sql`lower(${table.email})`)
+			.where(sql`${table.status} = 'pending' AND ${table.deletedAt} IS NULL`),
+	],
+);
 
 export const tenantProfiles = pgTable("tenant_profiles", {
 	...idColumn(),

@@ -596,3 +596,17 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Tests (`notification-recipients.test.ts`, 2): combined-lease and agreement-payment rows appear in the owner's bell with zero rows addressed to the tenant. Teardown clears allocations before group payments (C04 RESTRICT lesson).
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 70 files / 403 tests pass → local `bun run build` 5/5; zero fixture residue; `next-env.d.ts` churn restored.
 - Next allowed slice: F02 notification deduplication from a clean integration-branch cut.
+
+## F02 Notification deduplication (2026-09-06, Muse Spark, branch fix/notification-deduplication, tag pre-notification-deduplication)
+
+- Base: clean `integ/phase-a-baseline@6630be48` (F01 merge); one migration `0039_strange_naoko`. `main` untouched. Terra High review owed — stays `[~]`. Standing authorization applies. Small test footprint per owner request (3 tests).
+- Gap proven (2 red pre-fix): lease-expiry dedupe checked UNREAD rows only, so read-then-poll recreated the row; nothing arbitrated concurrent inserts (pinned via a raw duplicate probe — concurrent polls serialize on this driver). The overdue path already keyed the current period without an isRead filter.
+- Preflight on production-shaped `rently_dev`: exactly one duplicate pair (read + recreated `lease_expiring_soon`, 2h apart — the bug in the wild). Migration repairs before constraining: keep earliest `(created_at, id)` per identity, then the partial unique index. Repair proven on a scratch clone (deleted the recreated row, kept the read row; scratch destroyed). `rently_dev` itself untouched.
+- Changed (4 commits, `7b92b2c`..`1fd5a7b`):
+  - `schema.ts` + migration `0039`: partial unique `notifications_dedupe_key` on `(user_id, type, entity_id, entity_type)` WHERE both entity columns NOT NULL — identity is user/type/entity/period, never isRead; entity-less rows stay repeatable by design.
+  - `notification.ts`: expiry dedupe drops the `isRead=false` predicate (any row suppresses); both lazy inserts gain target-less `onConflictDoNothing` so a race loser writes nothing and the poll reads the winner's row.
+  - Journal surgery per D07/E04/E09 precedent (`when` → 1788720000004, surgical edit) — proven by fresh drop/create/migrate (40/40 in order, index present).
+- Tests (`notification-deduplication.test.ts`, 3): read-then-poll creates no second row, 4 concurrent polls converge on one row + raw duplicate refused 23505, old-period overdue row doesn't suppress the current period (exactly one new row).
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` + fresh-install proof → FULL suite 71 files / 406 tests pass → local `bun run build` 5/5; zero fixture residue; `next-env.d.ts` churn restored.
+- Terra pointers: earliest-wins repair (keeps the read row — history preserved, unread copy dropped); entity-less rows exempt from dedupe; a lease whose endDate is extended after notification stays suppressed (no re-notify); target-less DO NOTHING swallows any conflict on those inserts by design.
+- Next allowed slice: F03 reminder retry claiming from a clean integration-branch cut.

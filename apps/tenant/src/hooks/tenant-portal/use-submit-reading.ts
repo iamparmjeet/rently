@@ -20,6 +20,10 @@ export function useSubmitReading() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.tenantPortal.getMyUtilities.key(),
 			});
+			// C07: the balance read model carries utility dues too.
+			queryClient.invalidateQueries({
+				queryKey: orpc.rent.balance.key(),
+			});
 		},
 		onError: (error, _, context) => {
 			if (error.cause === "TOO_MANY_REQUESTS") {

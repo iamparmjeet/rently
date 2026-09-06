@@ -247,6 +247,21 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Build-generated `next-env.d.ts` changes were restored; no `.env` files were retained.
 - Sol/Terra final review remains tracked review debt before any `[x]` or `main` rollup.
 
+## C07 Tenant screens on the period read model (2026-09-06, ZLM 5.3 Flash, branch fix/tenant-period-balances)
+
+- Base: `integ/phase-a-baseline@a78bcbc6` (C06 merge); rollback tag `pre-tenant-period-balances`; `main` untouched; no migration, no server change (the C05 model already scopes `{all:true}` to the caller's leases for tenant role). Committed file-by-file per owner instruction (6 commits). Terra review deferred to owner.
+- Defect fixed (Fix-Plan C07 "tenants never see full rent as due"): Overview's "This Month's Charges" tile and My Bill's rent rows both used the full contract `leases.rent` per active unit. Both screens now build lines from the period balance read model via a new pure builder `apps/tenant/src/lib/bill-lines.ts`:
+  - Rent is shown as **current period** (`currentRentDue`, labeled with the period name via `periodLabel`) and **previous periods** (`totalRentDue − currentRentDue`) as separate lines per unit — the Fix-Plan's current/older split. A fully settled unit produces no rent line at all.
+  - Utility lines now include unpaid bills of **any age** (the old current-calendar-month filter hid older unpaid utilities); `amountDue` is already server-derived in `getMyUtilities`.
+  - The "1st of next month" due-date guess (`nextRentDueDate`) is demoted to a fallback; the server's clamped `currentPeriodDueDate` (R3) is used whenever a charge exists.
+  - Overview tile relabeled "Outstanding Balance" with Total = current + older rent + all unpaid utilities; Charge Preview card and My Bill render the same line set; WhatsApp share recomposes from it. "Monthly Rent" and "Total Paid (YTD)" tiles intentionally unchanged (contract context / payment history, not dues).
+- New hook `use-tenant-balance.ts` (`{all:true}`, tenant-scoped server-side); `useSubmitReading` now also invalidates `orpc.rent.balance.key()` (a new reading creates a utility bill that changes the balance). Tenants cannot move money in the portal, so no other invalidation sites exist on this side.
+- Tests (`apps/tenant/src/lib/bill-lines.test.ts`, 8, rationale header per AGENTS.md): paid rent → no line (the defect pinned), partial → remainder, credit/reversal via outstanding, current+older split, two active units with distinct states, older unpaid utility included, settled/inactive filtered, clamped due date + period label.
+- Untouched on purpose: payment history tab (already uses the B12 signed ledger), reading tab (estimates are explicitly non-authoritative), receipts, profile/docs tabs, and the unused legacy `tenant-rent-due-card.tsx`/`tenant-lease-card.tsx` exports (dead code with a pre-existing paise-format bug — candidates for a cleanup slice, not this one).
+- Verification: `check-types --force` 6/6 → Biome on apps/tenant clean (2 non-blocking warnings) → full suite **60 files / 327 tests** → local build 5/5; `next-env.d.ts` churn restored.
+- Review debt: Terra review owed (C07 reviewer per plan: Luna then Terra Medium). Terra should scrutinize: (1) the older-outstanding derivation `totalRentDue − currentRentDue` (includes any non-current charge with outstanding paise — future prepaid charges are 0 by construction, so the split is exact); (2) utility "any age" listing — a very old unpaid bill now surfaces on My Bill, which is the point but changes what tenants see; (3) due-date fallback still guesses the 1st when no charge exists (edge: lease ended); (4) per-lease N/A — the tenant fetch is one `{all:true}` request.
+- Next allowed slice: C08 cut reminders/reports over from a clean integration-branch cut.
+
 ## C06 Owner screens on the period read model (2026-09-06, ZLM 5.3 Flash, branch fix/owner-period-balances)
 
 - Base: `integ/phase-a-baseline@7f41d8bd` (C05 merge); rollback tag `pre-owner-period-balances`; `main` untouched; no migration. Committed file-by-file per owner instruction (8 commits: server scope → hook → invalidation → dues/overdue → combined groups → tenant pending → printable bill → docs). Terra review deferred to owner.

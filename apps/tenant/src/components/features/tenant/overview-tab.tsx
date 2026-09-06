@@ -13,6 +13,14 @@ import {
 	useTenantPayments,
 	useTenantUtilities,
 } from "@/hooks/tenant-portal";
+import { useTenantBalance } from "@/hooks/tenant-portal/use-tenant-balance";
+import {
+	balanceByLeaseId,
+	buildRentLines,
+	buildUtilityLines,
+	currentDueDate,
+	summarizeLines,
+} from "@/lib/bill-lines";
 import { fmtDate, nextRentDueDate, rupeesCompact } from "@/utils/format";
 import type { TenantPortalTab } from "./tenant-dashboard";
 
@@ -28,6 +36,7 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
 		useTenantPayments();
 	const { data: utilitiesData, isLoading: utilitiesLoading } =
 		useTenantUtilities();
+	const { data: balanceData, isLoading: balanceLoading } = useTenantBalance();
 
 	const lease = leaseData?.lease;
 	const agreements = agreementsData?.agreements ?? [];
@@ -42,7 +51,8 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
 		leaseLoading ||
 		agreementsLoading ||
 		paymentsLoading ||
-		utilitiesLoading
+		utilitiesLoading ||
+		balanceLoading
 	) {
 		return <OverviewSkeleton />;
 	}
@@ -72,31 +82,43 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
 			.map((unit) => ({ ...unit, agreement })),
 	);
 	const activeUnitCount = activeUnits.length;
-	const activeLeaseIds = new Set(activeUnits.map((unit) => unit.leaseId));
 	const monthlyRent = activeUnits.reduce((total, unit) => total + unit.rent, 0);
-	const now = new Date();
-	const currentUtilities = utilities.filter((utility) => {
-		const billDate = new Date(utility.currentReadingDate ?? utility.createdAt);
-		return (
-			activeLeaseIds.has(utility.leaseId) &&
-			utility.amountDue > 0 &&
-			billDate.getMonth() === now.getMonth() &&
-			billDate.getFullYear() === now.getFullYear()
-		);
-	});
-	const utilityDue = currentUtilities.reduce(
-		(total, utility) => total + utility.amountDue,
-		0,
-	);
-	const totalDue = monthlyRent + utilityDue;
-	const unitByLeaseId = new Map(
-		activeUnits.map((unit) => [unit.leaseId, unit]),
-	);
 
-	const currentMonth = now.toLocaleDateString("en-IN", {
-		month: "long",
-		year: "numeric",
-	});
+	// C07: charges come from the period balance read model — current-period
+	// rent and older arrears are separate lines, and unpaid utilities of any
+	// age are included. The full contract rent is shown only as context.
+	const balanceByLease = balanceByLeaseId(balanceData?.leases);
+	const chargeLines = [
+		...buildRentLines(
+			activeUnits.map((unit) => ({
+				leaseId: unit.leaseId,
+				unitNumber: unit.unitNumber,
+				status: unit.status,
+				propertyName: unit.agreement.property.name,
+			})),
+			balanceByLease,
+		),
+		...buildUtilityLines(
+			activeUnits.map((unit) => ({
+				leaseId: unit.leaseId,
+				unitNumber: unit.unitNumber,
+				status: unit.status,
+				propertyName: unit.agreement.property.name,
+			})),
+			utilities,
+		),
+	];
+	const totalDue = summarizeLines(chargeLines);
+	const rentDueDate =
+		currentDueDate(
+			activeUnits.map((unit) => ({
+				leaseId: unit.leaseId,
+				unitNumber: unit.unitNumber,
+				status: unit.status,
+				propertyName: unit.agreement.property.name,
+			})),
+			balanceByLease,
+		) ?? nextRentDueDate();
 
 	return (
 		<div className="space-y-3.5">
@@ -133,13 +155,13 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
 				{/* Primary tile — full-width on small, half on larger */}
 				<div className="col-span-2 rounded-xl bg-primary p-4 text-primary-foreground">
 					<p className="font-medium text-primary-foreground/75 text-xs">
-						This Month&apos;s Charges
+						Outstanding Balance
 					</p>
 					<p className="mt-1 font-extrabold text-3xl leading-none">
 						{rupeesCompact(totalDue)}
 					</p>
 					<p className="mt-1 text-primary-foreground/60 text-xs">
-						Rent + unpaid utilities · Due by {fmtDate(nextRentDueDate())}
+						Rent + unpaid utilities · Due by {fmtDate(rentDueDate)}
 					</p>
 				</div>
 
@@ -168,40 +190,30 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
 			{/* ── Bill preview ───────────────────────────────────── */}
 			<div className="overflow-hidden rounded-xl border bg-background">
 				<div className="px-4 py-3">
-					<p className="font-bold text-sm">Charge Preview — {currentMonth}</p>
-					<p className="text-muted-foreground text-xs">All active units</p>
+					<p className="font-bold text-sm">Charge Preview — Outstanding</p>
+					<p className="text-muted-foreground text-xs">
+						All active units · current and older dues
+					</p>
 				</div>
 				<div className="divide-y divide-border">
-					{activeUnits.map((unit) => (
+					{chargeLines.map((line) => (
 						<BillPreviewItem
-							key={unit.leaseId}
-							emoji="🏠"
-							label={`Monthly Rent · Unit ${unit.unitNumber}`}
-							sub={unit.agreement.property.name}
-							amount={unit.rent}
+							key={line.id}
+							emoji={line.emoji}
+							label={line.label}
+							sub={line.sub}
+							amount={line.amount}
 						/>
 					))}
-					{currentUtilities.map((utility) => {
-						const unit = unitByLeaseId.get(utility.leaseId);
-						const label = `${utility.utilityType.charAt(0).toUpperCase()}${utility.utilityType.slice(1)}`;
-						return (
-							<BillPreviewItem
-								key={utility.id}
-								emoji="⚡"
-								label={label}
-								sub={
-									unit
-										? `Unit ${unit.unitNumber} · ${unit.agreement.property.name}`
-										: undefined
-								}
-								amount={utility.amountDue}
-							/>
-						);
-					})}
+					{chargeLines.length === 0 && (
+						<div className="px-4 py-6 text-center text-muted-foreground text-sm">
+							No outstanding charges — you&apos;re all caught up!
+						</div>
+					)}
 				</div>
 				<div className="flex items-center justify-between bg-primary px-4 py-3">
 					<span className="font-bold text-primary-foreground text-sm">
-						Total Charges
+						Total Outstanding
 					</span>
 					<span className="font-extrabold text-2xl text-primary-foreground">
 						{rupeesCompact(totalDue)}
@@ -250,7 +262,7 @@ export function OverviewTab({ onTabChange }: OverviewTabProps) {
 					<UpcomingItem
 						emoji="🏠"
 						text="Rent due"
-						sub={fmtDate(nextRentDueDate())}
+						sub={`By ${fmtDate(rentDueDate)}`}
 					/>
 					<UpcomingItem
 						emoji="⚡"

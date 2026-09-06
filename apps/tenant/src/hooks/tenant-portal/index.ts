@@ -1,5 +1,6 @@
 export { useSubmitReading } from "./use-submit-reading";
 export { useTenantAgreements } from "./use-tenant-agreements";
+export { useTenantBalance } from "./use-tenant-balance";
 export {
 	useTenantDocumentAction,
 	useTenantDocuments,

@@ -1,87 +1,75 @@
 "use client";
 
+import { useMemo } from "react";
 import { useTenantAgreements, useTenantUtilities } from "@/hooks/tenant-portal";
-import { fmtDate, rupeesCompact } from "@/utils/format";
+import { useTenantBalance } from "@/hooks/tenant-portal/use-tenant-balance";
+import {
+	activeUnits,
+	type BillUnit,
+	balanceByLeaseId,
+	buildRentLines,
+	buildUtilityLines,
+	currentDueDate,
+	summarizeLines,
+} from "@/lib/bill-lines";
+import { fmtDate, nextRentDueDate, rupeesCompact } from "@/utils/format";
 
+// C07: the bill is built from the period balance read model — rent lines
+// show the current period's outstanding and older arrears separately (never
+// the full contract rent), and unpaid utilities of any age are listed.
 export function BillTab() {
 	const { data: agreementsData, isLoading: agreementsLoading } =
 		useTenantAgreements();
 	const { data: utilitiesData, isLoading: utilitiesLoading } =
 		useTenantUtilities();
+	const { data: balanceData, isLoading: balanceLoading } = useTenantBalance();
 
 	const agreements = agreementsData?.agreements ?? [];
 	const utilities = utilitiesData?.utilities ?? [];
-	const activeUnits = agreements.flatMap((agreement) =>
-		agreement.units
-			.filter((unit) => unit.status === "active")
-			.map((unit) => ({ ...unit, agreement })),
+
+	const units = useMemo(
+		(): BillUnit[] =>
+			activeUnits(
+				agreements.flatMap((agreement) =>
+					agreement.units.map((unit) => ({
+						leaseId: unit.leaseId,
+						unitNumber: unit.unitNumber,
+						status: unit.status,
+						propertyName: agreement.property.name,
+					})),
+				),
+			),
+		[agreements],
 	);
-	const unitByLeaseId = new Map(
-		activeUnits.map((unit) => [unit.leaseId, unit]),
+
+	const balanceByLease = useMemo(
+		() => balanceByLeaseId(balanceData?.leases),
+		[balanceData?.leases],
 	);
-	const now = new Date();
-	const currentUtilities = utilities.filter((utility) => {
-		const billDate = new Date(utility.currentReadingDate ?? utility.createdAt);
-		return (
-			unitByLeaseId.has(utility.leaseId) &&
-			utility.amountDue > 0 &&
-			billDate.getMonth() === now.getMonth() &&
-			billDate.getFullYear() === now.getFullYear()
-		);
-	});
-	const lineItems: {
-		id: string;
-		emoji: string;
-		label: string;
-		sub: string;
-		amount: number;
-	}[] = [
-		...activeUnits.map((unit) => ({
-			id: `rent-${unit.leaseId}`,
-			emoji: "🏠",
-			label: "Monthly Rent",
-			sub: `Unit ${unit.unitNumber} · ${unit.agreement.property.name}`,
-			amount: unit.rent,
-		})),
-		...currentUtilities.map((utility) => {
-			const unit = unitByLeaseId.get(utility.leaseId);
-			const utilityName =
-				utility.utilityType.charAt(0).toUpperCase() +
-				utility.utilityType.slice(1);
-			return {
-				id: utility.id,
-				emoji:
-					{ electricity: "⚡", water: "💧", maintenance: "🔧" }[
-						utility.utilityType
-					] ?? "📄",
-				label: utilityName,
-				sub: unit
-					? `Unit ${unit.unitNumber} · ${unit.agreement.property.name}`
-					: fmtDate(utility.currentReadingDate),
-				amount: utility.amountDue,
-			};
-		}),
-	];
 
-	const totalDue = lineItems.reduce((s, i) => s + i.amount, 0);
+	const lineItems = useMemo(
+		() => [
+			...buildRentLines(units, balanceByLease),
+			...buildUtilityLines(units, utilities),
+		],
+		[units, balanceByLease, utilities],
+	);
 
-	const currentMonth = now.toLocaleDateString("en-IN", {
-		month: "long",
-		year: "numeric",
-	});
+	const totalDue = summarizeLines(lineItems);
+	const dueDate = currentDueDate(units, balanceByLease) ?? nextRentDueDate();
 
-	if (agreementsLoading || utilitiesLoading) {
+	if (agreementsLoading || utilitiesLoading || balanceLoading) {
 		return <div className="h-64 animate-pulse rounded-xl bg-muted" />;
 	}
 
 	return (
 		<div className="space-y-3.5">
-			<h1 className="font-extrabold text-xl">My Charges — {currentMonth}</h1>
+			<h1 className="font-extrabold text-xl">My Charges — Outstanding</h1>
 
 			<div className="overflow-hidden rounded-xl border bg-background">
 				{lineItems.length === 0 ? (
 					<div className="py-10 text-center text-muted-foreground text-sm">
-						No charges for this period yet.
+						No outstanding charges. You&apos;re all caught up!
 					</div>
 				) : (
 					<div className="divide-y divide-border">
@@ -105,7 +93,7 @@ export function BillTab() {
 
 				<div className="flex items-center justify-between bg-primary px-4 py-3.5">
 					<span className="font-bold text-primary-foreground">
-						Total Charges
+						Total Outstanding
 					</span>
 					<span className="font-extrabold text-3xl text-primary-foreground">
 						{rupeesCompact(totalDue)}
@@ -119,9 +107,9 @@ export function BillTab() {
 					type="button"
 					onClick={() => {
 						const msg = encodeURIComponent(
-							`KeyHQ Bill — ${currentMonth}\n\n${lineItems
+							`KeyHQ Bill\n\n${lineItems
 								.map((i) => `${i.emoji} ${i.label}: ${rupeesCompact(i.amount)}`)
-								.join("\n")}\n\nTotal Charges: ${rupeesCompact(totalDue)}`,
+								.join("\n")}\n\nTotal Outstanding: ${rupeesCompact(totalDue)}`,
 						);
 						window.open(`https://wa.me/?text=${msg}`, "_blank");
 					}}
@@ -137,11 +125,8 @@ export function BillTab() {
 					💡 Tip: Pay early to avoid late fees
 				</p>
 				<p className="mt-1 text-muted-foreground text-xs">
-					Payment is due by{" "}
-					{fmtDate(
-						new Date(new Date().getFullYear(), new Date().getMonth() + 1, 1),
-					)}
-					. UPI, bank transfer, or cash accepted.
+					Payment is due by {fmtDate(dueDate)}. UPI, bank transfer, or cash
+					accepted.
 				</p>
 			</div>
 		</div>

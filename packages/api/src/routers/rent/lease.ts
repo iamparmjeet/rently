@@ -32,6 +32,11 @@ import { and, eq, inArray, isNull, ne, sql } from "drizzle-orm";
 import z from "zod";
 import { getNextLocalPeriodKey } from "../helpers/rent-cycle";
 import { ensureAccruedChargesSql } from "../helpers/rent-period";
+import {
+	assertTenantSeatSql,
+	isTenantPlanLimitError,
+	tenantPlanLimitError,
+} from "../helpers/tenant-limit";
 
 type BatchCapableDatabase = Database & {
 	batch<T extends readonly unknown[]>(
@@ -51,6 +56,7 @@ async function getLeaseWithOwner(db: Database, leaseId: string) {
 		.select({
 			leaseId: leases.id,
 			unitId: leases.unitId,
+			tenantId: leases.tenantId,
 			ownerId: properties.ownerId,
 			status: leases.status,
 			startDate: leases.startDate,
@@ -195,88 +201,102 @@ export const createLease = ownerProcedure
 		// statements as one database transaction; node-postgres retains its normal
 		// callback transaction path.
 		let lease: Awaited<typeof createLeaseQuery>[number] | undefined;
-		if (supportsBatch(db)) {
-			if (pendingTenant) {
-				const [, , , createdLeases] = await db.batch([
-					db.insert(user).values({
-						id: pendingTenant.id,
-						name: pendingTenant.name,
-						email: pendingTenant.email.toLowerCase(),
-						emailVerified: false,
-						role: USER_ROLES.TENANT,
-						phone: pendingTenant.phone,
-					}),
-					db.insert(tenantProfiles).values({
-						userId: pendingTenant.id,
-						email: pendingTenant.email.toLowerCase(),
-						phone: pendingTenant.phone,
-						address: pendingTenant.address,
-						emergencyContact: pendingTenant.emergencyContact,
-						emergencyContactName: pendingTenant.emergencyContactName,
-						emergencyContactLocation: pendingTenant.emergencyContactLocation,
-						invitedId: pendingTenant.id,
-						createdById: authUser.id,
-					}),
-					createAgreementQuery,
-					createLeaseQuery,
-					occupyUnitQuery,
-				]);
-				lease = createdLeases[0];
+		try {
+			if (supportsBatch(db)) {
+				if (pendingTenant) {
+					const [, , , , createdLeases] = await db.batch([
+						// D04: seat check first — a raise here aborts the whole batch.
+						db.execute(assertTenantSeatSql(authUser.id, input.tenantId)),
+						db.insert(user).values({
+							id: pendingTenant.id,
+							name: pendingTenant.name,
+							email: pendingTenant.email.toLowerCase(),
+							emailVerified: false,
+							role: USER_ROLES.TENANT,
+							phone: pendingTenant.phone,
+						}),
+						db.insert(tenantProfiles).values({
+							userId: pendingTenant.id,
+							email: pendingTenant.email.toLowerCase(),
+							phone: pendingTenant.phone,
+							address: pendingTenant.address,
+							emergencyContact: pendingTenant.emergencyContact,
+							emergencyContactName: pendingTenant.emergencyContactName,
+							emergencyContactLocation: pendingTenant.emergencyContactLocation,
+							invitedId: pendingTenant.id,
+							createdById: authUser.id,
+						}),
+						createAgreementQuery,
+						createLeaseQuery,
+						occupyUnitQuery,
+					]);
+					lease = createdLeases[0];
+				} else {
+					const [, , createdLeases] = await db.batch([
+						// D04: seat check first — a raise here aborts the whole batch.
+						db.execute(assertTenantSeatSql(authUser.id, input.tenantId)),
+						createAgreementQuery,
+						createLeaseQuery,
+						occupyUnitQuery,
+						// C04 dual-write: accrue the new lease's period charges
+						// immediately (R13 — a backdated start owes elapsed periods).
+						db.execute(ensureAccruedChargesSql({ leaseId })),
+					]);
+					lease = createdLeases[0];
+				}
 			} else {
-				const [, createdLeases] = await db.batch([
-					createAgreementQuery,
-					createLeaseQuery,
-					occupyUnitQuery,
+				lease = await db.transaction(async (tx) => {
+					// D04: seat check first — a raise rolls the transaction back.
+					await tx.execute(assertTenantSeatSql(authUser.id, input.tenantId));
+
+					if (pendingTenant) {
+						await tx.insert(user).values({
+							id: pendingTenant.id,
+							name: pendingTenant.name,
+							email: pendingTenant.email.toLowerCase(),
+							emailVerified: false,
+							role: USER_ROLES.TENANT,
+							phone: pendingTenant.phone,
+						});
+						await tx.insert(tenantProfiles).values({
+							userId: pendingTenant.id,
+							email: pendingTenant.email.toLowerCase(),
+							phone: pendingTenant.phone,
+							address: pendingTenant.address,
+							emergencyContact: pendingTenant.emergencyContact,
+							emergencyContactName: pendingTenant.emergencyContactName,
+							emergencyContactLocation: pendingTenant.emergencyContactLocation,
+							invitedId: pendingTenant.id,
+							createdById: authUser.id,
+						});
+					}
+
+					await tx.insert(leaseAgreements).values(agreementValues);
+
+					const [newLease] = await tx
+						.insert(leases)
+						.values(leaseValues)
+						.returning();
+
+					await tx
+						.update(units)
+						.set({ status: "occupied", updatedAt: new Date() })
+						.where(
+							and(eq(units.id, input.unitId), eq(units.status, "available")),
+						);
+
 					// C04 dual-write: accrue the new lease's period charges
 					// immediately (R13 — a backdated start owes elapsed periods).
-					db.execute(ensureAccruedChargesSql({ leaseId })),
-				]);
-				lease = createdLeases[0];
+					await tx.execute(ensureAccruedChargesSql({ leaseId }));
+
+					return newLease;
+				});
 			}
-		} else {
-			lease = await db.transaction(async (tx) => {
-				if (pendingTenant) {
-					await tx.insert(user).values({
-						id: pendingTenant.id,
-						name: pendingTenant.name,
-						email: pendingTenant.email.toLowerCase(),
-						emailVerified: false,
-						role: USER_ROLES.TENANT,
-						phone: pendingTenant.phone,
-					});
-					await tx.insert(tenantProfiles).values({
-						userId: pendingTenant.id,
-						email: pendingTenant.email.toLowerCase(),
-						phone: pendingTenant.phone,
-						address: pendingTenant.address,
-						emergencyContact: pendingTenant.emergencyContact,
-						emergencyContactName: pendingTenant.emergencyContactName,
-						emergencyContactLocation: pendingTenant.emergencyContactLocation,
-						invitedId: pendingTenant.id,
-						createdById: authUser.id,
-					});
-				}
-
-				await tx.insert(leaseAgreements).values(agreementValues);
-
-				const [newLease] = await tx
-					.insert(leases)
-					.values(leaseValues)
-					.returning();
-
-				await tx
-					.update(units)
-					.set({ status: "occupied", updatedAt: new Date() })
-					.where(
-						and(eq(units.id, input.unitId), eq(units.status, "available")),
-					);
-
-				// C04 dual-write: accrue the new lease's period charges
-				// immediately (R13 — a backdated start owes elapsed periods).
-				await tx.execute(ensureAccruedChargesSql({ leaseId }));
-
-				return newLease;
-			});
+		} catch (error) {
+			if (isTenantPlanLimitError(error)) {
+				throw await tenantPlanLimitError(db, authUser.id);
+			}
+			throw error;
 		}
 
 		if (!lease) {
@@ -403,53 +423,66 @@ export const createCombinedLease = ownerProcedure
 			db.execute(ensureAccruedChargesSql({ leaseId })),
 		);
 
-		if (supportsBatch(db)) {
-			await db.batch([
-				agreement,
-				...leaseInserts,
-				...occupyUnits,
-				...accrueNewLeases,
-			]);
-		} else {
-			await db.transaction(async (tx) => {
-				await tx.insert(leaseAgreements).values({
-					id: agreementId,
-					tenantId: input.tenantId,
-					propertyId,
-					arrangementType: LEASE_AGREEMENT_ARRANGEMENT.COMBINED,
-					category,
-					startDate: input.startDate,
-					endDate: input.endDate,
-					rentDueDate: input.rentDueDate,
-					notice: input.notice,
-					description: input.description,
-				});
-				await tx.insert(leases).values(
-					input.units.map((unit, index) => ({
-						id: leaseIds[index],
-						unitId: unit.unitId,
+		try {
+			if (supportsBatch(db)) {
+				await db.batch([
+					// D04: one tenant per combined agreement — a single seat check
+					// covers every unit; a raise aborts the whole batch.
+					db.execute(assertTenantSeatSql(authUser.id, input.tenantId)),
+					agreement,
+					...leaseInserts,
+					...occupyUnits,
+					...accrueNewLeases,
+				]);
+			} else {
+				await db.transaction(async (tx) => {
+					// D04: seat check first — a raise rolls the transaction back.
+					await tx.execute(assertTenantSeatSql(authUser.id, input.tenantId));
+
+					await tx.insert(leaseAgreements).values({
+						id: agreementId,
 						tenantId: input.tenantId,
+						propertyId,
+						arrangementType: LEASE_AGREEMENT_ARRANGEMENT.COMBINED,
+						category,
 						startDate: input.startDate,
 						endDate: input.endDate,
-						rent: unit.rent,
-						deposit: unit.deposit ?? null,
-						status: "active" as const,
-						notice: input.notice,
 						rentDueDate: input.rentDueDate,
+						notice: input.notice,
 						description: input.description,
-						agreementId,
-					})),
-				);
-				for (const unitId of unitIds) {
-					await tx
-						.update(units)
-						.set({ status: "occupied", updatedAt: new Date() })
-						.where(and(eq(units.id, unitId), eq(units.status, "available")));
-				}
-				for (const leaseId of leaseIds) {
-					await tx.execute(ensureAccruedChargesSql({ leaseId }));
-				}
-			});
+					});
+					await tx.insert(leases).values(
+						input.units.map((unit, index) => ({
+							id: leaseIds[index],
+							unitId: unit.unitId,
+							tenantId: input.tenantId,
+							startDate: input.startDate,
+							endDate: input.endDate,
+							rent: unit.rent,
+							deposit: unit.deposit ?? null,
+							status: "active" as const,
+							notice: input.notice,
+							rentDueDate: input.rentDueDate,
+							description: input.description,
+							agreementId,
+						})),
+					);
+					for (const unitId of unitIds) {
+						await tx
+							.update(units)
+							.set({ status: "occupied", updatedAt: new Date() })
+							.where(and(eq(units.id, unitId), eq(units.status, "available")));
+					}
+					for (const leaseId of leaseIds) {
+						await tx.execute(ensureAccruedChargesSql({ leaseId }));
+					}
+				});
+			}
+		} catch (error) {
+			if (isTenantPlanLimitError(error)) {
+				throw await tenantPlanLimitError(db, authUser.id);
+			}
+			throw error;
 		}
 
 		const createdLeases = await db
@@ -562,6 +595,11 @@ export const updateLease = ownerProcedure
 				: input.data.status === "active"
 					? "occupied"
 					: undefined;
+		// D04: a reactivation is an activation — the tenant consumes a seat
+		// unless they already hold another active lease under this owner.
+		const reactivating =
+			input.data.status === "active" && ownership.status !== "active";
+
 		const updateLeaseQuery = db
 			.update(leases)
 			.set({ ...input.data, updatedAt: new Date() })
@@ -571,39 +609,64 @@ export const updateLease = ownerProcedure
 		// Neon HTTP does not support callback transactions. Use its batch API so the
 		// lease and unit updates remain atomic in every database environment.
 		let lease: Awaited<typeof updateLeaseQuery>[number] | undefined;
-		if (supportsBatch(db)) {
-			if (unitStatus) {
-				const [updatedLeases] = await db.batch([
-					updateLeaseQuery,
-					db
-						.update(units)
-						.set({ status: unitStatus, updatedAt: new Date() })
-						.where(eq(units.id, ownership.unitId)),
-				]);
-				lease = updatedLeases[0];
-			} else {
-				const [updatedLeases] = await db.batch([updateLeaseQuery]);
-				lease = updatedLeases[0];
-			}
-		} else {
-			lease = await db.transaction(async (tx) => {
-				const [updated] = await tx
-					.update(leases)
-					.set({ ...input.data, updatedAt: new Date() })
-					.where(eq(leases.id, input.id))
-					.returning();
-
-				if (!updated) return undefined;
-
+		try {
+			if (supportsBatch(db)) {
 				if (unitStatus) {
-					await tx
+					const unitStatusQuery = db
 						.update(units)
 						.set({ status: unitStatus, updatedAt: new Date() })
 						.where(eq(units.id, ownership.unitId));
+					if (reactivating) {
+						// D04: seat check first — a raise aborts the batch.
+						const [, updatedLeases] = await db.batch([
+							db.execute(assertTenantSeatSql(authUser.id, ownership.tenantId)),
+							updateLeaseQuery,
+							unitStatusQuery,
+						]);
+						lease = updatedLeases[0];
+					} else {
+						const [updatedLeases] = await db.batch([
+							updateLeaseQuery,
+							unitStatusQuery,
+						]);
+						lease = updatedLeases[0];
+					}
+				} else {
+					const [updatedLeases] = await db.batch([updateLeaseQuery]);
+					lease = updatedLeases[0];
 				}
+			} else {
+				lease = await db.transaction(async (tx) => {
+					if (reactivating) {
+						// D04: seat check first — a raise rolls the transaction back.
+						await tx.execute(
+							assertTenantSeatSql(authUser.id, ownership.tenantId),
+						);
+					}
 
-				return updated;
-			});
+					const [updated] = await tx
+						.update(leases)
+						.set({ ...input.data, updatedAt: new Date() })
+						.where(eq(leases.id, input.id))
+						.returning();
+
+					if (!updated) return undefined;
+
+					if (unitStatus) {
+						await tx
+							.update(units)
+							.set({ status: unitStatus, updatedAt: new Date() })
+							.where(eq(units.id, ownership.unitId));
+					}
+
+					return updated;
+				});
+			}
+		} catch (error) {
+			if (isTenantPlanLimitError(error)) {
+				throw await tenantPlanLimitError(db, authUser.id);
+			}
+			throw error;
 		}
 
 		if (!lease) {

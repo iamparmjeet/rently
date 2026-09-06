@@ -1309,20 +1309,15 @@ export const createAgreementPayment = ownerProcedure
 			.from(payments)
 			.where(eq(payments.paymentGroupId, groupId));
 		try {
+			// F01: every notification read path is owner-only and the tenant app
+			// has no notification surface, so a tenant-addressed row would be
+			// visible to nobody. Address the record to the acting owner.
 			await db.insert(notifications).values({
-				userId: agreementLeases[0]
-					? ((
-							await db
-								.select({ tenantId: leases.tenantId })
-								.from(leases)
-								.where(eq(leases.id, agreementLeases[0].id))
-								.limit(1)
-						)[0]?.tenantId ?? authUser.id)
-					: authUser.id,
+				userId: authUser.id,
 				type: "grouped_payment_received",
 				title: "Combined payment recorded",
 				message:
-					"A payment was recorded for every unit in your combined agreement.",
+					"A payment was recorded for every unit in the combined agreement.",
 				entityId: groupId,
 				entityType: "payment_group",
 			});

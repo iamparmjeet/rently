@@ -289,6 +289,157 @@ describe("admin user support queries", () => {
 });
 
 describe("truthful subscription payment workflow", () => {
+	// ── D03: renewal entitlement and invoice coverage share one period pair ──
+	function makePaymentInput(
+		ownerId: string,
+		planId: string,
+		priceMonthly: number,
+		overrides: Partial<Parameters<typeof recordSubscriptionPayment>[2]> = {},
+	) {
+		return {
+			ownerUserId: ownerId,
+			planId,
+			billingInterval: BILLING_INTERVAL.MONTHLY,
+			amount: priceMonthly,
+			paymentMethod: PAYMENT_METHODS.UPI,
+			externalPaymentReference: `UTR${crypto.randomUUID().slice(0, 12)}`,
+			paidAt: new Date("2026-09-05T08:00:00.000Z"),
+			reason: "D03 renewal alignment",
+			...overrides,
+		};
+	}
+
+	async function setSubscriptionPeriod(
+		subscriptionId: string,
+		start: Date | null,
+		end: Date | null,
+	) {
+		await db
+			.update(subscriptions)
+			.set({ currentPeriodStart: start, currentPeriodEnd: end })
+			.where(eq(subscriptions.id, subscriptionId));
+	}
+
+	it("an early renewal's invoice covers exactly the granted extension", async () => {
+		const admin = await createUser(USER_ROLES.ADMIN, "Renewal Admin");
+		const owner = await createUser(USER_ROLES.OWNER, "Early Renewal Owner");
+		const plan = await createPlan();
+		const subscription = await createSubscription(owner.id, plan.id);
+		await setSubscriptionPeriod(
+			subscription.id,
+			new Date("2026-09-01T00:00:00.000Z"),
+			new Date("2026-09-30T00:00:00.000Z"),
+		);
+
+		const { invoice } = await recordSubscriptionPayment(
+			db,
+			admin.id,
+			makePaymentInput(owner.id, plan.id, plan.priceMonthly),
+		);
+
+		// Paid on 2026-09-05 while the period runs to 09-30: the payment grants
+		// [09-30, 10-30] — the invoice must claim that window, not [paidAt …].
+		expect(invoice.periodStart).toEqual(new Date("2026-09-30T00:00:00.000Z"));
+		expect(invoice.periodEnd).toEqual(new Date("2026-10-30T00:00:00.000Z"));
+
+		const [updated] = await db
+			.select()
+			.from(subscriptions)
+			.where(eq(subscriptions.id, subscription.id));
+		expect(updated?.currentPeriodStart).toEqual(
+			new Date("2026-09-01T00:00:00.000Z"),
+		);
+		expect(updated?.currentPeriodEnd).toEqual(invoice.periodEnd);
+		expect(updated?.nextBillingDate).toEqual(invoice.periodEnd);
+	});
+
+	it("a lapsed renewal starts the granted window at the payment", async () => {
+		const admin = await createUser(USER_ROLES.ADMIN, "Lapsed Admin");
+		const owner = await createUser(USER_ROLES.OWNER, "Lapsed Owner");
+		const plan = await createPlan();
+		const subscription = await createSubscription(owner.id, plan.id);
+		await setSubscriptionPeriod(
+			subscription.id,
+			new Date("2026-07-01T00:00:00.000Z"),
+			new Date("2026-08-31T00:00:00.000Z"),
+		);
+
+		const { invoice } = await recordSubscriptionPayment(
+			db,
+			admin.id,
+			makePaymentInput(owner.id, plan.id, plan.priceMonthly),
+		);
+
+		expect(invoice.periodStart).toEqual(new Date("2026-09-05T08:00:00.000Z"));
+		expect(invoice.periodEnd).toEqual(new Date("2026-10-05T08:00:00.000Z"));
+		const [updated] = await db
+			.select()
+			.from(subscriptions)
+			.where(eq(subscriptions.id, subscription.id));
+		expect(updated?.currentPeriodStart).toEqual(invoice.periodStart);
+		expect(updated?.currentPeriodEnd).toEqual(invoice.periodEnd);
+	});
+
+	it("a never-set period (provisioned row) behaves like a lapsed one", async () => {
+		const admin = await createUser(USER_ROLES.ADMIN, "Provisioned Admin");
+		const owner = await createUser(USER_ROLES.OWNER, "Provisioned Owner");
+		const plan = await createPlan();
+		const subscription = await createSubscription(owner.id, plan.id);
+		await setSubscriptionPeriod(subscription.id, null, null);
+
+		const { invoice } = await recordSubscriptionPayment(
+			db,
+			admin.id,
+			makePaymentInput(owner.id, plan.id, plan.priceMonthly),
+		);
+
+		expect(invoice.periodStart).toEqual(new Date("2026-09-05T08:00:00.000Z"));
+		expect(invoice.periodEnd).toEqual(new Date("2026-10-05T08:00:00.000Z"));
+		const [updated] = await db
+			.select()
+			.from(subscriptions)
+			.where(eq(subscriptions.id, subscription.id));
+		expect(updated?.currentPeriodEnd).toEqual(invoice.periodEnd);
+	});
+
+	it("repeated renewals chain coverage without gaps or overlaps", async () => {
+		const admin = await createUser(USER_ROLES.ADMIN, "Repeat Admin");
+		const owner = await createUser(USER_ROLES.OWNER, "Repeat Owner");
+		const plan = await createPlan();
+		const subscription = await createSubscription(owner.id, plan.id);
+		await setSubscriptionPeriod(
+			subscription.id,
+			new Date("2026-09-01T00:00:00.000Z"),
+			new Date("2026-09-30T00:00:00.000Z"),
+		);
+
+		const first = await recordSubscriptionPayment(
+			db,
+			admin.id,
+			makePaymentInput(owner.id, plan.id, plan.priceMonthly),
+		);
+		// Second payment arrives before the first extension ends: it must
+		// begin exactly where the first grant ends.
+		const second = await recordSubscriptionPayment(
+			db,
+			admin.id,
+			makePaymentInput(owner.id, plan.id, plan.priceMonthly, {
+				paidAt: new Date("2026-09-05T12:00:00.000Z"),
+			}),
+		);
+
+		expect(second.invoice.periodStart).toEqual(first.invoice.periodEnd);
+		expect(second.invoice.periodEnd).toEqual(
+			new Date("2026-11-30T00:00:00.000Z"),
+		);
+		const [updated] = await db
+			.select()
+			.from(subscriptions)
+			.where(eq(subscriptions.id, subscription.id));
+		expect(updated?.currentPeriodEnd).toEqual(second.invoice.periodEnd);
+		expect(updated?.totalPaid).toBe(plan.priceMonthly * 2);
+	});
+
 	it("provisions exactly one subscription row per owner (D01 invariant)", async () => {
 		// C08-era tests created historic + current rows per owner; the D01
 		// unique index makes that state impossible — overview counts must be

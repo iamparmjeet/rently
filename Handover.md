@@ -304,6 +304,15 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Regression coverage creates two owner-scoped tenant profiles with different addresses and verifies the property owner's receipt uses its own address.
 - Verification: `db:generate` no drift; `check-types` 6/6; focused Biome clean; focused receipt tests 6/6; build 5/5.
 
+## E02 Explicit tenant-document relationships (2026-09-06, Terra High review owed)
+
+- Base: `integ/phase-a-baseline@82fc73e1`; branch `fix/tenant-document-owner-scope`; rollback tag `pre-tenant-document-owner-scope`; no migration. `main` untouched.
+- `findProfileForActor` now resolves one explicit, live owner-profile relationship: owners resolve their own (`createdById` = self) as before, tenants resolve the selected owner's relationship via a new optional `ownerId` (on `listMyDocuments` and `begin-upload`) or their earliest live relationship deterministically — never an arbitrary or soft-deleted row. New uploads on removed relationships return `NOT_FOUND` for both actors.
+- Retained-document access is defined as read-only: a removed tenant's already-attached documents stay listable/downloadable by the owning owner (new fallback in `listTenantDocuments`) and downloadable by the tenant; in-flight state transitions keep their existing document-level authorization. Owner document reads additionally bind the joined profile to the owner's relationship.
+- Regression coverage: shared tenant with one profile per owner (per-owner list isolation, cross-owner download refusal, tenant default + explicit selection) and removed-relationship upload blocks with retained list/download. Existing storage-key, cross-owner, procedure-guard, and Aadhaar tests stay green.
+- Verification: `db:generate` no drift; `check-types` 6/6; focused Biome clean; `db:migrate:test` passed; focused tenant-document tests 6/6; build 5/5; Vitest excluding unrelated B10 lock-order and overdue-query suites passed 60 files / 350 tests.
+- Full Vitest remains blocked by unrelated `group-payment-lock-order.test.ts` and `overdue-query.test.ts` failures (pre-existing, also present without this slice). Terra review should scrutinize the retained-read fallback, the earliest-relationship tenant default, and that in-flight transitions on removed relationships stay permitted.
+
 ## D03 Renewal entitlement/invoice alignment (2026-09-06, ZLM 5.3 Flash, branch fix/subscription-renewal-period)
 
 - Base: `integ/phase-a-baseline@926c5b8c` (D02 merge); rollback tag `pre-subscription-renewal-period`; `main` untouched; **no migration** (stated explicitly — pure read/write logic change in `recordSubscriptionPayment`). Terra Medium review owed.

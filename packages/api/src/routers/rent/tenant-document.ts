@@ -33,7 +33,18 @@ import {
 	type TenantDocumentSummarySchema,
 	TenantDocumentTypeSchema,
 } from "@rently/validators";
-import { and, desc, eq, gt, inArray, isNull, max, or } from "drizzle-orm";
+import {
+	and,
+	asc,
+	desc,
+	eq,
+	gt,
+	inArray,
+	isNotNull,
+	isNull,
+	max,
+	or,
+} from "drizzle-orm";
 import z from "zod";
 import type { TenantDocumentStorage } from "../../modules/tenant-documents/storage";
 import { createR2TenantDocumentStorage } from "../../modules/tenant-documents/storage";
@@ -53,6 +64,9 @@ const replacementTargetSchema = z.object({
 
 const beginUploadInput = z.object({
 	tenantId: z.uuid().optional(),
+	// E02: lets a shared tenant target one explicit owner relationship for a
+	// new upload instead of landing on an arbitrary profile.
+	ownerId: z.uuid().optional(),
 	documentType: TenantDocumentTypeSchema,
 	contentType: AllowedTenantDocumentContentTypeSchema,
 	sizeBytes: z.number().int().min(1).max(TENANT_DOCUMENT_MAX_BYTES),
@@ -154,7 +168,13 @@ async function findProfileForActor(
 	db: Database,
 	authUser: { id: string; role?: string | null },
 	tenantId?: string,
+	ownerId?: string,
 ) {
+	// E02: every document write resolves one explicit, live owner-profile
+	// relationship — never an arbitrary or soft-deleted row. Owners always
+	// resolve their own relationship (createdById = self). Tenants resolve
+	// the selected owner's relationship when ownerId is given, otherwise
+	// their earliest live relationship (deterministic, not LIMIT 1 luck).
 	const requestedTenantId = tenantId ?? authUser.id;
 	const [profile] = await db
 		.select({
@@ -169,9 +189,16 @@ async function findProfileForActor(
 				eq(tenantProfiles.userId, requestedTenantId),
 				isOwner(authUser)
 					? eq(tenantProfiles.createdById, authUser.id)
-					: eq(tenantProfiles.userId, authUser.id),
+					: ownerId
+						? and(
+								eq(tenantProfiles.userId, authUser.id),
+								eq(tenantProfiles.createdById, ownerId),
+							)
+						: eq(tenantProfiles.userId, authUser.id),
+				isNull(tenantProfiles.deletedAt),
 			),
 		)
+		.orderBy(asc(tenantProfiles.createdAt), asc(tenantProfiles.id))
 		.limit(1);
 	if (!profile) fail("NOT_FOUND", "NOT_FOUND");
 	if (!profile.ownerId) fail("NOT_FOUND", "NOT_FOUND");
@@ -200,8 +227,15 @@ async function findDocumentForActor(
 		.where(
 			and(
 				eq(tenantDocuments.id, documentId),
+				// E02: the owner's document must sit on the owner's own
+				// relationship — document.ownerId alone is not enough to bind
+				// the joined profile. No deletedAt filter here on purpose:
+				// retained documents stay readable after removal.
 				isOwner(authUser)
-					? eq(tenantDocuments.ownerId, authUser.id)
+					? and(
+							eq(tenantDocuments.ownerId, authUser.id),
+							eq(tenantProfiles.createdById, authUser.id),
+						)
 					: eq(tenantProfiles.userId, authUser.id),
 			),
 		)
@@ -329,9 +363,15 @@ function validateAadhaarSubmission(input: {
 
 export const listMyDocuments = tenantProcedure
 	.route({ method: "GET", path: "/rent/tenant-document/my-list" })
+	.input(z.object({ ownerId: z.uuid().optional() }).optional())
 	.output(listOutput)
-	.handler(async ({ context }) => {
-		const profile = await findProfileForActor(context.db, context.user);
+	.handler(async ({ context, input }) => {
+		const profile = await findProfileForActor(
+			context.db,
+			context.user,
+			undefined,
+			input?.ownerId,
+		);
 		return {
 			documents: await listDocuments(context.db, profile.id),
 			capabilities: capabilities(),
@@ -378,6 +418,28 @@ export const listTenantDocuments = ownerProcedure
 						capabilities: capabilities(),
 					};
 				}
+				// E02 retained-document access: a removed tenant's relationship
+				// is soft-deleted, so profile resolution above refuses it — but
+				// the owner keeps read-only access to the documents already
+				// attached to that relationship. New uploads stay blocked
+				// because begin-upload resolves live profiles only.
+				const [removedProfile] = await context.db
+					.select({ id: tenantProfiles.id })
+					.from(tenantProfiles)
+					.where(
+						and(
+							eq(tenantProfiles.userId, input.tenantId),
+							eq(tenantProfiles.createdById, context.user.id),
+							isNotNull(tenantProfiles.deletedAt),
+						),
+					)
+					.limit(1);
+				if (removedProfile) {
+					return {
+						documents: await listDocuments(context.db, removedProfile.id),
+						capabilities: capabilities(),
+					};
+				}
 			}
 			throw error;
 		}
@@ -395,6 +457,7 @@ export const beginTenantDocumentUpload = protectedProcedure
 			context.db,
 			context.user,
 			input.tenantId,
+			owner ? undefined : input.ownerId,
 		);
 		await assertEnabled(input.documentType);
 		const now = new Date();

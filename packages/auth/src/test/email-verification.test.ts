@@ -1,8 +1,9 @@
 import { createDb } from "@rently/db";
 import { user } from "@rently/db/schema/auth";
+import { tenantInvites, tenantProfiles } from "@rently/db/schema/schema";
 import { subscriptions } from "@rently/db/schema/subscription";
 import { env } from "@rently/env/server";
-import { inArray } from "drizzle-orm";
+import { eq, inArray, or } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -21,6 +22,8 @@ import { auth } from "@rently/auth";
 
 const db = createDb();
 const createdEmails: string[] = [];
+const createdInviteIds: string[] = [];
+const createdOwnerIds: string[] = [];
 
 function authRequest(path: string, body: unknown) {
 	return auth.handler(
@@ -42,9 +45,27 @@ afterEach(async () => {
 			.from(user)
 			.where(inArray(user.email, createdEmails));
 
-		const userIds = createdUsers.map((createdUser) => createdUser.id);
+		const userIds = [
+			...createdUsers.map((createdUser) => createdUser.id),
+			...createdOwnerIds,
+		];
 
 		if (userIds.length > 0) {
+			await db
+				.delete(tenantProfiles)
+				.where(
+					or(
+						inArray(tenantProfiles.userId, userIds),
+						inArray(tenantProfiles.invitedId, createdInviteIds),
+					),
+				);
+
+			if (createdInviteIds.length > 0) {
+				await db
+					.delete(tenantInvites)
+					.where(inArray(tenantInvites.id, createdInviteIds));
+			}
+
 			await db
 				.delete(subscriptions)
 				.where(inArray(subscriptions.userId, userIds));
@@ -54,12 +75,114 @@ afterEach(async () => {
 	}
 
 	createdEmails.length = 0;
+	createdInviteIds.length = 0;
+	createdOwnerIds.length = 0;
 	mocks.sendVerificationEmail.mockReset();
 	mocks.sendPasswordResetEmail.mockReset();
 	mocks.sendTenantSetupEmail.mockReset();
 });
 
 describe("email verification", () => {
+	it("claims the newest valid pending invitation during signup", async () => {
+		const ownerId = crypto.randomUUID();
+		const email = `${crypto.randomUUID()}@test.keyhq.invalid`;
+		const now = new Date();
+		const expiresAt = new Date(now.getTime() + 60 * 60 * 1000);
+		const oldCreatedAt = new Date(now.getTime() - 3 * 60 * 1000);
+		const olderPendingCreatedAt = new Date(now.getTime() - 2 * 60 * 1000);
+		const newestPendingCreatedAt = new Date(now.getTime() - 60 * 1000);
+
+		createdOwnerIds.push(ownerId);
+		createdEmails.push(email);
+
+		await db.insert(user).values({
+			id: ownerId,
+			name: "D05 Owner",
+			email: `${ownerId}@test.keyhq.invalid`,
+			role: "owner",
+		});
+
+		const [accepted, olderPending, newestPending] = await db
+			.insert(tenantInvites)
+			.values([
+				{
+					name: "Accepted Tenant",
+					email,
+					token: crypto.randomUUID(),
+					expiresAt,
+					invitedById: ownerId,
+					status: "accepted",
+					createdAt: oldCreatedAt,
+				},
+				{
+					name: "Older Pending Tenant",
+					email,
+					token: crypto.randomUUID(),
+					expiresAt,
+					invitedById: ownerId,
+					status: "pending",
+					createdAt: olderPendingCreatedAt,
+				},
+				{
+					name: "Newest Pending Tenant",
+					email,
+					token: crypto.randomUUID(),
+					expiresAt,
+					invitedById: ownerId,
+					status: "pending",
+					createdAt: newestPendingCreatedAt,
+				},
+			])
+			.returning();
+
+		if (!accepted || !olderPending || !newestPending) {
+			throw new Error("Failed to create D05 invitation fixtures");
+		}
+		createdInviteIds.push(accepted.id, olderPending.id, newestPending.id);
+
+		const response = await authRequest("/api/auth/sign-up/email", {
+			email,
+			name: "D05 Tenant",
+			password: "ValidPassword1",
+			callbackURL: `${env.WEB_APP_URL}/callback`,
+		});
+
+		expect(response.status).toBe(200);
+
+		const [createdUser] = await db
+			.select({ id: user.id, role: user.role })
+			.from(user)
+			.where(eq(user.email, email));
+		expect(createdUser?.role).toBe("tenant");
+
+		const [profile] = await db
+			.select({ invitedId: tenantProfiles.invitedId })
+			.from(tenantProfiles)
+			.where(eq(tenantProfiles.userId, createdUser?.id ?? ""));
+		expect(profile?.invitedId).toBe(newestPending.id);
+
+		const [storedAccepted, storedOlderPending, storedNewestPending] = await db
+			.select({ id: tenantInvites.id, status: tenantInvites.status })
+			.from(tenantInvites)
+			.where(
+				or(
+					eq(tenantInvites.id, accepted.id),
+					eq(tenantInvites.id, olderPending.id),
+					eq(tenantInvites.id, newestPending.id),
+				),
+			)
+			.orderBy(tenantInvites.createdAt);
+		expect(storedAccepted).toEqual({ id: accepted.id, status: "accepted" });
+		expect(storedOlderPending).toEqual({
+			id: olderPending.id,
+			status: "pending",
+		});
+		expect(storedNewestPending).toEqual({
+			id: newestPending.id,
+			status: "accepted",
+		});
+	});
+
 	it("sends a verification email after password signup", async () => {
 		const email = `${crypto.randomUUID()}@test.keyhq.invalid`;
 		const callbackURL = `${env.WEB_APP_URL}/callback`;

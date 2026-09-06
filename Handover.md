@@ -261,6 +261,16 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Known limitation (unchanged from the check it replaces): the seat count does not filter `properties.deletedAt`/`units.deletedAt` — E08 owns soft-delete scoping.
 - Next allowed slice: D05 fix pending-invite selection from a clean integration-branch cut.
 
+## D05 Pending-invite selection (2026-09-06, Terra Medium review owed)
+
+- Base: `integ/phase-a-baseline@34a6ed2c`; branch `fix/pending-invite-selection`; rollback tag `pre-pending-invite-selection`; no migration. `main` untouched.
+- `findPendingInviteByEmail` now filters status `pending`, non-deleted, and unexpired invitations in SQL before `LIMIT`; it selects newest first with `createdAt DESC, id DESC`. This prevents an older accepted invitation from suppressing a newer valid tenant claim during Better Auth signup.
+- `createPendingTenantInvite` uses the same valid-pending definition and deterministic ordering, so expired or soft-deleted pending rows no longer block a replacement invite. This matches D04's pending-invite quota definition.
+- Regression tests: the real Better Auth signup path proves an older accepted plus older pending rows do not hide the newest pending invite; API coverage proves expired and soft-deleted rows permit a replacement invite. Test teardown removes profiles before their invitations and users.
+- Verification: `db:generate` no drift; `check-types` 6/6; focused Biome clean; `db:migrate:test` passed; focused auth/invite tests 24/24; full Vitest 62 files / 351 tests + 1 conditional skip; local build 5/5. Build-generated `next-env.d.ts` changes restored.
+- Terra review pointers: confirm newest-valid selection (`createdAt DESC, id DESC`) is the intended deterministic rule while D06 still owns multi-owner identity relationships; confirm expired pending rows should be re-invitable rather than merely lazily marked expired.
+- Next allowed slice: D06 support existing tenants across owners, after D05 review/merge policy permits it.
+
 ## D03 Renewal entitlement/invoice alignment (2026-09-06, ZLM 5.3 Flash, branch fix/subscription-renewal-period)
 
 - Base: `integ/phase-a-baseline@926c5b8c` (D02 merge); rollback tag `pre-subscription-renewal-period`; `main` untouched; **no migration** (stated explicitly — pure read/write logic change in `recordSubscriptionPayment`). Terra Medium review owed.

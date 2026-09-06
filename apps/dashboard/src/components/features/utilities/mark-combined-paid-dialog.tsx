@@ -108,6 +108,13 @@ export function MarkCombinedPaidDialog({
 			if (utilityIds.length === 0) {
 				// Every utility is already settled — the combined bill is
 				// rent-only, which belongs to the single-payment command.
+				// C06: rentDue is period-aware, so a fully settled/prepaid
+				// period legitimately reads 0 — nothing to record.
+				if (rentDue <= 0) {
+					toast.error("Nothing outstanding on this combined bill.");
+					setIsSubmitting(false);
+					return;
+				}
 				const { payment } = await client.rent.payment.createPayment({
 					leaseId,
 					amount: rentDue,

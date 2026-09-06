@@ -4,7 +4,6 @@ import {
 	FIXEDCHARGE,
 	RATEPERUNIT,
 } from "@rently/db/constants/payment-constants";
-import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import { Button } from "@rently/ui/components/button";
 import { Input } from "@rently/ui/components/input";
 
@@ -35,8 +34,11 @@ import {
 import { useMemo, useRef, useState } from "react";
 import { UtilityForm } from "@/components/forms/utility-form";
 import { Container } from "@/components/shared/container";
+import {
+	balanceByLeaseId,
+	useSuspensePeriodBalance,
+} from "@/hooks/balance/use-period-balance";
 import { useSuspenseLeases } from "@/hooks/leases";
-import { useSuspensePayments } from "@/hooks/payments";
 import {
 	useOptimisticCreateBatchUtility,
 	useOptimisticRemoveUtility,
@@ -73,7 +75,9 @@ type BatchItem = Parameters<
 export default function UtilitiesClient() {
 	const { data } = useSuspenseUtilities();
 	const { data: leasesData } = useSuspenseLeases();
-	const { data: paymentsData } = useSuspensePayments();
+	// C06: combined-bill rent comes from the period balance read model, not
+	// from a client-side "rent minus all rent payments" reconstruction.
+	const { data: balanceData } = useSuspensePeriodBalance({ all: true });
 
 	const createBatch = useOptimisticCreateBatchUtility();
 	const updateUtility = useOptimisticUpdateUtility();
@@ -102,7 +106,7 @@ export default function UtilitiesClient() {
 
 	const utilities = data?.utilities ?? [];
 	const leases = leasesData?.leases ?? [];
-	const payments = paymentsData?.payments ?? [];
+	const balancesById = balanceByLeaseId(balanceData?.leases);
 
 	// ── Derived: filter by type + search ─────────────────────────────────────
 	const filtered = useMemo(() => {
@@ -149,30 +153,18 @@ export default function UtilitiesClient() {
 	}, [utilities]);
 
 	// ── Derived: combined bills (group by leaseId, join with lease for rent) ──
-	// WHY: "Combined Bills" is a pure client-side aggregation — no API needed.
-	// For each leaseId that has utility entries, find the matching lease and
-	// sum all utility totals. Then add the lease's rent for the grand total.
+	// WHY: utility dues come from the server-computed amountDue; the rent
+	// portion is the lease's period-aware totalRentDue (arrears + current
+	// period), so a settled or partially paid period no longer reads as the
+	// full contract rent.
 	const combinedGroups = useMemo((): CombinedBillGroup[] => {
 		const map = new Map<string, CombinedBillGroup>();
-		const rentPaidByLease = new Map<string, number>();
-		for (const payment of payments) {
-			if (
-				payment.utilityId == null &&
-				(payment.type === PAYMENT_TYPES.RENT ||
-					payment.type === PAYMENT_TYPES.REVERSAL)
-			) {
-				rentPaidByLease.set(
-					payment.leaseId,
-					(rentPaidByLease.get(payment.leaseId) ?? 0) + payment.amount,
-				);
-			}
-		}
 
 		const getDueC = (u: (typeof utilities)[number]) =>
 			(u as { amountDue?: number }).amountDue ?? u.totalAmount;
 		const isPaidC = (u: (typeof utilities)[number]) => getDueC(u) <= 0;
 		const getRentDue = (lease: (typeof leases)[number]) =>
-			Math.max(0, lease.rent - (rentPaidByLease.get(lease.leaseId) ?? 0));
+			Math.max(0, balancesById.get(lease.leaseId)?.totalRentDue ?? 0);
 
 		for (const u of utilities) {
 			const lease = leases.find((l) => l.leaseId === u.leaseId);
@@ -215,7 +207,7 @@ export default function UtilitiesClient() {
 				b.period.getTime() - a.period.getTime() ||
 				(a.lease.tenantName ?? "").localeCompare(b.lease.tenantName ?? ""),
 		);
-	}, [utilities, leases, payments]);
+	}, [utilities, leases, balancesById]);
 
 	const filteredCombinedGroups = useMemo(() => {
 		const q = search.toLowerCase();

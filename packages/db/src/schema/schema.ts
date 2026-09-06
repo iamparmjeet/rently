@@ -798,26 +798,39 @@ export const referrers = pgTable("referrers", {
 // NOTIFICATIONS
 // ═══════════════════════════════════════════════════════════
 
-export const notifications = pgTable("notifications", {
-	...idColumn(),
-	// userId is the OWNER who receives this notification — never the tenant
-	userId: uuid("user_id")
-		.notNull()
-		.references(() => user.id, { onDelete: "cascade" }),
-	type: text("type", {
-		enum: NOTIFICATION_TYPE_VALUES,
-	}).notNull(),
-	title: text("title").notNull(),
-	message: text("message").notNull(),
-	isRead: boolean("is_read").default(false).notNull(),
-	// Optional link to the entity that triggered this notification
-	// WHY nullable: lease_expiring_soon links to a lease, others may not
-	entityId: uuid("entity_id"),
-	entityType: text("entity_type"), // "lease" | "utility" | "invite"
-	...auditColumns(),
-	// WHY no softDeleteColumn: notifications are marked as read, not deleted.
-	// Keeping them in the table supports future "notification history" views.
-});
+export const notifications = pgTable(
+	"notifications",
+	{
+		...idColumn(),
+		// userId is the OWNER who receives this notification — never the tenant
+		userId: uuid("user_id")
+			.notNull()
+			.references(() => user.id, { onDelete: "cascade" }),
+		type: text("type", {
+			enum: NOTIFICATION_TYPE_VALUES,
+		}).notNull(),
+		title: text("title").notNull(),
+		message: text("message").notNull(),
+		isRead: boolean("is_read").default(false).notNull(),
+		// Optional link to the entity that triggered this notification
+		// WHY nullable: lease_expiring_soon links to a lease, others may not
+		entityId: uuid("entity_id"),
+		entityType: text("entity_type"), // "lease" | "utility" | "invite"
+		...auditColumns(),
+		// WHY no softDeleteColumn: notifications are marked as read, not deleted.
+		// Keeping them in the table supports future "notification history" views.
+	},
+	(table) => [
+		// F02: identity is (user, type, entity, period) — never isRead, so a
+		// read notification cannot be recreated and concurrent polls converge
+		// on one row. Entity-less rows stay repeatable by design.
+		uniqueIndex("notifications_dedupe_key")
+			.on(table.userId, table.type, table.entityId, table.entityType)
+			.where(
+				sql`${table.entityId} is not null and ${table.entityType} is not null`,
+			),
+	],
+);
 
 export const notificationPreferences = pgTable(
 	"notification_preferences",

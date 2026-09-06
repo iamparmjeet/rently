@@ -246,13 +246,25 @@ export async function recordSubscriptionPayment(
 	}
 
 	const intervalMonths = getIntervalMonths(input.billingInterval);
-	const invoicePeriodStart = input.paidAt;
-	const invoicePeriodEnd = addMonths(input.paidAt, intervalMonths);
+	// D03: ONE effective start/end pair drives both the granted subscription
+	// period and the invoice coverage, so an invoice never claims a window the
+	// payment did not grant. A payment made before the current period ends
+	// grants the extension that follows it (start = the current period's end —
+	// no overlap); a payment made after it lapsed (or when the period was never
+	// set) grants a window starting at the payment itself.
+	const earlyRenewal = Boolean(
+		currentSubscription.currentPeriodEnd &&
+			currentSubscription.currentPeriodEnd > input.paidAt,
+	);
+	const effectiveStart = earlyRenewal
+		? (currentSubscription.currentPeriodEnd as Date)
+		: input.paidAt;
+	const effectiveEnd = addMonths(effectiveStart, intervalMonths);
+	const invoicePeriodStart = effectiveStart;
+	const invoicePeriodEnd = effectiveEnd;
 	const invoiceId = generatedId();
 	const auditId = generatedId();
 	const now = new Date();
-	const nextPeriodEnd = sql<Date>`greatest(coalesce(${subscriptions.currentPeriodEnd}, ${input.paidAt}), ${input.paidAt}) + (${intervalMonths} * interval '1 month')`;
-	const nextPeriodStart = sql<Date>`case when ${subscriptions.currentPeriodEnd} > ${input.paidAt} then ${subscriptions.currentPeriodStart} else ${input.paidAt} end`;
 
 	const updateSubscription = (database: Database) =>
 		database
@@ -262,9 +274,14 @@ export async function recordSubscriptionPayment(
 				status: PLAN_STATUS.ACTIVE,
 				expired: false,
 				billingInterval: input.billingInterval,
-				currentPeriodStart: nextPeriodStart,
-				currentPeriodEnd: nextPeriodEnd,
-				nextBillingDate: nextPeriodEnd,
+				// Early renewal keeps the row's original start: the period
+				// describes the coverage span the owner occupies, whose end this
+				// payment extends. A lapsed (or unset) period starts now.
+				currentPeriodStart: earlyRenewal
+					? (currentSubscription.currentPeriodStart as Date)
+					: effectiveStart,
+				currentPeriodEnd: effectiveEnd,
+				nextBillingDate: effectiveEnd,
 				totalPaid: sql`coalesce(${subscriptions.totalPaid}, 0) + ${input.amount}`,
 				currency: CURRENCY_TYPES.INR,
 				updatedAt: now,

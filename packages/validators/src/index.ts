@@ -12,6 +12,7 @@ export * from "./owner-profile";
 export * from "./payment";
 export * from "./property";
 export * from "./receipt";
+export * from "./statements";
 export * from "./subscription";
 export * from "./tenant";
 export * from "./tenant-document";

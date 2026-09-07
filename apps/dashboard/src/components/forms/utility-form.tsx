@@ -22,6 +22,7 @@ import { cn } from "@rently/ui/lib/utils";
 import {
 	type FixedCharge,
 	type MeterReading,
+	toBusinessDateKey,
 	UtilityBatchFormSchema,
 	type UtilityBatchFormValues,
 } from "@rently/validators";
@@ -132,8 +133,8 @@ export function UtilityForm({
 		defaultValues: {
 			leaseId,
 			batchId: generatedId(),
-			previousReadingDate: new Date().toISOString().split("T")[0] ?? "",
-			currentReadingDate: new Date().toISOString().split("T")[0] ?? "",
+			previousReadingDate: toBusinessDateKey() ?? "",
+			currentReadingDate: toBusinessDateKey() ?? "",
 			electricity:
 				defaultValues?.electricity ??
 				(!initialType || initialType === "electricity"

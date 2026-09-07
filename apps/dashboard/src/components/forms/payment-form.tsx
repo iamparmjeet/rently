@@ -23,7 +23,7 @@ import {
 } from "@rently/ui/components/select";
 import { Textarea } from "@rently/ui/components/textarea";
 import type { Lease } from "@rently/validators";
-import { CreatePaymentSchema } from "@rently/validators";
+import { CreatePaymentSchema, toBusinessDateKey } from "@rently/validators";
 import { Controller, useForm } from "react-hook-form";
 import z from "zod";
 import { entityLabel } from "@/utils/display";
@@ -77,7 +77,7 @@ export function PaymentForm({
 		resolver: zodResolver(PaymentFormSchema),
 		defaultValues: {
 			type: PAYMENT_TYPES.RENT,
-			paymentDate: new Date().toISOString().split("T")[0],
+			paymentDate: toBusinessDateKey(),
 			...defaultValues,
 		},
 	});

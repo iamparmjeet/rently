@@ -18,6 +18,7 @@ import type {
 	UtilityBatchFormValues,
 	UtilityListItem,
 } from "@rently/validators";
+import { toBusinessDateKey } from "@rently/validators";
 import {
 	IconAlertTriangle,
 	IconBolt,
@@ -791,10 +792,10 @@ function mapUtilityToFormDefaults(
 		leaseId: u.leaseId,
 		previousReadingDate: u.previousReadingDate
 			? new Date(u.previousReadingDate).toISOString().split("T")[0]
-			: new Date().toISOString().split("T")[0],
+			: toBusinessDateKey(),
 		currentReadingDate: u.currentReadingDate
 			? new Date(u.currentReadingDate).toISOString().split("T")[0]
-			: new Date().toISOString().split("T")[0],
+			: toBusinessDateKey(),
 	};
 
 	if (u.utilityType === "electricity") {

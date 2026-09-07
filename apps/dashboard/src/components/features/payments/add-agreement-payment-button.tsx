@@ -8,6 +8,7 @@ import {
 	useFormDialog,
 	useIdempotencyKey,
 } from "@rently/ui/shared/form-dialog";
+import { toBusinessDateKey } from "@rently/validators";
 import { IconLayersIntersect } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { useLeases } from "@/hooks/leases";
@@ -38,9 +39,7 @@ export function AddAgreementPaymentButton() {
 		return [...grouped.values()].filter((group) => group.count > 1);
 	}, [data?.leases]);
 	const [agreementId, setAgreementId] = useState("");
-	const [paymentDate, setPaymentDate] = useState(
-		new Date().toISOString().slice(0, 10),
-	);
+	const [paymentDate, setPaymentDate] = useState(() => toBusinessDateKey());
 	const [paymentMethods, setPaymentMethods] = useState("");
 	const [referenceNumber, setReferenceNumber] = useState("");
 	const canSubmit = !!agreementId && !!paymentDate;

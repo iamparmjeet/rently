@@ -24,6 +24,7 @@ import { Input } from "@rently/ui/components/input";
 import { formatRupees } from "@rently/ui/lib/currency";
 import { useIdempotencyKey } from "@rently/ui/shared/form-dialog";
 import type { UtilityListItem } from "@rently/validators";
+import { toBusinessDateKey } from "@rently/validators";
 import { IconReceipt } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
 import { useState } from "react";
@@ -69,7 +70,7 @@ export function MarkCombinedPaidDialog({
 		resolver: zodResolver(FormSchema),
 		values: {
 			paymentMethod: "cash",
-			receivedAt: new Date().toISOString().split("T")[0] ?? "",
+			receivedAt: toBusinessDateKey() ?? "",
 			notes: "",
 		},
 	});

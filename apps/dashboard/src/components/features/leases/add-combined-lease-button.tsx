@@ -3,6 +3,7 @@
 import { Button } from "@rently/ui/components/button";
 import { Input } from "@rently/ui/components/input";
 import { FormDialog, useFormDialog } from "@rently/ui/shared/form-dialog";
+import { toBusinessDateKey } from "@rently/validators";
 import { IconLayersIntersect } from "@tabler/icons-react";
 import { useState } from "react";
 import { useCreateCombinedLease } from "@/hooks/leases";
@@ -19,9 +20,7 @@ export function AddCombinedLeaseButton() {
 	const [tenantId, setTenantId] = useState("");
 	const [propertyId, setPropertyId] = useState("");
 	const [selected, setSelected] = useState<string[]>([]);
-	const [startDate, setStartDate] = useState(
-		new Date().toISOString().slice(0, 10),
-	);
+	const [startDate, setStartDate] = useState(() => toBusinessDateKey());
 	const [endDate, setEndDate] = useState("");
 
 	const units = (unitsData.units ?? []).filter(

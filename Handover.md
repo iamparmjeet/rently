@@ -796,3 +796,16 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 86 files / 471 pass + 1 H01 timeout + 1 fast B10 race failure under build-overlapped load (both green in isolation 13/13; H08 touches no API code) → local `bun run build` 5/5 (also proves the `@rently/auth/route-access` subpath resolves under Next); zero residue; `next-env.d.ts` churn restored.
 - Terra pointers: callback encoding moved from URLSearchParams to encodeURIComponent (equivalent for real URLs); `ownerHomeUrl`/`tenantHomeUrl` passed but unreachable on their own app (owner/tenant always allowed); prefetch bypass kept proxy-side and untested.
 - Next allowed slice: Phase I reconciliation (I01 docs, I02 audit, I03 smoke) — needs owner direction on batching/review before starting.
+
+## I02 Signed Ledger Reconciliation Audit (2026-09-07, Luna High, branch test/remediation-reconciliation, tag pre-remediation-reconciliation)
+
+- Base: clean `integ/phase-a-baseline@1bdaa252`; no migration. `main` untouched. Sol High review preferred per plan — stays `[~]`.
+- Note: Bug-2026-09-07 (Findings #2 and #3) were already implemented by Parmjeet and merged into the base branch before this slice began.
+- Gap (reconciliation): Phase I requires a full audit of all ledger totals to prove discrepancies are zero or explained.
+- Changed:
+  - `packages/db/src/reconciliation.test.ts`: comprehensive Vitest assertions running raw SQL queries across `payments` / `billCredits` / `rentCharges` / `utilities` / `invoices` to find stranded or mismatched amounts.
+  - `Reconciliation-Audit-Report.md` (Artifact): generated showing all zeroes except the designated `is_paid: true` drift.
+- Audit results: 4 passing tests finding zero unexplained discrepancies across all boundaries.
+- Verification: ran against the test database `rently_test` running migrations up to 0044. 
+- Known limitation: utilities `is_paid` drift is documented in the codebase as expected behavior.
+- Next allowed slice: I03 complete role-based release smoke test OR review and merge of completed work.

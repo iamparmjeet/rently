@@ -1,6 +1,6 @@
 import type { QueryClient } from "@tanstack/react-query";
 import { useQuery, useSuspenseQuery } from "@tanstack/react-query";
-import { orpc } from "@/utils/orpc";
+import { orpc } from "../../utils/orpc";
 
 export type PeriodBalanceInput = {
 	leaseId?: string;

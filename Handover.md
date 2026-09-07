@@ -652,3 +652,13 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 75 files / 419 tests pass (background run; foreground stalls documented) → local `bun run build` 5/5; zero fixture residue (scratch-debug leaks cleaned by ids); `next-env.d.ts` churn restored.
 - Terra pointers: backdated bills chain forward-only (a later bill's stored previousReading is NOT recomputed — rewrites are forbidden); month granularity of the guard; single-statement SQL mirror to review; shim timestamp-key extension for utility date keys.
 - Next allowed slice: G04 meter-reading rate limits from a clean integration-branch cut.
+
+## G04 Meter-reading rate limits (2026-09-06, Muse Spark, branch fix/meter-reading-rate-limit, tag pre-meter-reading-rate-limit)
+
+- Base: clean `integ/phase-a-baseline@3c288326` (G03 merge); one migration `0040_chief_wallow`. `main` untouched. Terra Medium review owed — stays `[~]`. Standing authorization applies. Small test footprint per owner request (3 tests).
+- Gap proven (2 red pre-fix, both `TOO_MANY_REQUESTS`): the limiter counted every utility bill on the tenant's leases in the last hour, so 5 owner-created bills locked the tenant out — same lease and cross-lease.
+- Changed (6 commits): `submission_source` nullable text + CHECK on utilities (no backfill — legacy/seed rows stay NULL and fail open); tenant submit marks `'tenant'` on both drivers; `createUtility`/`createBatch` mark `'owner'`; limiter adds `= 'tenant'`; validators omit the internal column from responses (idempotencyKey precedent). Generated journal `when` already exceeds 0039's — no surgery this slice. Fresh-install proof via `db:migrate:test` on the existing flow (40 migrations applied in order during verification).
+- Tests (`meter-reading-rate-scope.test.ts`, 3): 5 owner bills + tenant submit succeeds (same lease and cross-lease), 5 tenant submits + 6th refused (limiter still bites).
+- Verification: `db:generate` no drift (×2) → `check-types` 6/6 (caught a missing select column — fixed via the omit, zero handler churn) → Biome clean → `db:migrate:test` → FULL suite 76 files / 422 tests pass (background run) → local `bun run build` 5/5; zero fixture residue; `next-env.d.ts` churn restored.
+- Terra pointers: enum-vs-actor choice (source only; lease already identifies the tenant); NULL fail-open for legacy rows; owner marking covers create/batch but not seeds.
+- Next allowed slice: H01 server-issued statements from a clean integration-branch cut.

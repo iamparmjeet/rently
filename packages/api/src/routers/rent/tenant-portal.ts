@@ -499,6 +499,9 @@ export const submitMyReading = protectedProcedure
 			.where(
 				and(
 					eq(leases.tenantId, user.id),
+					// G04: only the tenant's own submissions count — owner
+					// billing activity must never lock the tenant out.
+					eq(utilities.submissionSource, "tenant"),
 					gte(utilities.createdAt, windowStart),
 				),
 			);
@@ -652,8 +655,8 @@ export const submitMyReading = protectedProcedure
 			// row lock). Zero inserted rows means a concurrent winner exists.
 			// The id is generated app-side: raw SQL bypasses drizzle defaults.
 			const inserted = await db.execute(sql`
-				INSERT INTO ${utilities} (id, lease_id, utility_type, previous_reading, current_reading, previous_reading_date, reading_date, units_used, rate_per_unit, fixed_charge, total_amount, description, is_paid)
-				SELECT ${crypto.randomUUID()}, ${selectedLease.id}, 'electricity', ${previousReading}, ${input.currentReading}, ${previousReadingDate}, ${readingDate}, ${unitsUsed}, ${ratePerUnit}, ${fixedCharge}, ${totalAmount}, ${input.notes ?? null}, false
+				INSERT INTO ${utilities} (id, lease_id, utility_type, previous_reading, current_reading, previous_reading_date, reading_date, units_used, rate_per_unit, fixed_charge, total_amount, description, is_paid, submission_source)
+				SELECT ${crypto.randomUUID()}, ${selectedLease.id}, 'electricity', ${previousReading}, ${input.currentReading}, ${previousReadingDate}, ${readingDate}, ${unitsUsed}, ${ratePerUnit}, ${fixedCharge}, ${totalAmount}, ${input.notes ?? null}, false, 'tenant'
 				WHERE NOT EXISTS (
 					SELECT 1 FROM ${utilities}
 					WHERE ${utilities.leaseId} = ${selectedLease.id}
@@ -762,6 +765,7 @@ export const submitMyReading = protectedProcedure
 						totalAmount,
 						description: input.notes ?? null,
 						isPaid: false,
+						submissionSource: "tenant",
 					})
 					.returning();
 

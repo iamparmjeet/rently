@@ -324,6 +324,7 @@ export const createUtility = ownerProcedure
 					description: input.description ?? null,
 					isPaid: false,
 					idempotencyKey: input.idempotencyKey,
+					submissionSource: "owner",
 				})
 				.returning();
 			utility = created;
@@ -753,6 +754,7 @@ export const createUtilityBatch = ownerProcedure
 				description: item.description,
 				isPaid: false,
 				idempotencyKey: item.idempotencyKey,
+				submissionSource: "owner",
 			};
 		});
 

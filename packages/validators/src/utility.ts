@@ -10,8 +10,11 @@ import z from "zod";
 // ── Layer 1: DB-derived
 // Derive Zod Schemas - For Runtime
 // idempotencyKey is an internal dedupe column — not part of any API response.
+// submissionSource likewise stays internal (G04): writers record it, the rate
+// limiter reads it, but no read model surfaces it yet.
 export const UtilitySelectSchema = createSelectSchema(utilities).omit({
 	idempotencyKey: true,
+	submissionSource: true,
 });
 export const UtilityInsertSchema = createInsertSchema(utilities);
 

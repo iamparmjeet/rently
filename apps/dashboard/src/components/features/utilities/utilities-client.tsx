@@ -52,6 +52,7 @@ import {
 	utilityExportRowsToCsv,
 } from "@/lib/utility-csv";
 import type { client } from "@/utils/orpc";
+import { summarizeUtilities } from "../../../lib/utility-summary";
 import { CombinedBillCard } from "./combined-bill-card";
 import { type CombinedBillGroup, CombinedBillRow } from "./combined-bill-row";
 import { ElectricityRow } from "./electricity-row";
@@ -128,28 +129,18 @@ export default function UtilitiesClient() {
 	}, [utilities, activeTab, search, statusFilter]);
 
 	// ── Derived: stats ───────────────────────────────────────────────────────
+	// H02: collected/outstanding derive from the server amountDue — a partial
+	// settlement counts its paid portion, discounts are not collections, and
+	// over-credits floor at zero instead of driving totals negative.
 	const pageStats = useMemo(() => {
-		const getDue = (u: (typeof utilities)[number]) =>
-			(u as { amountDue?: number }).amountDue ?? u.totalAmount;
-		const isPaidDerived = (u: (typeof utilities)[number]) => getDue(u) <= 0;
-		const totalBilled = utilities.reduce((acc, u) => acc + u.totalAmount, 0);
-		const totalDue = utilities.reduce((acc, u) => acc + getDue(u), 0);
-		const totalPaid = utilities
-			.filter(isPaidDerived)
-			.reduce((acc, u) => acc + u.totalAmount, 0);
-		const totalUnpaid = totalDue;
-		const paidRecords = utilities.filter(isPaidDerived).length;
-		const totalRecords = utilities.length;
-		const collectionRate =
-			totalBilled > 0 ? Math.round((totalPaid / totalBilled) * 100) : 0;
-
+		const summary = summarizeUtilities(utilities);
 		return {
-			totalBilled,
-			totalPaid,
-			totalUnpaid,
-			paidRecords,
-			totalRecords,
-			collectionRate,
+			totalBilled: summary.totalBilled,
+			totalPaid: summary.totalCollected,
+			totalUnpaid: summary.totalOutstanding,
+			paidRecords: summary.settledRecords,
+			totalRecords: summary.totalRecords,
+			collectionRate: summary.collectionRate,
 		};
 	}, [utilities]);
 

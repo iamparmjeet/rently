@@ -620,3 +620,15 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 72 files / 408 tests pass → local `bun run build` 5/5; zero fixture residue; `next-env.d.ts` churn restored.
 - Terra pointers: DB-clock `now()` vs app-clock `Date.now()` for the 1h rule (both workers share the DB); attemptedAt untouched on reclaim; the exported seam.
 - Next allowed slice: G01 India business dates from a clean integration-branch cut.
+
+## G01 India business dates (2026-09-06, Muse Spark, branch fix/india-business-dates, tag pre-india-business-dates)
+
+- Base: clean `integ/phase-a-baseline@56b12d55` (F03 merge); no migration. `main` untouched. Terra Medium review owed — stays `[~]`. Standing authorization applies.
+- Gap: browser today-defaults used the UTC calendar date (`new Date().toISOString().split("T")[0]`), so 00:00–05:30 IST an owner recording "today" got yesterday — while the API, jobs, and reports key by IST. Server IST machinery (`getLocalDateKey/PeriodKey`, period SQL, date-only keys) surveyed correct and left untouched: UTC-midnight parsing of `YYYY-MM-01` always lands on the same IST date (+05:30), and stored timestamps use the UTC-part convention consistently on both sides.
+- Changed (11 commits): `toBusinessDateKey(now, tz=Asia/Kolkata)` in `validators/src/date.ts` (en-CA parts, explicit zone — locale-independent); 9 today-default call sites across dashboard (payment/utility forms, receipt dialogs, utility fallbacks, lease/payment buttons) and tenant reading tab. Stored-date display arms (`new Date(stored)…`) deliberately untouched — they round-trip the stored convention correctly.
+- Surveyed and left (recorded): server-local windows in `admin/overview` (rolling 30d range, not a business date), UTC entitlement math in `admin/subscriptions`, UTC demo seeding, tenant docs-tab timestamp. None defines a tenancy business date.
+- Tests (`business-date.test.ts`, 4): IST 00:00–05:30 window, month/year boundaries, day 29–31 + leap day, locale independence — green under default TZ and `TZ=Pacific/Kiritimati`.
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 73 files / 412 tests pass → local `bun run build` 5/5; zero fixture residue (27-user residue from two timeout-killed runs cleaned by marker cascade); `next-env.d.ts` churn restored.
+- Environment note: full vitest stalled twice back-to-back (~600s timeouts, killed); background re-run passed 73/412 in 173s. The killed runs' fixtures were the residue source — never leave killed-suite rows behind.
+- Terra pointers: one-helper reading (UI uses validators, server keeps rent-cycle — same rule, no behavior churn); `?? ""` remnants after a total helper (harmless); lazy `useState(() => …)` initializer change.
+- Next allowed slice: G02 meter-reading precision from a clean integration-branch cut.

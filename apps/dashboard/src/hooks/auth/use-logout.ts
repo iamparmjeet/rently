@@ -1,4 +1,5 @@
 import { env } from "@rently/env/web";
+import { clearPreviewCache } from "@rently/ui/hooks/use-private-document-url-cache";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
 import { signOut } from "@/lib/auth-client";
@@ -24,6 +25,8 @@ export const useLogout = () => {
 		},
 		onSuccess: (_, __, context) => {
 			queryClient.clear();
+			// H06: drop cached document preview blobs with the session.
+			clearPreviewCache();
 			// future: resetPropertyStore()
 			// future: resetTenantStore()
 			toast.success("Signed Out", { id: context.toastId });

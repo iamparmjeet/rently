@@ -288,6 +288,13 @@
       "when": 1788760013256,
       "tag": "0040_chief_wallow",
       "breakpoints": true
+    },
+    {
+      "idx": 41,
+      "version": "7",
+      "when": 1788760604442,
+      "tag": "0041_far_toad",
+      "breakpoints": true
     }
   ]
 }

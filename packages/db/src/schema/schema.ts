@@ -215,9 +215,16 @@ export const utilities = pgTable(
 		// tenant meter submissions and legacy rows have none. Retried creates
 		// with the same key return the existing bill instead of duplicating it.
 		idempotencyKey: uuid("idempotency_key"),
+		// G04: who submitted the bill. Nullable: legacy/seed rows are unknown
+		// and fail open (never counted against tenant rate limits).
+		submissionSource: text("submission_source"),
 		...auditColumns(),
 	},
 	(table) => [
+		check(
+			"utilities_submission_source_check",
+			sql`${table.submissionSource} is null or ${table.submissionSource} in ('tenant', 'owner', 'system')`,
+		),
 		check(
 			"utilities_fixed_charge_check",
 			sql`${table.fixedCharge} is null or ${table.fixedCharge} >= 0`,

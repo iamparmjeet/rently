@@ -37,6 +37,9 @@ vi.mock("@rently/auth", () => ({
 
 vi.mock("@rently/email", () => ({
 	sendInviteEmail: mocks.sendInviteEmail,
+	sendAgreementPaymentReceiptEmail: vi.fn(),
+	sendPaymentReceiptEmail: vi.fn(),
+	sendUtilityBillEmail: vi.fn(),
 }));
 
 import { getLeasePeriodDue } from "../helpers/period-balance";

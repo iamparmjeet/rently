@@ -924,3 +924,22 @@ export const rentReminderSuppressions = pgTable(
 		),
 	],
 );
+
+// H01: server-issued printable statements. Issuing locks the composition
+// (one owner, one lease, one month); the page renders only what the read
+// returns, so URL tampering cannot forge or mix a bill. Ephemeral by design:
+// reads refuse expired rows, and both FKs cascade because a statement never
+// outlives its lease or owner.
+export const billStatements = pgTable("bill_statements", {
+	...idColumn(),
+	ownerId: uuid("owner_id")
+		.notNull()
+		.references(() => user.id, { onDelete: "cascade" }),
+	leaseId: uuid("lease_id")
+		.notNull()
+		.references(() => leases.id, { onDelete: "cascade" }),
+	utilityIds: uuid("utility_ids").array().notNull(),
+	periodKey: text("period_key").notNull(),
+	expiresAt: timestamp("expires_at").notNull(),
+	...auditColumns(),
+});

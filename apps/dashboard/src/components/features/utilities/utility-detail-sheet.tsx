@@ -15,6 +15,8 @@ import {
 	IconPrinter,
 	IconReceipt,
 } from "@tabler/icons-react";
+import { useState } from "react";
+import { client } from "../../../utils/orpc";
 import { UtilityDetailCard } from "./utility-detail-card";
 
 function formatDate(value: Date) {
@@ -42,6 +44,11 @@ export function UtilityDetailDialog({
 	onMarkPaid: (u: UtilityListItem) => void;
 	onMarkPaidCombined?: () => void;
 }) {
+	// H01: hooks stay above the early returns below.
+	// The statement is issued through the plain orpc client (no React Query
+	// provider needed), then the statement link opens for printing.
+	const [isIssuingStatement, setIsIssuingStatement] = useState(false);
+
 	if (items.length === 0) return null;
 
 	const first = items[0];
@@ -78,11 +85,36 @@ export function UtilityDetailDialog({
 	);
 	// C06: the printable bill fetches the authoritative rent due from the
 	// server balance model; no money travels through the URL.
-	const combinedBillHref = isCombinedBill
-		? `/combined-bill?ids=${items.map((i) => i.id).join(",")}`
-		: items.length === 1
-			? `/utilities/${items[0]!.id}`
-			: null;
+	// H01: printing goes through a server-issued statement — the dialog
+	// issues it for exactly these items, then opens the statement link.
+	const openPrintableBill = () => {
+		if (!isCombinedBill) {
+			if (items.length === 1 && items[0]) {
+				window.open(
+					`/utilities/${items[0].id}?print=true`,
+					"_blank",
+					"noopener",
+				);
+			}
+			return;
+		}
+		setIsIssuingStatement(true);
+		client.rent.statement
+			.issueBillStatement({ utilityIds: items.map((i) => i.id) })
+			.then(({ id }) => {
+				window.open(
+					`/combined-bill?statement=${id}&print=true`,
+					"_blank",
+					"noopener",
+				);
+			})
+			.catch((error: unknown) => {
+				console.error("[utility-detail] issue bill statement failed", error);
+			})
+			.finally(() => {
+				setIsIssuingStatement(false);
+			});
+	};
 
 	// Recommendation A: rent is always 1 calendar month (month of periodEnd), utility may be arrears
 	const rentMonthLabel = new Intl.DateTimeFormat("en-IN", {
@@ -261,17 +293,12 @@ export function UtilityDetailDialog({
 						<Button variant="outline" onClick={() => onOpenChange(false)}>
 							Close
 						</Button>
-						{combinedBillHref ? (
+						{items.length > 0 ? (
 							<Button
 								variant="outline"
 								className="gap-1.5"
-								onClick={() =>
-									window.open(
-										`${combinedBillHref}?print=true`,
-										"_blank",
-										"noopener",
-									)
-								}
+								disabled={isCombinedBill && isIssuingStatement}
+								onClick={openPrintableBill}
 							>
 								<IconPrinter className="size-3.5" />
 								{isCombinedBill ? "Print combined bill" : "Print bill"}

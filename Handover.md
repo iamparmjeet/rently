@@ -662,3 +662,13 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift (×2) → `check-types` 6/6 (caught a missing select column — fixed via the omit, zero handler churn) → Biome clean → `db:migrate:test` → FULL suite 76 files / 422 tests pass (background run) → local `bun run build` 5/5; zero fixture residue; `next-env.d.ts` churn restored.
 - Terra pointers: enum-vs-actor choice (source only; lease already identifies the tenant); NULL fail-open for legacy rows; owner marking covers create/batch but not seeds.
 - Next allowed slice: H01 server-issued statements from a clean integration-branch cut.
+
+## H01 Server-issued statements (2026-09-06, Muse Spark, branch fix/server-issued-statements, tag pre-server-issued-statements)
+
+- Base: clean `integ/phase-a-baseline@8abd8364` (G04 merge); one migration `0041_far_toad`. `main` untouched. Terra High review owed — stays `[~]`. Standing authorization applies. API tests only (5); UI wiring verified by build + existing dialog test.
+- Gap proven (4 red pre-fix of 5 — the totals test needed the procedures to exist): `/combined-bill?ids=` rendered any named bills as one bill. Receipts, credit notes, single-utility, and tenant receipt pages resolve single server-scoped IDs — surveyed safe, untouched.
+- Changed (9 commits): `bill_statements` (owner/lease/utilityIds/periodKey/expiresAt, cascading, 7-day TTL); `issueBillStatement` locks one-lease-one-month via `getOwnedUtility` per bill (unknown/foreign/archived refuse); `getBillStatement` checks owner+expiry as NOT_FOUND and resolves amounts live; `getOwnedUtility` moved verbatim to `helpers/owned-utility.ts` (router modules may only export Procedures — caught by check-types); page renders `?statement=` server data only; dialog issues then opens the statement link via the plain orpc client (relative import — root vitest maps `@/` to apps/web, and no React Query provider exists in the dialog test).
+- Tests (`bill-statements.test.ts`, 5): server-computed totals, mixed tenants, mixed periods, cross-owner issue/read, expired/invalid ids.
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 77 files / 427 tests pass (background run; caught a real `@/`-in-tested-file breakage post-first-green) → local `bun run build` 5/5; zero fixture residue; `next-env.d.ts` churn restored.
+- Terra pointers: 7-day TTL; composition locked at issue but amounts resolved live at read (voids reflect; later bills never join); period month keyed IST; bill number derived from statement id server-side.
+- Next allowed slice: H02 utility overdue summaries from a clean integration-branch cut.

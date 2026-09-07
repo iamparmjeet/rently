@@ -608,6 +608,10 @@ export const submitMyReading = protectedProcedure
 				});
 			}
 
+			// G03: the previous reading is the latest bill strictly BEFORE the
+			// submitted date — a backdated submission chains to its temporal
+			// predecessor, never to a later bill. Later bills keep their
+			// stored values (ledger rows are never rewritten).
 			const [lastReading] = await db
 				.select({
 					currentReading: utilities.currentReading,
@@ -620,6 +624,7 @@ export const submitMyReading = protectedProcedure
 					and(
 						eq(utilities.leaseId, selectedLease.id),
 						eq(utilities.utilityType, "electricity"),
+						lt(utilities.currentReadingDate, readingDate),
 					),
 				)
 				.orderBy(desc(utilities.currentReadingDate))
@@ -642,23 +647,38 @@ export const submitMyReading = protectedProcedure
 			const fixedCharge = lastReading?.fixedCharge ?? FIXEDCHARGE;
 			const totalAmount = Math.round(unitsUsed * ratePerUnit + fixedCharge);
 
+			// G03: the monthly guard and the insert are one statement, so two
+			// simultaneous submissions cannot both land (the batch path has no
+			// row lock). Zero inserted rows means a concurrent winner exists.
+			// The id is generated app-side: raw SQL bypasses drizzle defaults.
+			const inserted = await db.execute(sql`
+				INSERT INTO ${utilities} (id, lease_id, utility_type, previous_reading, current_reading, previous_reading_date, reading_date, units_used, rate_per_unit, fixed_charge, total_amount, description, is_paid)
+				SELECT ${crypto.randomUUID()}, ${selectedLease.id}, 'electricity', ${previousReading}, ${input.currentReading}, ${previousReadingDate}, ${readingDate}, ${unitsUsed}, ${ratePerUnit}, ${fixedCharge}, ${totalAmount}, ${input.notes ?? null}, false
+				WHERE NOT EXISTS (
+					SELECT 1 FROM ${utilities}
+					WHERE ${utilities.leaseId} = ${selectedLease.id}
+						AND ${utilities.utilityType} = 'electricity'
+						AND ${utilities.currentReadingDate} >= ${monthStart}
+						AND ${utilities.currentReadingDate} < ${monthEnd}
+				)
+				RETURNING id
+			`);
+			const insertedRows = ((
+				inserted as unknown as { rows?: Array<{ id: string }> }
+			).rows ?? (inserted as unknown as Array<{ id: string }>)) as Array<{
+				id: string;
+			}>;
+			if (insertedRows.length === 0) {
+				throw new ORPCError("CONFLICT", {
+					message:
+						"A reading was already submitted for this month. Contact your landlord to correct it.",
+				});
+			}
 			const [created] = await db
-				.insert(utilities)
-				.values({
-					leaseId: selectedLease.id,
-					utilityType: "electricity",
-					previousReading: previousReading ?? null,
-					currentReading: input.currentReading,
-					previousReadingDate,
-					currentReadingDate: new Date(input.readingDate),
-					unitsUsed,
-					ratePerUnit,
-					fixedCharge,
-					totalAmount,
-					description: input.notes ?? null,
-					isPaid: false,
-				})
-				.returning();
+				.select()
+				.from(utilities)
+				.where(eq(utilities.id, insertedRows[0]?.id ?? ""))
+				.limit(1);
 
 			utility = created;
 		} else {
@@ -691,6 +711,7 @@ export const submitMyReading = protectedProcedure
 					});
 				}
 
+				// G03: same temporal-previous rule as the batch path above.
 				const [lastReading] = await tx
 					.select({
 						currentReading: utilities.currentReading,
@@ -703,6 +724,7 @@ export const submitMyReading = protectedProcedure
 						and(
 							eq(utilities.leaseId, selectedLease.id),
 							eq(utilities.utilityType, "electricity"),
+							lt(utilities.currentReadingDate, readingDate),
 						),
 					)
 					.orderBy(desc(utilities.currentReadingDate))

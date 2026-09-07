@@ -89,11 +89,17 @@ const PROTECTED_NAV_ROUTES = PROTECTED_KEYS.map(
 );
 
 // Non-navigation routes that still need protection (sub-pages, APIs, etc.)
+// H08: financial document routes render server-scoped data but had no
+// routing-layer guard — unauthenticated or wrong-role direct navigation
+// reached the page shell. Prefix matching covers parameterized children.
 const EXTRA_PROTECTED_ROUTES = [
 	"/units",
 	"/utilities",
 	"/subscriptions",
 	"/tenant-portal",
+	"/combined-bill",
+	"/receipts",
+	"/credit-notes",
 ] as const;
 
 export const PROTECTED_ROUTES = [

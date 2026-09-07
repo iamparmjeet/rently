@@ -94,6 +94,12 @@ export const PROTECTED_ROUTES = [
 	...EXTRA_PROTECTED_ROUTES,
 ] as const;
 
+// H08: the routes the tenant proxy actually guards. The receipt documents
+// live at top-level /receipts/*, outside the /tenant-portal prefix — without
+// this list they had no routing-layer protection. (PROTECTED_ROUTES above is
+// a dashboard-shaped leftover the proxy never reads.)
+export const TENANT_PROTECTED_ROUTES = ["/tenant-portal", "/receipts"] as const;
+
 // Auth routes (login/register) — kept here for colocation
 export const AUTH_ROUTES = ["/login", "/register", "/forgot-password"] as const;
 

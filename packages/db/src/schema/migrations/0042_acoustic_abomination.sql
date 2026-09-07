@@ -1,0 +1,2 @@
+ALTER TABLE "rent_charges" DROP CONSTRAINT "rent_charges_due_date_in_period";--> statement-breakpoint
+ALTER TABLE "rent_charges" ADD CONSTRAINT "rent_charges_due_date_current_or_next_period" CHECK ("rent_charges"."due_date" >= to_date("rent_charges"."period_key" || '-01', 'YYYY-MM-DD') AND "rent_charges"."due_date" < (to_date("rent_charges"."period_key" || '-01', 'YYYY-MM-DD') + interval '2 months')::date);

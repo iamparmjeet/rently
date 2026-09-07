@@ -295,6 +295,20 @@
       "when": 1788760604442,
       "tag": "0041_far_toad",
       "breakpoints": true
+    },
+    {
+      "idx": 42,
+      "version": "7",
+      "when": 1788787231578,
+      "tag": "0042_acoustic_abomination",
+      "breakpoints": true
+    },
+    {
+      "idx": 43,
+      "version": "7",
+      "when": 1788787624764,
+      "tag": "0043_thin_hellfire_club",
+      "breakpoints": true
     }
   ]
 }

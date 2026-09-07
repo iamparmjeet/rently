@@ -136,6 +136,7 @@ async function singleLease(
 	tenantId: string,
 	propertyId: string,
 	startDate: string,
+	rentDueDate?: number,
 ) {
 	const [unit] = await db
 		.insert(units)
@@ -155,6 +156,7 @@ async function singleLease(
 		startDate: new Date(startDate),
 		endDate: new Date("2027-09-01T00:00:00.000Z"),
 		rent: RENT,
+		rentDueDate,
 	});
 	createdLeaseIds.push(result.lease.id);
 	createdAgreementIds.push(result.lease.agreementId as string);
@@ -260,6 +262,53 @@ afterEach(async () => {
 });
 
 describe("C04 rent-period dual-write", () => {
+	it("projects a UTC lease start into its IST rent period", async () => {
+		const { ownerId, tenantId, propertyId } = await ownerProperty();
+		const istCurrentMonth = new Date(istMonthStart());
+		// 19:00 UTC on the prior day is 00:30 on the first day of this IST month.
+		istCurrentMonth.setUTCDate(0);
+		istCurrentMonth.setUTCHours(19, 0, 0, 0);
+		const lease = await singleLease(
+			ownerId,
+			tenantId,
+			propertyId,
+			istCurrentMonth.toISOString(),
+		);
+
+		const charges = await db
+			.select({ periodKey: rentCharges.periodKey })
+			.from(rentCharges)
+			.where(eq(rentCharges.leaseId, lease.id))
+			.orderBy(rentCharges.periodKey);
+		expect(charges).toEqual([{ periodKey: istMonthKey() }]);
+	});
+
+	it("sets the first due date after a post-due-day lease start", async () => {
+		const { ownerId, tenantId, propertyId } = await ownerProperty();
+		const priorMonth = new Date(istMonthStart(-1));
+		priorMonth.setUTCDate(20);
+		const lease = await singleLease(
+			ownerId,
+			tenantId,
+			propertyId,
+			priorMonth.toISOString(),
+			5,
+		);
+
+		const charges = await db
+			.select({
+				dueDate: rentCharges.dueDate,
+				periodKey: rentCharges.periodKey,
+			})
+			.from(rentCharges)
+			.where(eq(rentCharges.leaseId, lease.id))
+			.orderBy(rentCharges.periodKey);
+		expect(charges[0]).toEqual({
+			periodKey: istMonthKey(-1),
+			dueDate: `${istMonthKey()}-05`,
+		});
+	});
+
 	it("createLease accrues charges immediately, including backdated periods", async () => {
 		const { ownerId, tenantId, propertyId } = await ownerProperty();
 		// Backdated mid-month start: first period prorated, then full months

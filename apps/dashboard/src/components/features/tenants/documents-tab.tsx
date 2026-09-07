@@ -8,13 +8,18 @@ import { Button } from "@rently/ui/components/button";
 import { Input } from "@rently/ui/components/input";
 import { Label } from "@rently/ui/components/label";
 import { PrivateDocumentViewer } from "@rently/ui/components/private-document-viewer";
-import { usePrivateDocumentUrlCache } from "@rently/ui/hooks/use-private-document-url-cache";
+import {
+	clearPreviewCache,
+	revokePreviewUrl,
+	usePrivateDocumentUrlCache,
+} from "@rently/ui/hooks/use-private-document-url-cache";
 import type { TenantDetail } from "@rently/validators";
 import { IconDownload, IconEye, IconFileText } from "@tabler/icons-react";
 import { useQueryClient } from "@tanstack/react-query";
-import { useRef, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { toast } from "sonner";
 import { useTenantDocumentAction, useTenantDocuments } from "@/hooks/tenants";
+import { useSession } from "@/lib/auth-client";
 import { client, orpc } from "@/utils/orpc";
 
 const DOCUMENTS: Array<{ type: TenantDocumentType; label: string }> = [
@@ -102,6 +107,37 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 		url: string | null;
 		error: string | null;
 	} | null>(null);
+	// H06: preview blobs are per-session bytes. The ref mirrors the open
+	// viewer for cleanups that outlive the render closure.
+	const viewerIdRef = useRef<string | null>(null);
+	viewerIdRef.current = viewer?.documentId ?? null;
+	const { data: session } = useSession();
+	const sessionUserId = session?.user?.id;
+	const sessionUserIdRef = useRef(sessionUserId);
+
+	function closeViewer() {
+		if (viewerIdRef.current) revokePreviewUrl(viewerIdRef.current);
+		setViewer(null);
+	}
+
+	// A new login in the same tab must not inherit cached preview bytes.
+	useEffect(() => {
+		if (
+			sessionUserIdRef.current &&
+			sessionUserIdRef.current !== sessionUserId
+		) {
+			clearPreviewCache();
+		}
+		sessionUserIdRef.current = sessionUserId;
+	}, [sessionUserId]);
+
+	// Unmount with a preview open (navigation, tab switch).
+	useEffect(
+		() => () => {
+			if (viewerIdRef.current) revokePreviewUrl(viewerIdRef.current);
+		},
+		[],
+	);
 	if (isLoading)
 		return <div className="h-64 animate-pulse rounded-xl bg-muted" />;
 
@@ -619,7 +655,7 @@ export function DocumentsTab({ tenant }: { tenant: TenantDetail }) {
 			{viewer && (
 				<PrivateDocumentViewer
 					open
-					onOpenChange={(open) => !open && setViewer(null)}
+					onOpenChange={(open) => !open && closeViewer()}
 					title={viewer.title}
 					contentType={viewer.contentType}
 					url={viewer.url}

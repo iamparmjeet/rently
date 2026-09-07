@@ -1772,6 +1772,12 @@ export const voidPayment = ownerProcedure
 				message: "Cannot void a reversal payment",
 			});
 		}
+		if (existing.type === PAYMENT_TYPES.REFUND) {
+			throw new ORPCError("BAD_REQUEST", {
+				message: "Reverse the linked credit note to recover a cash refund",
+			});
+		}
+
 		if (existing.paymentGroupId) {
 			throw new ORPCError("BAD_REQUEST", {
 				message: "Use voidPaymentGroup to reverse a grouped payment",

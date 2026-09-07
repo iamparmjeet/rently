@@ -44,7 +44,7 @@ vi.mock("@rently/email", () => ({
 	sendUtilityBillEmail: vi.fn(),
 }));
 
-import { createCredit } from "../rent/credit";
+import { createCredit, reverseCredit } from "../rent/credit";
 import { createPayment } from "../rent/payment";
 import { recordUtilityPayment } from "../rent/utility";
 
@@ -71,7 +71,7 @@ function clients(ownerId: string) {
 	});
 	const context = { db, headers: new Headers() } as never;
 	return createRouterClient(
-		{ createCredit, createPayment, recordUtilityPayment },
+		{ createCredit, createPayment, recordUtilityPayment, reverseCredit },
 		{ context },
 	);
 }
@@ -337,4 +337,51 @@ describe("H04 refund/adjust pairing", () => {
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		await expect(creditCount(leaseId)).resolves.toHaveLength(0);
 	});
+
+	it("reverses a cash refund credit and creates one positive payment reversal linked to it", async () => {
+		const { ownerId, leaseId } = await ownerLease();
+		const utilityId = await unpaidBill(leaseId);
+		const api = clients(ownerId);
+		await api.recordUtilityPayment({
+			utilityId,
+			leaseId,
+			amount: BILL_TOTAL,
+			paymentMethod: "upi",
+			receivedAt: new Date().toISOString(),
+			idempotencyKey: crypto.randomUUID(),
+		});
+		const { credit } = await api.createCredit({
+			leaseId,
+			utilityId,
+			type: CREDIT_TYPES.DISCOUNT,
+			amount: -10_000,
+			reason: "H04 cash returned for settled bill",
+			appliedAs: "refund",
+			idempotencyKey: crypto.randomUUID(),
+		});
+
+		expect(credit.refundPaymentId).toBeDefined();
+
+		const { reversal } = await api.reverseCredit({
+			creditId: credit.id,
+		});
+
+		expect(reversal).toBeDefined();
+
+		const recoveryRows = await db
+			.select({
+				amount: payments.amount,
+				type: payments.type,
+				reversesPaymentId: payments.reversesPaymentId,
+			})
+			.from(payments)
+			.where(eq(payments.reversesPaymentId, credit.refundPaymentId as string));
+
+		expect(recoveryRows).toHaveLength(1);
+		expect(recoveryRows[0]).toMatchObject({
+			amount: 10_000,
+			type: "reversal",
+			reversesPaymentId: credit.refundPaymentId,
+		});
+	}, 30000);
 });

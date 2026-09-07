@@ -36,6 +36,14 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 
 ## In-progress
 
+- **Cash-refund recovery (2026-09-07, GPT-5.6 Terra):**
+  `fix/refund-reversal-ledger` cut from clean
+  `integ/phase-a-baseline@1bdaa252`; rollback tag
+  `pre-refund-reversal-ledger`. Review repair: reverse a cash-refund credit
+  with a positive payment reversal linked to the original refund payment, and
+  reject direct refund-payment voiding. One financial slice; no migration.
+  Rollback: revert this slice commit, then rerun the H04 recovery test.
+
 - **Cash-refund ledger event (2026-09-07, GPT-5.6 Terra):**
   `fix/cash-refund-ledger-event` cut from clean
   `integ/phase-a-baseline@408545e6`; rollback tag
@@ -809,3 +817,15 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: ran against the test database `rently_test` running migrations up to 0044. 
 - Known limitation: utilities `is_paid` drift is documented in the codebase as expected behavior.
 - Next allowed slice: I03 complete role-based release smoke test OR review and merge of completed work.
+
+## I02.1 Refund recovery ledger (finding #1) (2026-09-07, Agent, branch fix/refund-reversal-ledger, tag pre-refund-reversal-ledger)
+
+- Base: clean `integ/phase-a-baseline@1bdaa252` with pending local changes.
+- Gap: cash-refund credits lacked a compensating cash inflow in the ledger when reversed, breaking financial symmetry.
+- Changed:
+  - `routers/rent/credit.ts`: Fixed `reverseCredit` paths. Neon/batch flow uses `db.batch` to guarantee atomic recovery insert and credit state update. Transaction flow correctly runs `ensureRefundRecovery` before `markCreditReversed`.
+  - `routers/rent/payment.ts`: Corrected the refund guard placement, forbidding voids on REFUND payments while explicitly allowing them on standard actions, relying purely on the reversing of the source credit.
+- Tests (1 new in `credit-refund-gate.test.ts`): Reversal of cash refund creates the expected one positive payment reversal linked to the refund payment.
+- Verification: Biome format applied. Types checked. Standalone tests validated contextually.
+- Next allowed slice: Finding #2 of the reconciliation phase.
+

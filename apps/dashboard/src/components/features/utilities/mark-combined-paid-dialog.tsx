@@ -31,7 +31,7 @@ import { useState } from "react";
 import { useForm } from "react-hook-form";
 import { toast } from "sonner";
 import z from "zod";
-import { invalidatePeriodBalances } from "@/hooks/balance/use-period-balance";
+import { invalidateFinancialViews } from "@/lib/financial-invalidation";
 import { client, orpc } from "@/utils/orpc";
 
 const FormSchema = z.object({
@@ -145,16 +145,7 @@ export function MarkCombinedPaidDialog({
 				`Combined payment recorded — ${formatRupees(settledPaise)}`,
 			);
 			// Invalidate caches
-			queryClient.invalidateQueries({
-				queryKey: orpc.rent.utility.listUtilities.key(),
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.rent.payment.listPayments.key(),
-			});
-			queryClient.invalidateQueries({
-				queryKey: orpc.rent.stats.getRevenueDashboard.key(),
-			});
-			invalidatePeriodBalances(queryClient);
+			invalidateFinancialViews(queryClient);
 			for (const u of items) {
 				queryClient.invalidateQueries({
 					queryKey: orpc.rent.utility.getUtilityById.key({

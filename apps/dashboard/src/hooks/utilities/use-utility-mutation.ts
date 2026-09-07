@@ -5,6 +5,8 @@ import {
 import type { LeaseWithDetails, UtilityListItem } from "@rently/validators";
 import { useMutation, useQueryClient } from "@tanstack/react-query";
 import { toast } from "sonner";
+import { invalidatePeriodBalances } from "@/hooks/balance/use-period-balance";
+import { invalidateFinancialViews } from "@/lib/financial-invalidation";
 import { client, orpc } from "@/utils/orpc";
 
 type UtilityListCache = { utilities: UtilityListItem[] };
@@ -36,6 +38,8 @@ export function useCreateUtility() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
+			// A new bill changes the C05 balance utilities section.
+			invalidatePeriodBalances(queryClient);
 		},
 	});
 }
@@ -68,6 +72,7 @@ export function useUpdateUtility() {
 					input: { id: variables.id },
 				}),
 			});
+			invalidatePeriodBalances(queryClient);
 		},
 	});
 }
@@ -104,6 +109,7 @@ export function useRemoveUtility() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
+			invalidatePeriodBalances(queryClient);
 		},
 	});
 }
@@ -131,6 +137,7 @@ export function useCreateUtilityBatch() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
+			invalidatePeriodBalances(queryClient);
 		},
 	});
 }
@@ -232,6 +239,7 @@ export function useOptimisticCreateUtility() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
+			invalidatePeriodBalances(queryClient);
 		},
 	});
 }
@@ -313,6 +321,7 @@ export function useOptimisticUpdateUtility() {
 					input: { id: variables.id },
 				}),
 			});
+			invalidatePeriodBalances(queryClient);
 		},
 	});
 }
@@ -374,6 +383,7 @@ export function useOptimisticRemoveUtility() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
+			invalidatePeriodBalances(queryClient);
 		},
 	});
 }
@@ -474,6 +484,7 @@ export function useOptimisticCreateBatchUtility() {
 			queryClient.invalidateQueries({
 				queryKey: orpc.rent.utility.listUtilities.key(),
 			});
+			invalidatePeriodBalances(queryClient);
 		},
 	});
 }
@@ -517,10 +528,10 @@ export function useRecordUtilityPayment() {
 			toast.success("Payment recorded", { id: context.toastId });
 		},
 		onSettled: () => {
-			// WHY invalidate both: utility's isPaid flips AND a new payment row exists
-			queryClient.invalidateQueries({
-				queryKey: orpc.rent.utility.listUtilities.key(),
-			});
+			// WHY the full set, not just utilities: settling a bill writes a
+			// payment row, so the payment list, revenue, balances, credits,
+			// and tenant snapshots all move with it.
+			invalidateFinancialViews(queryClient);
 		},
 	});
 }

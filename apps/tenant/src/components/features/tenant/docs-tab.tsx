@@ -8,7 +8,11 @@ import { Button } from "@rently/ui/components/button";
 import { Input } from "@rently/ui/components/input";
 import { Label } from "@rently/ui/components/label";
 import { PrivateDocumentViewer } from "@rently/ui/components/private-document-viewer";
-import { usePrivateDocumentUrlCache } from "@rently/ui/hooks/use-private-document-url-cache";
+import {
+	clearPreviewCache,
+	revokePreviewUrl,
+	usePrivateDocumentUrlCache,
+} from "@rently/ui/hooks/use-private-document-url-cache";
 import { cn } from "@rently/ui/lib/utils";
 import {
 	IconClock,
@@ -26,6 +30,7 @@ import {
 	useTenantDocuments,
 	useTenantProfile,
 } from "@/hooks/tenant-portal";
+import { useSession } from "@/lib/auth-client";
 import { client, orpc } from "@/utils/orpc";
 
 const DOCUMENTS: Array<{ type: TenantDocumentType; label: string }> = [
@@ -109,6 +114,37 @@ export function DocsTab() {
 		url: string | null;
 		error: string | null;
 	} | null>(null);
+	// H06: preview blobs are per-session bytes. The ref mirrors the open
+	// viewer for cleanups that outlive the render closure.
+	const viewerIdRef = useRef<string | null>(null);
+	viewerIdRef.current = viewer?.documentId ?? null;
+	const { data: session } = useSession();
+	const sessionUserId = session?.user?.id;
+	const sessionUserIdRef = useRef(sessionUserId);
+
+	function closeViewer() {
+		if (viewerIdRef.current) revokePreviewUrl(viewerIdRef.current);
+		setViewer(null);
+	}
+
+	// A new login in the same tab must not inherit cached preview bytes.
+	useEffect(() => {
+		if (
+			sessionUserIdRef.current &&
+			sessionUserIdRef.current !== sessionUserId
+		) {
+			clearPreviewCache();
+		}
+		sessionUserIdRef.current = sessionUserId;
+	}, [sessionUserId]);
+
+	// Unmount with a preview open (navigation, tab switch).
+	useEffect(
+		() => () => {
+			if (viewerIdRef.current) revokePreviewUrl(viewerIdRef.current);
+		},
+		[],
+	);
 	const self = profileData?.user;
 	const ownerProfiles = profileData?.profiles ?? [];
 	const activeUnits = (agreementsData?.agreements ?? []).flatMap((agreement) =>
@@ -637,7 +673,7 @@ export function DocsTab() {
 			{viewer && (
 				<PrivateDocumentViewer
 					open
-					onOpenChange={(open) => !open && setViewer(null)}
+					onOpenChange={(open) => !open && closeViewer()}
 					title={viewer.title}
 					contentType={viewer.contentType}
 					url={viewer.url}

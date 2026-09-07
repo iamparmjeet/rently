@@ -1,5 +1,31 @@
 # Decisions
 
+## 2026-09-07 - Rent-period calendar semantics repair
+
+**Decision:** Keep persisted lease/payment timestamps as UTC instants and make
+`Asia/Kolkata` the sole projection for rent-period keys, active-day bounds, and
+due-date calculations. A prorated first-period charge whose configured due day
+has passed retains the charge but uses the next period's due date, as approved
+in Rent-Period Rule R3. Correct existing derived charges through a reviewable,
+additive reconciliation migration rather than modifying applied migrations or
+silently rewriting financial history.
+
+**Why:** The approved business contract assigns a UTC instant to its Indian
+calendar date. Treating its stored UTC wall clock as a business date creates
+wrong month keys and invented past due dates.
+
+**Alternatives:** Store a fixed GMT offset or add a user setting now (rejected:
+India-only product semantics need the IANA zone and a setting expands scope);
+edit migration 0032 (rejected: deployed migrations are immutable); suppress
+the first charge after its due day (rejected: R4/R13 still require prorated
+rent to accrue).
+
+**Tradeoff:** Allowing the R3 first-period exception requires a narrowly
+changed due-date constraint and explicit reader coverage. Historical
+reconciliation needs an owner-visible report before any production adoption.
+
+**Model:** GPT-5.6 Terra
+
 ## 2026-09-06 - C04 rent-period dual-write
 
 **Decision:** Every rent-affecting writer now also maintains the period ledger

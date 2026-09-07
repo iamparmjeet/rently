@@ -30,37 +30,53 @@ export function ensureAccruedChargesSql(
 			gen_random_uuid(),
 			l."id",
 			to_char(p_month, 'YYYY-MM'),
-			make_date(
-				extract(year from p_month)::int,
-				extract(month from p_month)::int,
-				least(
-					coalesce(l."rent_due_date", extract(day from l."start_date")::int),
-					extract(day from (p_month + interval '1 month - 1 day'))::int
-				)
-			),
+			CASE
+				-- R3: the first prorated charge still exists, but when its due
+				-- day has passed the first valid due date is in the next period.
+				WHEN p_month::date = date_trunc('month', dates.start_date)::date
+					AND due_dates.in_period < dates.start_date
+				THEN due_dates.next_period
+				ELSE due_dates.in_period
+			END,
 			round(
 				l."rent" * edges.active_days
 				/ extract(day from (p_month + interval '1 month - 1 day'))::numeric
 			)::int
 		FROM "leases" l
+		-- Lease timestamps are UTC instants; only their India calendar dates
+		-- define period keys, charge edges, and due-date comparisons (R1/R2).
+		CROSS JOIN LATERAL (
+			SELECT
+				(l."start_date" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::date AS start_date,
+				CASE WHEN l."end_date" IS NULL THEN NULL
+					ELSE (l."end_date" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::date
+				END AS end_date
+		) dates
 		CROSS JOIN LATERAL generate_series(
-			date_trunc('month', l."start_date"),
-			date_trunc('month', coalesce(l."end_date", (now() AT TIME ZONE 'Asia/Kolkata')::timestamp)),
+			date_trunc('month', dates.start_date),
+			date_trunc('month', coalesce(dates.end_date, (now() AT TIME ZONE 'Asia/Kolkata')::date)),
 			interval '1 month'
 		) AS p_month
+		CROSS JOIN LATERAL (
+			SELECT
+				make_date(extract(year from p_month)::int, extract(month from p_month)::int,
+					least(coalesce(l."rent_due_date", extract(day from dates.start_date)::int), extract(day from (p_month + interval '1 month - 1 day'))::int)) AS in_period,
+				make_date(extract(year from (p_month + interval '1 month'))::int, extract(month from (p_month + interval '1 month'))::int,
+					least(coalesce(l."rent_due_date", extract(day from dates.start_date)::int), extract(day from (p_month + interval '2 months - 1 day'))::int)) AS next_period
+		) due_dates
 		CROSS JOIN LATERAL (
 			SELECT GREATEST(0,
 				LEAST(
 					(p_month + interval '1 month - 1 day')::date,
-					coalesce(l."end_date"::date, (p_month + interval '1 month - 1 day')::date)
-				) - GREATEST(p_month::date, l."start_date"::date) + 1
+				coalesce(dates.end_date, (p_month + interval '1 month - 1 day')::date)
+			) - GREATEST(p_month::date, dates.start_date) + 1
 			) AS active_days
 		) edges
 		WHERE ${leaseFilter}${gateFilter}
-			AND l."start_date"::date <= ${IST_TODAY}
+			AND dates.start_date <= ${IST_TODAY}
 			AND p_month::date <= ${IST_TODAY}
 			AND (l."end_date" IS NOT NULL OR l."status" = 'active')
-			AND (l."end_date" IS NULL OR l."end_date"::date >= p_month::date)
+			AND (dates.end_date IS NULL OR dates.end_date >= p_month::date)
 			AND edges.active_days > 0
 		ON CONFLICT ("lease_id", "period_key") DO NOTHING`;
 }

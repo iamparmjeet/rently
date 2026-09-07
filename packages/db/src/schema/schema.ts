@@ -427,8 +427,8 @@ export const rentCharges = pgTable(
 			sql`${table.periodKey} ~ '^[0-9]{4}-[0-9]{2}$'`,
 		),
 		check(
-			"rent_charges_due_date_in_period",
-			sql`${table.dueDate}::text like ${table.periodKey} || '-%'`,
+			"rent_charges_due_date_current_or_next_period",
+			sql`${table.dueDate} >= to_date(${table.periodKey} || '-01', 'YYYY-MM-DD') AND ${table.dueDate} < (to_date(${table.periodKey} || '-01', 'YYYY-MM-DD') + interval '2 months')::date`,
 		),
 	],
 );
@@ -482,7 +482,9 @@ export const rentAllocations = pgTable(
 // run. Kinds: 'lease_end_ambiguous' (terminated/expired without an end date —
 // accrual stop is unknowable), 'unallocated_source_remainder' (a payment or
 // credit larger than the deterministic charge set allows), and
-// 'unattributable_reversal' (a reversal whose original cannot be found).
+// 'unattributable_reversal' (a reversal whose original cannot be found), and
+// 'calendar_semantics_review' (a UTC/IST period mismatch requiring an owner
+// reconciliation before allocations are ever reassigned).
 export const rentBackfillExceptions = pgTable(
 	"rent_backfill_exceptions",
 	{
@@ -501,6 +503,7 @@ export const rentBackfillExceptions = pgTable(
 				"lease_end_ambiguous",
 				"unallocated_source_remainder",
 				"unattributable_reversal",
+				"calendar_semantics_review",
 			],
 		}).notNull(),
 		// Paise involved; informational (0 for the ambiguous-end kind).
@@ -511,7 +514,7 @@ export const rentBackfillExceptions = pgTable(
 	(table) => [
 		check(
 			"rent_backfill_exceptions_kind_check",
-			sql`${table.kind} in ('lease_end_ambiguous', 'unallocated_source_remainder', 'unattributable_reversal')`,
+			sql`${table.kind} in ('lease_end_ambiguous', 'unallocated_source_remainder', 'unattributable_reversal', 'calendar_semantics_review')`,
 		),
 	],
 );

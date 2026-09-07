@@ -35,6 +35,27 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Standardized all site currency display on `formatRupees`, which always shows two decimal places; removed `formatRupeesOptionalPaise`.
 
 ## In-progress
+
+- **Rent-period calendar semantics repair (2026-09-07, GPT-5.6 Terra):**
+  `fix/rent-period-calendar-semantics` cut from clean
+  `integ/phase-a-baseline@6557ffd9`; rollback tag
+  `pre-rent-period-calendar-semantics`. High-risk ledger slice. Scope is to
+  project UTC lease instants to `Asia/Kolkata` for all period calculations,
+  implement R3's first-valid-due-date rule, and provide a non-silent
+  reconciliation path for derived charges. Do not edit applied migration 0032
+  or mutate production ledger records manually.
+  - Progress: red C04 integration tests reproduced both defects; live accrual
+    now projects UTC instants into `Asia/Kolkata`, and R3 first-period due
+    dates move to the next valid period. Generated migrations 0042/0043 relax
+    the charge due-date constraint to current-or-next period, repair only
+    derived due-date metadata, and flag UTC/IST charge-period candidates for
+    owner reconciliation without deleting or rewiring allocations.
+  - Verification: `db:generate` (no drift), `db:migrate:test`, two targeted
+    boundary regressions, isolated C04 timeout cases, `check-types --force`,
+    focused Biome, `git diff --check`, and `build` (5/5) pass. Combined
+    database suites can hang/timeout under the shared-test-database runner;
+    terminate their stale parent/worker before any rerun. Ready to commit,
+    push, and merge after final review.
 - Restore production-shaped data into local `rently_dev` and manually test the branch before opening a PR.
 - Updated the dashboard Payments summary (uncommitted): Collection health is month-scoped net payment activity and All time is all-time net payment activity. Both include signed payment reversals. Utility payment rows already equal the discounted amount due, so bill credits are not subtracted a second time. A separate Net discounts card reports discount credits (with reversals netted) without changing collection totals. Focused helper tests, dashboard type checking, and Biome pass.
 - Wired tenant meter readings for combined agreements (uncommitted): the readings tab selects an active unit, sends its `leaseId`, and scopes its prior-reading estimate/history to that unit. Manual verification remains: use an existing local tenant with two active leases, submit one reading per selected unit, then confirm separate owner-visible bills and unit-specific prior readings/estimates. Do not use a newly invited tenant.

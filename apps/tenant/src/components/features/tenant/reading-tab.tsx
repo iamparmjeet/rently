@@ -1,5 +1,6 @@
 "use client";
 
+import { toBusinessDateKey } from "@rently/validators";
 import { useState } from "react";
 import {
 	useSubmitReading,
@@ -33,9 +34,7 @@ export function ReadingTab() {
 
 	const [currentInput, setCurrentInput] = useState("");
 	const [selectedLeaseId, setSelectedLeaseId] = useState("");
-	const [readingDate, setReadingDate] = useState(() =>
-		new Date().toISOString().slice(0, 10),
-	);
+	const [readingDate, setReadingDate] = useState(() => toBusinessDateKey());
 	const [notes, setNotes] = useState("");
 
 	const activeUnits = (agreementsData?.agreements ?? []).flatMap((agreement) =>

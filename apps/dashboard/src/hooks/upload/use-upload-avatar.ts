@@ -78,8 +78,10 @@ export function useDeleteAvatar() {
 		},
 		mutationFn: async () => {
 			await client.upload.deleteAvatar();
-			// WHY after R2 delete: clear the URL from the session profile
-			await authClient.updateUser({ image: null });
+			// H07: the server clears user.image itself — here we only refresh
+			// the local session so the UI drops the photo without a second
+			// write that could disagree with the server.
+			await authClient.getSession();
 		},
 		onSuccess: (_, __, context) => {
 			toast.success("Photo removed", { id: context.toastId });

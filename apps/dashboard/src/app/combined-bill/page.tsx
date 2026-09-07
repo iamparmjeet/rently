@@ -9,8 +9,7 @@ import { IconArrowLeft, IconPrinter } from "@tabler/icons-react";
 import Link from "next/link";
 import { useSearchParams } from "next/navigation";
 import { Suspense, useEffect, useRef } from "react";
-import { usePeriodBalance } from "@/hooks/balance/use-period-balance";
-import { useUtilities } from "@/hooks/utilities";
+import { useBillStatement } from "@/hooks/utilities/use-bill-statement";
 import {
 	getUtilityBillChargeLines,
 	getUtilityBillNumber,
@@ -26,49 +25,38 @@ function formatDate(value: Date) {
 	}).format(new Date(value));
 }
 
-function getCombinedBillNumber(ids: string[]) {
-	if (ids.length === 0) return "KQ-CMB-UNKNOWN";
-	const base = ids[0] ?? "";
-	return `KQ-CMB-${base.replaceAll("-", "").slice(-12).toUpperCase()}`;
-}
-
 function CombinedBillContent() {
 	const searchParams = useSearchParams();
-	const { data: utilData, isLoading } = useUtilities();
-	const idsParam = searchParams.get("ids");
+	const statementId = searchParams.get("statement") ?? "";
 	const shouldPrint = searchParams.get("print") === "true";
-	const ids = idsParam ? idsParam.split(",").filter(Boolean) : [];
 	const printed = useRef(false);
 
-	const allUtilities = utilData?.utilities ?? [];
-	const items = ids.length
-		? allUtilities.filter((u) => ids.includes(u.id))
-		: [];
-
-	// C06: the rent line is the lease's period-aware outstanding from the
-	// server balance model — the URL no longer carries (or is trusted for)
-	// money. The query waits for the utilities to resolve a lease id.
-	const balanceLeaseId = items[0]?.leaseId;
-	const { data: balanceData, isLoading: balanceLoading } = usePeriodBalance(
-		{ leaseId: balanceLeaseId ?? "" },
-		{ enabled: Boolean(balanceLeaseId) },
-	);
-	const balanceLoadingOrPending = Boolean(balanceLeaseId) && balanceLoading;
-	const rent = balanceData?.leases[0]?.totalRentDue ?? 0;
+	// H01: the bill composition and every amount come from the server-issued
+	// statement. The URL carries only the statement id — no utility ids and
+	// no money — so a crafted link cannot forge or mix a bill.
+	const {
+		data: statementData,
+		isLoading,
+		isError,
+	} = useBillStatement(statementId);
+	const statement = statementData?.statement;
+	const items = statement?.utilities ?? [];
+	const rent = statement?.rentDue ?? 0;
+	const billNumber = statement?.billNumber ?? "";
 
 	useEffect(() => {
-		if (!ids.length || items.length === 0) return;
-		const billNo = getCombinedBillNumber(ids);
+		if (!statement) return;
 		const prev = document.title;
-		document.title = `${billNo} · Combined Bill · KeyHQ`;
+		document.title = `${billNumber} · Combined Bill · KeyHQ`;
 		return () => {
 			document.title = prev;
 		};
-	}, [ids, items.length]);
+	}, [statement, billNumber]);
 
+	// biome-ignore lint/correctness/useExhaustiveDependencies: reset printed on statementId change
 	useEffect(() => {
 		printed.current = false;
-	}, [idsParam]);
+	}, [statementId]);
 
 	useEffect(() => {
 		if (!shouldPrint || items.length === 0 || printed.current) return;
@@ -90,15 +78,19 @@ function CombinedBillContent() {
 		};
 	}, [shouldPrint, items.length]);
 
-	if (isLoading || balanceLoadingOrPending) return <PageLoader rows={2} />;
-	if (!idsParam || items.length === 0) {
+	if (isLoading) return <PageLoader rows={2} />;
+	if (!statementId || isError || !statement || items.length === 0) {
 		return (
-			<NotFoundState message="Combined bill not found. Missing utilities for this bill." />
+			<NotFoundState message="Combined bill not found or expired. Issue it again from the utilities page." />
 		);
 	}
 
-	const first = items[0]!;
-	const billNumber = getCombinedBillNumber(ids);
+	const first = items[0];
+	if (!first) {
+		return (
+			<NotFoundState message="Combined bill not found or expired. Issue it again from the utilities page." />
+		);
+	}
 	const periodStart = first.previousReadingDate ?? first.currentReadingDate;
 	const periodEnd = first.currentReadingDate;
 	const days = Math.max(
@@ -138,16 +130,16 @@ function CombinedBillContent() {
 	const getDue = (u: (typeof items)[number]) =>
 		(u as { amountDue?: number }).amountDue ?? u.totalAmount;
 
-	const utilityTotalDue = items.reduce((s, u) => s + Math.max(0, getDue(u)), 0);
+	const utilityTotalDue = statement.utilityTotalDue;
 	const utilityOriginalTotal = items.reduce((s, u) => s + u.totalAmount, 0);
-	const statementTotal = utilityTotalDue + rent;
+	const statementTotal = statement.statementTotal;
 	const originalStatementTotal = utilityOriginalTotal + rent;
 	const hasAnyDiscount = items.some((u) =>
 		(u.credits ?? []).some((credit) => credit.type === "discount"),
 	);
 	const allPaid = items.every((u) => getDue(u) <= 0);
-	const billedToName = first.tenantName ?? "Tenant";
-	const propertyLabel = `${first.propertyName} · Unit ${first.unitNumber}`;
+	const billedToName = statement.tenantName ?? "Tenant";
+	const propertyLabel = `${statement.propertyName} · Unit ${statement.unitNumber}`;
 
 	const paymentState = getUtilityBillPaymentState({
 		amountDue: statementTotal,
@@ -249,9 +241,9 @@ function CombinedBillContent() {
 						<p className="font-semibold text-[10px] text-slate-500 uppercase tracking-[0.14em]">
 							Service location
 						</p>
-						<p className="mt-2 font-bold text-base">{first.propertyName}</p>
+						<p className="mt-2 font-bold text-base">{statement.propertyName}</p>
 						<p className="mt-1 text-slate-500 text-sm">
-							Unit {first.unitNumber}
+							Unit {statement.unitNumber}
 						</p>
 						<p className="mt-1 text-slate-500 text-xs">
 							{items.length} {items.length === 1 ? "utility" : "utilities"} •

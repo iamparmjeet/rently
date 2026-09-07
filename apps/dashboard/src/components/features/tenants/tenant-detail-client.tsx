@@ -26,6 +26,10 @@ import { useLease } from "@/hooks/leases";
 import { usePayments } from "@/hooks/payments";
 import { useRemoveTenant, useTenant } from "@/hooks/tenants";
 import { useUtilities } from "@/hooks/utilities";
+import {
+	isUtilitySettled,
+	utilityOutstanding,
+} from "../../../lib/utility-summary";
 import { DocumentsTab } from "./documents-tab";
 import { EditTenantDialog } from "./edit-tenant-dialog";
 import { OverviewTab } from "./overview-tab";
@@ -98,10 +102,8 @@ function computeStats(
 				const d = new Date(u.currentReadingDate);
 				return d.getMonth() === month && d.getFullYear() === year;
 			})
-			.reduce((sum, u) => {
-				const creditsSum = (u.credits ?? []).reduce((s, c) => s + c.amount, 0);
-				return sum + u.totalAmount + creditsSum;
-			}, 0);
+			// H02: sum the derived due, not gross totals plus credits.
+			.reduce((sum, u) => sum + utilityOutstanding(u), 0);
 
 	const periodStart = new Date(year, month, 1);
 	// C06: rent dues come from the period balance read model. Overdue is the
@@ -115,8 +117,11 @@ function computeStats(
 	const overdueAmount =
 		overdueRent +
 		allUtils
-			.filter((u) => !u.isPaid && new Date(u.currentReadingDate) < periodStart)
-			.reduce((sum, u) => sum + u.totalAmount, 0);
+			.filter(
+				(u) =>
+					!isUtilitySettled(u) && new Date(u.currentReadingDate) < periodStart,
+			)
+			.reduce((sum, u) => sum + utilityOutstanding(u), 0);
 	const pendingRent = balances.reduce(
 		(sum, balance) => sum + Math.max(0, balance.totalRentDue),
 		0,

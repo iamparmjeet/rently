@@ -733,3 +733,15 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Incidents: (1) Lefthook commit hook blocked repeatedly — first a hook-in-test-helper lint (fixed via a single-line-suppressed `testCache` factory; multi-line suppression comments break adjacency), then the real find: commitlint `subject-case` rejects uppercase starts ("TTL-bound" → reworded; earlier silent failures were `tail -1` hiding this error — always read full hook output). (2) A stacked `git commit` swept the whole staged index — history repaired via soft reset into per-file commits.
 - Luna pointers: 15-min TTL value; stale-evict-without-revoke reasoning; ban-map pruning (per-doc on next access); hide-vs-clear on admin/web logouts (deliberately untouched); `PrivateDocumentViewer` itself unchanged.
 - Next allowed slice: H07 avatar deletion from a clean integration-branch cut.
+
+## H07 Avatar deletion (2026-09-07, Muse Spark, branch fix/avatar-delete-state, tag pre-avatar-delete-state)
+
+- Base: clean `integ/phase-a-baseline@eae757f5` (H06 merge); no migration. `main` untouched. Terra Medium review owed — stays `[~]`. Standing authorization applies (3 file-by-file commits, pushed, merged as `d26954da`).
+- Gap (4 red pre-fix): the server deleted the R2 object but left `user.image` to a second client-side `updateUser` write — any failure between the two left a visibly stale avatar (DB pointing at a deleted object). Non-OK store responses were also swallowed as success.
+- Changed:
+  - `routers/upload.ts`: store failure (non-OK) and unreachable storage throw `INTERNAL_SERVER_ERROR` with the reference kept (retry-safe, idempotent); `user.image` cleared server-side (`db.update`, `updatedAt` bumped) only after the object is gone. S3 DELETE idempotence means missing objects follow the success path. Scope-check and no-image no-op untouched.
+  - `use-upload-avatar.ts`: delete flow drops the redundant client-side reference rewrite and refreshes the session (`authClient.getSession()`) so the UI drops the photo.
+- Tests (`avatar-delete.test.ts`, 5, rationale header; 4 red pre-fix, no-op control green): delete clears the reference with one DELETE call; missing object succeeds and clears; store 500 and network failure keep the reference with INTERNAL; repeat delete is a no-op without store traffic. R2 signed via real AwsClient crypto, `fetch` stubbed; image URLs built from the same `R2_PUBLIC_URL` env the handler uses.
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 83 files / 457 pass + 1 D04 reactivation load-timeout flake (green alone 8/8; untouched code) → local `bun run build` 5/5; zero residue; `next-env.d.ts` churn restored.
+- Terra pointers: retry is client-toast-driven (no auto-retry/backoff — deletion is idempotent so manual retry is safe); orphan objects can never be referenced (only unreferenced bytes, invisible); `getSession` refresh staleness if that call itself fails (self-heals on next navigation).
+- Next allowed slice: H08 financial route protection from a clean integration-branch cut.

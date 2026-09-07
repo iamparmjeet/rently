@@ -1,0 +1,2 @@
+ALTER TABLE "utilities" ADD COLUMN "submission_source" text;--> statement-breakpoint
+ALTER TABLE "utilities" ADD CONSTRAINT "utilities_submission_source_check" CHECK ("utilities"."submission_source" is null or "utilities"."submission_source" in ('tenant', 'owner', 'system'));

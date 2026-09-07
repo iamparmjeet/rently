@@ -745,3 +745,16 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 83 files / 457 pass + 1 D04 reactivation load-timeout flake (green alone 8/8; untouched code) → local `bun run build` 5/5; zero residue; `next-env.d.ts` churn restored.
 - Terra pointers: retry is client-toast-driven (no auto-retry/backoff — deletion is idempotent so manual retry is safe); orphan objects can never be referenced (only unreferenced bytes, invisible); `getSession` refresh staleness if that call itself fails (self-heals on next navigation).
 - Next allowed slice: H08 financial route protection from a clean integration-branch cut.
+
+## H08 Financial route protection (2026-09-07, Muse Spark, branch fix/financial-route-protection, tag pre-financial-route-protection)
+
+- Base: clean `integ/phase-a-baseline@d3be0ff3` (H07 merge); no migration. `main` untouched. Terra Medium review owed — stays `[~]`. Standing authorization applies (5 file-by-file commits, pushed, merged as `0b53b56c`).
+- Gap (2 red pre-fix): dashboard `/combined-bill`, `/receipts/*`, `/credit-notes/*` were absent from `PROTECTED_ROUTES` (direct navigation reached the page shell); tenant `/receipts/*` lives outside the `/tenant-portal` prefix its proxy guards, so tenant receipts had no routing-layer protection at all. Payments/utilities/subscription sections were already prefix-covered.
+- Changed:
+  - `packages/auth/src/route-access.ts` (new): pure `resolveRouteAccess` (public passthrough, no-cookie/verfied-fail → login+callback, allowed role → allow, tenant/owner/admin → their homes, unknown → web home) + `isProtectedPath` prefix matcher. Both proxies rewired through it with behavior parity (prefetch bypass, cookie fast-path without fetch, GOTCHA comments kept).
+  - Dashboard `EXTRA_PROTECTED_ROUTES` += the three document routes; tenant `TENANT_PROTECTED_ROUTES = ["/tenant-portal", "/receipts"]` (the old dashboard-shaped `PROTECTED_ROUTES` copy in tenant navigation.ts is dead — proxy never read it — left untouched, noted).
+  - Admin untouched (supervisory pages only, no per-tenant financial documents).
+- Tests (15, rationale headers; 2 membership cases red pre-fix): 12-case decision matrix (unauthenticated/wrong-role/allowed × both apps, unknown role, public paths, sibling-prefix non-matches) + 3 route-membership pins. No DB, no mounts.
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 86 files / 471 pass + 1 H01 timeout + 1 fast B10 race failure under build-overlapped load (both green in isolation 13/13; H08 touches no API code) → local `bun run build` 5/5 (also proves the `@rently/auth/route-access` subpath resolves under Next); zero residue; `next-env.d.ts` churn restored.
+- Terra pointers: callback encoding moved from URLSearchParams to encodeURIComponent (equivalent for real URLs); `ownerHomeUrl`/`tenantHomeUrl` passed but unreachable on their own app (owner/tenant always allowed); prefetch bypass kept proxy-side and untested.
+- Next allowed slice: Phase I reconciliation (I01 docs, I02 audit, I03 smoke) — needs owner direction on batching/review before starting.

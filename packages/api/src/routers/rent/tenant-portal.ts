@@ -37,6 +37,30 @@ function supportsBatch(db: Database): db is BatchCapableDatabase {
 // **************
 const READING_RATE_LIMIT_MAX = 5; // max submissions
 const READING_RATE_LIMIT_WINDOW_MS = 60 * 60 * 1000; // per 1 hour
+// G02: maximum kWh one submission may consume. Replaces the old absolute
+// `.max(500)` cap, which made cumulative meters past 500 unusable. A named
+// constant (not a DB preference — this slice carries no migration); Terra
+// should confirm 2000 against real metering data.
+const MAX_MONTHLY_READING_DELTA = 2000;
+
+// G02: decimal precision agreement — meters report fractions, so readings
+// stay fractional end to end; only the derived consumption is rounded (2dp)
+// to keep float subtraction out of the stored bill.
+function plausibleUnitsUsed(
+	currentReading: number,
+	previousReading: number,
+): number {
+	const delta = currentReading - previousReading;
+	if (delta > MAX_MONTHLY_READING_DELTA) {
+		throw new ORPCError("BAD_REQUEST", {
+			message:
+				`This reading consumes ${delta} kWh since the last one, ` +
+				`which exceeds the ${MAX_MONTHLY_READING_DELTA} kWh plausibility limit. ` +
+				"Please double-check the meter or ask your landlord to record it.",
+		});
+	}
+	return Math.round(delta * 100) / 100;
+}
 
 // ********************
 //  1. Get My Active Lease
@@ -496,11 +520,7 @@ export const submitMyReading = protectedProcedure
 	})
 	.input(
 		z.object({
-			currentReading: z
-				.number()
-				.int()
-				.min(0, { error: "Reading must be ≥ 0" })
-				.max(500, { error: "Reading seems too high - please double-check" }),
+			currentReading: z.number().min(0, { error: "Reading must be ≥ 0" }),
 			readingDate: z
 				.string()
 				.min(1, { error: "Date is required" })
@@ -614,7 +634,10 @@ export const submitMyReading = protectedProcedure
 				});
 			}
 
-			const unitsUsed = input.currentReading - (previousReading ?? 0);
+			const unitsUsed = plausibleUnitsUsed(
+				input.currentReading,
+				previousReading ?? 0,
+			);
 			const ratePerUnit = lastReading?.ratePerUnit ?? RATEPERUNIT;
 			const fixedCharge = lastReading?.fixedCharge ?? FIXEDCHARGE;
 			const totalAmount = Math.round(unitsUsed * ratePerUnit + fixedCharge);
@@ -694,7 +717,10 @@ export const submitMyReading = protectedProcedure
 					});
 				}
 
-				const unitsUsed = input.currentReading - (previousReading ?? 0);
+				const unitsUsed = plausibleUnitsUsed(
+					input.currentReading,
+					previousReading ?? 0,
+				);
 				const ratePerUnit = lastReading?.ratePerUnit ?? RATEPERUNIT;
 				const fixedCharge = lastReading?.fixedCharge ?? FIXEDCHARGE;
 				const totalAmount = Math.round(unitsUsed * ratePerUnit + fixedCharge);

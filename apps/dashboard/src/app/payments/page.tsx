@@ -245,6 +245,14 @@ function PaymentDetailDialog({
 							<Badge variant={config.badgeVariant} className="capitalize">
 								{payment.type}
 							</Badge>
+							{isReversed && (
+								<Badge
+									variant="secondary"
+									className="bg-destructive/10 text-destructive capitalize"
+								>
+									Voided
+								</Badge>
+							)}
 						</div>
 					</div>
 				</div>
@@ -372,12 +380,16 @@ export default function PaymentsPage() {
 	const [adjTypeFilter, setAdjTypeFilter] = useState<string>("all");
 
 	const payments = data?.payments ?? [];
+	// H05: the B03 reversesPaymentId link is authoritative; referenceNumber
+	// covers legacy reversals whose link is absent.
 	const reversedPaymentIds = useMemo(
 		() =>
 			new Set(
 				payments
 					.filter((payment) => payment.type === PAYMENT_TYPES.REVERSAL)
-					.map((payment) => payment.referenceNumber)
+					.map(
+						(payment) => payment.reversesPaymentId ?? payment.referenceNumber,
+					)
 					.filter((id): id is string => id !== null),
 			),
 		[payments],

@@ -34,6 +34,9 @@ export function PaymentRow({
 }: PaymentRowProps) {
 	const config = getTypeConfig(payment.type);
 	const isReversal = payment.type === PAYMENT_TYPES.REVERSAL;
+	// H05: reversals cannot be voided (server refuses) and voiding an
+	// already-reversed original is a no-op — offer no action for either.
+	const canVoid = !isReversal && !isReversed;
 
 	return (
 		<div
@@ -104,30 +107,36 @@ export function PaymentRow({
 					>
 						{payment.type}
 					</Badge>
+					{isReversed && (
+						<Badge
+							variant="secondary"
+							className="h-4 rounded-full bg-destructive/10 px-1.5 py-0 text-[10px] text-destructive"
+						>
+							Voided
+						</Badge>
+					)}
 				</div>
 			</button>
 
-			<DropdownMenu>
-				<DropdownMenuTrigger
-					render={
-						<Button
-							variant="ghost"
-							size="icon"
-							className="size-8"
-							disabled={payment.type === PAYMENT_TYPES.REVERSAL}
-						>
-							<IconDots className="size-4" />
-						</Button>
-					}
-				/>
-				<DropdownMenuContent align="end">
-					<DropdownMenuSeparator />
-					<DropdownMenuItem variant="destructive" onClick={onVoid}>
-						<IconTrash className="mr-2 size-4" />
-						Void Payment
-					</DropdownMenuItem>
-				</DropdownMenuContent>
-			</DropdownMenu>
+			{canVoid && (
+				<DropdownMenu>
+					<DropdownMenuTrigger
+						aria-label="Payment actions"
+						render={
+							<Button variant="ghost" size="icon" className="size-8">
+								<IconDots className="size-4" />
+							</Button>
+						}
+					/>
+					<DropdownMenuContent align="end">
+						<DropdownMenuSeparator />
+						<DropdownMenuItem variant="destructive" onClick={onVoid}>
+							<IconTrash className="mr-2 size-4" />
+							Void Payment
+						</DropdownMenuItem>
+					</DropdownMenuContent>
+				</DropdownMenu>
+			)}
 
 			<button
 				type="button"

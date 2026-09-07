@@ -91,6 +91,14 @@ export function PaymentCard({
 						>
 							{payment.type}
 						</Badge>
+						{isReversed && (
+							<Badge
+								variant="secondary"
+								className="h-4 rounded-full bg-destructive/10 px-1.5 py-0 text-[10px] text-destructive"
+							>
+								Voided
+							</Badge>
+						)}
 						{actionsSlot}
 					</div>
 				</div>
@@ -140,7 +148,7 @@ export function PaymentCard({
 					Recorded {format(new Date(payment.createdAt), "dd MMM yyyy")}
 				</p>
 				<div className="flex shrink-0 items-center gap-1">
-					{onVoid && !isReversal && (
+					{onVoid && !isReversal && !isReversed && (
 						<Button
 							variant="ghost"
 							size="sm"

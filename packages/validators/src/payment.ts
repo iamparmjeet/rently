@@ -29,13 +29,14 @@ export const PaymentGroupInsertSchema = createInsertSchema(paymentGroups);
 
 // ── Layer 2: API input schemas
 // Business Logic Schemas
-// Generic creation can never mint a reversal (voidPayment only). The
+// Generic creation can never mint a reversal or cash refund (server-owned).
 // pairing rule (utility ⇔ utilityId) lives on CreatePaymentRequestSchema,
 // NOT here: dashboard's PaymentFormSchema overwrites keys via .extend(),
 // which zod forbids on schemas carrying refinements.
-type NonReversalPaymentType = Exclude<PaymentType, "reversal">;
+type NonReversalPaymentType = Exclude<PaymentType, "reversal" | "refund">;
 const NON_REVERSAL_PAYMENT_TYPES = PAYMENT_TYPE_VALUES.filter(
-	(t): t is NonReversalPaymentType => t !== PAYMENT_TYPES.REVERSAL,
+	(t): t is NonReversalPaymentType =>
+		t !== PAYMENT_TYPES.REVERSAL && t !== PAYMENT_TYPES.REFUND,
 ) as [NonReversalPaymentType, ...NonReversalPaymentType[]];
 
 export const CreatePaymentSchema = PaymentInsertSchema.omit({

@@ -251,6 +251,20 @@ describe("H04 refund/adjust pairing", () => {
 			idempotencyKey: crypto.randomUUID(),
 		});
 		expect(credit.appliedAs).toBe("refund");
+		expect(credit.refundPaymentId).toEqual(expect.any(String));
+		const [refund] = await db
+			.select({
+				amount: payments.amount,
+				type: payments.type,
+				utilityId: payments.utilityId,
+			})
+			.from(payments)
+			.where(eq(payments.id, credit.refundPaymentId as string));
+		expect(refund).toMatchObject({
+			amount: -10_000,
+			type: "refund",
+			utilityId,
+		});
 		await expect(creditCount(leaseId)).resolves.toHaveLength(1);
 	});
 
@@ -289,6 +303,12 @@ describe("H04 refund/adjust pairing", () => {
 			idempotencyKey: crypto.randomUUID(),
 		});
 		expect(credit.appliedAs).toBe("refund");
+		expect(credit.refundPaymentId).toEqual(expect.any(String));
+		const [refund] = await db
+			.select({ amount: payments.amount, type: payments.type })
+			.from(payments)
+			.where(eq(payments.id, credit.refundPaymentId as string));
+		expect(refund).toMatchObject({ amount: -10_000, type: "refund" });
 		await expect(creditCount(leaseId)).resolves.toHaveLength(1);
 	});
 

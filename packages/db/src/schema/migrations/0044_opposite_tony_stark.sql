@@ -1,0 +1,5 @@
+ALTER TABLE "payments" DROP CONSTRAINT "payments_type_utility_check";--> statement-breakpoint
+ALTER TABLE "bill_credits" ADD COLUMN "refund_payment_id" uuid;--> statement-breakpoint
+ALTER TABLE "bill_credits" ADD CONSTRAINT "bill_credits_refund_payment_id_payments_id_fk" FOREIGN KEY ("refund_payment_id") REFERENCES "public"."payments"("id") ON DELETE restrict ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "bill_credits_one_refund_payment" ON "bill_credits" USING btree ("refund_payment_id") WHERE "bill_credits"."refund_payment_id" is not null;--> statement-breakpoint
+ALTER TABLE "payments" ADD CONSTRAINT "payments_type_utility_check" CHECK (("payments"."type" = 'utility' and "payments"."utility_id" is not null) or ("payments"."type" in ('rent', 'deposit', 'other') and "payments"."utility_id" is null) or "payments"."type" in ('reversal', 'refund'));

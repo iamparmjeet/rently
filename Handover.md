@@ -36,6 +36,23 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 
 ## In-progress
 
+- **Cash-refund ledger event (2026-09-07, GPT-5.6 Terra):**
+  `fix/cash-refund-ledger-event` cut from clean
+  `integ/phase-a-baseline@408545e6`; rollback tag
+  `pre-cash-refund-ledger-event`. Scope: a paid bill's cash refund must pair
+  the existing negative credit note with a linked negative payment, so both
+  the bill balance and cash ledger stay truthful. It is not a payment void.
+  Plan: add a refund payment type/link and constraints; atomically write and
+  idempotently recover the pair in `createCredit`; leave the already-settled
+  rent-period allocation unchanged; retain only the two
+  existing paid-refund regression cases, extended to assert the linked cash
+  event. Implemented: migration 0044 adds the link/uniqueness constraint and
+  permits the server-only `refund` payment type; both Neon batch and callback
+  transaction writers create and link the signed pair. Verification:
+  `db:generate` no drift, `db:migrate:test`, focused Biome, `check-types
+  --force`, `git diff --check`, and all 5 H04 tests pass. Rollback: revert
+  the slice commit, then rerun migration replay and the H04 tests.
+
 - **Rent-period calendar semantics repair (2026-09-07, GPT-5.6 Terra):**
   `fix/rent-period-calendar-semantics` cut from clean
   `integ/phase-a-baseline@6557ffd9`; rollback tag

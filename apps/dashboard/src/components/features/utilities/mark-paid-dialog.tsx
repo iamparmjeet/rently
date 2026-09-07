@@ -30,6 +30,7 @@ import { useIdempotencyKey } from "@rently/ui/shared/form-dialog";
 import {
 	type RecordUtilityPayment,
 	RecordUtilityPaymentSchema,
+	toBusinessDateKey,
 	type UtilityListItem,
 } from "@rently/validators";
 import { IconReceipt } from "@tabler/icons-react";
@@ -70,7 +71,7 @@ export function MarkPaidDialog({
 							utility.totalAmount,
 					),
 					paymentMethod: "cash" as const,
-					receivedAt: new Date().toISOString().split("T")[0] ?? "",
+					receivedAt: toBusinessDateKey() ?? "",
 					notes: "",
 				}
 			: undefined,

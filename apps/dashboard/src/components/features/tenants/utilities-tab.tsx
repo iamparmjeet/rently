@@ -101,6 +101,8 @@ const UTILITY_CONFIG = {
 //  WhatsApp message **************
 
 function buildUtilityWaMessage(u: UtilityListItem, name: string): string {
+	// H02: the message states the amount due, not the gross bill total.
+	const due = Math.max(0, u.amountDue ?? u.totalAmount);
 	const month = new Date(u.currentReadingDate).toLocaleDateString("en-IN", {
 		month: "long",
 		year: "numeric",
@@ -112,14 +114,14 @@ function buildUtilityWaMessage(u: UtilityListItem, name: string): string {
 			`Electricity bill — ${month}:`,
 			`• ${u.previousReading} kWh → ${u.currentReading} kWh (${u.unitsUsed} kWh used)`,
 			`• Rate: ${formatRupees(u.ratePerUnit ?? RATEPERUNIT)}/kWh`,
-			`• Amount Due: ${formatRupees(u.totalAmount)}`,
+			`• Amount Due: ${formatRupees(due)}`,
 		].join("\n");
 	}
 	const label = UTILITY_CONFIG[u.utilityType]?.label ?? u.utilityType;
 	return [
 		`Dear ${name},`,
 		"",
-		`${label} bill — ${month}: ${formatRupees(u.totalAmount)}`,
+		`${label} bill — ${month}: ${formatRupees(due)}`,
 	].join("\n");
 }
 

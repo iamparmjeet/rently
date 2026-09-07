@@ -5,6 +5,7 @@ import { formatRupees } from "@rently/ui/lib/currency";
 import { ConfirmDialog } from "@rently/ui/shared/confirm-dialog";
 import type { UtilityListItem } from "@rently/validators";
 import { IconCheck, IconEdit, IconTrash } from "@tabler/icons-react";
+import { isUtilitySettled } from "../../../lib/utility-summary";
 
 interface UtilityTableRowProps {
 	utility: UtilityListItem;
@@ -24,6 +25,8 @@ export function UtilityTableRow({
 	onViewDetail,
 	isDeleting,
 }: UtilityTableRowProps) {
+	// H02: status derives from the server amountDue, not the stale flag.
+	const settled = isUtilitySettled(u);
 	const readingDate = u.previousReadingDate
 		? `${new Date(u.previousReadingDate).toLocaleDateString("en-IN", { day: "2-digit", month: "short" })} → ${new Date(u.currentReadingDate ?? u.previousReading).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" })}`
 		: new Date(u.currentReadingDate).toLocaleDateString("en-IN", {
@@ -57,8 +60,8 @@ export function UtilityTableRow({
 				{formatRupees(u.totalAmount)}
 			</TableCell>
 			<TableCell>
-				<Badge variant={u.isPaid ? "default" : "secondary"}>
-					{u.isPaid ? "Paid" : "Unpaid"}
+				<Badge variant={settled ? "default" : "secondary"}>
+					{settled ? "Paid" : "Unpaid"}
 				</Badge>
 			</TableCell>
 			<TableCell className="flex items-center justify-end gap-1">
@@ -67,7 +70,7 @@ export function UtilityTableRow({
 					onClick={(e) => e.stopPropagation()}
 				>*/}
 				{/* Toggle paid status */}
-				{!u.isPaid && (
+				{!settled && (
 					<Button
 						size="icon"
 						variant="ghost"

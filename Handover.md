@@ -672,3 +672,13 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 77 files / 427 tests pass (background run; caught a real `@/`-in-tested-file breakage post-first-green) → local `bun run build` 5/5; zero fixture residue; `next-env.d.ts` churn restored.
 - Terra pointers: 7-day TTL; composition locked at issue but amounts resolved live at read (voids reflect; later bills never join); period month keyed IST; bill number derived from statement id server-side.
 - Next allowed slice: H02 utility overdue summaries from a clean integration-branch cut.
+
+## H02 Utility overdue summaries (2026-09-06, Muse Spark, branch fix/utility-due-summary-ui, tag pre-utility-due-summary-ui)
+
+- Base: clean `integ/phase-a-baseline@2aa6ccfc` (H01 merge); no migration. `main` untouched. Luna High review owed per plan (UI presenting financial totals — Terra Medium after) — stays `[~]`. Standing authorization applies.
+- Gap: summaries summed gross totals and trusted the stale `isPaid` flag — page stats counted partial settlements at full value, rows badged off the flag, tenant overdue/this-month sums ignored payments, share text quoted gross.
+- Changed (5 commits): `lib/utility-summary.ts` (settled = due ≤ 0, outstanding floored, collected = total + credits − due paid portion, rate capped 100) + 4 tests; wired into pageStats, table-row badge/action gating, tenant thisMonthBill/overdueAmount, WhatsApp share text. Relative lib imports (H01 lesson: root vitest maps `@/` to apps/web). Cards, dialogs, detail sheet, and single-bill page already derived correctly — untouched.
+- Tests (`utility-summary.test.ts`, 4): discount, partial (paid portion only), reversal reopen, over-credit clamp.
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 78 files / 431 tests pass (background run, 305s) → local `bun run build` 5/5; zero fixture residue; `next-env.d.ts` churn restored.
+- Luna/Terra pointers: collected-portion definition (discounts are not collections); thisMonthBill now nets payments (expectation → due semantics change); share text shows clamped due.
+- Next allowed slice: H03 financial cache invalidation from a clean integration-branch cut.

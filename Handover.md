@@ -632,3 +632,13 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Environment note: full vitest stalled twice back-to-back (~600s timeouts, killed); background re-run passed 73/412 in 173s. The killed runs' fixtures were the residue source — never leave killed-suite rows behind.
 - Terra pointers: one-helper reading (UI uses validators, server keeps rent-cycle — same rule, no behavior churn); `?? ""` remnants after a total helper (harmless); lazy `useState(() => …)` initializer change.
 - Next allowed slice: G02 meter-reading precision from a clean integration-branch cut.
+
+## G02 Meter-reading precision and bounds (2026-09-06, Muse Spark, branch fix/meter-reading-validation, tag pre-meter-reading-validation)
+
+- Base: clean `integ/phase-a-baseline@ffc1df67` (G01 merge); no migration. `main` untouched. Terra High review owed — stays `[~]`. Standing authorization applies. Small test footprint per owner request (4 tests).
+- Gap proven (2 red pre-fix): tenant readings were `.int().max(500)` — fractional values rejected (the UI already parses floats) and cumulative meters past 500 kWh unusable. No jump check existed; decreasing was handler-enforced but untested.
+- Changed (2 commits, `e526a1c`..`c742b2b`, `tenant-portal.ts` only + test): schema drops `.int()`/`.max(500)` (keeps `.min(0)`); new `MAX_MONTHLY_READING_DELTA = 2000` kWh per-submission cap via `plausibleUnitsUsed` (throws past the cap, returns 2dp-rounded consumption), wired into both batch and tx branches next to the untouched decreasing check. No UI change (no client cap; server enforces) and no owner-path change (B02 bounds already, no absolute cap there).
+- Tests (`meter-reading-validation.test.ts`, 4): fractional accepted with exact stored values, cumulative 600→650 accepted, 2400 kWh jump refused with no bill written, decrease refused (the two refusal pins stay green pre-fix by design — they guard the cap removal).
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 74 files / 416 tests pass → local `bun run build` 5/5; zero fixture residue; `next-env.d.ts` churn restored.
+- Terra pointers: confirm the 2000 kWh delta against real metering data (named constant, no migration by plan); 2dp rounding of consumption vs exact fractional storage; decreasing-check message untouched.
+- Next allowed slice: G03 meter-reading chronology from a clean integration-branch cut.

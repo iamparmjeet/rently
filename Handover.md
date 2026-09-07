@@ -682,3 +682,16 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 78 files / 431 tests pass (background run, 305s) → local `bun run build` 5/5; zero fixture residue; `next-env.d.ts` churn restored.
 - Luna/Terra pointers: collected-portion definition (discounts are not collections); thisMonthBill now nets payments (expectation → due semantics change); share text shows clamped due.
 - Next allowed slice: H03 financial cache invalidation from a clean integration-branch cut.
+
+## H03 Financial cache invalidation (2026-09-07, Muse Spark, branch fix/financial-query-invalidation, tag pre-financial-query-invalidation)
+
+- Base: clean `integ/phase-a-baseline@67738729` (H02 merge); no migration. `main` untouched. Terra Medium review owed — stays `[~]`. Standing authorization applies (5 file-by-file commits, each pushed, merged as `90eb4b7f`). Small test footprint per owner request (3 mapping tests, no UI mounts).
+- Survey (C06 `invalidatePeriodBalances` covered only `rent.balance`): `listTenants` carries a server-derived `overdue` snapshot per lease yet NO money mutation invalidated it (tenant cards went stale after any payment); `useCreateCredit` missed revenue (Net discounts card) and tenants; `useRecordUtilityPayment` (which writes a payment row) refreshed only the utility list; utility-bill create/update/remove/batch never touched balances although the C05 model carries a utilities section; credit reversal has no dashboard mutation hook at all (API-only — confirmed by repo-wide grep), so nothing to wire. `getDashboardStats` needs nothing (counts only; lifecycle hooks own it); `listLeases` carries contract terms, not dues.
+- Changed (net −40 lines across call sites):
+  - `lib/financial-invalidation.ts` (new): `invalidateFinancialViews(queryClient)` — payments, utilities, credits, tenants, revenue dashboard, plus period balances via the C06 helper. Header documents the mapping, the two deliberate exclusions, the bill-op/tenant/credit-reversal carve-outs.
+  - `lib/financial-invalidation.test.ts` (new, 3): all six views invalidated; prefix keys (filtered lists refresh); dashboard stats excluded.
+  - `use-period-balance.ts`: `@/utils/orpc` → relative (root vitest maps `@/` to apps/web — H01 lesson; keeps the new test's import chain alias-free).
+  - Payment hooks (×5), createCredit, combined-bill dialog: bespoke subsets replaced with the helper (detail keys stay at call sites). Utility-bill ops (×8 plain+optimistic) gain balance invalidation; recordUtilityPayment gains the full set.
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean (1 import-sort autofix) → `db:migrate:test` → focused 24/24 → FULL suite 79 files / 434 tests pass (background run) → local `bun run build` 5/5; zero `@test.keyhq.invalid` residue; `next-env.d.ts` churn restored.
+- Terra pointers: uniform over-invalidation (a rent payment now also refetches utility/credit lists when mounted — refetch-only-if-mounted, accepted for drift-proofing); bill ops use balances-only while money moves use the full set (documented in the helper header); confirm credit-reversal needs no hook until a UI surface exists.
+- Next allowed slice: H04 cash-refund semantics (Terra High design gate) from a clean integration-branch cut.

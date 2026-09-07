@@ -295,6 +295,8 @@ export type LeaseSettlementBound = {
 	prepayCap: number;
 	/** The largest rent payment the period ledger can absorb in full. */
 	maxAllowed: number;
+	/** Gross accrued charges (H04: bounds cash refunds on settled leases). */
+	chargedTotal: number;
 };
 
 export async function getLeasePeriodDue(
@@ -330,8 +332,8 @@ export async function getLeasePeriodDue(
 		.innerJoin(rentCharges, eq(rentAllocations.chargeId, rentCharges.id))
 		.where(eq(rentCharges.leaseId, leaseId));
 
-	const outstanding =
-		aggregateAmount(sums?.charged) - aggregateAmount(allocations?.allocated);
+	const chargedTotal = aggregateAmount(sums?.charged);
+	const outstanding = chargedTotal - aggregateAmount(allocations?.allocated);
 
 	// Prepay eligibility mirrors ensureNextFuturePeriodChargeSql: active,
 	// already started, and no end date inside the next period.
@@ -350,7 +352,12 @@ export async function getLeasePeriodDue(
 		}
 	}
 
-	return { outstanding, prepayCap, maxAllowed: outstanding + prepayCap };
+	return {
+		outstanding,
+		prepayCap,
+		maxAllowed: outstanding + prepayCap,
+		chargedTotal,
+	};
 }
 
 // Per-lease charge outstanding rows for reminder/overdue consumers: ensures

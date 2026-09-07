@@ -59,6 +59,9 @@ export function DiscountDialog({
 	const createCredit = useCreateCredit();
 	// B07: one key per dialog open — retries resubmit the same key.
 	const idempotencyKey = useIdempotencyKey(open);
+	// H04: a cash refund is only honest on a settled bill (the server
+	// enforces the same pairing) — otherwise this records a bill reduction.
+	const isPaidBill = amountDue !== undefined && amountDue <= 0;
 
 	const {
 		register,
@@ -71,7 +74,7 @@ export function DiscountDialog({
 			amountRupees: 0,
 			reason: "",
 			type: "discount",
-			appliedAs: "adjust",
+			appliedAs: isPaidBill ? "refund" : "adjust",
 		},
 	});
 
@@ -105,11 +108,14 @@ export function DiscountDialog({
 						<IconTag className="size-5" />
 					</div>
 					<DialogTitle className="font-bold text-lg">
-						Add discount / write-off
+						{isPaidBill ? "Refund (cash back)" : "Reduce bill"}
 					</DialogTitle>
 					<DialogDescription>
 						{utilityId ? "Utility bill" : "Rent"} · Credit note KQ-CN-xxx
-						generated automatically. Amount is stored as negative paise.
+						generated automatically. Amount is stored as negative paise.{" "}
+						{isPaidBill
+							? "The bill is settled — this records cash returned."
+							: "This lowers the amount due — the tenant pays the reduced amount."}
 					</DialogDescription>
 				</DialogHeader>
 
@@ -145,8 +151,10 @@ export function DiscountDialog({
 								</FieldContent>
 								<FieldError errors={[errors.amountRupees]} />
 								<p className="text-muted-foreground text-xs">
-									Enter discount in rupees; stored as negative paise. Must not
-									exceed amount due.
+									Enter discount in rupees; stored as negative paise.{" "}
+									{isPaidBill
+										? "Must not exceed the collected total."
+										: "Must not exceed amount due."}
 								</p>
 							</Field>
 
@@ -161,43 +169,28 @@ export function DiscountDialog({
 								<FieldError errors={[errors.reason]} />
 							</Field>
 
-							<div className="grid grid-cols-2 gap-4">
-								<Field>
-									<FieldLabel>Type</FieldLabel>
-									<FieldContent>
-										<select
-											className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-											{...register("type")}
-										>
-											{CREDIT_TYPE_VALUES.map((t) => (
-												<option key={t} value={t}>
-													{t.replaceAll("_", " ")}
-												</option>
-											))}
-										</select>
-									</FieldContent>
-									<FieldError errors={[errors.type]} />
-								</Field>
+							<Field>
+								<FieldLabel>Type</FieldLabel>
+								<FieldContent>
+									<select
+										className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
+										{...register("type")}
+									>
+										{CREDIT_TYPE_VALUES.map((t) => (
+											<option key={t} value={t}>
+												{t.replaceAll("_", " ")}
+											</option>
+										))}
+									</select>
+								</FieldContent>
+								<FieldError errors={[errors.type]} />
+							</Field>
 
-								<Field>
-									<FieldLabel>Applied as</FieldLabel>
-									<FieldContent>
-										<select
-											className="h-9 w-full rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring/30"
-											{...register("appliedAs")}
-										>
-											{APPLIED_AS_VALUES.map((a) => (
-												<option key={a} value={a}>
-													{a === "adjust"
-														? "Adjust in next bill"
-														: "Refund (cash back)"}
-												</option>
-											))}
-										</select>
-									</FieldContent>
-									<FieldError errors={[errors.appliedAs]} />
-								</Field>
-							</div>
+							<p className="text-muted-foreground text-xs">
+								{isPaidBill
+									? "Recorded as a cash refund (appliedAs: refund)."
+									: "Recorded as a bill reduction (appliedAs: adjust)."}
+							</p>
 						</FieldGroup>
 					</FieldSet>
 
@@ -206,7 +199,11 @@ export function DiscountDialog({
 							Cancel
 						</DialogClose>
 						<Button type="submit" disabled={createCredit.isPending}>
-							{createCredit.isPending ? "Saving..." : "Create credit note"}
+							{createCredit.isPending
+								? "Saving..."
+								: isPaidBill
+									? "Record refund"
+									: "Create credit note"}
 						</Button>
 					</DialogFooter>
 				</form>

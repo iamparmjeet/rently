@@ -116,7 +116,12 @@ async function insertNeonCredit(
 						SELECT sum(p."amount")
 						FROM ${payments} p
 						WHERE p."utility_id" = u."id"
-					), 0) AS "amount_due"
+					), 0) AS "amount_due",
+					COALESCE((
+						SELECT sum(p."amount")
+						FROM ${payments} p
+						WHERE p."utility_id" = u."id"
+					), 0) AS "paid"
 				FROM ${utilities} u
 				WHERE u."id" = ${input.utilityId}
 			), inserted AS (
@@ -130,7 +135,10 @@ async function insertNeonCredit(
 					${input.creditNoteNo}, ${input.appliedAs}, ${input.createdBy},
 					${input.idempotencyKey}
 				FROM balance
-				WHERE abs(${input.amount}) <= balance."amount_due"
+				-- H04: a bill reduction needs an outstanding due; a cash refund
+				-- needs a settled bill and cannot exceed what was collected.
+				WHERE (${input.appliedAs} = 'adjust' AND abs(${input.amount}) <= balance."amount_due")
+					OR (${input.appliedAs} = 'refund' AND balance."amount_due" <= 0 AND abs(${input.amount}) <= balance."paid")
 				RETURNING "id", "amount"
 			), updated AS (
 				UPDATE ${utilities} u
@@ -159,7 +167,8 @@ async function insertNeonCredit(
 		: db.execute<{ id: string }>(sql`
 			WITH balance AS MATERIALIZED (
 				-- C08: the period outstanding IS the rent due a discount may cover.
-				SELECT ${rentOutstandingSql()} AS "amount_due"
+				SELECT ${rentOutstandingSql()} AS "amount_due",
+					COALESCE((SELECT SUM(c."amount") FROM "rent_charges" c WHERE c."lease_id" = l."id"), 0) AS "charged"
 				FROM ${leases} l
 				WHERE l."id" = ${input.leaseId}
 			), inserted AS (
@@ -172,7 +181,11 @@ async function insertNeonCredit(
 					${input.type}, ${input.amount}, ${input.reason}, ${input.creditNoteNo},
 					${input.appliedAs}, ${input.createdBy}, ${input.idempotencyKey}
 				FROM balance
-				WHERE abs(${input.amount}) <= balance."amount_due"
+				-- H04: same pairing as the utility leg — adjust needs an
+				-- outstanding due, refund needs a settled ledger bounded by
+				-- gross accrued charges.
+				WHERE (${input.appliedAs} = 'adjust' AND abs(${input.amount}) <= balance."amount_due")
+					OR (${input.appliedAs} = 'refund' AND balance."amount_due" <= 0 AND abs(${input.amount}) <= balance."charged")
 				RETURNING "id", "amount"
 			)
 			SELECT inserted."id" AS "id" FROM inserted
@@ -301,6 +314,16 @@ export const createCredit = ownerProcedure
 				const due = input.utilityId
 					? await getAmountDueForUtility(db, input.utilityId)
 					: (await getLeasePeriodDue(db, input.leaseId)).outstanding;
+				if (input.appliedAs === "refund") {
+					if (due > 0)
+						throw new ORPCError("BAD_REQUEST", {
+							message:
+								"This bill is not fully paid — record a bill reduction (adjust) instead of a cash refund.",
+						});
+					throw new ORPCError("BAD_REQUEST", {
+						message: "Refund exceeds the collected total for this bill.",
+					});
+				}
 				throw new ORPCError("BAD_REQUEST", {
 					message: `Discount exceeds the outstanding rent balance of ${due}`,
 				});
@@ -339,14 +362,59 @@ export const createCredit = ownerProcedure
 			if (!input.utilityId) {
 				await tx.execute(ensureAccruedChargesSql({ leaseId: input.leaseId }));
 			}
-			const due = input.utilityId
-				? await getAmountDueForUtility(tx, input.utilityId)
-				: (await getLeasePeriodDue(tx, input.leaseId)).outstanding;
-
-			if (Math.abs(input.amount) > due)
-				throw new ORPCError("BAD_REQUEST", {
-					message: `Discount exceeds the outstanding rent balance of ${due}`,
-				});
+			// H04: refund is only honest on a settled bill (bounded by what was
+			// collected); adjust needs an outstanding due. The adjust bound below
+			// already refuses reductions on settled bills.
+			if (input.utilityId) {
+				const due = await getAmountDueForUtility(tx, input.utilityId);
+				if (input.appliedAs === "refund") {
+					if (due > 0)
+						throw new ORPCError("BAD_REQUEST", {
+							message:
+								"This bill is not fully paid — record a bill reduction (adjust) instead of a cash refund.",
+						});
+					const [locked] = await tx
+						.select({ totalAmount: utilities.totalAmount })
+						.from(utilities)
+						.where(eq(utilities.id, input.utilityId))
+						.limit(1);
+					const [creditSum] = await tx
+						.select({
+							sum: sql<
+								number | string
+							>`coalesce(sum(${billCredits.amount}), 0)`,
+						})
+						.from(billCredits)
+						.where(eq(billCredits.utilityId, input.utilityId));
+					const paidTotal =
+						(locked?.totalAmount ?? 0) + Number(creditSum?.sum ?? 0) - due;
+					if (Math.abs(input.amount) > paidTotal)
+						throw new ORPCError("BAD_REQUEST", {
+							message: `Refund exceeds the collected total of ${paidTotal}`,
+						});
+				} else if (Math.abs(input.amount) > due) {
+					throw new ORPCError("BAD_REQUEST", {
+						message: `Discount exceeds the outstanding rent balance of ${due}`,
+					});
+				}
+			} else {
+				const bound = await getLeasePeriodDue(tx, input.leaseId);
+				if (input.appliedAs === "refund") {
+					if (bound.outstanding > 0)
+						throw new ORPCError("BAD_REQUEST", {
+							message:
+								"This bill is not fully paid — record a bill reduction (adjust) instead of a cash refund.",
+						});
+					if (Math.abs(input.amount) > bound.chargedTotal)
+						throw new ORPCError("BAD_REQUEST", {
+							message: `Refund exceeds the collected total of ${bound.chargedTotal}`,
+						});
+				} else if (Math.abs(input.amount) > bound.outstanding) {
+					throw new ORPCError("BAD_REQUEST", {
+						message: `Discount exceeds the outstanding rent balance of ${bound.outstanding}`,
+					});
+				}
+			}
 
 			const id = generatedId();
 			const creditNoteNo = getCreditNoteNo(id);

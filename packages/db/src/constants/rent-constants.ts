@@ -102,6 +102,7 @@ export const PAYMENT_TYPES = {
 	DEPOSIT: "deposit",
 	OTHER: "other",
 	REVERSAL: "reversal",
+	REFUND: "refund",
 } as const;
 
 export type PaymentType = (typeof PAYMENT_TYPES)[keyof typeof PAYMENT_TYPES];

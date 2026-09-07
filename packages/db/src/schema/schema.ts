@@ -317,9 +317,9 @@ export const payments = pgTable(
 		check(
 			"payments_type_utility_check",
 			// Utility payments name their bill; rent/deposit/other never do.
-			// Reversals preserve the original's utility link (linked via
-			// reversesPaymentId), so they stay exempt here.
-			sql`(${table.type} = 'utility' and ${table.utilityId} is not null) or (${table.type} in ('rent', 'deposit', 'other') and ${table.utilityId} is null) or ${table.type} = 'reversal'`,
+			// Reversals preserve their original link; a refund may belong to a
+			// utility bill or rent and is linked from its credit note instead.
+			sql`(${table.type} = 'utility' and ${table.utilityId} is not null) or (${table.type} in ('rent', 'deposit', 'other') and ${table.utilityId} is null) or ${table.type} in ('reversal', 'refund')`,
 		),
 		check(
 			"payments_reversal_link_check",
@@ -367,6 +367,11 @@ export const billCredits = pgTable(
 		reversesCreditId: uuid("reverses_credit_id").references(
 			(): AnyPgColumn => billCredits.id,
 		),
+		// A cash refund has one negative payment recording money leaving the
+		// business. It stays nullable while the atomic writer creates the pair.
+		refundPaymentId: uuid("refund_payment_id").references(() => payments.id, {
+			onDelete: "restrict",
+		}),
 		reversedAt: timestamp("reversed_at"),
 		// Client-supplied idempotency key (partial unique index guards Neon races).
 		idempotencyKey: uuid("idempotency_key"),
@@ -385,6 +390,9 @@ export const billCredits = pgTable(
 		uniqueIndex("bill_credits_one_reversal_per_credit")
 			.on(t.reversesCreditId)
 			.where(sql`${t.reversesCreditId} is not null`),
+		uniqueIndex("bill_credits_one_refund_payment")
+			.on(t.refundPaymentId)
+			.where(sql`${t.refundPaymentId} is not null`),
 		uniqueIndex("bill_credits_lease_idempotency_key")
 			.on(t.leaseId, t.idempotencyKey)
 			.where(sql`${t.idempotencyKey} is not null`),

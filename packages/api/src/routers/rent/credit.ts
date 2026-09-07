@@ -98,6 +98,7 @@ async function insertNeonCredit(
 		appliedAs: string;
 		createdBy: string;
 		idempotencyKey: string;
+		refundPaymentId: string | null;
 	},
 ) {
 	const lockQuery = db.execute(
@@ -205,6 +206,27 @@ async function insertNeonCredit(
 	if (!input.utilityId) {
 		batch.push(db.execute(allocateRentCreditSql(input.id)));
 	}
+	if (input.appliedAs === "refund" && input.refundPaymentId) {
+		// Flow: this batch follows the credit insert. The paired negative payment
+		// is the cash outflow; its link makes retries and later audits unambiguous.
+		batch.push(
+			db.insert(payments).values({
+				id: input.refundPaymentId,
+				leaseId: input.leaseId,
+				utilityId: input.utilityId,
+				amount: input.amount,
+				paymentDate: new Date(),
+				type: "refund",
+				description: `Cash refund for credit note ${input.creditNoteNo}`,
+			}),
+		);
+		batch.push(
+			db
+				.update(billCredits)
+				.set({ refundPaymentId: input.refundPaymentId, updatedAt: new Date() })
+				.where(eq(billCredits.id, input.id)),
+		);
+	}
 	const results = await db.batch(batch);
 	const result = results[insertIndex] as (typeof results)[number] & {
 		rows: Array<{ id: string }>;
@@ -269,6 +291,8 @@ export const createCredit = ownerProcedure
 			}
 
 			const id = generatedId();
+			const refundPaymentId =
+				input.appliedAs === "refund" ? generatedId() : null;
 			const creditNoteNo = getCreditNoteNo(id);
 
 			let row: typeof billCredits.$inferSelect | undefined;
@@ -286,6 +310,7 @@ export const createCredit = ownerProcedure
 					appliedAs: input.appliedAs,
 					createdBy: user.id,
 					idempotencyKey,
+					refundPaymentId,
 				});
 			} catch (error) {
 				if (violationCode(error) !== "23505") throw error;
@@ -419,7 +444,7 @@ export const createCredit = ownerProcedure
 			const id = generatedId();
 			const creditNoteNo = getCreditNoteNo(id);
 
-			const [row] = await tx
+			let [row] = await tx
 				.insert(billCredits)
 				.values({
 					id,
@@ -439,6 +464,29 @@ export const createCredit = ownerProcedure
 				throw new ORPCError("INTERNAL_SERVER_ERROR", {
 					message: "Failed to create credit",
 				});
+			}
+			if (input.appliedAs === "refund") {
+				const refundPaymentId = generatedId();
+				await tx.insert(payments).values({
+					id: refundPaymentId,
+					leaseId: input.leaseId,
+					utilityId: input.utilityId ?? null,
+					amount: input.amount,
+					paymentDate: new Date(),
+					type: "refund",
+					description: `Cash refund for credit note ${creditNoteNo}`,
+				});
+				const [linked] = await tx
+					.update(billCredits)
+					.set({ refundPaymentId, updatedAt: new Date() })
+					.where(eq(billCredits.id, row.id))
+					.returning();
+				if (!linked) {
+					throw new ORPCError("INTERNAL_SERVER_ERROR", {
+						message: "Failed to link cash refund",
+					});
+				}
+				row = linked;
 			}
 			if (input.utilityId) {
 				await syncUtilityPaidState(tx, input.utilityId);

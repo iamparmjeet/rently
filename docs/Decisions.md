@@ -1,5 +1,31 @@
 # Decisions
 
+## 2026-09-07 - Cash-refund ledger event
+
+**Decision:** A settled-bill refund will create two linked immutable records:
+a negative `bill_credits` row reducing the billed amount, and a negative
+`payments` row recording cash leaving the business. A refund is only allowed
+after rent is fully settled, so its credit has no outstanding charge to
+allocate; the settled period ledger stays unchanged while the lifetime bill
+formula nets the paired entries to zero. The payment is linked to the credit
+and is not a void of the tenant's original payment.
+
+**Why:** A credit note alone made a paid bill appear overpaid while the UI
+claimed cash was returned. The paired entries preserve both the commercial
+discount and the actual cash movement, leaving the paid bill settled.
+
+**Alternatives:** Hide refunds and support adjustments only (rejected: the
+approved owner flow permits cash refunds); model it as a reversal of the
+tenant's payment (rejected: it misstates what happened and may void more than
+the refund); silently rewrite the original payment (rejected: financial
+history is immutable).
+
+**Tradeoff:** The payment type and schema gain a narrowly scoped refund link;
+reversing a refund credit reopens the balance until a separately audited cash
+recovery is recorded.
+
+**Model:** GPT-5.6 Terra
+
 ## 2026-09-07 - Rent-period calendar semantics repair
 
 **Decision:** Keep persisted lease/payment timestamps as UTC instants and make

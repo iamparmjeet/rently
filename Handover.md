@@ -642,3 +642,13 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 74 files / 416 tests pass → local `bun run build` 5/5; zero fixture residue; `next-env.d.ts` churn restored.
 - Terra pointers: confirm the 2000 kWh delta against real metering data (named constant, no migration by plan); 2dp rounding of consumption vs exact fractional storage; decreasing-check message untouched.
 - Next allowed slice: G03 meter-reading chronology from a clean integration-branch cut.
+
+## G03 Meter-reading chronology (2026-09-06, Muse Spark, branch fix/meter-reading-chronology, tag pre-meter-reading-chronology)
+
+- Base: clean `integ/phase-a-baseline@e0ae3d24` (G02 merge); no migration. `main` untouched. Terra High review owed — stays `[~]`. Standing authorization applies. Small test footprint per owner request (3 tests).
+- Gap proven (3 red pre-fix): the previous-reading lookup took the globally latest bill (a backdated submission compared against a later bill and refused); the batch path checked-then-inserted the monthly guard with no arbitration. No unique index by design: dev holds a legitimate paid correction pair in one month that must never be deleted (deletion would rewrite financial history).
+- Changed (2 commits, `0c84024`..`8541ecc`, `tenant-portal.ts` only + test): previous = latest bill strictly before the submitted date on both paths (later bills keep stored values — ledger rows are never rewritten); batch-path insert is one `INSERT…SELECT…WHERE NOT EXISTS (same-month bill)` statement, zero rows → CONFLICT (tx path keeps its FOR UPDATE serialization). Raw SQL needs an app-side `crypto.randomUUID()` (bypasses drizzle id defaults — caught by test).
+- Tests (`meter-reading-chronology.test.ts`, 3): backdated accepted+chained, later bill ignored for previous selection, gated concurrent same-month submits on the batch shim (exactly one wins — the gate forces the overlap; job-level concurrency serializes like F03).
+- Verification: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → FULL suite 75 files / 419 tests pass (background run; foreground stalls documented) → local `bun run build` 5/5; zero fixture residue (scratch-debug leaks cleaned by ids); `next-env.d.ts` churn restored.
+- Terra pointers: backdated bills chain forward-only (a later bill's stored previousReading is NOT recomputed — rewrites are forbidden); month granularity of the guard; single-statement SQL mirror to review; shim timestamp-key extension for utility date keys.
+- Next allowed slice: G04 meter-reading rate limits from a clean integration-branch cut.

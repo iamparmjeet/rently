@@ -170,3 +170,8 @@ a reversed deposit is not a rent adjustment).
 **Tradeoff:** No second factor if password leaks; mitigated by Google's own 2FA + email verification + `setPassword` fallback for OAuth-only users. Revisit 2FA/passkey after 20+ paying owners request it (logged in `TODO.md` Deferred).
 
 **Evidence:** `docs/Feature-2FA-deferred.md`, `docs/Feature-account-linking.md`, `apps/dashboard/src/components/features/settings/security-tab.tsx:38` new Connected Accounts + Set Password + Sessions list, `check-types` 6/6, `build` 5/5. Reasoned with Muse Spark 1.2.
+
+## I03 / I01: Phase I Release and Playwright Extensibility
+- E2E automation for role-based smoke testing has been scaffolded via Playwright in the root `e2e` directory.
+- Future staging UAT matches criteria in `beta-smoke-test.md`.
+- Phase I remediation is marked complete and baseline merged to `main`.

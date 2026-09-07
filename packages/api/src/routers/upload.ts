@@ -1,12 +1,14 @@
 import { ORPCError } from "@orpc/server";
 import { assertPrivateDocumentsAllowed } from "@rently/api/modules/sample-workspace";
 import { ownerProcedure } from "@rently/api/procedures";
+import { user as authUser } from "@rently/db/schema/auth";
 import { env } from "@rently/env/server";
 import {
 	GetPresignedUploadUrlSchema,
 	PresignedUploadUrlResponseSchema,
 } from "@rently/validators";
 import { AwsClient } from "aws4fetch";
+import { eq } from "drizzle-orm";
 import z from "zod";
 
 // AwsClient is cloudflare specific
@@ -71,7 +73,7 @@ export const deleteAvatar = ownerProcedure
 	.route({ method: "DELETE", path: "/upload/avatar" })
 	.output(z.object({ success: z.boolean() }))
 	.handler(async ({ context }) => {
-		const { user } = context;
+		const { db, user } = context;
 		assertPrivateDocumentsAllowed(user);
 
 		if (!user.image) {
@@ -89,13 +91,32 @@ export const deleteAvatar = ownerProcedure
 			});
 		}
 
-		// WHY we don't throw on R2 failure: if the file is already gone
-		// (e.g. manually deleted from bucket), we still want to clear user.image.
-		const deleteRequest = await r2.sign(
-			new Request(buildR2ObjectUrl(key), { method: "DELETE" }),
-		);
+		// H07: a failed store delete keeps the reference so retry is safe;
+		// the reference is cleared server-side only after the object is
+		// gone. (S3 DELETE is idempotent — a missing object still reports
+		// success, so re-delete after manual bucket cleanup just works.)
+		let deleteResponse: Response;
+		try {
+			const deleteRequest = await r2.sign(
+				new Request(buildR2ObjectUrl(key), { method: "DELETE" }),
+			);
+			deleteResponse = await fetch(deleteRequest);
+		} catch {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
+				message: "Storage unreachable — your photo was kept, safe to retry.",
+			});
+		}
 
-		await fetch(deleteRequest);
+		if (!deleteResponse.ok) {
+			throw new ORPCError("INTERNAL_SERVER_ERROR", {
+				message: "Storage delete failed — your photo was kept, safe to retry.",
+			});
+		}
+
+		await db
+			.update(authUser)
+			.set({ image: null, updatedAt: new Date() })
+			.where(eq(authUser.id, user.id));
 
 		return { success: true };
 	});

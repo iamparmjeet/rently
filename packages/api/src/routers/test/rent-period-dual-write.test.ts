@@ -29,7 +29,7 @@ import {
 	units,
 	utilities,
 } from "@rently/db/schema/schema";
-import { eq, inArray } from "drizzle-orm";
+import { and, eq, inArray } from "drizzle-orm";
 import { afterEach, describe, expect, it, vi } from "vitest";
 
 const mocks = vi.hoisted(() => ({
@@ -281,6 +281,39 @@ describe("C04 rent-period dual-write", () => {
 			.where(eq(rentCharges.leaseId, lease.id))
 			.orderBy(rentCharges.periodKey);
 		expect(charges).toEqual([{ periodKey: istMonthKey() }]);
+	});
+
+	it("uses the IST start day for a prepaid future charge due date", async () => {
+		const { ownerId, tenantId, propertyId } = await ownerProperty();
+		const start = new Date(istMonthStart());
+		start.setUTCDate(0);
+		start.setUTCHours(19, 0, 0, 0); // 00:30 IST on the first.
+		const lease = await singleLease(
+			ownerId,
+			tenantId,
+			propertyId,
+			start.toISOString(),
+		);
+
+		await clients(ownerId).createPayment({
+			leaseId: lease.id,
+			amount: RENT + 1,
+			paymentDate: PAYMENT_DATE,
+			type: PAYMENT_TYPES.RENT,
+			idempotencyKey: crypto.randomUUID(),
+		});
+
+		const [future] = await db
+			.select({ dueDate: rentCharges.dueDate })
+			.from(rentCharges)
+			.where(
+				and(
+					eq(rentCharges.leaseId, lease.id),
+					eq(rentCharges.periodKey, istMonthKey(1)),
+				),
+			)
+			.limit(1);
+		expect(future?.dueDate).toBe(`${istMonthKey(1)}-01`);
 	});
 
 	it("sets the first due date after a post-due-day lease start", async () => {

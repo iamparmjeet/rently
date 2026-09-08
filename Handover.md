@@ -813,5 +813,6 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
   - `routers/rent/credit.ts`: Fixed `reverseCredit` paths. Neon/batch flow uses `db.batch` to guarantee atomic recovery insert and credit state update. Transaction flow correctly runs `ensureRefundRecovery` before `markCreditReversed`.
   - `routers/rent/payment.ts`: Corrected the refund guard placement, forbidding voids on REFUND payments while explicitly allowing them on standard actions, relying purely on the reversing of the source credit.
 - Tests (1 new in `credit-refund-gate.test.ts`): Reversal of cash refund creates the expected one positive payment reversal linked to the refund payment.
-- Verification: Biome format applied. Types checked. Standalone tests validated contextually.
+- Verification: `db:generate` no drift, `check-types --force` 6/6, focused
+  Biome, `db:migrate:test`, and H04 recovery tests 6/6.
 - Next allowed slice: Finding #2 of the reconciliation phase.

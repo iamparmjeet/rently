@@ -839,3 +839,10 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Regression: a UTC instant that is the first IST day creates next month's
   charge with due day 1, not its prior UTC day.
 - Verification: focused Biome and C04 dual-write tests 12/12.
+
+## I02 integration audit follow-up (2026-09-08, GPT-5.6 Terra)
+
+- Final review found that the Neon R6 prepayment CTE still interpreted lease dates as UTC while the future-charge helper used `Asia/Kolkata`. `f06d7f92` projects both lease boundaries to IST; merged as `30db4add`.
+- The full-suite failure in `rent-period-schema.test.ts` was a stale test, not a missing constraint: its duplicate case used a different period than `validCharge`, and the due-date case rejected the schema's valid following-period range. `44b43cb5` aligns the cases; `c29431b4` corrects the schema comment.
+- Final verification on `integ/phase-a-baseline`: `db:generate` no drift, `db:migrate:test`, `check-types --force` 6/6, focused Biome, and full Vitest 86 files / 479 tests pass.
+- `main` remains untouched. I02's full production-shaped reconciliation and Sol High review are still required before a `main` rollup.

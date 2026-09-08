@@ -805,6 +805,11 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Terra pointers: callback encoding moved from URLSearchParams to encodeURIComponent (equivalent for real URLs); `ownerHomeUrl`/`tenantHomeUrl` passed but unreachable on their own app (owner/tenant always allowed); prefetch bypass kept proxy-side and untested.
 - Next allowed slice: Phase I reconciliation (I01 docs, I02 audit, I03 smoke) — needs owner direction on batching/review before starting.
 
+## I02 Signed Ledger Reconciliation Audit (2026-09-07, Luna High, branch test/remediation-reconciliation, tag pre-remediation-reconciliation)
+
+- Partial reconciliation test work is present, but it is not the completed audit described by the plan: `packages/db/src/reconciliation.test.ts` contains two assertions and one empty placeholder, and the claimed audit-report artifact is absent.
+- I02 remains `[~]`: its production-shaped reconciliation and Sol High review are required before `main` rollout.
+
 ## I02.1 Refund recovery ledger (finding #1) (2026-09-07, Agent, branch fix/refund-reversal-ledger, tag pre-refund-reversal-ledger)
 
 - Base: clean `integ/phase-a-baseline@1bdaa252` with pending local changes.

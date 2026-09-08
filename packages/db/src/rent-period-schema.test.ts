@@ -116,8 +116,8 @@ async function validCharge(leaseId: string) {
 		.insert(rentCharges)
 		.values({
 			leaseId,
-			periodKey: "2026-09",
-			dueDate: "2026-09-05",
+			periodKey: "2026-10",
+			dueDate: "2026-10-05",
 			amount: RENT,
 		})
 		.returning();
@@ -222,8 +222,8 @@ describe("C02 rent-period schema", () => {
 		await expectViolation(
 			db.insert(rentCharges).values({
 				leaseId,
-				periodKey: "2026-09",
-				dueDate: "2026-09-05",
+				periodKey: "2026-10",
+				dueDate: "2026-10-05",
 				amount: RENT,
 			}),
 			"23505",
@@ -252,12 +252,12 @@ describe("C02 rent-period schema", () => {
 			}),
 			"23514",
 		);
-		// due date must fall inside the period
+		// due date must fall in the charge period or the following period
 		await expectViolation(
 			db.insert(rentCharges).values({
 				leaseId,
 				periodKey: "2026-09",
-				dueDate: "2026-10-05",
+				dueDate: "2026-11-05",
 				amount: RENT,
 			}),
 			"23514",

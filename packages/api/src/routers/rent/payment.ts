@@ -291,8 +291,8 @@ async function insertNeonPayment(
 					COALESCE(SUM(c."amount" - COALESCE(ra."allocated", 0)), 0)
 					+ CASE
 						WHEN l."status" = 'active'
-							AND l."start_date"::date < (date_trunc('month', now() AT TIME ZONE 'Asia/Kolkata') + interval '1 month')
-							AND (l."end_date" IS NULL OR l."end_date"::date >= (date_trunc('month', now() AT TIME ZONE 'Asia/Kolkata') + interval '2 months'))
+							AND (l."start_date" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::date < (date_trunc('month', now() AT TIME ZONE 'Asia/Kolkata') + interval '1 month')
+							AND (l."end_date" IS NULL OR (l."end_date" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::date >= (date_trunc('month', now() AT TIME ZONE 'Asia/Kolkata') + interval '2 months'))
 							AND NOT EXISTS (
 								SELECT 1 FROM ${rentCharges} next_charge
 								WHERE next_charge."lease_id" = l."id"

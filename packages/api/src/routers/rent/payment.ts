@@ -284,19 +284,21 @@ async function insertNeonPayment(
 		: db.execute<{ id: string }>(sql`
 			WITH balance AS MATERIALIZED (
 				-- C08: the period outstanding IS the rent due; an accepted payment
-				-- may also prepay at most one future period (R6) MINUS whatever
-				-- earlier prepays already sit there — never beyond one month's
-				-- rent of headroom. The R6 charge is created below the batch when
-				-- this insert survives and the amount exceeds the current dues.
+				-- may also prepay at most one future period (R6), but only until
+				-- that charge exists. Its remaining paise are already included in
+				-- the total outstanding below.
 				SELECT
-					COALESCE(SUM(CASE WHEN c."period_key" < x."next"
-						THEN c."amount" - COALESCE(ra."allocated", 0) ELSE 0 END), 0)
+					COALESCE(SUM(c."amount" - COALESCE(ra."allocated", 0)), 0)
 					+ CASE
 						WHEN l."status" = 'active'
 							AND l."start_date"::date < (date_trunc('month', now() AT TIME ZONE 'Asia/Kolkata') + interval '1 month')
 							AND (l."end_date" IS NULL OR l."end_date"::date >= (date_trunc('month', now() AT TIME ZONE 'Asia/Kolkata') + interval '2 months'))
-						THEN GREATEST(l."rent" - COALESCE(SUM(CASE WHEN c."period_key" >= x."next"
-							THEN c."amount" - COALESCE(ra."allocated", 0) ELSE 0 END), 0), 0)
+							AND NOT EXISTS (
+								SELECT 1 FROM ${rentCharges} next_charge
+								WHERE next_charge."lease_id" = l."id"
+									AND next_charge."period_key" = x."next"
+							)
+						THEN l."rent"
 						ELSE 0
 					END AS "amount_due"
 				FROM ${leases} l

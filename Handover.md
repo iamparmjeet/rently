@@ -831,3 +831,11 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
   and atomic individual settlement tests 8/8.
 - Next allowed slice: Finding #3, IST projection in
   `ensureNextFuturePeriodChargeSql`.
+
+## I02.3 Future-charge IST projection (finding #3) (2026-09-08, branch fix/rent-future-charge-ist, tag pre-rent-future-charge-ist)
+
+- `ensureNextFuturePeriodChargeSql` now projects lease start/end instants to
+  `Asia/Kolkata` before eligibility and fallback due-day calculations.
+- Regression: a UTC instant that is the first IST day creates next month's
+  charge with due day 1, not its prior UTC day.
+- Verification: focused Biome and C04 dual-write tests 12/12.

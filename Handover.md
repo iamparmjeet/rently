@@ -816,3 +816,18 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift, `check-types --force` 6/6, focused
   Biome, `db:migrate:test`, and H04 recovery tests 6/6.
 - Next allowed slice: Finding #2 of the reconciliation phase.
+
+## I02.2 Rent prepayment cap (finding #2) (2026-09-08, branch fix/rent-prepayment-cap, tag pre-rent-prepayment-cap)
+
+- Scope: R6 permits only the next future period. Once that charge exists, its
+  remaining balance is already part of period outstanding and no additional
+  advance headroom remains.
+- Changed: Node and Neon settlement bounds now add one month's headroom only
+  when the next IST period has no charge. This prevents an unallocated second
+  future-period payment after the first was settled.
+- Tests: Node and Neon-path integration regression rejects the second advance
+  and retains exactly one payment plus current and next-period charges.
+- Verification: `check-types --force` 6/6, focused Biome, `db:migrate:test`,
+  and atomic individual settlement tests 8/8.
+- Next allowed slice: Finding #3, IST projection in
+  `ensureNextFuturePeriodChargeSql`.

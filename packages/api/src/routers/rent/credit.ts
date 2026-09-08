@@ -57,6 +57,70 @@ async function markCreditReversed(
 	return updated;
 }
 
+async function findPaymentReversal(
+	db: Pick<Database, "select">,
+	paymentId: string,
+) {
+	const [row] = await db
+		.select()
+		.from(payments)
+		.where(
+			and(
+				eq(payments.type, "reversal"),
+				eq(payments.reversesPaymentId, paymentId),
+			),
+		)
+		.limit(1);
+	return row;
+}
+
+// Flow: reverseCredit calls this only for a credit that issued cash. The
+// payment reversal is the recovery entry; it must point at the refund payment,
+// never at the tenant's original settlement.
+async function ensureRefundRecovery(
+	db: Pick<Database, "select" | "insert">,
+	refundPaymentId: string,
+) {
+	const existing = await findPaymentReversal(db, refundPaymentId);
+	if (existing) return existing;
+	const [refund] = await db
+		.select()
+		.from(payments)
+		.where(eq(payments.id, refundPaymentId))
+		.limit(1);
+	if (refund?.type !== "refund" || refund.amount >= 0) {
+		throw new ORPCError("CONFLICT", {
+			message: "Cash refund payment is missing or invalid",
+		});
+	}
+	try {
+		const [recovery] = await db
+			.insert(payments)
+			.values({
+				id: generatedId(),
+				leaseId: refund.leaseId,
+				utilityId: refund.utilityId,
+				amount: -refund.amount,
+				paymentDate: new Date(),
+				type: "reversal",
+				description: `Recovery of cash refund ${refund.id}`,
+				referenceNumber: refund.id,
+				reversesPaymentId: refund.id,
+			})
+			.returning();
+		if (recovery) return recovery;
+	} catch (error) {
+		if (violationCode(error) !== "23505") throw error;
+	}
+	const winner = await findPaymentReversal(db, refundPaymentId);
+	if (!winner) {
+		throw new ORPCError("INTERNAL_SERVER_ERROR", {
+			message: "Failed to recover cash refund",
+		});
+	}
+	return winner;
+}
+
 type BatchCapableDatabase = Database & {
 	batch<T extends readonly unknown[]>(
 		queries: T,
@@ -76,6 +140,7 @@ import {
 	allocateRentCreditSql,
 	ensureAccruedChargesSql,
 	mirrorCreditReversalSql,
+	mirrorPaymentReversalSql,
 	rentOutstandingSql,
 } from "../helpers/rent-period";
 import { settlementAdvisoryLock } from "../helpers/settlement-lock";
@@ -83,6 +148,32 @@ import { settlementAdvisoryLock } from "../helpers/settlement-lock";
 // *********** Helper **********************
 const getCreditNoteNo = (id: string) =>
 	`KQ-CN-${id.replaceAll("-", "").slice(-12).toUpperCase()}`;
+
+function syncUtilityPaidSql(utilityId: string) {
+	return sql`
+		UPDATE ${utilities} u
+		SET "is_paid" = (
+			u."total_amount"
+			+ COALESCE((
+				SELECT sum(c."amount")
+				FROM ${billCredits} c
+				WHERE c."utility_id" = u."id"
+			), 0)
+			- COALESCE((
+				SELECT sum(p."amount")
+				FROM ${payments} p
+				LEFT JOIN ${payments} original
+					ON original."id" = p."reverses_payment_id"
+				WHERE p."utility_id" = u."id"
+					AND (
+						p."type" = 'utility'
+						OR (p."type" = 'reversal' AND original."type" = 'utility')
+					)
+			), 0) <= 0
+		)
+		WHERE u."id" = ${utilityId}
+	`;
+}
 
 async function insertNeonCredit(
 	db: BatchCapableDatabase,
@@ -522,6 +613,9 @@ export const reverseCredit = ownerProcedure
 		if (existing.reversedAt) {
 			const retry = await findReversalByCredit(db, existing.id);
 			if (retry) {
+				if (existing.refundPaymentId) {
+					await ensureRefundRecovery(db, existing.refundPaymentId);
+				}
 				if (!existing.utilityId) {
 					// C04 dual-write self-healing: guarantee the mirror exists.
 					await db.execute(mirrorCreditReversalSql(retry.id));
@@ -542,30 +636,90 @@ export const reverseCredit = ownerProcedure
 			const reversalAmount = Math.abs(existing.amount);
 			const reversalId = generatedId();
 			const reversalNoteNo = getCreditNoteNo(reversalId);
+			const refund = existing.refundPaymentId
+				? await db
+						.select()
+						.from(payments)
+						.where(eq(payments.id, existing.refundPaymentId))
+						.limit(1)
+				: [];
+			const refundPayment = refund[0];
+			if (
+				refundPayment &&
+				(refundPayment.type !== "refund" || refundPayment.amount >= 0)
+			) {
+				throw new ORPCError("CONFLICT", {
+					message: "Cash refund payment is missing or invalid",
+				});
+			}
+			if (existing.refundPaymentId && !refundPayment) {
+				throw new ORPCError("CONFLICT", {
+					message: "Cash refund payment is missing or invalid",
+				});
+			}
+			const priorRecovery = existing.refundPaymentId
+				? await findPaymentReversal(db, existing.refundPaymentId)
+				: undefined;
+			const recoveryId =
+				refundPayment && !priorRecovery ? generatedId() : undefined;
 
 			let reversal: typeof billCredits.$inferSelect | undefined;
 			try {
-				const [reversalRow] = await db
-					.insert(billCredits)
-					.values({
-						id: reversalId,
-						leaseId: existing.leaseId,
-						utilityId: existing.utilityId,
-						ownerId: user.id,
-						type: existing.type,
-						amount: reversalAmount,
-						reason:
-							`Reversal of ${existing.creditNoteNo}: ${existing.reason}`.slice(
-								0,
-								500,
-							),
-						creditNoteNo: reversalNoteNo,
-						appliedAs: existing.appliedAs,
-						reversesCreditId: existing.id,
-						createdBy: user.id,
-					})
-					.returning();
-				reversal = reversalRow;
+				const batch: Array<{ getSQL: () => unknown }> = [
+					db
+						.insert(billCredits)
+						.values({
+							id: reversalId,
+							leaseId: existing.leaseId,
+							utilityId: existing.utilityId,
+							ownerId: user.id,
+							type: existing.type,
+							amount: reversalAmount,
+							reason:
+								`Reversal of ${existing.creditNoteNo}: ${existing.reason}`.slice(
+									0,
+									500,
+								),
+							creditNoteNo: reversalNoteNo,
+							appliedAs: existing.appliedAs,
+							reversesCreditId: existing.id,
+							createdBy: user.id,
+						})
+						.returning(),
+				];
+				if (refundPayment && recoveryId) {
+					batch.push(
+						db.insert(payments).values({
+							id: recoveryId,
+							leaseId: refundPayment.leaseId,
+							utilityId: refundPayment.utilityId,
+							amount: -refundPayment.amount,
+							paymentDate: new Date(),
+							type: "reversal",
+							description: `Recovery of cash refund ${refundPayment.id}`,
+							referenceNumber: refundPayment.id,
+							reversesPaymentId: refundPayment.id,
+						}),
+					);
+				}
+				batch.push(
+					db
+						.update(billCredits)
+						.set({ reversedAt: new Date(), updatedAt: new Date() })
+						.where(eq(billCredits.id, existing.id)),
+				);
+				batch.push(
+					existing.utilityId
+						? db.execute(syncUtilityPaidSql(existing.utilityId))
+						: db.execute(mirrorCreditReversalSql(reversalId)),
+				);
+				if (recoveryId && refundPayment && !refundPayment.utilityId) {
+					batch.push(
+						db.execute(mirrorPaymentReversalSql(recoveryId, refundPayment.id)),
+					);
+				}
+				await db.batch(batch);
+				reversal = await findReversalByCredit(db, existing.id);
 			} catch (error) {
 				// Concurrent winner (or a crashed batch's orphan row): adopt it
 				// instead of duplicating, then complete the original below.
@@ -581,13 +735,15 @@ export const reverseCredit = ownerProcedure
 				});
 			}
 
-			const updated = await markCreditReversed(db, existing.id);
-
-			if (existing.utilityId) {
-				await syncUtilityPaidState(db, existing.utilityId);
-			} else {
-				// C04 dual-write: the reversal undoes the original's allocations.
-				await db.execute(mirrorCreditReversalSql(reversal?.id as string));
+			const [updated] = await db
+				.select()
+				.from(billCredits)
+				.where(eq(billCredits.id, existing.id))
+				.limit(1);
+			if (!updated) {
+				throw new ORPCError("INTERNAL_SERVER_ERROR", {
+					message: "Failed to mark credit reversed",
+				});
 			}
 
 			return { credit: updated, reversal };
@@ -626,6 +782,9 @@ export const reverseCredit = ownerProcedure
 					});
 				}
 
+				if (existing.refundPaymentId) {
+					await ensureRefundRecovery(tx, existing.refundPaymentId);
+				}
 				const updated = await markCreditReversed(tx, existing.id);
 
 				if (existing.utilityId) {
@@ -644,6 +803,9 @@ export const reverseCredit = ownerProcedure
 			const winner = await findReversalByCredit(db, existing.id);
 			if (!winner) throw error;
 			const updated = await markCreditReversed(db, existing.id);
+			if (existing.refundPaymentId) {
+				await ensureRefundRecovery(db, existing.refundPaymentId);
+			}
 			if (existing.utilityId) {
 				await syncUtilityPaidState(db, existing.utilityId);
 			}

@@ -1,5 +1,26 @@
 # Decisions
 
+## 2026-09-07 - Cash-refund recovery
+
+**Decision:** Reversing a credit that issued cash creates a normal positive
+payment reversal linked to the original negative refund payment. The original
+credit reversal and refund-payment reversal are additive and occur in the same
+write operation; a refund payment itself cannot be voided independently.
+
+**Why:** The credit reversal alone reopens the bill but leaves the cash outflow
+unexplained in payment reporting. Reusing the established payment-reversal
+link preserves a complete, navigable audit chain.
+
+**Alternatives:** Delete the refund payment (rejected: destroys history); let
+owners void it independently (rejected: can split the paired financial event);
+introduce another payment type/table (rejected: existing signed reversals
+express recovery faithfully).
+
+**Tradeoff:** Recovering an erroneous cash refund remains a credit-reversal
+operation, not a generic payment action.
+
+**Model:** GPT-5.6 Terra
+
 ## 2026-09-07 - Cash-refund ledger event
 
 **Decision:** A settled-bill refund will create two linked immutable records:

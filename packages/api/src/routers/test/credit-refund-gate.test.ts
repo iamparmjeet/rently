@@ -44,8 +44,8 @@ vi.mock("@rently/email", () => ({
 	sendUtilityBillEmail: vi.fn(),
 }));
 
-import { createCredit } from "../rent/credit";
-import { createPayment } from "../rent/payment";
+import { createCredit, reverseCredit } from "../rent/credit";
+import { createPayment, voidPayment } from "../rent/payment";
 import { recordUtilityPayment } from "../rent/utility";
 
 const db = createDb();
@@ -64,16 +64,41 @@ function monthStartUtc() {
 	return new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
 }
 
-function clients(ownerId: string) {
+function clients(ownerId: string, target = db) {
 	mocks.getSession.mockResolvedValue({
 		user: { id: ownerId, role: "owner" },
 		session: { id: "h04-session" },
 	});
-	const context = { db, headers: new Headers() } as never;
+	const context = { db: target, headers: new Headers() } as never;
 	return createRouterClient(
-		{ createCredit, createPayment, recordUtilityPayment },
+		{
+			createCredit,
+			createPayment,
+			recordUtilityPayment,
+			reverseCredit,
+			voidPayment,
+		},
 		{ context },
 	);
+}
+
+// Use local Postgres to exercise the same `supportsBatch` path as Neon HTTP.
+function neonPathDatabase() {
+	return new Proxy(db, {
+		get(target, property, receiver) {
+			if (property === "batch") {
+				return (queries: Array<{ getSQL: () => unknown }>) =>
+					target.transaction(async (tx) => {
+						const results = [];
+						for (const query of queries) {
+							results.push(await tx.execute(query.getSQL() as never));
+						}
+						return results;
+					});
+			}
+			return Reflect.get(target, property, receiver);
+		},
+	});
 }
 
 async function ownerLease() {
@@ -337,4 +362,56 @@ describe("H04 refund/adjust pairing", () => {
 		).rejects.toMatchObject({ code: "BAD_REQUEST" });
 		await expect(creditCount(leaseId)).resolves.toHaveLength(0);
 	});
+
+	it("recovers a cash refund atomically through the Neon path and rejects direct voids", async () => {
+		const { ownerId, leaseId } = await ownerLease();
+		const utilityId = await unpaidBill(leaseId);
+		const api = clients(ownerId, neonPathDatabase());
+		await api.recordUtilityPayment({
+			utilityId,
+			leaseId,
+			amount: BILL_TOTAL,
+			paymentMethod: "upi",
+			receivedAt: new Date().toISOString(),
+			idempotencyKey: crypto.randomUUID(),
+		});
+		const { credit } = await api.createCredit({
+			leaseId,
+			utilityId,
+			type: CREDIT_TYPES.DISCOUNT,
+			amount: -10_000,
+			reason: "H04 cash returned for settled bill",
+			appliedAs: "refund",
+			idempotencyKey: crypto.randomUUID(),
+		});
+
+		expect(credit.refundPaymentId).toBeDefined();
+		await expect(
+			api.voidPayment({
+				id: credit.refundPaymentId as string,
+			}),
+		).rejects.toMatchObject({ code: "BAD_REQUEST" });
+
+		const { reversal } = await api.reverseCredit({
+			creditId: credit.id,
+		});
+
+		expect(reversal).toBeDefined();
+
+		const recoveryRows = await db
+			.select({
+				amount: payments.amount,
+				type: payments.type,
+				reversesPaymentId: payments.reversesPaymentId,
+			})
+			.from(payments)
+			.where(eq(payments.reversesPaymentId, credit.refundPaymentId as string));
+
+		expect(recoveryRows).toHaveLength(1);
+		expect(recoveryRows[0]).toMatchObject({
+			amount: 10_000,
+			type: "reversal",
+			reversesPaymentId: credit.refundPaymentId,
+		});
+	}, 30000);
 });

@@ -246,16 +246,23 @@ export function ensureNextFuturePeriodChargeSql(
 				extract(year from x.p_next)::int,
 				extract(month from x.p_next)::int,
 				least(
-					coalesce(l."rent_due_date", extract(day from l."start_date")::int),
+					coalesce(l."rent_due_date", extract(day from dates.start_date)::int),
 					extract(day from (x.p_next + interval '1 month - 1 day'))::int
 				)
 			),
 			l."rent"
 		FROM "leases" l
+		CROSS JOIN LATERAL (
+			SELECT
+				(l."start_date" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::date AS start_date,
+				CASE WHEN l."end_date" IS NULL THEN NULL
+					ELSE (l."end_date" AT TIME ZONE 'UTC' AT TIME ZONE 'Asia/Kolkata')::date
+				END AS end_date
+		) dates
 		CROSS JOIN (SELECT (date_trunc('month', now() AT TIME ZONE 'Asia/Kolkata') + interval '1 month') AS p_next) x
 		WHERE l."id" = ${scope.leaseId}
 			AND l."status" = 'active'
-			AND l."start_date"::date < x.p_next::date
-			AND (l."end_date" IS NULL OR l."end_date"::date >= (x.p_next + interval '1 month')::date)${gateFilter}
+			AND dates.start_date < x.p_next::date
+			AND (dates.end_date IS NULL OR dates.end_date >= (x.p_next + interval '1 month')::date)${gateFilter}
 		ON CONFLICT ("lease_id", "period_key") DO NOTHING`;
 }

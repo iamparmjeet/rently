@@ -242,6 +242,34 @@ afterEach(async () => {
 });
 
 describe("B08 atomic individual settlement", () => {
+	it.each([
+		["Node", () => db],
+		["Neon", neonPathDatabase],
+	])("%s rejects a second future-period prepayment", async (_driver, database) => {
+		const { ownerId, leaseId } = await leaseFixture();
+		const api = client(ownerId, database());
+		const payment = (amount: number) =>
+			api.createPayment({
+				leaseId,
+				amount,
+				paymentDate: new Date("2026-09-05T00:00:00.000Z"),
+				type: PAYMENT_TYPES.RENT,
+				idempotencyKey: crypto.randomUUID(),
+			});
+
+		await payment(20_000);
+		await expect(payment(10_000)).rejects.toMatchObject({
+			code: "BAD_REQUEST",
+		});
+		await expect(paymentCount(leaseId)).resolves.toHaveLength(1);
+		await expect(
+			db
+				.select({ id: rentCharges.id })
+				.from(rentCharges)
+				.where(eq(rentCharges.leaseId, leaseId)),
+		).resolves.toHaveLength(2);
+	});
+
 	it("Node admits concurrent distinct-key rent payments within the prepay cap", async () => {
 		// C08/R6: the second payment is a legal prepay of the next period, not
 		// a double settlement — both fulfill and the period ledger absorbs both

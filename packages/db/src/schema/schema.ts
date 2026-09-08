@@ -416,7 +416,7 @@ export const rentCharges = pgTable(
 			.references(() => leases.id, { onDelete: "restrict" }),
 		// IST calendar month key YYYY-MM (R1/R2).
 		periodKey: text("period_key").notNull(),
-		// Clamped due date YYYY-MM-DD (R3): min(dueDay, daysInMonth(period)).
+		// Due date YYYY-MM-DD (R3): the charge period or following period.
 		// Snapshotted per charge so later rentDueDate edits never rewrite history.
 		dueDate: date("due_date", { mode: "string" }).notNull(),
 		// Paise owed for the period; always positive (proration floors at 1 day).

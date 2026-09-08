@@ -335,11 +335,23 @@ export async function getLeasePeriodDue(
 	const chargedTotal = aggregateAmount(sums?.charged);
 	const outstanding = chargedTotal - aggregateAmount(allocations?.allocated);
 
-	// Prepay eligibility mirrors ensureNextFuturePeriodChargeSql: active,
-	// already started, and no end date inside the next period.
+	const nextPeriodKey = getNextLocalPeriodKey(new Date());
+	const [nextCharge] = await db
+		.select({ id: rentCharges.id })
+		.from(rentCharges)
+		.where(
+			and(
+				eq(rentCharges.leaseId, leaseId),
+				eq(rentCharges.periodKey, nextPeriodKey),
+			),
+		)
+		.limit(1);
+
+	// Prepay eligibility mirrors ensureNextFuturePeriodChargeSql. Once the next
+	// charge exists, its remaining paise are already part of `outstanding`.
 	let prepayCap = 0;
 	if (lease.status === "active") {
-		const nextPeriodStart = `${getNextLocalPeriodKey(new Date())}-01`;
+		const nextPeriodStart = `${nextPeriodKey}-01`;
 		const nextPeriodEnd = new Date(`${nextPeriodStart}T00:00:00Z`);
 		nextPeriodEnd.setUTCMonth(nextPeriodEnd.getUTCMonth() + 1);
 		const startedBeforeNextPeriod =
@@ -347,7 +359,7 @@ export async function getLeasePeriodDue(
 		const activeWholeNextPeriod =
 			!lease.endDate ||
 			getLocalDateKey(lease.endDate) >= getLocalDateKey(nextPeriodEnd);
-		if (startedBeforeNextPeriod && activeWholeNextPeriod) {
+		if (startedBeforeNextPeriod && activeWholeNextPeriod && !nextCharge) {
 			prepayCap = lease.rent;
 		}
 	}

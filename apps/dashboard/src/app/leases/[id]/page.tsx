@@ -37,9 +37,11 @@ import {
 	useSuspenseLease,
 	useTerminateLease,
 } from "@/hooks/leases";
+import { usePayments } from "@/hooks/payments";
 import { useSuspenseProperties } from "@/hooks/properties";
 import { useSuspenseTenants } from "@/hooks/tenants";
 import { useSuspenseUnits } from "@/hooks/units";
+import { useLeaseUtilities } from "@/hooks/utilities";
 
 export default function LeaseDetailPage({
 	params,
@@ -57,6 +59,8 @@ export default function LeaseDetailPage({
 	const { data: unitsData } = useSuspenseUnits();
 	const { data: tenantsData } = useSuspenseTenants();
 	const { data: propertiesData } = useSuspenseProperties();
+	const { data: paymentsData } = usePayments();
+	const { data: utilitiesData } = useLeaseUtilities(id);
 
 	// Mutaions
 	const updateLease = useOptimisticUpdateLease();
@@ -104,6 +108,13 @@ export default function LeaseDetailPage({
 	if (!data?.lease) return <NotFoundState message="Lease not found." />;
 
 	const { lease } = data;
+	const tenant = tenantsData?.tenants.find(
+		(item) => item.id === lease.tenantId,
+	);
+	const payments = (paymentsData?.payments ?? []).filter(
+		(payment) => payment.leaseId === id,
+	);
+	const utilities = utilitiesData?.utilities ?? [];
 	const isTerminated = lease.status === "terminated";
 	const isEditable =
 		lease.status !== "active" &&
@@ -189,6 +200,12 @@ export default function LeaseDetailPage({
 								<p className="mt-1 text-muted-foreground text-sm">
 									Agreement ID: {id.slice(0, 8)}
 								</p>
+								<Link
+									href={`/tenants/${lease.tenantId}`}
+									className="mt-1 inline-block text-primary text-sm hover:underline"
+								>
+									Tenant: {tenant?.name ?? "View tenant details"}
+								</Link>
 							</div>
 						</div>
 						<div className="rounded-lg border border-primary/15 bg-background/70 px-4 py-3">
@@ -276,24 +293,75 @@ export default function LeaseDetailPage({
 					</CardContent>
 				</Card>
 
-				{/* TODO: Payments + Utilities stubs — implement in next session */}
-				{/* Payments stub */}
 				<Card>
 					<CardHeader>
 						<CardTitle className="text-base">Payments</CardTitle>
 					</CardHeader>
-					<CardContent className="py-8 text-center text-muted-foreground text-sm">
-						Payment history — coming soon
+					<CardContent>
+						{payments.length === 0 ? (
+							<p className="py-4 text-center text-muted-foreground text-sm">
+								No payments recorded for this lease.
+							</p>
+						) : (
+							<div className="divide-y">
+								{payments.map((payment) => (
+									<div
+										key={payment.id}
+										className="flex items-center justify-between gap-4 py-3 text-sm"
+									>
+										<div>
+											<p className="font-medium capitalize">{payment.type}</p>
+											<p className="text-muted-foreground text-xs">
+												{new Date(payment.paymentDate).toLocaleDateString(
+													"en-IN",
+												)}
+											</p>
+										</div>
+										<p className="font-semibold">
+											{formatRupees(payment.amount)}
+										</p>
+									</div>
+								))}
+							</div>
+						)}
 					</CardContent>
 				</Card>
 
-				{/* TODO: Utilities stub */}
 				<Card>
 					<CardHeader>
-						<CardTitle className="text-base">Utility Readings</CardTitle>
+						<CardTitle className="text-base">Utility history</CardTitle>
 					</CardHeader>
-					<CardContent className="py-8 text-center text-muted-foreground text-sm">
-						Utility readings — coming soon
+					<CardContent>
+						{utilities.length === 0 ? (
+							<p className="py-4 text-center text-muted-foreground text-sm">
+								No utility bills recorded for this lease.
+							</p>
+						) : (
+							<div className="divide-y">
+								{utilities.map((utility) => (
+									<div
+										key={utility.id}
+										className="flex items-center justify-between gap-4 py-3 text-sm"
+									>
+										<div>
+											<p className="font-medium capitalize">
+												{utility.utilityType}
+											</p>
+											<p className="text-muted-foreground text-xs">
+												{utility.previousReading} → {utility.currentReading} ·{" "}
+												{new Date(
+													utility.currentReadingDate,
+												).toLocaleDateString("en-IN")}
+											</p>
+										</div>
+										<p className="font-semibold">
+											{formatRupees(utility.amountDue ?? utility.totalAmount)}{" "}
+											due
+										</p>
+									</div>
+								))}
+							</div>
+						)}
 					</CardContent>
 				</Card>
 				{isEditable && (

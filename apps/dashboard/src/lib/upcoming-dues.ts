@@ -8,6 +8,7 @@ export type DueUrgency = "overdue" | "today" | "soon" | "upcoming";
 
 export type DueLeaseInput = {
 	leaseId: string;
+	tenantId: string;
 	tenantName: string | null;
 	unitNumber: string;
 	propertyName: string;
@@ -27,6 +28,7 @@ export type LeaseBalanceInput = {
 
 export type DueEntry = {
 	leaseId: string;
+	tenantId: string;
 	tenantName: string;
 	unitNumber: string;
 	propertyName: string;
@@ -109,6 +111,7 @@ export function selectDueEntries(
 
 		entries.push({
 			leaseId: lease.leaseId,
+			tenantId: lease.tenantId,
 			tenantName: lease.tenantName ?? "Unknown Tenant",
 			unitNumber: lease.unitNumber,
 			propertyName: lease.propertyName,

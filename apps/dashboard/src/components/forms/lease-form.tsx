@@ -393,7 +393,10 @@ export function LeaseForm({
 										min={0}
 										step={100}
 										disabled={isSubmitting}
-										{...register("deposit", { valueAsNumber: true })}
+										{...register("deposit", {
+											setValueAs: (value) =>
+												value === "" ? undefined : Number(value),
+										})}
 									/>
 									<FieldError errors={[errors.deposit]} />
 								</Field>

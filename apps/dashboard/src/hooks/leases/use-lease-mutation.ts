@@ -223,6 +223,7 @@ export function useOptimisticCreateLease() {
 							{
 								leaseId: `optimistic-${Date.now()}`,
 								agreementId: null,
+								agreementArrangement: "independent",
 								tenantId: variables.tenantId,
 								rent: variables.rent,
 								deposit: variables.deposit ?? null,

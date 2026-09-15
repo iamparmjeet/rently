@@ -86,6 +86,7 @@ export function PaymentForm({
 	});
 
 	const selectedType = watch("type");
+	const amountValue = watch("amount");
 
 	function selectLease(
 		leaseId: string | null,
@@ -93,6 +94,9 @@ export function PaymentForm({
 	) {
 		onChange(leaseId);
 		if (!leaseId) return;
+		// WHY: prefill is a convenience for an untouched amount only — a
+		// deliberately typed (partial) amount must survive lease switches.
+		if (amountValue && amountValue > 0) return;
 		const due = rentDueByLease?.[leaseId];
 		if (due && due > 0) {
 			setValue("amount", due / 100, { shouldValidate: true });

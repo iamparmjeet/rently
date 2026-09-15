@@ -851,3 +851,12 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - The full-suite failure in `rent-period-schema.test.ts` was a stale test, not a missing constraint: its duplicate case used a different period than `validCharge`, and the due-date case rejected the schema's valid following-period range. `44b43cb5` aligns the cases; `c29431b4` corrects the schema comment.
 - Final verification on `integ/phase-a-baseline`: `db:generate` no drift, `db:migrate:test`, `check-types --force` 6/6, focused Biome, and full Vitest 86 files / 479 tests pass.
 - `main` remains untouched. I02's full production-shaped reconciliation and Sol High review are still required before a `main` rollup.
+
+## Consolidation QA branch (2026-09-15, Muse Spark, branch rently/consolidated-local-qa-15-09, tag pre-consolidated-qa-15-09)
+
+- Worktree audit: 11 worktrees, 1 dirty (`t3code-0f89572e`, 15 uncommitted files — stale subset superseded by `e561a94b`; left untouched pending owner approval to remove). All other slices (b08/b09/b12/ci-env/ci-main-only/docs) already merged in ancestry.
+- Branch: linear `e561a94b` (manual-test findings, 20 files) + cherry-picked `5f1d58e7` (seed idempotency, 1 file); tree byte-identical to merge `30b71aca`, no chore-merge noise. Not pushed.
+- Gates on consolidated tree: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → focused Vitest 5 files / 43 pass (upcoming-dues, credit-reversal, credit-refund-gate, period-balance-read-model, payment-type-invariant).
+- Fixes (committed `e988beb0`, `4ae2975d`): lease-detail history loading states + reversal rows in destructive (mirrors PaymentsTab); payment-form prefill skips lease switches once a positive amount is typed (prevents silent full-due overwrite of partial payments). No new unit test: guard is one line, Radix Select has no jsdom harness in repo — behavioral cover deferred to TestSprite re-run on this tree.
+- NOT merged to main: policy (integ-batch + Terra debt + I02/Sol review) still blocks; TestSprite 13/13 ran on seed-only tree, never on this tree (~141 credits left).
+- Next: commit fixes after owner nod → re-run TestSprite on this tree → re-author 3 weak tests with real assertions → route via integ/phase-a-baseline.

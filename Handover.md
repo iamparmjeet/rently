@@ -860,3 +860,12 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Fixes (committed `e988beb0`, `4ae2975d`): lease-detail history loading states + reversal rows in destructive (mirrors PaymentsTab); payment-form prefill skips lease switches once a positive amount is typed (prevents silent full-due overwrite of partial payments). No new unit test: guard is one line, Radix Select has no jsdom harness in repo — behavioral cover deferred to TestSprite re-run on this tree.
 - NOT merged to main: policy (integ-batch + Terra debt + I02/Sol review) still blocks; TestSprite 13/13 ran on seed-only tree, never on this tree (~141 credits left).
 - Next: commit fixes after owner nod → re-run TestSprite on this tree → re-author 3 weak tests with real assertions → route via integ/phase-a-baseline.
+
+## TestSprite re-run on consolidated tree (2026-09-15 late, same branch)
+
+- Reseeded local demo via `db:seed-demo` with local `DATABASE_URL` override (root `.env` points at Neon — never run bare). Demo owner now holds exactly one `discount/adjust` credit (`KQ-CN-CE36E0B99EC9`); real-owner rows untouched. Seed fix proven live on local, not just Neon.
+- `c10c836b` first re-run FAILED on a content assertion and exposed a real bug: the earlier 14:19 "pass" was 7 nav-only steps (false positive confirmed). Record Payment offered Refund/Utility, which the server always rejects (`CreatePaymentSchema` mints neither; utility needs a `utilityId` the form never sends). Fixed in `0c91ae14`, re-run green 13/13.
+- Green on fresh seed so far (5/13): `0d128cc4` 12/12, `c10c836b` 13/13, `e7558416` 28/28, `5f92913c` 9/9 (Adjustments 1 → Note link → 3 KQ-CN content assertions — covers the `getCreditNote` OR-lookup), `ef1f0b59` 23/23. One flaky blocked run on `0d128cc4` (agent lost at demo entry, zero clicks) retried clean — flakiness, not regression.
+- Remaining: 7 dashboard tests on `:3002`, then `aebe81ff` on `:3003`.
+- `c10c836b` failure root-caused to a real product bug (selector offered server-rejected Refund/Utility); fixed in `0c91ae14`, re-verified green.
+- Owner stopped the suite at 8 verdicts to work other points: re-authored `d2a1b35d` as `4639cda0` (lint-valid, exact-string assertions, unrun; old test kept pending delete approval). Un-run on this tree: `13ea57d9`, `4fc9ed47`, `bd43744e`, `5e3f3205`, `aebe81ff` (all green on the seed-only tree).

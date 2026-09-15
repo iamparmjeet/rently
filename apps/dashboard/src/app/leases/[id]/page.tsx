@@ -1,5 +1,6 @@
 "use client";
 
+import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import { Button } from "@rently/ui/components/button";
 import {
 	Card,
@@ -59,8 +60,9 @@ export default function LeaseDetailPage({
 	const { data: unitsData } = useSuspenseUnits();
 	const { data: tenantsData } = useSuspenseTenants();
 	const { data: propertiesData } = useSuspenseProperties();
-	const { data: paymentsData } = usePayments();
-	const { data: utilitiesData } = useLeaseUtilities(id);
+	const { data: paymentsData, isLoading: paymentsLoading } = usePayments();
+	const { data: utilitiesData, isLoading: utilitiesLoading } =
+		useLeaseUtilities(id);
 
 	// Mutaions
 	const updateLease = useOptimisticUpdateLease();
@@ -298,30 +300,43 @@ export default function LeaseDetailPage({
 						<CardTitle className="text-base">Payments</CardTitle>
 					</CardHeader>
 					<CardContent>
-						{payments.length === 0 ? (
+						{paymentsLoading ? (
+							<p className="py-4 text-center text-muted-foreground text-sm">
+								Loading payment history…
+							</p>
+						) : payments.length === 0 ? (
 							<p className="py-4 text-center text-muted-foreground text-sm">
 								No payments recorded for this lease.
 							</p>
 						) : (
 							<div className="divide-y">
-								{payments.map((payment) => (
-									<div
-										key={payment.id}
-										className="flex items-center justify-between gap-4 py-3 text-sm"
-									>
-										<div>
-											<p className="font-medium capitalize">{payment.type}</p>
-											<p className="text-muted-foreground text-xs">
-												{new Date(payment.paymentDate).toLocaleDateString(
-													"en-IN",
-												)}
+								{payments.map((payment) => {
+									// WHY: same marker as PaymentsTab — a reversal voids a
+									// collection, so it must not read as money received.
+									const isReversal = payment.type === PAYMENT_TYPES.REVERSAL;
+									return (
+										<div
+											key={payment.id}
+											className="flex items-center justify-between gap-4 py-3 text-sm"
+										>
+											<div>
+												<p className="font-medium capitalize">
+													{isReversal ? "Reversal" : payment.type}
+												</p>
+												<p className="text-muted-foreground text-xs">
+													{new Date(payment.paymentDate).toLocaleDateString(
+														"en-IN",
+													)}
+												</p>
+											</div>
+											<p
+												className={`font-semibold ${isReversal ? "text-destructive" : ""}`}
+											>
+												{formatRupees(payment.amount)}
 											</p>
 										</div>
-										<p className="font-semibold">
-											{formatRupees(payment.amount)}
-										</p>
-									</div>
-								))}
+									);
+								})}
 							</div>
 						)}
 					</CardContent>
@@ -332,7 +347,11 @@ export default function LeaseDetailPage({
 						<CardTitle className="text-base">Utility history</CardTitle>
 					</CardHeader>
 					<CardContent>
-						{utilities.length === 0 ? (
+						{utilitiesLoading ? (
+							<p className="py-4 text-center text-muted-foreground text-sm">
+								Loading utility history…
+							</p>
+						) : utilities.length === 0 ? (
 							<p className="py-4 text-center text-muted-foreground text-sm">
 								No utility bills recorded for this lease.
 							</p>

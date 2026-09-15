@@ -211,8 +211,17 @@ export function PaymentForm({
 									</SelectTrigger>
 									<SelectContent>
 										{Object.entries(PAYMENT_TYPES)
-											// reversal is system-generated (voidPayment) — hide from manual entry
-											.filter(([, value]) => value !== "reversal")
+											// WHY: manual entry can only mint what the server
+											// accepts without a paired record — reversal and
+											// refund are server-owned (voidPayment/createCredit),
+											// and utility requires a utilityId this form never
+											// sends (CreatePaymentRequestSchema rejects it).
+											.filter(
+												([, value]) =>
+													value !== PAYMENT_TYPES.REVERSAL &&
+													value !== PAYMENT_TYPES.REFUND &&
+													value !== PAYMENT_TYPES.UTILITY,
+											)
 											.map(([_, value]) => (
 												<SelectItem key={value} value={value}>
 													<span className="capitalize">{value}</span>

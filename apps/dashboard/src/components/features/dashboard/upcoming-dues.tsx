@@ -67,6 +67,7 @@ export function UpcomingDues({ className = "" }) {
 		return selectDueEntries(
 			activeLeases.map((l) => ({
 				leaseId: l.leaseId,
+				tenantId: l.tenantId,
 				tenantName: l.tenantName ?? null,
 				unitNumber: l.unitNumber,
 				propertyName: l.propertyName,
@@ -138,7 +139,10 @@ function DueRow({ entry }: { entry: DueEntry }) {
 		.toUpperCase();
 
 	return (
-		<div className="flex items-center gap-3 py-3">
+		<Link
+			href={`/tenants/${entry.tenantId}?tab=payments`}
+			className="flex items-center gap-3 py-3 transition-colors hover:bg-muted/40"
+		>
 			<div className="flex size-9 shrink-0 items-center justify-center rounded-xl bg-primary text-primary-foreground shadow-lg shadow-primary/20">
 				<span className="font-semibold text-[11px]">{initials || "?"}</span>
 			</div>
@@ -163,7 +167,7 @@ function DueRow({ entry }: { entry: DueEntry }) {
 					{config.label(entry.daysUntil)}
 				</span>
 			</div>
-		</div>
+		</Link>
 	);
 }
 

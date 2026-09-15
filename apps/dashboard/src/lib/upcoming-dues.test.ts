@@ -27,6 +27,7 @@ const TODAY = new Date("2026-09-06T12:00:00");
 function lease(overrides: Record<string, unknown> = {}) {
 	return {
 		leaseId: "lease-1",
+		tenantId: "tenant-1",
 		tenantName: "Test Tenant",
 		unitNumber: "U-1",
 		propertyName: "Prop",

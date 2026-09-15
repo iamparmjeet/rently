@@ -18,7 +18,7 @@ import {
 } from "@rently/db/schema/schema";
 import { generatedId } from "@rently/db/utils/id";
 import { CreditNoteDataSchema } from "@rently/validators";
-import { and, eq, isNull, sql } from "drizzle-orm";
+import { and, eq, isNull, or, sql } from "drizzle-orm";
 import { alias } from "drizzle-orm/pg-core";
 import z from "zod";
 import { isLeaseOwner } from "../helpers";
@@ -849,7 +849,11 @@ export const listCredits = ownerProcedure
 const tenantUser = alias(user, "credit_tenant");
 export const getCreditNote = ownerProcedure
 	.route({ method: "GET", path: "/rent/credit/get" })
-	.input(z.object({ creditId: z.uuid() }))
+	.input(
+		z.object({
+			creditId: z.string().min(1),
+		}),
+	)
 	.output(z.object({ creditNote: CreditNoteDataSchema }))
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
@@ -902,7 +906,12 @@ export const getCreditNote = ownerProcedure
 					isNull(ownerProfiles.deletedAt),
 				),
 			)
-			.where(eq(billCredits.id, input.creditId))
+			.where(
+				or(
+					eq(billCredits.id, input.creditId),
+					eq(billCredits.creditNoteNo, input.creditId),
+				),
+			)
 			.limit(1);
 
 		if (!row)

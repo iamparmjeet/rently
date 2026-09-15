@@ -28,9 +28,12 @@ import { useSuspenseTenants } from "@/hooks/tenants";
 import { useSuspenseUnits } from "@/hooks/units";
 
 type StatusFilter = "all" | "active" | "expired" | "terminated";
+type AgreementFilter = "all" | "combined" | "individual";
 
 export default function LeasesPage() {
 	const [statusFilter, setStatusFilter] = useState<StatusFilter>("all");
+	const [agreementFilter, setAgreementFilter] =
+		useState<AgreementFilter>("all");
 	const [editingLease, setEditingLease] = useState<LeaseWithDetails | null>(
 		null,
 	);
@@ -104,9 +107,15 @@ export default function LeasesPage() {
 	// Filtered List
 	const filtered = useMemo(() => {
 		if (!data?.leases) return [];
-		if (statusFilter === "all") return data.leases;
-		return data.leases.filter((l) => l.status === statusFilter);
-	}, [data?.leases, statusFilter]);
+		return data.leases.filter(
+			(lease) =>
+				(statusFilter === "all" || lease.status === statusFilter) &&
+				(agreementFilter === "all" ||
+					(agreementFilter === "combined"
+						? lease.agreementArrangement === "combined"
+						: lease.agreementArrangement !== "combined")),
+		);
+	}, [agreementFilter, data?.leases, statusFilter]);
 	const leaseStats = useMemo(() => {
 		const leases = data?.leases ?? [];
 		const active = leases.filter((lease) => lease.status === "active").length;
@@ -244,6 +253,16 @@ export default function LeasesPage() {
 							className="capitalize"
 						>
 							{s}
+						</Button>
+					))}
+					{(["all", "combined", "individual"] as const).map((filter) => (
+						<Button
+							key={filter}
+							variant={agreementFilter === filter ? "default" : "outline"}
+							size="sm"
+							onClick={() => setAgreementFilter(filter)}
+						>
+							{filter === "all" ? "All agreements" : filter}
 						</Button>
 					))}
 				</div>

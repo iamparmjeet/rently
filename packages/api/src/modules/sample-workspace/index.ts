@@ -10,12 +10,18 @@ import {
 } from "@rently/db/constants/workspace-modes";
 import { account, session, user } from "@rently/db/schema/auth";
 import {
+	billCredits,
 	documentUpdateRequests,
+	leaseAgreements,
 	leases,
 	notificationPreferences,
 	notifications,
+	paymentGroups,
 	payments,
 	properties,
+	rentAllocations,
+	rentBackfillExceptions,
+	rentCharges,
 	rentReminderSuppressions,
 	scheduledEmailDeliveries,
 	tenantDocuments,
@@ -436,6 +442,23 @@ async function seedPortfolio(options: {
 			},
 		]);
 	await database.insert(utilities).values(utilityRows);
+	// One settled rent adjustment so Payments → Adjustments and the
+	// credit-note detail page have demo data. The seeded rent payments make
+	// it "settled" (see settledCredits in payments/page.tsx). The number
+	// mirrors getCreditNoteNo in routers/rent/credit.ts (kept inline to
+	// avoid a router↔module import cycle).
+	const seedCreditId = generatedId();
+	await database.insert(billCredits).values({
+		id: seedCreditId,
+		leaseId: at(ids.leases, 0),
+		ownerId,
+		type: "discount",
+		amount: -10000,
+		reason: "Demo early-payment discount",
+		creditNoteNo: `KQ-CN-${seedCreditId.replaceAll("-", "").slice(-12).toUpperCase()}`,
+		appliedAs: "adjust",
+		createdBy: ownerId,
+	});
 	if (!minimumTenantOnly) {
 		await database.insert(tenantInvites).values({
 			id: generatedId(),
@@ -487,6 +510,28 @@ async function cleanupOwnerGraph(
 				.where(inArray(leases.unitId, unitIds))
 		: [];
 	const leaseIds = leaseRows.map((row) => row.id);
+	// Runtime writers (settlements, adjustments, backfill) attach ledger rows
+	// to demo leases after seeding. Every one of them references leases,
+	// payments, or credits with RESTRICT, so they must be cleared before
+	// payments/charges/leases or the reset fails with an FK violation.
+	const chargeRows = leaseIds.length
+		? await database
+				.select({ id: rentCharges.id })
+				.from(rentCharges)
+				.where(inArray(rentCharges.leaseId, leaseIds))
+		: [];
+	const chargeIds = chargeRows.map((row) => row.id);
+	// Grouped settlements hang payment groups off agreements, and agreements
+	// pin their property. Both must go (groups before agreements) or the
+	// property delete fails RESTRICT. Leases referencing agreements are
+	// already deleted above, so agreements can fall after the lease block.
+	const agreementRows = propertyIds.length
+		? await database
+				.select({ id: leaseAgreements.id })
+				.from(leaseAgreements)
+				.where(inArray(leaseAgreements.propertyId, propertyIds))
+		: [];
+	const agreementIds = agreementRows.map((row) => row.id);
 	const profileRows = await database
 		.select({ id: tenantProfiles.id })
 		.from(tenantProfiles)
@@ -532,11 +577,33 @@ async function cleanupOwnerGraph(
 				.delete(rentReminderSuppressions)
 				.where(inArray(rentReminderSuppressions.leaseId, leaseIds)),
 		);
+		if (chargeIds.length) {
+			statements.push(
+				database
+					.delete(rentAllocations)
+					.where(inArray(rentAllocations.chargeId, chargeIds)),
+			);
+		}
+		statements.push(
+			database
+				.delete(rentBackfillExceptions)
+				.where(inArray(rentBackfillExceptions.leaseId, leaseIds)),
+		);
+		statements.push(
+			database
+				.delete(billCredits)
+				.where(inArray(billCredits.leaseId, leaseIds)),
+		);
 		statements.push(
 			database.delete(payments).where(inArray(payments.leaseId, leaseIds)),
 		);
 		statements.push(
 			database.delete(utilities).where(inArray(utilities.leaseId, leaseIds)),
+		);
+		statements.push(
+			database
+				.delete(rentCharges)
+				.where(inArray(rentCharges.leaseId, leaseIds)),
 		);
 		statements.push(
 			database.delete(leases).where(inArray(leases.id, leaseIds)),
@@ -553,6 +620,18 @@ async function cleanupOwnerGraph(
 			.delete(tenantInvites)
 			.where(eq(tenantInvites.invitedById, ownerId)),
 	);
+	if (agreementIds.length) {
+		statements.push(
+			database
+				.delete(paymentGroups)
+				.where(inArray(paymentGroups.agreementId, agreementIds)),
+		);
+		statements.push(
+			database
+				.delete(leaseAgreements)
+				.where(inArray(leaseAgreements.id, agreementIds)),
+		);
+	}
 	if (unitIds.length)
 		statements.push(database.delete(units).where(inArray(units.id, unitIds)));
 	if (propertyIds.length)

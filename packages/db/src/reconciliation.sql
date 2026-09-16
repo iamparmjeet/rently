@@ -74,6 +74,33 @@ WITH checks AS (
     )
 
   UNION ALL
+  SELECT 'C5 orphan refund payments', 'hard', count(*)
+  FROM payments p
+  WHERE p.type = 'refund'
+    AND NOT EXISTS (
+      SELECT 1
+      FROM bill_credits c
+      WHERE c.refund_payment_id = p.id
+        AND c.amount < 0
+        AND c.applied_as = 'refund'
+        AND c.amount = p.amount
+        AND c.lease_id = p.lease_id
+        AND c.utility_id IS NOT DISTINCT FROM p.utility_id
+    )
+
+  UNION ALL
+  SELECT 'C6 refund credit reversals', 'hard', count(*)
+  FROM bill_credits r
+  LEFT JOIN bill_credits o ON o.id = r.reverses_credit_id
+  WHERE r.amount > 0
+    AND r.applied_as = 'refund'
+    AND (
+      o.id IS NULL OR o.amount >= 0 OR o.applied_as <> 'refund'
+      OR r.amount <> -o.amount OR r.lease_id <> o.lease_id
+      OR r.utility_id IS DISTINCT FROM o.utility_id
+    )
+
+  UNION ALL
   SELECT 'G1 empty payment groups', 'hard', count(*)
   FROM payment_groups g
   WHERE NOT EXISTS (SELECT 1 FROM payments p WHERE p.payment_group_id = g.id)
@@ -96,6 +123,32 @@ WITH checks AS (
     SELECT coalesce(sum(amount), 0) AS total FROM payments WHERE payment_group_id = og.id
   ) original_total
   WHERE reversal_total.total <> -original_total.total
+
+  UNION ALL
+  SELECT 'G4 reversal group membership', 'hard', count(*)
+  FROM payment_groups reversal_group
+  JOIN payment_groups original_group
+    ON original_group.id = reversal_group.reverses_payment_group_id
+  WHERE EXISTS (
+    SELECT 1
+    FROM payments reversal
+    LEFT JOIN payments original ON original.id = reversal.reverses_payment_id
+    WHERE reversal.payment_group_id = reversal_group.id
+      AND (
+        reversal.type <> 'reversal' OR original.id IS NULL
+        OR original.payment_group_id IS DISTINCT FROM original_group.id
+      )
+  ) OR EXISTS (
+    SELECT 1
+    FROM payments original
+    WHERE original.payment_group_id = original_group.id
+      AND NOT EXISTS (
+        SELECT 1
+        FROM payments reversal
+        WHERE reversal.reverses_payment_id = original.id
+          AND reversal.payment_group_id = reversal_group.id
+      )
+  )
 
   UNION ALL
   SELECT 'R1 allocation provenance', 'hard', count(*)
@@ -157,6 +210,23 @@ WITH checks AS (
       FROM rent_allocations allocation
       WHERE allocation.credit_id = credit.id
     ), 0) <> -credit.amount
+
+  UNION ALL
+  SELECT 'R6 payment allocation conservation', 'hard', count(*)
+  FROM payments p
+  CROSS JOIN LATERAL (
+    SELECT coalesce(sum(amount), 0) AS allocated_amount
+    FROM rent_allocations
+    WHERE payment_id = p.id
+  ) allocation_total
+  CROSS JOIN LATERAL (
+    SELECT coalesce(sum(amount), 0) AS remainder_amount
+    FROM rent_backfill_exceptions
+    WHERE payment_id = p.id
+      AND kind = 'unallocated_source_remainder'
+  ) exception_total
+  WHERE p.type = 'rent'
+    AND allocation_total.allocated_amount + exception_total.remainder_amount <> p.amount
 
   UNION ALL
   SELECT 'U1 utility paid state', 'hard', count(*)

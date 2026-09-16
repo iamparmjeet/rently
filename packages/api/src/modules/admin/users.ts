@@ -2,6 +2,7 @@ import { ORPCError } from "@orpc/server";
 import type { Database } from "@rently/db";
 import { ADMIN_SUBSCRIPTION_STATUS_FILTERS } from "@rently/db/constants/admin-constants";
 import { USER_ROLES } from "@rently/db/constants/user-roles";
+import { ACCOUNT_MODES } from "@rently/db/constants/workspace-modes";
 import { adminAuditLogs } from "@rently/db/schema/admin";
 import { user } from "@rently/db/schema/auth";
 import {
@@ -12,6 +13,7 @@ import {
 } from "@rently/db/schema/schema";
 import {
 	betaAccessCodes,
+	betaCodeRedemptions,
 	invoices,
 	plans,
 	subscriptions,
@@ -65,7 +67,10 @@ export async function queryAdminUsers(
 	input: AdminUserListInput,
 ): Promise<AdminUserListResponse> {
 	const latestSubscription = latestSubscriptionQuery(db);
-	const conditions: SQL[] = [];
+	// Demo and sample identities are never support-visible: the overview
+	// already excludes them, and a list that does not would show disposable
+	// accounts the reporting numbers deliberately hide.
+	const conditions: SQL[] = [eq(user.accountMode, ACCOUNT_MODES.STANDARD)];
 
 	if (input.role) conditions.push(eq(user.role, input.role));
 	if (input.emailVerified !== undefined) {
@@ -248,19 +253,29 @@ export async function queryAdminUserDetail(db: Database, userId: string) {
 			.orderBy(desc(invoices.createdAt), desc(invoices.id))
 			.limit(25),
 
+		// D02: redemptions are the ledger. `used_by_user_id`/`used_at` are only
+		// written for single-use codes, so reading those columns would hide
+		// every shared-code redemption this user made.
 		db
 			.select({
-				id: betaAccessCodes.id,
+				id: betaCodeRedemptions.id,
+				codeId: betaAccessCodes.id,
 				code: betaAccessCodes.code,
 				grantsPlanSlug: betaAccessCodes.grantsPlanSlug,
-				maxUses: betaAccessCodes.maxUses,
-				totalUses: betaAccessCodes.totalUses,
-				usedAt: betaAccessCodes.usedAt,
-				expiresAt: betaAccessCodes.expiresAt,
+				planName: plans.name,
+				redeemedAt: betaCodeRedemptions.createdAt,
 			})
-			.from(betaAccessCodes)
-			.where(eq(betaAccessCodes.usedByUserId, userId))
-			.orderBy(desc(betaAccessCodes.usedAt))
+			.from(betaCodeRedemptions)
+			.innerJoin(
+				betaAccessCodes,
+				eq(betaCodeRedemptions.codeId, betaAccessCodes.id),
+			)
+			.innerJoin(plans, eq(plans.slug, betaAccessCodes.grantsPlanSlug))
+			.where(eq(betaCodeRedemptions.userId, userId))
+			.orderBy(
+				desc(betaCodeRedemptions.createdAt),
+				desc(betaCodeRedemptions.id),
+			)
 			.limit(25),
 
 		db

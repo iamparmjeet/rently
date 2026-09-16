@@ -882,3 +882,17 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
   survive a lease switch.
 - Verification: dashboard typecheck and focused Biome pass. TestSprite is
   authenticated but blocked until the local dashboard is running on port 3002.
+
+## Payment submit + unit context (2026-09-16, branch integ/phase-a-rollup)
+
+- Silent Record Payment failure root-caused to the form schema requiring
+  parent-owned `idempotencyKey` before submit (`23f07de5`; regression
+  `payment-form.test.tsx`). Tenant re-registration was unrelated.
+- `PaymentListItem` now carries `unitNumber`/`propertyName` from
+  `listPayments` (`55d57b5a`); card/row/detail and tenant payments/utilities
+  tabs reuse those fields instead of bare lease IDs (`ed326adc`).
+- Verification: `db:generate` no drift, `db:migrate:test` pass,
+  `check-types` dashboard pass, Biome clean on 6 files, Vitest
+  `payment-form` + `payment-action-states` 10/10.
+- Manual check needed: Record Payment toast + tenant Payments & Dues rows
+  showing Unit · Property.

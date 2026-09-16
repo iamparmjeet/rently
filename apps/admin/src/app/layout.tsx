@@ -3,6 +3,7 @@ import { Inter } from "next/font/google";
 import "../index.css";
 import { SidebarProvider } from "@rently/ui/components/sidebar";
 import { Toaster } from "@rently/ui/components/sonner";
+import { cn } from "@rently/ui/lib/utils";
 import { AdminHeader } from "@/components/layouts/admin-header";
 import { AdminSidebar } from "@/components/layouts/admin-sidebar";
 import { QueryProvider } from "@/components/providers/query-provider";
@@ -25,8 +26,8 @@ export default function RootLayout({
 	children: React.ReactNode;
 }) {
 	return (
-		<html lang="en" className={inter.variable}>
-			<body>
+		<html lang="en" className={cn("font-sans", inter.variable)}>
+			<body className="antialiased">
 				<QueryProvider>
 					<SidebarProvider>
 						<AdminSidebar />

@@ -53,6 +53,15 @@ export function useAdminBetaCodes(
 	return useQuery(orpc.admin.betaCodes.list.queryOptions({ input }));
 }
 
+export function useAdminBetaCodeRedemptions(betaCodeId: string, page: number) {
+	return useQuery(
+		orpc.admin.betaCodes.listRedemptions.queryOptions({
+			input: { betaCodeId, page, pageSize: 25 },
+			enabled: Boolean(betaCodeId),
+		}),
+	);
+}
+
 export function useCreateBetaCode() {
 	const queryClient = useQueryClient();
 	return useMutation({

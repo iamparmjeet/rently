@@ -1,5 +1,9 @@
 "use client";
 
+import {
+	ADMIN_SUBSCRIPTION_STATUS_FILTER_VALUES,
+	type AdminSubscriptionStatusFilter,
+} from "@rently/db/constants/admin-constants";
 import type { UserRole } from "@rently/db/constants/user-roles";
 import { USER_ROLE_VALUES } from "@rently/db/constants/user-roles";
 import { Badge } from "@rently/ui/components/badge";
@@ -20,12 +24,15 @@ import {
 	TableHeader,
 	TableRow,
 } from "@rently/ui/components/table";
+import { EmptyState } from "@rently/ui/shared/empty-state";
 import { PageHeader } from "@rently/ui/shared/page-header";
+import { IconUsers } from "@tabler/icons-react";
 import Link from "next/link";
 import { useState } from "react";
 import { Container } from "@/components/shared/container";
 import { Pagination } from "@/components/shared/pagination";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { useAdminUsers, usePlans } from "@/hooks/admin";
 import { formatDate } from "@/utils/format";
 
@@ -41,7 +48,7 @@ export default function AdminUsersPage() {
 	const [createdFrom, setCreatedFrom] = useState("");
 	const [createdTo, setCreatedTo] = useState("");
 	const { data: plansData } = usePlans();
-	const { data, isLoading } = useAdminUsers({
+	const { data, isPending } = useAdminUsers({
 		page,
 		pageSize: 25,
 		search: search.trim() || undefined,
@@ -65,6 +72,7 @@ export default function AdminUsersPage() {
 				<CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
 					<Input
 						type="search"
+						aria-label="Search users by name or email"
 						placeholder="Search name or email"
 						value={search}
 						onChange={(event) => {
@@ -80,7 +88,7 @@ export default function AdminUsersPage() {
 							setPage(1);
 						}}
 					>
-						<SelectTrigger>
+						<SelectTrigger className="w-full">
 							<SelectValue>{role ?? "All roles"}</SelectValue>
 						</SelectTrigger>
 						<SelectContent>
@@ -161,7 +169,7 @@ export default function AdminUsersPage() {
 							setPage(1);
 						}}
 					>
-						<SelectTrigger>
+						<SelectTrigger className="w-full">
 							<SelectValue>
 								{verification === "all"
 									? "Any verification"
@@ -189,51 +197,52 @@ export default function AdminUsersPage() {
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{data?.items.map((item) => (
-							<TableRow key={item.id}>
-								<TableCell>
-									<Link
-										href={`/users/${item.id}`}
-										className="font-medium text-primary hover:underline"
-									>
-										{item.name}
-									</Link>
-									<p className="text-muted-foreground">{item.email}</p>
-								</TableCell>
-								<TableCell>
-									<Badge variant="outline" className="capitalize">
-										{item.role}
-									</Badge>
-								</TableCell>
-								<TableCell>
-									<StatusBadge
-										value={item.emailVerified ? "verified" : "unverified"}
-									/>
-								</TableCell>
-								<TableCell>{item.subscription?.planName ?? "—"}</TableCell>
-								<TableCell>
-									<StatusBadge
-										value={
-											item.subscription?.expired
-												? "expired"
-												: item.subscription?.status
-										}
-									/>
-								</TableCell>
-								<TableCell>{formatDate(item.createdAt)}</TableCell>
-							</TableRow>
-						))}
+						{isPending ? (
+							<TableSkeleton columns={6} rows={8} />
+						) : data && data.items.length > 0 ? (
+							data.items.map((item) => (
+								<TableRow key={item.id}>
+									<TableCell>
+										<Link
+											href={`/users/${item.id}`}
+											className="font-medium text-primary hover:underline"
+										>
+											{item.name}
+										</Link>
+										<p className="text-muted-foreground">{item.email}</p>
+									</TableCell>
+									<TableCell>
+										<Badge variant="outline" className="capitalize">
+											{item.role}
+										</Badge>
+									</TableCell>
+									<TableCell>
+										<StatusBadge
+											value={item.emailVerified ? "verified" : "unverified"}
+										/>
+									</TableCell>
+									<TableCell>{item.subscription?.planName ?? "—"}</TableCell>
+									<TableCell>
+										<StatusBadge
+											value={
+												item.subscription?.expired
+													? "expired"
+													: item.subscription?.status
+											}
+										/>
+									</TableCell>
+									<TableCell>{formatDate(item.createdAt)}</TableCell>
+								</TableRow>
+							))
+						) : null}
 					</TableBody>
 				</Table>
-				{isLoading && (
-					<p className="py-8 text-center text-muted-foreground">
-						Loading users…
-					</p>
-				)}
-				{!isLoading && data?.items.length === 0 && (
-					<p className="py-8 text-center text-muted-foreground">
-						No users match these filters.
-					</p>
+				{!isPending && data?.items.length === 0 && (
+					<EmptyState
+						icon={IconUsers}
+						title="No users match these filters"
+						description="Clear a filter or widen the registration window to see more accounts."
+					/>
 				)}
 				<Pagination
 					page={page}
@@ -244,8 +253,3 @@ export default function AdminUsersPage() {
 		</Container>
 	);
 }
-
-import {
-	ADMIN_SUBSCRIPTION_STATUS_FILTER_VALUES,
-	type AdminSubscriptionStatusFilter,
-} from "@rently/db/constants/admin-constants";

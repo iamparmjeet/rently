@@ -15,20 +15,33 @@ import {
 	TableHeader,
 	TableRow,
 } from "@rently/ui/components/table";
-import { PageHeader } from "@rently/ui/shared/page-header";
+import { DetailHeader } from "@rently/ui/shared/detail-header";
+import { EmptyState } from "@rently/ui/shared/empty-state";
+import { PageLoader } from "@rently/ui/shared/page-loader";
+import { IconKey } from "@tabler/icons-react";
 import { Container } from "@/components/shared/container";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { useAdminUser } from "@/hooks/admin";
 import { formatDate, formatMoney } from "@/utils/format";
 
 export function AdminUserDetail({ userId }: { userId: string }) {
-	const { data, isLoading } = useAdminUser(userId);
-	if (isLoading) return <Container>Loading account…</Container>;
+	const { data, isPending } = useAdminUser(userId);
+	if (isPending) {
+		return (
+			<Container>
+				<PageLoader rows={3} />
+			</Container>
+		);
+	}
 	if (!data) return <Container>Account unavailable.</Container>;
 
 	return (
 		<Container className="space-y-6">
-			<PageHeader title={data.user.name} description={data.user.email} />
+			<DetailHeader
+				backHref="/users"
+				title={data.user.name}
+				subtitle={data.user.email}
+			/>
 			<div className="grid gap-4 md:grid-cols-3">
 				<Card>
 					<CardHeader>
@@ -219,29 +232,27 @@ export function AdminUserDetail({ userId }: { userId: string }) {
 								<TableRow>
 									<TableHead>Code</TableHead>
 									<TableHead>Plan</TableHead>
-									<TableHead>Usage</TableHead>
-									<TableHead>Used</TableHead>
+									<TableHead>Redeemed</TableHead>
 								</TableRow>
 							</TableHeader>
 							<TableBody>
-								{data.betaCodes.map((code) => (
-									<TableRow key={code.id}>
-										<TableCell className="font-mono">{code.code}</TableCell>
-										<TableCell className="capitalize">
-											{code.grantsPlanSlug}
+								{data.betaCodes.map((redemption) => (
+									<TableRow key={redemption.id}>
+										<TableCell className="font-mono">
+											{redemption.code}
 										</TableCell>
-										<TableCell>
-											{code.totalUses} / {code.maxUses}
-										</TableCell>
-										<TableCell>{formatDate(code.usedAt)}</TableCell>
+										<TableCell>{redemption.planName}</TableCell>
+										<TableCell>{formatDate(redemption.redeemedAt)}</TableCell>
 									</TableRow>
 								))}
 							</TableBody>
 						</Table>
 						{data.betaCodes.length === 0 && (
-							<p className="py-6 text-center text-muted-foreground">
-								No beta-code usage.
-							</p>
+							<EmptyState
+								icon={IconKey}
+								title="No beta-code usage"
+								description="This account has not redeemed a beta code."
+							/>
 						)}
 					</CardContent>
 				</Card>

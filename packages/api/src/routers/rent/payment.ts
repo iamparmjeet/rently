@@ -1729,6 +1729,8 @@ export const listPayments = ownerProcedure
 				reversesPaymentId: payments.reversesPaymentId,
 				tenantName: user.name,
 				tenantPhone: tenantProfiles.phone,
+				unitNumber: units.unitNumber,
+				propertyName: properties.name,
 			})
 			.from(payments)
 			.innerJoin(leases, eq(payments.leaseId, leases.id))

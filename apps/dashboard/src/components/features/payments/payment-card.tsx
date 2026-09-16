@@ -71,7 +71,14 @@ export function PaymentCard({
 							<p className="truncate font-semibold text-base">
 								{payment.tenantName ?? config.label}
 							</p>
-							<p className="mt-1 line-clamp-1 text-muted-foreground text-xs">
+							<p className="mt-1 flex min-w-0 items-center gap-1 text-muted-foreground text-xs">
+								<span className="shrink-0 font-medium text-foreground/75">
+									Unit {payment.unitNumber}
+								</span>
+								<span aria-hidden>·</span>
+								<span className="truncate">{payment.propertyName}</span>
+							</p>
+							<p className="mt-1 line-clamp-1 text-[11px] text-muted-foreground">
 								Lease #{payment.leaseId.slice(0, 8).toUpperCase()}
 								{payment.description && <span> · {payment.description}</span>}
 							</p>

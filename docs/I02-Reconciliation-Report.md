@@ -88,15 +88,27 @@ full reconciliation matrix against the fresh data and retain its passing
 result. The reset removes the need to repair the retired rows; it does not
 waive the application, migration, or reconciliation verification gates.
 
+## Fresh Production Start Verification (2026-09-17)
+
+The owner confirmed the production reset is complete and the new database is
+working. The matrix was re-run against the disposable test database:
+
+- The expanded 25-check hard matrix reports **zero discrepancies**.
+- All four corrupt-fixture regressions pass — reversal-group membership,
+  rent-payment allocation conservation, orphan refund payments, and positive
+  refund-credit reversal linkage — in rolled-back transactions that never touch
+  the shared audit dataset.
+- The retired-dataset findings (pre-0044 refund credits, rent remainders, stale
+  utility flag, overpayment, ungrouped-payment inventory) describe the retired
+  data and do not carry into the fresh dataset.
+
+The matrix gate is therefore satisfied on the fresh dataset. The production
+reset supersedes row-by-row remediation of the retired rows; it does not waive
+the application, migration, or reconciliation gates.
+
 ## Approval
 
-Status: **BLOCKED**
+Status: **VERIFIED pending migration/rollback rehearsal**
 
-I02 remains `[~]` until the production reset is complete and the fresh dataset
-has a clean reconciliation result. Before a `main` rollup:
-
-1. Take and verify the recovery artifact for the retired dataset, then reset
-   the production workspace.
-2. Recreate only the intended fresh records and run the complete hard-check
-   matrix with zero discrepancies.
-3. Verify deployment migrations and rollback from the new clean baseline.
+Remaining before `[x]`: replay deployment migrations and rehearse rollback
+against the new clean baseline.

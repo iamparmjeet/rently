@@ -1,6 +1,5 @@
 "use client";
 
-import { CREDIT_TYPES } from "@rently/db/constants/payment-constants";
 import { PAYMENT_TYPES } from "@rently/db/constants/rent-constants";
 import { Badge } from "@rently/ui/components/badge";
 import { Button } from "@rently/ui/components/button";
@@ -53,6 +52,11 @@ import {
 	useVoidPaymentGroup,
 } from "@/hooks/payments";
 import { getCollectionHealth } from "@/lib/payment-collection-health";
+import {
+	getNetDiscountDisplayAmount,
+	getNetSettledDiscountTotal,
+	getSettledCredits,
+} from "@/lib/payment-settled-credits";
 
 // ── Type config ───────
 
@@ -458,14 +462,6 @@ export default function PaymentsPage() {
 			}),
 		[payments],
 	);
-	const netDiscountTotal = useMemo(
-		() =>
-			allCredits
-				.filter((credit) => credit.type === CREDIT_TYPES.DISCOUNT)
-				.reduce((total, credit) => total + credit.amount, 0),
-		[allCredits],
-	);
-
 	const reversalCount = payments.filter(
 		(p) => p.type === PAYMENT_TYPES.REVERSAL,
 	).length;
@@ -473,22 +469,14 @@ export default function PaymentsPage() {
 	const selectedPayment = payments.find((p) => p.id === detailId) ?? null;
 
 	// Adjustments: only after tenant paid (paid utility/rent exists)
-	const settledCredits = useMemo(() => {
-		const paidUtilityIds = new Set(
-			payments
-				.filter((p) => p.utilityId != null && p.type !== PAYMENT_TYPES.REVERSAL)
-				.map((p) => p.utilityId as string),
-		);
-		const paidRentLeaseIds = new Set(
-			payments
-				.filter((p) => !p.utilityId && p.type === PAYMENT_TYPES.RENT)
-				.map((p) => p.leaseId),
-		);
-		return allCredits.filter((c) => {
-			if (c.utilityId) return paidUtilityIds.has(c.utilityId);
-			return paidRentLeaseIds.has(c.leaseId);
-		});
-	}, [allCredits, payments]);
+	const settledCredits = useMemo(
+		() => getSettledCredits(allCredits, payments),
+		[allCredits, payments],
+	);
+	const netDiscountTotal = useMemo(
+		() => getNetSettledDiscountTotal(allCredits, payments),
+		[allCredits, payments],
+	);
 
 	const adjFiltered = useMemo(() => {
 		const q = adjSearch.trim().toLowerCase();
@@ -573,7 +561,9 @@ export default function PaymentsPage() {
 							<PaymentMetric
 								icon={IconTag}
 								label="Net discounts"
-								value={formatRupees(-netDiscountTotal)}
+								value={formatRupees(
+									getNetDiscountDisplayAmount(netDiscountTotal),
+								)}
 							/>
 							<PaymentMetric
 								icon={IconRefreshAlert}

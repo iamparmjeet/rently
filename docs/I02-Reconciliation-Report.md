@@ -73,16 +73,30 @@ be folded into the UI or demo-seed rollup.
   possible because redemption and invoice rows do not snapshot every source
   input. Current structural/count invariants are covered by the matrix.
 
+## Owner Decision: Fresh Production Start
+
+On 2026-09-16, the owner chose to retire the current production data and start
+again with a clean workspace. This supersedes row-by-row remediation of the
+five refund-labelled credits, rent remainders, stale utility state,
+overpayment, and ungrouped-payment inventory; those findings describe the
+retired dataset and must not be copied into the new one.
+
+Before the reset, take and retain a Neon restore point or export, verify that
+it can be restored, and record the reset time. Do not delete tables or rows
+until that recovery artifact exists. After recreating the workspace, rerun the
+full reconciliation matrix against the fresh data and retain its passing
+result. The reset removes the need to repair the retired rows; it does not
+waive the application, migration, or reconciliation verification gates.
+
 ## Approval
 
 Status: **BLOCKED**
 
-I02 remains `[~]`. Before a `main` rollup:
+I02 remains `[~]` until the production reset is complete and the fresh dataset
+has a clean reconciliation result. Before a `main` rollup:
 
-1. Reclassify the five verified unpaid-utility credits from `refund` to
-   `adjust` through the documented, manifest-guarded financial repair, or stop
-   if the preflight shows any is a genuine cash refund.
-2. Decide the two rent remainders, one stale utility flag, and one utility
-   overpayment.
-3. Supply a pre-remediation snapshot if upgrade replay is still required, or
-   explicitly approve the documented inability to reproduce it.
+1. Take and verify the recovery artifact for the retired dataset, then reset
+   the production workspace.
+2. Recreate only the intended fresh records and run the complete hard-check
+   matrix with zero discrepancies.
+3. Verify deployment migrations and rollback from the new clean baseline.

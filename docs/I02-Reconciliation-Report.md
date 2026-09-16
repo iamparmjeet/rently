@@ -45,11 +45,21 @@ review and cannot change the existing blocked status.
 ## Blocking Historical Rows
 
 Five negative credits with `applied_as='refund'` predate the linked refund
-payment introduced by migration 0044. They have no `refund_payment_id`, so the
-cash ledger cannot prove that money left the business. They require a separate
-financial migration or explicit data repair that creates the missing immutable
-negative payment rows and links them to the credits. This must not be folded
-into the UI/seed rollup.
+payment introduced by migration 0044. Follow-up inspection found that each is
+attached to an unpaid utility bill and functions as a bill reduction; none has
+a linked refund payment or evidence that cash left the business. They are not
+public-demo seed rows.
+
+The approved remediation shape for this exact set is a targeted
+reclassification from `refund` to `adjust`, not deletion and not creation of
+cash-payment rows. Before production execution, an operator must take a Neon
+restore point, run a read-only manifest that proves the exact five rows still
+match (negative amount, utility attached, no `refund_payment_id`, no credit
+reversal, and unpaid utility), then perform the reclassification in one
+transaction and rerun the reconciliation matrix. If any row no longer matches
+that manifest, stop: it may be a genuine cash refund and needs a linked refund
+payment instead. This is a dedicated financial data-repair slice and must not
+be folded into the UI or demo-seed rollup.
 
 ## Upgrade And Rollback
 
@@ -69,8 +79,9 @@ Status: **BLOCKED**
 
 I02 remains `[~]`. Before a `main` rollup:
 
-1. Repair or explicitly reject the five unpaired refund credits in a dedicated
-   financial slice.
+1. Reclassify the five verified unpaid-utility credits from `refund` to
+   `adjust` through the documented, manifest-guarded financial repair, or stop
+   if the preflight shows any is a genuine cash refund.
 2. Decide the two rent remainders, one stale utility flag, and one utility
    overpayment.
 3. Supply a pre-remediation snapshot if upgrade replay is still required, or

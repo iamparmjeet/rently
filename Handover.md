@@ -911,3 +911,15 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
   remains blocked by the local multi-port login redirect.
 - Merged and pushed to `main` as `a726d260` after final review. I02 remains
   isolated on `integ/phase-a-baseline@a3f07b3f` and is still `[~]`.
+
+## I02 matrix hardening and fresh-production decision (2026-09-16)
+
+- Added the 25-check reconciliation matrix with transactional corrupt-fixture
+  regressions for reversal-group membership, allocation conservation, orphan
+  refund payments, and invalid positive refund-credit reversals.
+- The owner retired the prior production dataset and started with a new clean
+  database. The old historical findings are retained only as audit evidence;
+  before I02 is complete, the fresh database must pass the complete matrix and
+  deployment migration/rollback verification.
+- The production Payments summary now counts discounts only after their bill
+  is paid, and displays zero as `₹0.00`, never `-₹0.00`.

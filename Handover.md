@@ -882,5 +882,16 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
   data. Each is an unpaid-utility bill reduction with no cash payment, so the
   documented future production repair is a manifest-guarded reclassification
   to `adjust`, never deletion or manual cash-payment insertion.
-- No pre-remediation dump exists in the repo or home directory, so upgrade replay cannot be proven. Do not merge to `main`; use a dedicated financial migration slice for the five refund pairs and obtain owner decisions for the review rows.
-- Agreed sequence (2026-09-16): push approval → Terra/Sol batch review on the final integ branch → merge into `main` later. I02 stays `[~]` aside; it does not ride along with the `main` merge.
+- Owner decision (2026-09-16): retire the current production dataset and start
+  fresh. Before any deletion, retain and verify a Neon restore point or export.
+  The historical I02 findings then remain evidence about the retired dataset;
+  run the complete reconciliation matrix again on the fresh workspace before
+  allowing the I02/main rollup.
+- No prior pre-remediation dump exists in the repo or home directory. The
+  fresh-start decision replaces legacy replay proof with a verified recovery
+  artifact before reset and migration/rollback verification from the new clean
+  baseline. Do not merge to `main` until those gates and the fresh I02 matrix
+  pass.
+- Agreed sequence (2026-09-16): retain recovery artifact → production reset →
+  fresh I02 matrix and migration/rollback verification → Terra/Sol batch
+  review → merge into `main` and push.

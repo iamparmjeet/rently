@@ -878,5 +878,9 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Demo seed now creates matching utility payments for rows marked paid. Reseed reduced utility paid-state discrepancies from 4 to 1; the remaining row belongs to the real owner and was not mutated.
 - Replaced the two-assertion I02 placeholder with `packages/db/src/reconciliation.sql`, covering 21 hard checks plus three review inventories. Disposable test DB: zero hard discrepancies. Demo rent payments and the demo adjustment now use the canonical accrual/allocation writers; all 47 seeded rent payments fully allocate.
 - Production-shaped local audit remains blocked: five historical refund credits have no linked negative refund payment; two rent backfill remainders total 2,710,000 paise; one real-owner utility has zero due but stale `is_paid=false`; one utility is overpaid by 8,000 paise; 59 compatibility/legacy payments are ungrouped. Exact evidence is in `docs/I02-Reconciliation-Report.md`.
+- Follow-up evidence: the five refund-labelled credits are not public-demo seed
+  data. Each is an unpaid-utility bill reduction with no cash payment, so the
+  documented future production repair is a manifest-guarded reclassification
+  to `adjust`, never deletion or manual cash-payment insertion.
 - No pre-remediation dump exists in the repo or home directory, so upgrade replay cannot be proven. Do not merge to `main`; use a dedicated financial migration slice for the five refund pairs and obtain owner decisions for the review rows.
 - Agreed sequence (2026-09-16): push approval → Terra/Sol batch review on the final integ branch → merge into `main` later. I02 stays `[~]` aside; it does not ride along with the `main` merge.

@@ -985,3 +985,38 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
   (SSR-stable) instead of `isLoading` (false during SSR, true on first client
   paint). `apps/admin/.../layout.tsx` aligned to the `cn("font-sans", ...)` +
   `antialiased` pattern.
+
+## Admin hardening merged + I02 fresh-start verification (2026-09-17)
+
+- `main` advanced to `1c58ccf9`. `feat/admin-hardening` merged as slices
+  `7ff07d9e` (server), `79e6fd92` (UI/design), `626a764a` (docs); rollback tag
+  `pre-admin-hardening`.
+- `fix/ci-r2-test-env` merged as `53514f33`. Root cause of the long-red CI: the
+  test env never set the R2 vars, and `routers/upload.ts` builds an aws4fetch
+  `AwsClient` at module scope, so the suite failed at import. Placeholders now
+  live in the CI heredoc and `.env.test.example`, pinned by the A03 parity
+  guard. Follow-up (not done): lazy-init the R2 clients.
+- I02: the 25-check hard matrix passes with zero discrepancies on the
+  disposable test database, with rollback-fixture regressions for G4/R6/C5/C6.
+  The owner completed the fresh production start, superseding the retired
+  dataset findings. Remaining before `[x]`: deployment migration replay and
+  rollback rehearsal on the clean baseline. See `docs/I02-Reconciliation-Report.md`.
+- `test/i02-reconciliation-hardening` was retargeted to `main` and synced
+  (its `reconciliation.sql`/`test.ts` were already identical to `main@c1140f95`;
+  only its docs were older and were resolved in favour of `main`).
+
+### Next chat: start here
+
+1. Close nothing else open — `main` is the only active line now.
+2. Next slice, recommended `feat/admin-ops-visibility` off `main` (tag
+   `pre-admin-ops-visibility`), read-only and migration-free: surface
+   `users.admins` + total match counts, add a global invoice list filtered by
+   `PAYMENT_STATUS` unpaid/failed, and a `not-found.tsx` for `/users/[id]`.
+3. Then design-first slice: void/correct a mistakenly recorded subscription
+   payment (needs a reversal record + audit; never delete).
+4. Parked pending product decision: subscription pause/cancel/extend/refund.
+   Entitlement is read from `plans.tenant_limit` only (`tenant-limit.ts`) and
+   ignores `status`/`expired`, so those actions would be dead buttons.
+5. Local gotcha: a full local suite run can throw lease-ownership failures from
+   stale `rently_test` state; those suites pass in isolation and CI is green on
+   a fresh DB. Root `.env` targets Neon — use the localhost override.

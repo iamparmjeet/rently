@@ -923,3 +923,65 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
   deployment migration/rollback verification.
 - The production Payments summary now counts discounts only after their bill
   is paid, and displays zero as `₹0.00`, never `-₹0.00`.
+
+## Admin console hardening (2026-09-17, branch feat/admin-hardening)
+
+- Branch `feat/admin-hardening` cut from clean `main@3c862720`; rollback tag
+  `pre-admin-hardening`. No migration (existing columns only).
+- Bugs fixed, each with a regression in
+  `packages/api/src/routers/test/admin-hardening.test.ts` (5):
+  1. Demo/sample identities leaked into `admin.users.list` and
+     `admin.subscriptions.list` while the overview hid them, and
+     `recordSubscriptionPayment` would extend a demo owner. Both lists now
+     filter `account_mode = standard`; the mutation refuses non-standard owners
+     with `PRECONDITION_FAILED`.
+  2. Month-end renewal overflow: JS `setUTCMonth` turned Jan 31 + 1 month into
+     Mar 3. Period math moved into SQL (`make_interval` clamps to Feb 28) and
+     now runs against the locked row.
+  3. Concurrent payments with different references lost one extension (both
+     read the same `current_period_end`; documented debt in the 2026-09-15
+     note). `recordSubscriptionPayment` is now two statements in one
+     transaction/batch — `pg_advisory_xact_lock` per owner, then a single
+     update+invoice+audit CTE that reads the post-lock snapshot; the same
+     statement runs on Neon batch and node transaction.
+  4. Beta-code history read `used_by_user_id`/`used_at`, which are null for
+     shared codes. User detail now reads `beta_code_redemptions`; new
+     `admin.betaCodes.listRedemptions` powers a per-code viewer.
+  5. `expireAdminBetaCode` allowed stamping an expiry on an exhausted code; the
+     server now refuses with `CONFLICT`.
+- Admin UI now reuses `StatsGrid` (extended with an optional `detail` line),
+  `EmptyState`, `PageLoader`, `DetailHeader`, plus a local `TableSkeleton`;
+  added route `error.tsx`/`loading.tsx`; audit log gained an actor filter.
+  Vercel-react pass: ternary renders (no `&&`), skeleton loading, labelled
+  controls, shared primitives.
+- Verification: `check-types` 6/6, focused Biome clean, admin `next build`
+  green, Vitest admin+beta redemption 30/30.
+- Deliberately NOT built: pause/cancel/extend/refund subscription actions.
+  Entitlement is read from `plans.tenant_limit` only (`tenant-limit.ts`) — it
+  ignores subscription status/`expired`, so those actions would be dead buttons
+  without an enforcement slice; refund needs a ledger/reversal decision. Flag
+  to owner.
+- Known limitation: the Neon `db.batch` path for the payment lock is not
+  exercised by tests (local test DB uses node transaction). The SQL is
+  identical on both; the batch/lock ordering follows the B10 precedent.
+
+### Follow-up: dashboard "Managed rent volume" demo leak (2026-09-17)
+
+- Dashboard screenshot after the first pass showed Owners/Tenants 0 and platform
+  revenue ₹0 but Managed rent volume ₹9,76,700. Root cause: `admin/overview`
+  applied `account_mode = standard` to users, revenue, subscriptions, and plan
+  distribution, but the managed-rent-volume aggregate filtered only
+  `workspace_mode = live`. A public-demo identity keeps the default
+  `workspace_mode = live` (only `account_mode` is `public_demo`), so the seeded
+  showcase portfolio leaked into that one headline.
+- Fix: added `account_mode = standard` to the managed-rent-volume `where`
+  (both filters are required — `workspace_mode` excludes a standard owner's
+  disposable sample workspace). Regression:
+  `admin-hardening.test.ts` "counts a standard owner's rent but not a demo
+  identity's seeded portfolio".
+- Hydration fix from the same round: `TableSkeleton` returned a `<tbody>` while
+  nested inside a page `<tbody>` (invalid HTML → React hydration error); it now
+  returns rows only. Admin pages gate loading on React Query `isPending`
+  (SSR-stable) instead of `isLoading` (false during SSR, true on first client
+  paint). `apps/admin/.../layout.tsx` aligned to the `cn("font-sans", ...)` +
+  `antialiased` pattern.

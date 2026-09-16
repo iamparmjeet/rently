@@ -32,14 +32,17 @@ import {
 	TableRow,
 } from "@rently/ui/components/table";
 import { Textarea } from "@rently/ui/components/textarea";
+import { EmptyState } from "@rently/ui/shared/empty-state";
 import { PageHeader } from "@rently/ui/shared/page-header";
 import type { AdminBetaCodeListResponse } from "@rently/validators";
-import { IconPlus } from "@tabler/icons-react";
+import { IconKey, IconPlus } from "@tabler/icons-react";
 import { useState } from "react";
 import { Container } from "@/components/shared/container";
 import { Pagination } from "@/components/shared/pagination";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { TableSkeleton } from "@/components/shared/table-skeleton";
 import {
+	useAdminBetaCodeRedemptions,
 	useAdminBetaCodes,
 	useCreateBetaCode,
 	useExpireBetaCode,
@@ -265,13 +268,83 @@ function ExpireBetaCodeDialog({
 	);
 }
 
+function RedemptionsDialog({
+	code,
+	onClose,
+}: {
+	code: BetaCode | null;
+	onClose: () => void;
+}) {
+	const [page, setPage] = useState(1);
+	const { data, isPending } = useAdminBetaCodeRedemptions(code?.id ?? "", page);
+
+	return (
+		<Dialog
+			open={Boolean(code)}
+			onOpenChange={(open) => {
+				if (!open) {
+					setPage(1);
+					onClose();
+				}
+			}}
+		>
+			<DialogContent className="sm:max-w-lg">
+				<DialogHeader>
+					<DialogTitle>Redemptions · {code?.code}</DialogTitle>
+					<DialogDescription>
+						Every account that redeemed this code, newest first.
+					</DialogDescription>
+				</DialogHeader>
+				<Table>
+					<TableHeader>
+						<TableRow>
+							<TableHead>User</TableHead>
+							<TableHead>Redeemed</TableHead>
+						</TableRow>
+					</TableHeader>
+					<TableBody>
+						{isPending ? (
+							<TableSkeleton columns={2} rows={4} />
+						) : data && data.items.length > 0 ? (
+							data.items.map((redemption) => (
+								<TableRow key={redemption.id}>
+									<TableCell>
+										<p className="font-medium">{redemption.userName}</p>
+										<p className="text-muted-foreground">
+											{redemption.userEmail}
+										</p>
+									</TableCell>
+									<TableCell>{formatDate(redemption.redeemedAt)}</TableCell>
+								</TableRow>
+							))
+						) : null}
+					</TableBody>
+				</Table>
+				{!isPending && data?.items.length === 0 && (
+					<p className="py-6 text-center text-muted-foreground text-sm">
+						No redemptions yet.
+					</p>
+				)}
+				<Pagination
+					page={page}
+					totalPages={data?.totalPages ?? 0}
+					onPageChange={setPage}
+				/>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
 export default function AdminBetaCodesPage() {
 	const [page, setPage] = useState(1);
 	const [search, setSearch] = useState("");
 	const [status, setStatus] = useState<BetaCodeFilter>("all");
 	const [creating, setCreating] = useState(false);
 	const [expiring, setExpiring] = useState<BetaCode | null>(null);
-	const { data, isLoading } = useAdminBetaCodes({
+	const [viewingRedemptions, setViewingRedemptions] = useState<BetaCode | null>(
+		null,
+	);
+	const { data, isPending } = useAdminBetaCodes({
 		page,
 		pageSize: 25,
 		search: search.trim() || undefined,
@@ -292,6 +365,7 @@ export default function AdminBetaCodesPage() {
 				<CardContent className="flex flex-col gap-3 sm:flex-row">
 					<Input
 						type="search"
+						aria-label="Search beta codes"
 						placeholder="Search code"
 						value={search}
 						onChange={(event) => {
@@ -332,53 +406,76 @@ export default function AdminBetaCodesPage() {
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{data?.items.map((code) => (
-							<TableRow key={code.id}>
-								<TableCell className="font-medium font-mono">
-									{code.code}
-								</TableCell>
-								<TableCell>
-									<p className="capitalize">{code.grantsPlanSlug}</p>
-									<p className="text-muted-foreground">
-										{code.periodDays} days
-									</p>
-								</TableCell>
-								<TableCell>
-									{code.totalUses} / {code.maxUses}
-								</TableCell>
-								<TableCell>
-									{code.usedByName ?? "—"}
-									{code.usedByEmail && (
-										<p className="text-muted-foreground">{code.usedByEmail}</p>
-									)}
-								</TableCell>
-								<TableCell>{formatDate(code.expiresAt)}</TableCell>
-								<TableCell>
-									<StatusBadge value={code.state} />
-								</TableCell>
-								<TableCell className="text-right">
-									<Button
-										variant="outline"
-										size="sm"
-										disabled={code.state !== "active"}
-										onClick={() => setExpiring(code)}
-									>
-										Expire
-									</Button>
-								</TableCell>
-							</TableRow>
-						))}
+						{isPending ? (
+							<TableSkeleton columns={7} rows={8} />
+						) : data && data.items.length > 0 ? (
+							data.items.map((code) => (
+								<TableRow key={code.id}>
+									<TableCell className="font-medium font-mono">
+										{code.code}
+									</TableCell>
+									<TableCell>
+										<p className="capitalize">{code.grantsPlanSlug}</p>
+										<p className="text-muted-foreground">
+											{code.periodDays} days
+										</p>
+									</TableCell>
+									<TableCell>
+										{code.totalUses} / {code.maxUses}
+									</TableCell>
+									<TableCell>
+										{code.maxUses === 1 ? (
+											<>
+												{code.usedByName ?? "—"}
+												{code.usedByEmail && (
+													<p className="text-muted-foreground">
+														{code.usedByEmail}
+													</p>
+												)}
+											</>
+										) : (
+											<span className="text-muted-foreground">
+												{code.totalUses > 0
+													? `${code.totalUses} accounts`
+													: "—"}
+											</span>
+										)}
+									</TableCell>
+									<TableCell>{formatDate(code.expiresAt)}</TableCell>
+									<TableCell>
+										<StatusBadge value={code.state} />
+									</TableCell>
+									<TableCell className="text-right">
+										<div className="flex justify-end gap-2">
+											<Button
+												variant="ghost"
+												size="sm"
+												disabled={code.totalUses === 0}
+												onClick={() => setViewingRedemptions(code)}
+											>
+												View
+											</Button>
+											<Button
+												variant="outline"
+												size="sm"
+												disabled={code.state !== "active"}
+												onClick={() => setExpiring(code)}
+											>
+												Expire
+											</Button>
+										</div>
+									</TableCell>
+								</TableRow>
+							))
+						) : null}
 					</TableBody>
 				</Table>
-				{isLoading && (
-					<p className="py-8 text-center text-muted-foreground">
-						Loading beta codes…
-					</p>
-				)}
-				{!isLoading && data?.items.length === 0 && (
-					<p className="py-8 text-center text-muted-foreground">
-						No beta codes match these filters.
-					</p>
+				{!isPending && data?.items.length === 0 && (
+					<EmptyState
+						icon={IconKey}
+						title="No beta codes match"
+						description="Create a code or clear the status filter to see them all."
+					/>
 				)}
 				<Pagination
 					page={page}
@@ -389,6 +486,10 @@ export default function AdminBetaCodesPage() {
 
 			<CreateBetaCodeDialog open={creating} onOpenChange={setCreating} />
 			<ExpireBetaCodeDialog code={expiring} onClose={() => setExpiring(null)} />
+			<RedemptionsDialog
+				code={viewingRedemptions}
+				onClose={() => setViewingRedemptions(null)}
+			/>
 		</Container>
 	);
 }

@@ -164,6 +164,13 @@ export async function queryAdminOverview(
 						PAYMENT_TYPES.DEPOSIT,
 						PAYMENT_TYPES.REVERSAL,
 					]),
+					// Both filters are required: a standard owner's sample
+					// workspace is excluded by workspaceMode, and a public-demo
+					// identity (workspaceMode stays `live`) is excluded by
+					// accountMode. Without the accountMode leg the seeded demo
+					// portfolio inflated this headline while every other card
+					// excluded it.
+					eq(user.accountMode, ACCOUNT_MODES.STANDARD),
 					eq(user.workspaceMode, WORKSPACE_MODES.LIVE),
 				),
 			),

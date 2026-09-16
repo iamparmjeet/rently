@@ -153,21 +153,20 @@ export const AdminInvoiceSchema = z.object({
 	createdAt: z.date(),
 });
 
-export const AdminBetaCodeHistorySchema = z.object({
+export const AdminBetaCodeRedemptionSchema = z.object({
 	id: IdSchema,
+	codeId: IdSchema,
 	code: z.string(),
 	grantsPlanSlug: z.string(),
-	maxUses: z.number().int(),
-	totalUses: z.number().int(),
-	usedAt: z.date().nullable(),
-	expiresAt: z.date().nullable(),
+	planName: z.string(),
+	redeemedAt: z.date(),
 });
 
 export const AdminUserDetailResponseSchema = z.object({
 	user: AdminUserListItemSchema,
 	subscriptionHistory: z.array(AdminSubscriptionSummarySchema),
 	invoices: z.array(AdminInvoiceSchema),
-	betaCodes: z.array(AdminBetaCodeHistorySchema),
+	betaCodes: z.array(AdminBetaCodeRedemptionSchema),
 	ownerSummary: z
 		.object({
 			propertyCount: z.number().int(),
@@ -284,6 +283,27 @@ export const AdminBetaCodeListResponseSchema = z.object({
 	totalPages: z.number().int(),
 });
 
+export const AdminBetaCodeRedemptionListInputSchema =
+	AdminPaginationSchema.extend({
+		betaCodeId: IdSchema,
+	});
+
+export const AdminBetaCodeRedemptionItemSchema = z.object({
+	id: IdSchema,
+	userId: IdSchema,
+	userName: z.string(),
+	userEmail: z.email(),
+	redeemedAt: z.date(),
+});
+
+export const AdminBetaCodeRedemptionListResponseSchema = z.object({
+	items: z.array(AdminBetaCodeRedemptionItemSchema),
+	page: z.number().int(),
+	pageSize: z.number().int(),
+	total: z.number().int(),
+	totalPages: z.number().int(),
+});
+
 export const CreateAdminBetaCodeSchema = z.object({
 	grantsPlanSlug: z.string().trim().min(1).max(80),
 	periodDays: z.number().int().min(1).max(3650),
@@ -324,6 +344,10 @@ export const AdminAuditLogListResponseSchema = z.object({
 	totalPages: z.number().int(),
 });
 
+export type AdminInvoice = z.infer<typeof AdminInvoiceSchema>;
+export type AdminSubscriptionSummary = z.infer<
+	typeof AdminSubscriptionSummarySchema
+>;
 export type AdminOverview = z.infer<typeof AdminOverviewSchema>;
 export type AdminUserListInput = z.infer<typeof AdminUserListInputSchema>;
 export type AdminUserListResponse = z.infer<typeof AdminUserListResponseSchema>;
@@ -341,6 +365,12 @@ export type AdminBetaCodeListInput = z.infer<
 >;
 export type AdminBetaCodeListResponse = z.infer<
 	typeof AdminBetaCodeListResponseSchema
+>;
+export type AdminBetaCodeRedemptionListInput = z.infer<
+	typeof AdminBetaCodeRedemptionListInputSchema
+>;
+export type AdminBetaCodeRedemptionListResponse = z.infer<
+	typeof AdminBetaCodeRedemptionListResponseSchema
 >;
 export type CreateAdminBetaCodeInput = z.infer<
 	typeof CreateAdminBetaCodeSchema

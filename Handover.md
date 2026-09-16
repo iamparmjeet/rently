@@ -870,3 +870,15 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - `c10c836b` failure root-caused to a real product bug (selector offered server-rejected Refund/Utility); fixed in `0c91ae14`, re-verified green.
 - Owner stopped the suite at 8 verdicts to work other points: re-authored `d2a1b35d` as `4639cda0`, which passed 24/24 with 2 content assertions (workspace/sidebar, A-101/Maple cross-check; S-02 Available row exercised). Old nav-only test deleted. Un-run on this tree: `13ea57d9`, `4fc9ed47`, `bd43744e`, `5e3f3205`, `aebe81ff` (all green on the seed-only tree).
 - Session closed for the night with branch pushed and `integ/phase-a-baseline` fast-forwarded (rollback tag `pre-integ-qa-15-09`). Next: run the 5 un-run tests on this tree, then `main` rollup (still policy-blocked: Terra debt + I02/Sol review).
+
+## Phase A release rollup (2026-09-16)
+
+- `integ/phase-a-rollup` starts at `2c5ddd4d`, deliberately before the I02 audit
+  commit. I02 remains on `integ/phase-a-baseline@a3f07b3f` until its dedicated
+  financial remediation and upgrade replay are complete.
+- Final review found that switching from an automatically prefilled positive-due
+  lease to a zero/negative-due lease retained the prior amount. The form now
+  resets untouched automatic amounts to zero; manually entered amounts still
+  survive a lease switch.
+- Verification: dashboard typecheck and focused Biome pass. TestSprite is
+  authenticated but blocked until the local dashboard is running on port 3002.

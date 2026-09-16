@@ -98,8 +98,8 @@ export function PaymentForm({
 		// does not, so each newly selected lease starts with its own balance.
 		if (dirtyFields.amount && amountValue && amountValue > 0) return;
 		const due = rentDueByLease?.[leaseId];
-		if (due && due > 0) {
-			setValue("amount", due / 100, { shouldValidate: true });
+		if (due !== undefined) {
+			setValue("amount", Math.max(due, 0) / 100, { shouldValidate: true });
 		}
 	}
 

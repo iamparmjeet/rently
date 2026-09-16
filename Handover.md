@@ -850,7 +850,9 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Final review found that the Neon R6 prepayment CTE still interpreted lease dates as UTC while the future-charge helper used `Asia/Kolkata`. `f06d7f92` projects both lease boundaries to IST; merged as `30db4add`.
 - The full-suite failure in `rent-period-schema.test.ts` was a stale test, not a missing constraint: its duplicate case used a different period than `validCharge`, and the due-date case rejected the schema's valid following-period range. `44b43cb5` aligns the cases; `c29431b4` corrects the schema comment.
 - Final verification on `integ/phase-a-baseline`: `db:generate` no drift, `db:migrate:test`, `check-types --force` 6/6, focused Biome, and full Vitest 86 files / 479 tests pass.
-- `main` remains untouched. I02's full production-shaped reconciliation and Sol High review are still required before a `main` rollup.
+- `main` remained untouched at this point. I02's full production-shaped
+  reconciliation and Sol High review are required before an I02 rollup; this
+  policy was superseded for the separate `integ/phase-a-rollup` at line 874.
 
 ## Consolidation QA branch (2026-09-15, Muse Spark, branch rently/consolidated-local-qa-15-09, tag pre-consolidated-qa-15-09)
 
@@ -894,5 +896,9 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Verification: `db:generate` no drift, `db:migrate:test` pass,
   `check-types` dashboard pass, Biome clean on 6 files, Vitest
   `payment-form` + `payment-action-states` 10/10.
-- Manual check needed: Record Payment toast + tenant Payments & Dues rows
-  showing Unit · Property.
+- Manual: prefill reset to zero, Record Payment submission/toast, and payment
+  card Unit · Property context confirmed. Tenant Payments and Dues context is
+  a remaining optional visual check.
+- Final rollup review: no code blockers. The automatic prefill lease-switch
+  behavior has direct manual coverage but no focused component test; TestSprite
+  remains blocked by the local multi-port login redirect.

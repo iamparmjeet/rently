@@ -955,6 +955,7 @@ export const listLeases = ownerProcedure
 			.select({
 				leaseId: leases.id,
 				agreementId: leases.agreementId,
+				agreementArrangement: leaseAgreements.arrangementType,
 				rent: leases.rent,
 				deposit: leases.deposit,
 				startDate: leases.startDate,
@@ -975,6 +976,7 @@ export const listLeases = ownerProcedure
 				propertyId: properties.id,
 			})
 			.from(leases)
+			.leftJoin(leaseAgreements, eq(leases.agreementId, leaseAgreements.id))
 			.innerJoin(units, eq(leases.unitId, units.id))
 			.innerJoin(properties, eq(units.propertyId, properties.id))
 			.innerJoin(user, eq(leases.tenantId, user.id))

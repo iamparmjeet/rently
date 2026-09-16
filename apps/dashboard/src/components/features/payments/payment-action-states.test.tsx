@@ -35,6 +35,8 @@ function payment(overrides: Partial<PaymentListItem> = {}): PaymentListItem {
 		reversesPaymentId: null,
 		tenantName: "Tenant A",
 		tenantPhone: null,
+		unitNumber: "101",
+		propertyName: "Maple Apartments",
 		createdAt: new Date("2026-09-01T00:00:00.000Z"),
 		updatedAt: new Date("2026-09-01T00:00:00.000Z"),
 		...overrides,
@@ -46,6 +48,14 @@ function voidButton() {
 }
 
 describe("PaymentCard action states (H05)", () => {
+	it("shows the unit and property below the tenant name", () => {
+		render(
+			<PaymentCard payment={payment()} onVoid={vi.fn()} onClick={vi.fn()} />,
+		);
+		expect(screen.queryByText("Unit 101")).not.toBeNull();
+		expect(screen.queryByText("Maple Apartments")).not.toBeNull();
+	});
+
 	it("offers Void for an actionable payment", () => {
 		render(
 			<PaymentCard payment={payment()} onVoid={vi.fn()} onClick={vi.fn()} />,
@@ -58,6 +68,17 @@ describe("PaymentCard action states (H05)", () => {
 		render(
 			<PaymentCard
 				payment={payment({ type: PAYMENT_TYPES.REVERSAL, amount: -100_000 })}
+				onVoid={vi.fn()}
+				onClick={vi.fn()}
+			/>,
+		);
+		expect(voidButton()).toBeNull();
+	});
+
+	it("hides Void for a cash refund", () => {
+		render(
+			<PaymentCard
+				payment={payment({ type: PAYMENT_TYPES.REFUND, amount: -100_000 })}
 				onVoid={vi.fn()}
 				onClick={vi.fn()}
 			/>,
@@ -96,6 +117,17 @@ describe("PaymentRow action states (H05)", () => {
 		render(
 			<PaymentRow
 				payment={payment({ type: PAYMENT_TYPES.REVERSAL, amount: -100_000 })}
+				onVoid={vi.fn()}
+				onClick={vi.fn()}
+			/>,
+		);
+		expect(screen.queryByLabelText("Payment actions")).toBeNull();
+	});
+
+	it("offers no actions menu for a cash refund", () => {
+		render(
+			<PaymentRow
+				payment={payment({ type: PAYMENT_TYPES.REFUND, amount: -100_000 })}
 				onVoid={vi.fn()}
 				onClick={vi.fn()}
 			/>,

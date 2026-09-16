@@ -319,6 +319,7 @@ export default function TenantDetailClient({ id }: { id: string }) {
 	const waPhone = tenant.phone?.replace(/\D/g, "");
 	const primaryActiveLease = tenant.activeLeases[0];
 	const pendingInviteId = tenant.status === "pending" ? tenant.inviteId : null;
+	const activeLeaseCount = tenant.activeLeases.length;
 
 	function handleRemove() {
 		removeTenant.mutate(
@@ -435,7 +436,7 @@ export default function TenantDetailClient({ id }: { id: string }) {
 						<UtilitiesTab
 							tenant={tenant}
 							utilities={utilitiesData?.utilities ?? []}
-							leaseId={primaryLeaseId}
+							activeLeases={tenant.activeLeases}
 						/>
 					)}
 					{activeTab === "payments" && (
@@ -455,12 +456,15 @@ export default function TenantDetailClient({ id }: { id: string }) {
 					<div>
 						<p className="font-medium text-sm">Remove Tenant</p>
 						<p className="mt-0.5 text-muted-foreground text-xs">
-							Terminates all active leases. The tenant's account is not deleted.
+							This ends {activeLeaseCount} active{" "}
+							{activeLeaseCount === 1 ? "lease" : "leases"} and frees the unit
+							{activeLeaseCount === 1 ? "" : "s"}. The tenant account and
+							financial history are retained.
 						</p>
 					</div>
 					<ConfirmDialog
 						title="Remove Tenant"
-						description={`Remove ${tenant.name}? All active leases will be terminated and units freed.`}
+						description={`Remove ${tenant.name}? This will terminate ${activeLeaseCount} active ${activeLeaseCount === 1 ? "lease" : "leases"} and free the associated unit${activeLeaseCount === 1 ? "" : "s"}. This cannot be undone from this screen.`}
 						confirmLabel="Remove Tenant"
 						destructive
 						onConfirm={handleRemove}

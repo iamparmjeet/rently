@@ -293,6 +293,9 @@ export function ProfileTab() {
 											{...businessForm.register("gstNumber")}
 											placeholder="29AABCK1234N1Z5"
 										/>
+										<FieldError>
+											{businessForm.formState.errors.gstNumber?.message}
+										</FieldError>
 									</Field>
 								</FieldGroup>
 

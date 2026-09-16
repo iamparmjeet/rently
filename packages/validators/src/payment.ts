@@ -131,6 +131,8 @@ export const RecordUtilityPaymentSchema = z.object({
 export const PaymentListItemSchema = PaymentSelectSchema.extend({
 	tenantName: z.string().nullable(),
 	tenantPhone: z.string().nullable(),
+	unitNumber: z.string(),
+	propertyName: z.string(),
 });
 
 // ********* Payment Export **********

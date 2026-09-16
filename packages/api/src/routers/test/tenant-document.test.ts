@@ -15,6 +15,10 @@ const mocks = vi.hoisted(() => ({
 	},
 }));
 
+vi.hoisted(() => {
+	process.env.AADHAAR_UPLOADS_ENABLED = "false";
+});
+
 vi.mock("@rently/auth", () => ({
 	auth: { api: { getSession: mocks.getSession } },
 }));

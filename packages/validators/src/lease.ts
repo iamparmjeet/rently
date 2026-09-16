@@ -1,4 +1,7 @@
-import { LEASE_STATUS_VALUES } from "@rently/db/constants/rent-constants";
+import {
+	LEASE_AGREEMENT_ARRANGEMENT_VALUES,
+	LEASE_STATUS_VALUES,
+} from "@rently/db/constants/rent-constants";
 import { leaseAgreements, leases } from "@rently/db/schema/schema";
 import {
 	createInsertSchema,
@@ -142,6 +145,7 @@ export const UpdateAgreementSchema = createUpdateSchema(leaseAgreements)
 export const LeaseWithDetailsSchema = z.object({
 	leaseId: z.string(),
 	agreementId: z.uuid().nullable(),
+	agreementArrangement: z.enum(LEASE_AGREEMENT_ARRANGEMENT_VALUES).nullable(),
 	unitId: z.string(),
 	tenantId: z.string(),
 	rent: z.number(),

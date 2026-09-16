@@ -59,6 +59,16 @@ export function getTypeConfig(type: string): TypeConfig {
 				headerGradient:
 					"from-destructive/[0.12] via-destructive/[0.03] to-transparent",
 			};
+		case PAYMENT_TYPES.REFUND:
+			return {
+				avatarBg: "bg-amber-500/10",
+				avatarText: "text-amber-700",
+				accentBar: "bg-amber-600",
+				badgeVariant: "outline",
+				label: "Cash Refund",
+				headerGradient:
+					"from-amber-500/[0.12] via-amber-500/[0.03] to-transparent",
+			};
 		default:
 			return {
 				avatarBg: "bg-muted",

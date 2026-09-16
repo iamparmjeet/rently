@@ -50,6 +50,9 @@ function PaymentRow({ payment }: { payment: PaymentListItem }) {
 			{/* Details */}
 			<div className="min-w-0 flex-1">
 				<p className="font-medium text-sm">{config.label}</p>
+				<p className="truncate text-muted-foreground text-xs">
+					Unit {payment.unitNumber} · {payment.propertyName}
+				</p>
 				<p className="text-muted-foreground text-xs">
 					{new Date(payment.paymentDate).toLocaleDateString("en-IN", {
 						day: "numeric",
@@ -129,7 +132,9 @@ export function PaymentsTab({ tenant, payments, stats }: PaymentsTabProps) {
 	// Sort newest first
 	const sorted = [...payments].sort(
 		(a, b) =>
-			new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime(),
+			new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime() ||
+			new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() ||
+			b.id.localeCompare(a.id),
 	);
 
 	// C06: pending is the period-aware outstanding (arrears + current period)

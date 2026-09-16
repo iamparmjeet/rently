@@ -850,4 +850,55 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Final review found that the Neon R6 prepayment CTE still interpreted lease dates as UTC while the future-charge helper used `Asia/Kolkata`. `f06d7f92` projects both lease boundaries to IST; merged as `30db4add`.
 - The full-suite failure in `rent-period-schema.test.ts` was a stale test, not a missing constraint: its duplicate case used a different period than `validCharge`, and the due-date case rejected the schema's valid following-period range. `44b43cb5` aligns the cases; `c29431b4` corrects the schema comment.
 - Final verification on `integ/phase-a-baseline`: `db:generate` no drift, `db:migrate:test`, `check-types --force` 6/6, focused Biome, and full Vitest 86 files / 479 tests pass.
-- `main` remains untouched. I02's full production-shaped reconciliation and Sol High review are still required before a `main` rollup.
+- `main` remained untouched at this point. I02's full production-shaped
+  reconciliation and Sol High review are required before an I02 rollup; this
+  policy was superseded for the separate `integ/phase-a-rollup` at line 874.
+
+## Consolidation QA branch (2026-09-15, Muse Spark, branch rently/consolidated-local-qa-15-09, tag pre-consolidated-qa-15-09)
+
+- Worktree audit: 11 worktrees, 1 dirty (`t3code-0f89572e`, 15 uncommitted files — stale subset superseded by `e561a94b`; left untouched pending owner approval to remove). All other slices (b08/b09/b12/ci-env/ci-main-only/docs) already merged in ancestry.
+- Branch: linear `e561a94b` (manual-test findings, 20 files) + cherry-picked `5f1d58e7` (seed idempotency, 1 file); tree byte-identical to merge `30b71aca`, no chore-merge noise. Not pushed.
+- Gates on consolidated tree: `db:generate` no drift → `check-types` 6/6 → Biome clean → `db:migrate:test` → focused Vitest 5 files / 43 pass (upcoming-dues, credit-reversal, credit-refund-gate, period-balance-read-model, payment-type-invariant).
+- Fixes (committed `e988beb0`, `4ae2975d`): lease-detail history loading states + reversal rows in destructive (mirrors PaymentsTab); payment-form prefill skips lease switches once a positive amount is typed (prevents silent full-due overwrite of partial payments). No new unit test: guard is one line, Radix Select has no jsdom harness in repo — behavioral cover deferred to TestSprite re-run on this tree.
+- NOT merged to main: policy (integ-batch + Terra debt + I02/Sol review) still blocks; TestSprite 13/13 ran on seed-only tree, never on this tree (~141 credits left).
+- Next: commit fixes after owner nod → re-run TestSprite on this tree → re-author 3 weak tests with real assertions → route via integ/phase-a-baseline.
+
+## TestSprite re-run on consolidated tree (2026-09-15 late, same branch)
+
+- Reseeded local demo via `db:seed-demo` with local `DATABASE_URL` override (root `.env` points at Neon — never run bare). Demo owner now holds exactly one `discount/adjust` credit (`KQ-CN-CE36E0B99EC9`); real-owner rows untouched. Seed fix proven live on local, not just Neon.
+- `c10c836b` first re-run FAILED on a content assertion and exposed a real bug: the earlier 14:19 "pass" was 7 nav-only steps (false positive confirmed). Record Payment offered Refund/Utility, which the server always rejects (`CreatePaymentSchema` mints neither; utility needs a `utilityId` the form never sends). Fixed in `0c91ae14`, re-run green 13/13.
+- Green on fresh seed so far (5/13): `0d128cc4` 12/12, `c10c836b` 13/13, `e7558416` 28/28, `5f92913c` 9/9 (Adjustments 1 → Note link → 3 KQ-CN content assertions — covers the `getCreditNote` OR-lookup), `ef1f0b59` 23/23. One flaky blocked run on `0d128cc4` (agent lost at demo entry, zero clicks) retried clean — flakiness, not regression.
+- Remaining: 7 dashboard tests on `:3002`, then `aebe81ff` on `:3003`.
+- `c10c836b` failure root-caused to a real product bug (selector offered server-rejected Refund/Utility); fixed in `0c91ae14`, re-verified green.
+- Owner stopped the suite at 8 verdicts to work other points: re-authored `d2a1b35d` as `4639cda0`, which passed 24/24 with 2 content assertions (workspace/sidebar, A-101/Maple cross-check; S-02 Available row exercised). Old nav-only test deleted. Un-run on this tree: `13ea57d9`, `4fc9ed47`, `bd43744e`, `5e3f3205`, `aebe81ff` (all green on the seed-only tree).
+- Session closed for the night with branch pushed and `integ/phase-a-baseline` fast-forwarded (rollback tag `pre-integ-qa-15-09`). Next: run the 5 un-run tests on this tree, then `main` rollup (still policy-blocked: Terra debt + I02/Sol review).
+
+## Phase A release rollup (2026-09-16)
+
+- `integ/phase-a-rollup` starts at `2c5ddd4d`, deliberately before the I02 audit
+  commit. I02 remains on `integ/phase-a-baseline@a3f07b3f` until its dedicated
+  financial remediation and upgrade replay are complete.
+- Final review found that switching from an automatically prefilled positive-due
+  lease to a zero/negative-due lease retained the prior amount. The form now
+  resets untouched automatic amounts to zero; manually entered amounts still
+  survive a lease switch.
+- Verification: dashboard typecheck and focused Biome pass. TestSprite is
+  authenticated but blocked until the local dashboard is running on port 3002.
+
+## Payment submit + unit context (2026-09-16, branch integ/phase-a-rollup)
+
+- Silent Record Payment failure root-caused to the form schema requiring
+  parent-owned `idempotencyKey` before submit (`23f07de5`; regression
+  `payment-form.test.tsx`). Tenant re-registration was unrelated.
+- `PaymentListItem` now carries `unitNumber`/`propertyName` from
+  `listPayments` (`55d57b5a`); card/row/detail and tenant payments/utilities
+  tabs reuse those fields instead of bare lease IDs (`ed326adc`).
+- Verification: `db:generate` no drift, `db:migrate:test` pass,
+  `check-types` dashboard pass, Biome clean on 6 files, Vitest
+  `payment-form` + `payment-action-states` 10/10.
+- Manual: prefill reset to zero, Record Payment submission/toast, and payment
+  card Unit · Property context confirmed. Tenant Payments and Dues context is
+  a remaining optional visual check.
+- Final rollup review: no code blockers. The automatic prefill lease-switch
+  behavior has direct manual coverage but no focused component test; TestSprite
+  remains blocked by the local multi-port login redirect.

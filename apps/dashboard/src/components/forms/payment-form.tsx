@@ -26,13 +26,15 @@ import type { Lease } from "@rently/validators";
 import { CreatePaymentSchema, toBusinessDateKey } from "@rently/validators";
 import { Controller, useForm } from "react-hook-form";
 import z from "zod";
-import { entityLabel } from "@/utils/display";
+import { entityLabel } from "../../utils/display";
 
 // ── Form-layer schema ──
 // The DB stores amount in paise (integer), but the form collects rupees
 // We maintain a parallel form schema where `amount` is rupees (number),
 // then convert on submit. This is the "anti-corruption layer" for monetary values.
-const PaymentFormSchema = CreatePaymentSchema.extend({
+export const PaymentFormSchema = CreatePaymentSchema.omit({
+	idempotencyKey: true,
+}).extend({
 	leaseId: z.string({ error: "Please select a lease" }).min(1, {
 		error: "Please select a lease",
 	}),
@@ -56,6 +58,7 @@ interface PaymentFormProps {
 	formId?: string;
 	leases: Pick<Lease, "id">[];
 	leaseLabels: Record<string, string>;
+	rentDueByLease?: Record<string, number>;
 }
 
 export function PaymentForm({
@@ -66,13 +69,15 @@ export function PaymentForm({
 	formId,
 	leases,
 	leaseLabels,
+	rentDueByLease,
 }: PaymentFormProps) {
 	const {
 		register,
 		handleSubmit,
 		control,
+		setValue,
 		watch,
-		formState: { errors },
+		formState: { dirtyFields, errors },
 	} = useForm<PaymentFormValues>({
 		resolver: zodResolver(PaymentFormSchema),
 		defaultValues: {
@@ -83,6 +88,22 @@ export function PaymentForm({
 	});
 
 	const selectedType = watch("type");
+	const amountValue = watch("amount");
+
+	function selectLease(
+		leaseId: string | null,
+		onChange: (value: string | null) => void,
+	) {
+		onChange(leaseId);
+		if (!leaseId) return;
+		// A typed partial amount survives lease switches; an automatic prefill
+		// does not, so each newly selected lease starts with its own balance.
+		if (dirtyFields.amount && amountValue && amountValue > 0) return;
+		const due = rentDueByLease?.[leaseId];
+		if (due !== undefined) {
+			setValue("amount", Math.max(due, 0) / 100, { shouldValidate: true });
+		}
+	}
 
 	return (
 		<form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -98,7 +119,9 @@ export function PaymentForm({
 							render={({ field }) => (
 								<Select
 									value={field.value ?? ""}
-									onValueChange={field.onChange}
+									onValueChange={(leaseId) =>
+										selectLease(leaseId, field.onChange)
+									}
 									disabled={isSubmitting || leases.length === 0}
 								>
 									<SelectTrigger id="leaseId">
@@ -156,7 +179,7 @@ export function PaymentForm({
 							type="number"
 							min={1}
 							step={1}
-							placeholder="10000"
+							placeholder="Enter amount"
 							disabled={isSubmitting}
 							{...register("amount", { valueAsNumber: true })}
 						/>
@@ -190,8 +213,17 @@ export function PaymentForm({
 									</SelectTrigger>
 									<SelectContent>
 										{Object.entries(PAYMENT_TYPES)
-											// reversal is system-generated (voidPayment) — hide from manual entry
-											.filter(([, value]) => value !== "reversal")
+											// WHY: manual entry can only mint what the server
+											// accepts without a paired record — reversal and
+											// refund are server-owned (voidPayment/createCredit),
+											// and utility requires a utilityId this form never
+											// sends (CreatePaymentRequestSchema rejects it).
+											.filter(
+												([, value]) =>
+													value !== PAYMENT_TYPES.REVERSAL &&
+													value !== PAYMENT_TYPES.REFUND &&
+													value !== PAYMENT_TYPES.UTILITY,
+											)
 											.map(([_, value]) => (
 												<SelectItem key={value} value={value}>
 													<span className="capitalize">{value}</span>

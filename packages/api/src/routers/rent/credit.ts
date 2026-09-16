@@ -849,11 +849,18 @@ export const listCredits = ownerProcedure
 const tenantUser = alias(user, "credit_tenant");
 export const getCreditNote = ownerProcedure
 	.route({ method: "GET", path: "/rent/credit/get" })
-	.input(z.object({ creditId: z.uuid() }))
+	.input(
+		z.object({
+			creditId: z.union([z.uuid(), z.string().regex(/^KQ-CN-[A-F0-9]{12}$/)]),
+		}),
+	)
 	.output(z.object({ creditNote: CreditNoteDataSchema }))
 	.handler(async ({ context, input }) => {
 		const { db, user: authUser } = context;
 
+		const creditIdentity = z.uuid().safeParse(input.creditId).success
+			? eq(billCredits.id, input.creditId)
+			: eq(billCredits.creditNoteNo, input.creditId);
 		const [row] = await db
 			.select({
 				creditId: billCredits.id,
@@ -902,16 +909,11 @@ export const getCreditNote = ownerProcedure
 					isNull(ownerProfiles.deletedAt),
 				),
 			)
-			.where(eq(billCredits.id, input.creditId))
+			.where(and(eq(properties.ownerId, authUser.id), creditIdentity))
 			.limit(1);
 
 		if (!row)
 			throw new ORPCError("NOT_FOUND", { message: "Credit note not found" });
-		if (row.ownerId !== authUser.id)
-			throw new ORPCError("FORBIDDEN", {
-				message: "You do not own this credit",
-			});
-
 		return {
 			creditNote: {
 				credit: {

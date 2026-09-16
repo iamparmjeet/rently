@@ -225,7 +225,10 @@ function UtilityRow({
 
 			<div className="min-w-0 flex-1">
 				<p className="font-medium text-sm">
-					{label} · {monthLabel}
+					{label} · Unit {u.unitNumber} · {monthLabel}
+				</p>
+				<p className="truncate text-muted-foreground text-xs">
+					{u.propertyName}
 				</p>
 				<p className="text-muted-foreground text-xs">
 					{isElectricity
@@ -295,7 +298,13 @@ function UtilityRow({
 
 //  Add Reading button ***********
 
-function AddReadingButton({ leaseId }: { leaseId: string }) {
+function AddReadingButton({
+	leaseId,
+	unitNumber,
+}: {
+	leaseId: string;
+	unitNumber?: string;
+}) {
 	const [open, setOpen] = useState(false);
 	const createBatch = useOptimisticCreateBatchUtility();
 	// B07: one idempotency key per bill type, minted per dialog open and
@@ -324,7 +333,7 @@ function AddReadingButton({ leaseId }: { leaseId: string }) {
 		<>
 			<Button onClick={() => setOpen(true)}>
 				<IconPlus className="mr-1.5 size-4" />
-				Add Reading
+				{unitNumber ? `Add reading · ${unitNumber}` : "Add Reading"}
 			</Button>
 
 			<Dialog open={open} onOpenChange={setOpen}>
@@ -351,13 +360,13 @@ function AddReadingButton({ leaseId }: { leaseId: string }) {
 interface UtilitiesTabProps {
 	tenant: TenantDetail;
 	utilities: UtilityListItem[];
-	leaseId: string;
+	activeLeases: TenantDetail["activeLeases"];
 }
 
 export function UtilitiesTab({
 	tenant,
 	utilities,
-	leaseId,
+	activeLeases,
 }: UtilitiesTabProps) {
 	const sorted = [...utilities].sort(
 		(a, b) =>
@@ -381,7 +390,17 @@ export function UtilitiesTab({
 		<div>
 			<div className="mb-4 flex items-center justify-between">
 				<h3 className="font-semibold text-base">Utility History</h3>
-				{leaseId && <AddReadingButton leaseId={leaseId} />}
+				<div className="flex flex-wrap justify-end gap-2">
+					{activeLeases.map((lease) => (
+						<AddReadingButton
+							key={lease.id}
+							leaseId={lease.id}
+							unitNumber={
+								activeLeases.length > 1 ? lease.unitNumber : undefined
+							}
+						/>
+					))}
+				</div>
 			</div>
 
 			<div className="mb-4 grid grid-cols-3 divide-x rounded-xl border bg-card text-sm">

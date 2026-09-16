@@ -34,9 +34,11 @@ export function PaymentRow({
 }: PaymentRowProps) {
 	const config = getTypeConfig(payment.type);
 	const isReversal = payment.type === PAYMENT_TYPES.REVERSAL;
+	const isRefund = payment.type === PAYMENT_TYPES.REFUND;
 	// H05: reversals cannot be voided (server refuses) and voiding an
-	// already-reversed original is a no-op — offer no action for either.
-	const canVoid = !isReversal && !isReversed;
+	// already-reversed original is a no-op. Refunds are reversed through their
+	// credit note, never as independent payments.
+	const canVoid = !isReversal && !isRefund && !isReversed;
 
 	return (
 		<div
@@ -65,14 +67,14 @@ export function PaymentRow({
 						</span>
 					)}
 				</p>
-				<p className="mt-1 flex items-center gap-1.5 text-muted-foreground text-xs">
+				<p className="mt-1 flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
 					<MethodIcon method={payment.paymentMethods} />
 					<span className="capitalize">
 						{payment.paymentMethods?.replace("_", " ") ?? "No method"}
 					</span>
 					<span>·</span>
-					<span className="font-mono">
-						#{payment.leaseId.slice(0, 8).toUpperCase()}
+					<span className="truncate">
+						Unit {payment.unitNumber} · {payment.propertyName}
 					</span>
 				</p>
 			</button>

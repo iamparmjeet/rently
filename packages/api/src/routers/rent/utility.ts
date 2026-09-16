@@ -566,7 +566,7 @@ export const removeUtility = ownerProcedure
 		if (credit) {
 			throw new ORPCError("BAD_REQUEST", {
 				message:
-					"Cannot delete a utility with recorded credits — keep the bill for audit history.",
+					"Cannot delete this utility because it has a credit note or discount. Reverse the credit first to preserve the audit trail.",
 			});
 		}
 

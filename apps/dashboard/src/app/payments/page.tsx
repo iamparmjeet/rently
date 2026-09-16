@@ -163,6 +163,7 @@ function PaymentDetailDialog({
 	// would confuse the tenant ("you received ₹-20,000?"). Both action
 	// buttons are disabled for reversals.
 	const isReversal = payment.type === PAYMENT_TYPES.REVERSAL;
+	const isRefund = payment.type === PAYMENT_TYPES.REFUND;
 
 	function handleWhatsApp() {
 		if (!payment?.tenantPhone) return;
@@ -222,8 +223,11 @@ function PaymentDetailDialog({
 								{payment.tenantName ?? config.label}
 							</p>
 							<p className="mt-0.5 text-muted-foreground text-xs">
-								{config.label} · Lease #
-								{payment.leaseId.slice(0, 8).toUpperCase()}
+								{config.label} · Unit {payment.unitNumber} ·{" "}
+								{payment.propertyName}
+							</p>
+							<p className="mt-0.5 text-muted-foreground text-xs">
+								Lease #{payment.leaseId.slice(0, 8).toUpperCase()}
 							</p>
 						</div>
 					</div>
@@ -276,6 +280,10 @@ function PaymentDetailDialog({
 							}
 						/>
 						<DetailField
+							label="Unit"
+							value={`Unit ${payment.unitNumber} · ${payment.propertyName}`}
+						/>
+						<DetailField
 							label="Lease ID"
 							value={`#${payment.leaseId.slice(0, 8).toUpperCase()}`}
 						/>
@@ -299,59 +307,61 @@ function PaymentDetailDialog({
 						Close
 					</Button>
 
-					<div className="flex flex-wrap gap-2">
-						<Button
-							size="sm"
-							variant="outline"
-							className="gap-1.5"
-							disabled={isReversal}
-							onClick={handleDownloadReceipt}
-							title={
-								isReversal
-									? "Cannot download a receipt for a reversal"
-									: "Open a printable payment receipt"
-							}
-						>
-							<IconDownload className="size-4" />
-							Download
-						</Button>
+					{!isReversal && !isRefund && !isReversed && (
+						<div className="flex flex-wrap gap-2">
+							<Button
+								size="sm"
+								variant="outline"
+								className="gap-1.5"
+								disabled={isReversal}
+								onClick={handleDownloadReceipt}
+								title={
+									isReversal
+										? "Cannot download a receipt for a reversal"
+										: "Open a printable payment receipt"
+								}
+							>
+								<IconDownload className="size-4" />
+								Download
+							</Button>
 
-						{/* WhatsApp — client-side deep link, no server call */}
-						{/* WHY: disabled when no phone is on file (tenantProfiles.phone is nullable) or for reversals (a void is not a receipt). */}
-						<Button
-							size="sm"
-							variant="outline"
-							className="gap-1.5 border-[#25D366]/40 text-[#25D366] hover:bg-[#25D366]/5 hover:text-[#25D366] disabled:opacity-40"
-							disabled={!payment.tenantPhone || isReversal}
-							onClick={handleWhatsApp}
-							title={
-								!payment.tenantPhone
-									? "No phone number on file for this tenant"
-									: isReversal
-										? "Cannot send receipt for a reversal"
-										: "Send receipt via WhatsApp"
-							}
-						>
-							<IconBrandWhatsapp className="size-4" />
-							WhatsApp
-						</Button>
+							{/* WhatsApp — client-side deep link, no server call */}
+							{/* WHY: disabled when no phone is on file (tenantProfiles.phone is nullable) or for reversals (a void is not a receipt). */}
+							<Button
+								size="sm"
+								variant="outline"
+								className="gap-1.5 border-[#25D366]/40 text-[#25D366] hover:bg-[#25D366]/5 hover:text-[#25D366] disabled:opacity-40"
+								disabled={!payment.tenantPhone || isReversal}
+								onClick={handleWhatsApp}
+								title={
+									!payment.tenantPhone
+										? "No phone number on file for this tenant"
+										: isReversal
+											? "Cannot send receipt for a reversal"
+											: "Send receipt via WhatsApp"
+								}
+							>
+								<IconBrandWhatsapp className="size-4" />
+								WhatsApp
+							</Button>
 
-						{/* Email — calls sendPaymentReceipt procedure, pre-composed */}
-						{/* no form needed — the receipt content is deterministic.
+							{/* Email — calls sendPaymentReceipt procedure, pre-composed */}
+							{/* no form needed — the receipt content is deterministic.
 						     One click sends; toast handles feedback. */}
-						<Button
-							size="sm"
-							className="gap-1.5"
-							disabled={sendReceipt.isPending || isReversal}
-							onClick={handleSendEmail}
-							title={
-								isReversal ? "Cannot send receipt for a reversal" : undefined
-							}
-						>
-							<IconMail className="size-4" />
-							{sendReceipt.isPending ? "Sending…" : "Send Receipt"}
-						</Button>
-					</div>
+							<Button
+								size="sm"
+								className="gap-1.5"
+								disabled={sendReceipt.isPending || isReversal}
+								onClick={handleSendEmail}
+								title={
+									isReversal ? "Cannot send receipt for a reversal" : undefined
+								}
+							>
+								<IconMail className="size-4" />
+								{sendReceipt.isPending ? "Sending…" : "Send Receipt"}
+							</Button>
+						</div>
+					)}
 				</DialogFooter>
 			</DialogContent>
 		</Dialog>

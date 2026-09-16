@@ -810,6 +810,13 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Partial reconciliation test work is present, but it is not the completed audit described by the plan: `packages/db/src/reconciliation.test.ts` contains two assertions and one empty placeholder, and the claimed audit-report artifact is absent.
 - I02 remains `[~]`: its production-shaped reconciliation and Sol High review are required before `main` rollout.
 
+### I02 reconciliation-matrix hardening (2026-09-16, branch test/i02-reconciliation-hardening)
+
+- Base: `integ/phase-a-baseline@a3f07b3f`; rollback tag: `pre-i02-reconciliation-hardening`; no migration and no historical-data changes.
+- The 25-check hard matrix now verifies payment-for-payment reversal-group membership (`G4`), rent payment source/allocation conservation including explicit source-remainder exceptions (`R6`), orphan refund payments (`C5`), and positive refund-credit reversals without their negative source (`C6`).
+- `reconciliation.test.ts` pins every hard-check name and exercises each new check with a rolled-back corrupt fixture on local `rently_test`.
+- I02 remains `[~]`: this improves audit detection only. The five pre-0044 unpaired refund credits, owner decisions, and missing pre-remediation snapshot remain unresolved and must not be repaired on this branch.
+
 ## I02.1 Refund recovery ledger (finding #1) (2026-09-07, Agent, branch fix/refund-reversal-ledger, tag pre-refund-reversal-ledger)
 
 - Base: clean `integ/phase-a-baseline@1bdaa252` with pending local changes.

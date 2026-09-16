@@ -1,6 +1,8 @@
 import {
 	AdminBetaCodeListInputSchema,
 	AdminBetaCodeListResponseSchema,
+	AdminBetaCodeRedemptionListInputSchema,
+	AdminBetaCodeRedemptionListResponseSchema,
 	AdminBetaCodeSchema,
 	CreateAdminBetaCodeSchema,
 	ExpireAdminBetaCodeSchema,
@@ -9,6 +11,7 @@ import z from "zod";
 import {
 	createAdminBetaCode,
 	expireAdminBetaCode,
+	queryAdminBetaCodeRedemptions,
 	queryAdminBetaCodes,
 } from "../../modules/admin/beta-codes";
 import { adminProcedure } from "../../procedures";
@@ -25,6 +28,17 @@ export const create = adminProcedure
 	.output(z.object({ betaCode: AdminBetaCodeSchema }))
 	.handler(({ context, input }) =>
 		createAdminBetaCode(context.db, context.user.id, input),
+	);
+
+export const listRedemptions = adminProcedure
+	.route({
+		method: "GET",
+		path: "/admin/beta-codes/{betaCodeId}/redemptions",
+	})
+	.input(AdminBetaCodeRedemptionListInputSchema)
+	.output(AdminBetaCodeRedemptionListResponseSchema)
+	.handler(({ context, input }) =>
+		queryAdminBetaCodeRedemptions(context.db, input),
 	);
 
 export const expire = adminProcedure

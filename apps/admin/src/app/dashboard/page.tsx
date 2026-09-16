@@ -6,6 +6,7 @@ import {
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
+import { Skeleton } from "@rently/ui/components/skeleton";
 import {
 	Table,
 	TableBody,
@@ -14,21 +15,26 @@ import {
 	TableHeader,
 	TableRow,
 } from "@rently/ui/components/table";
+import { EmptyState } from "@rently/ui/shared/empty-state";
 import { PageHeader } from "@rently/ui/shared/page-header";
+import { StatsGrid } from "@rently/ui/shared/stat-grid";
 import {
-	IconBuildingBank,
+	IconActivity,
 	IconCash,
+	IconChartPie,
+	IconHome,
 	IconMailCheck,
 	IconReceipt,
 	IconUsers,
 } from "@tabler/icons-react";
 import { Container } from "@/components/shared/container";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { TableSkeleton } from "@/components/shared/table-skeleton";
 import { useAdminOverview } from "@/hooks/admin";
 import { formatDate, formatMoney } from "@/utils/format";
 
 export default function AdminDashboardPage() {
-	const { data, isLoading } = useAdminOverview();
+	const { data, isPending } = useAdminOverview();
 
 	const cards = [
 		{
@@ -41,7 +47,7 @@ export default function AdminDashboardPage() {
 			label: "Tenants",
 			value: data?.users.tenants ?? 0,
 			detail: `${data?.users.newTenantsLast30Days ?? 0} joined in 30 days`,
-			icon: IconBuildingBank,
+			icon: IconHome,
 		},
 		{
 			label: "Platform revenue",
@@ -70,20 +76,11 @@ export default function AdminDashboardPage() {
 				description="Platform health, revenue, and recent operational activity."
 			/>
 
-			<div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-5">
-				{cards.map((card) => (
-					<Card key={card.label}>
-						<CardContent className="space-y-3">
-							<card.icon className="size-5 text-primary" />
-							<p className="text-muted-foreground text-xs">{card.label}</p>
-							<p className="font-semibold text-2xl">
-								{isLoading ? "…" : card.value}
-							</p>
-							<p className="text-muted-foreground text-xs">{card.detail}</p>
-						</CardContent>
-					</Card>
-				))}
-			</div>
+			<StatsGrid
+				stats={cards}
+				isLoading={isPending}
+				className="xl:grid-cols-5"
+			/>
 			<p className="text-muted-foreground text-xs">
 				Platform revenue is the sum of paid KeyHQ subscription invoices only.
 				Unpaid or failed invoices and beta-code upgrades are excluded. Managed
@@ -113,20 +110,35 @@ export default function AdminDashboardPage() {
 						<CardTitle>Plan distribution</CardTitle>
 					</CardHeader>
 					<CardContent className="space-y-3">
-						{data?.planDistribution.map((plan) => (
-							<div
-								key={plan.planId}
-								className="flex items-center justify-between border-b pb-2 last:border-0"
-							>
-								<div>
-									<p className="font-medium">{plan.planName}</p>
-									<p className="text-muted-foreground text-xs">
-										{plan.planSlug}
-									</p>
+						{isPending ? (
+							Array.from({ length: 3 }, (_, row) => (
+								<div key={row} className="space-y-2 border-b pb-2">
+									<Skeleton className="h-4 w-32" />
+									<Skeleton className="h-3 w-20" />
 								</div>
-								<p className="font-semibold text-lg">{plan.count}</p>
-							</div>
-						))}
+							))
+						) : data && data.planDistribution.length > 0 ? (
+							data.planDistribution.map((plan) => (
+								<div
+									key={plan.planId}
+									className="flex items-center justify-between border-b pb-2 last:border-0"
+								>
+									<div>
+										<p className="font-medium">{plan.planName}</p>
+										<p className="text-muted-foreground text-xs">
+											{plan.planSlug}
+										</p>
+									</div>
+									<p className="font-semibold text-lg">{plan.count}</p>
+								</div>
+							))
+						) : (
+							<EmptyState
+								icon={IconChartPie}
+								title="No plans assigned"
+								description="Owner subscriptions will appear here once plans are chosen."
+							/>
+						)}
 					</CardContent>
 				</Card>
 			</div>
@@ -146,20 +158,31 @@ export default function AdminDashboardPage() {
 								</TableRow>
 							</TableHeader>
 							<TableBody>
-								{data?.recentUsers.map((user) => (
-									<TableRow key={user.id}>
-										<TableCell>
-											<p className="font-medium">{user.name}</p>
-											<p className="text-muted-foreground">{user.email}</p>
-										</TableCell>
-										<TableCell>
-											<StatusBadge value={user.role} />
-										</TableCell>
-										<TableCell>{formatDate(user.createdAt)}</TableCell>
-									</TableRow>
-								))}
+								{isPending ? (
+									<TableSkeleton columns={3} rows={5} />
+								) : data && data.recentUsers.length > 0 ? (
+									data.recentUsers.map((user) => (
+										<TableRow key={user.id}>
+											<TableCell>
+												<p className="font-medium">{user.name}</p>
+												<p className="text-muted-foreground">{user.email}</p>
+											</TableCell>
+											<TableCell>
+												<StatusBadge value={user.role} />
+											</TableCell>
+											<TableCell>{formatDate(user.createdAt)}</TableCell>
+										</TableRow>
+									))
+								) : null}
 							</TableBody>
 						</Table>
+						{!isPending && data?.recentUsers.length === 0 && (
+							<EmptyState
+								icon={IconUsers}
+								title="No registrations yet"
+								description="New owner, tenant, and admin accounts will appear here."
+							/>
+						)}
 					</CardContent>
 				</Card>
 
@@ -177,20 +200,31 @@ export default function AdminDashboardPage() {
 								</TableRow>
 							</TableHeader>
 							<TableBody>
-								{data?.recentAdminActions.map((action) => (
-									<TableRow key={action.id}>
-										<TableCell>
-											<p className="font-medium">{action.actorAdminName}</p>
-											<p className="text-muted-foreground">{action.reason}</p>
-										</TableCell>
-										<TableCell>
-											<StatusBadge value={action.action} />
-										</TableCell>
-										<TableCell>{formatDate(action.createdAt)}</TableCell>
-									</TableRow>
-								))}
+								{isPending ? (
+									<TableSkeleton columns={3} rows={5} />
+								) : data && data.recentAdminActions.length > 0 ? (
+									data.recentAdminActions.map((action) => (
+										<TableRow key={action.id}>
+											<TableCell>
+												<p className="font-medium">{action.actorAdminName}</p>
+												<p className="text-muted-foreground">{action.reason}</p>
+											</TableCell>
+											<TableCell>
+												<StatusBadge value={action.action} />
+											</TableCell>
+											<TableCell>{formatDate(action.createdAt)}</TableCell>
+										</TableRow>
+									))
+								) : null}
 							</TableBody>
 						</Table>
+						{!isPending && data?.recentAdminActions.length === 0 && (
+							<EmptyState
+								icon={IconActivity}
+								title="No admin actions yet"
+								description="Recorded payments and beta-code changes will appear here."
+							/>
+						)}
 					</CardContent>
 				</Card>
 			</div>
@@ -211,30 +245,36 @@ export default function AdminDashboardPage() {
 							</TableRow>
 						</TableHeader>
 						<TableBody>
-							{data?.recentSubscriptionPayments.map((payment) => (
-								<TableRow key={payment.invoiceId}>
-									<TableCell>
-										<p className="font-medium">{payment.ownerName}</p>
-										<p className="text-muted-foreground">
-											{payment.ownerEmail}
-										</p>
-									</TableCell>
-									<TableCell>{formatMoney(payment.amount)}</TableCell>
-									<TableCell>
-										<StatusBadge value={payment.paymentMethod} />
-									</TableCell>
-									<TableCell className="font-mono">
-										{payment.externalPaymentReference ?? "—"}
-									</TableCell>
-									<TableCell>{formatDate(payment.paidAt)}</TableCell>
-								</TableRow>
-							))}
+							{isPending ? (
+								<TableSkeleton columns={5} rows={5} />
+							) : data && data.recentSubscriptionPayments.length > 0 ? (
+								data.recentSubscriptionPayments.map((payment) => (
+									<TableRow key={payment.invoiceId}>
+										<TableCell>
+											<p className="font-medium">{payment.ownerName}</p>
+											<p className="text-muted-foreground">
+												{payment.ownerEmail}
+											</p>
+										</TableCell>
+										<TableCell>{formatMoney(payment.amount)}</TableCell>
+										<TableCell>
+											<StatusBadge value={payment.paymentMethod} />
+										</TableCell>
+										<TableCell className="font-mono">
+											{payment.externalPaymentReference ?? "—"}
+										</TableCell>
+										<TableCell>{formatDate(payment.paidAt)}</TableCell>
+									</TableRow>
+								))
+							) : null}
 						</TableBody>
 					</Table>
-					{!isLoading && data?.recentSubscriptionPayments.length === 0 && (
-						<p className="py-8 text-center text-muted-foreground">
-							No paid subscription invoices yet.
-						</p>
+					{!isPending && data?.recentSubscriptionPayments.length === 0 && (
+						<EmptyState
+							icon={IconReceipt}
+							title="No paid invoices yet"
+							description="Subscription payments you record will show up here."
+						/>
 					)}
 				</CardContent>
 			</Card>

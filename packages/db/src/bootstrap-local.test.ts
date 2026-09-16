@@ -22,6 +22,18 @@ const EXPECTED_TEST_ENV: Record<string, string> = {
 	NEXT_PUBLIC_DASHBOARD_URL: "http://localhost:3002",
 	NEXT_PUBLIC_TENANT_URL: "http://localhost:3003",
 	NEXT_PUBLIC_ADMIN_URL: "http://localhost:3004",
+	// Placeholder R2 credentials: upload.ts and the tenant-document storage
+	// build an aws4fetch AwsClient at module scope, so importing them in tests
+	// requires the vars to be present. Tests never call storage.
+	CLOUDFLARE_ACCOUNT_ID: "test-account-id",
+	R2_BUCKET_NAME: "keyhq-test",
+	R2_ACCESS_KEY_ID: "test-access-key-id",
+	R2_SECRET_ACCESS_KEY: "test-secret-access-key",
+	R2_PUBLIC_URL: "https://test-r2.example.com",
+	R2_S3_ENDPOINT: "https://test-account.r2.cloudflarestorage.com",
+	R2_PRIVATE_BUCKET_NAME: "keyhq-private-documents-test",
+	R2_PRIVATE_ACCESS_KEY_ID: "test-private-access-key-id",
+	R2_PRIVATE_SECRET_ACCESS_KEY: "test-private-secret-access-key",
 };
 
 function parseEnv(text: string): Record<string, string> {

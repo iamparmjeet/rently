@@ -40,15 +40,18 @@ import {
 	TableRow,
 } from "@rently/ui/components/table";
 import { Textarea } from "@rently/ui/components/textarea";
+import { EmptyState } from "@rently/ui/shared/empty-state";
 import { PageHeader } from "@rently/ui/shared/page-header";
 import type {
 	AdminSubscriptionListResponse,
 	PlanSelect,
 } from "@rently/validators";
+import { IconCreditCard } from "@tabler/icons-react";
 import { useMemo, useState } from "react";
 import { Container } from "@/components/shared/container";
 import { Pagination } from "@/components/shared/pagination";
 import { StatusBadge } from "@/components/shared/status-badge";
+import { TableSkeleton } from "@/components/shared/table-skeleton";
 import {
 	useAdminSubscriptions,
 	usePlans,
@@ -287,6 +290,7 @@ function RecordPaymentDialog({
 							disabled={
 								recordPayment.isPending ||
 								!selectedPlan ||
+								amount <= 0 ||
 								reference.trim().length < 6 ||
 								reason.trim().length < 8
 							}
@@ -308,7 +312,7 @@ export default function AdminSubscriptionsPage() {
 	const [selectedOwner, setSelectedOwner] = useState<SubscriptionRow | null>(
 		null,
 	);
-	const { data, isLoading } = useAdminSubscriptions({
+	const { data, isPending } = useAdminSubscriptions({
 		page,
 		pageSize: 25,
 		search: search.trim() || undefined,
@@ -327,6 +331,7 @@ export default function AdminSubscriptionsPage() {
 				<CardContent className="grid gap-3 sm:grid-cols-3">
 					<Input
 						type="search"
+						aria-label="Search subscriptions by owner name or email"
 						placeholder="Search owner name or email"
 						value={search}
 						onChange={(event) => {
@@ -391,51 +396,52 @@ export default function AdminSubscriptionsPage() {
 						</TableRow>
 					</TableHeader>
 					<TableBody>
-						{data?.items.map((item) => (
-							<TableRow key={item.subscription.id}>
-								<TableCell>
-									<p className="font-medium">{item.ownerName}</p>
-									<p className="text-muted-foreground">{item.ownerEmail}</p>
-								</TableCell>
-								<TableCell>
-									{item.subscription.planName}
-									<p className="text-muted-foreground capitalize">
-										{item.subscription.billingInterval}
-									</p>
-								</TableCell>
-								<TableCell>
-									<StatusBadge
-										value={
-											item.subscription.expired
-												? "expired"
-												: item.subscription.status
-										}
-									/>
-								</TableCell>
-								<TableCell>
-									{formatDate(item.subscription.currentPeriodEnd)}
-								</TableCell>
-								<TableCell>
-									{formatMoney(item.subscription.totalPaid)}
-								</TableCell>
-								<TableCell className="text-right">
-									<Button size="sm" onClick={() => setSelectedOwner(item)}>
-										Record payment
-									</Button>
-								</TableCell>
-							</TableRow>
-						))}
+						{isPending ? (
+							<TableSkeleton columns={6} rows={8} />
+						) : data && data.items.length > 0 ? (
+							data.items.map((item) => (
+								<TableRow key={item.subscription.id}>
+									<TableCell>
+										<p className="font-medium">{item.ownerName}</p>
+										<p className="text-muted-foreground">{item.ownerEmail}</p>
+									</TableCell>
+									<TableCell>
+										{item.subscription.planName}
+										<p className="text-muted-foreground capitalize">
+											{item.subscription.billingInterval}
+										</p>
+									</TableCell>
+									<TableCell>
+										<StatusBadge
+											value={
+												item.subscription.expired
+													? "expired"
+													: item.subscription.status
+											}
+										/>
+									</TableCell>
+									<TableCell>
+										{formatDate(item.subscription.currentPeriodEnd)}
+									</TableCell>
+									<TableCell>
+										{formatMoney(item.subscription.totalPaid)}
+									</TableCell>
+									<TableCell className="text-right">
+										<Button size="sm" onClick={() => setSelectedOwner(item)}>
+											Record payment
+										</Button>
+									</TableCell>
+								</TableRow>
+							))
+						) : null}
 					</TableBody>
 				</Table>
-				{isLoading && (
-					<p className="py-8 text-center text-muted-foreground">
-						Loading subscriptions…
-					</p>
-				)}
-				{!isLoading && data?.items.length === 0 && (
-					<p className="py-8 text-center text-muted-foreground">
-						No subscriptions match this search.
-					</p>
+				{!isPending && data?.items.length === 0 && (
+					<EmptyState
+						icon={IconCreditCard}
+						title="No subscriptions match"
+						description="Try a different plan, status, or owner search."
+					/>
 				)}
 				<Pagination
 					page={page}

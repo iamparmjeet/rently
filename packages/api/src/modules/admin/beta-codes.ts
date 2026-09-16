@@ -7,10 +7,15 @@ import {
 } from "@rently/db/constants/admin-constants";
 import { adminAuditLogs } from "@rently/db/schema/admin";
 import { user } from "@rently/db/schema/auth";
-import { betaAccessCodes, plans } from "@rently/db/schema/subscription";
+import {
+	betaAccessCodes,
+	betaCodeRedemptions,
+	plans,
+} from "@rently/db/schema/subscription";
 import { generatedId } from "@rently/db/utils/id";
 import type {
 	AdminBetaCodeListInput,
+	AdminBetaCodeRedemptionListInput,
 	CreateAdminBetaCodeInput,
 	ExpireAdminBetaCodeInput,
 } from "@rently/validators";
@@ -95,6 +100,49 @@ export async function queryAdminBetaCodes(
 			.leftJoin(user, eq(betaAccessCodes.usedByUserId, user.id))
 			.where(whereCondition)
 			.orderBy(desc(betaAccessCodes.createdAt), desc(betaAccessCodes.id))
+			.limit(input.pageSize)
+			.offset(offset),
+	]);
+
+	const total = totalRow?.value ?? 0;
+	return {
+		items: rows,
+		page: input.page,
+		pageSize: input.pageSize,
+		total,
+		totalPages: Math.ceil(total / input.pageSize),
+	};
+}
+
+// D02: redemptions are the ledger. Shared codes (max_uses > 1) leave
+// used_by_user_id/used_at null, so the per-code recipient list must read the
+// redemption rows — the counters alone cannot name who used the code.
+export async function queryAdminBetaCodeRedemptions(
+	db: Database,
+	input: AdminBetaCodeRedemptionListInput,
+) {
+	const offset = (input.page - 1) * input.pageSize;
+
+	const [[totalRow], rows] = await Promise.all([
+		db
+			.select({ value: count() })
+			.from(betaCodeRedemptions)
+			.where(eq(betaCodeRedemptions.codeId, input.betaCodeId)),
+		db
+			.select({
+				id: betaCodeRedemptions.id,
+				userId: user.id,
+				userName: user.name,
+				userEmail: user.email,
+				redeemedAt: betaCodeRedemptions.createdAt,
+			})
+			.from(betaCodeRedemptions)
+			.innerJoin(user, eq(betaCodeRedemptions.userId, user.id))
+			.where(eq(betaCodeRedemptions.codeId, input.betaCodeId))
+			.orderBy(
+				desc(betaCodeRedemptions.createdAt),
+				desc(betaCodeRedemptions.id),
+			)
 			.limit(input.pageSize)
 			.offset(offset),
 	]);
@@ -232,6 +280,14 @@ export async function expireAdminBetaCode(
 	if (existing.expiresAt && existing.expiresAt <= now) {
 		throw new ORPCError("CONFLICT", {
 			message: "Beta code is already expired.",
+		});
+	}
+	// The UI disables expiry for exhausted codes; the API must enforce it too,
+	// otherwise a direct call can stamp an expiry on a code that already spent
+	// every use — a state the admin list would then show as "expired".
+	if (existing.totalUses >= existing.maxUses) {
+		throw new ORPCError("CONFLICT", {
+			message: "Beta code is already exhausted.",
 		});
 	}
 

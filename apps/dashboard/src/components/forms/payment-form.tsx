@@ -26,13 +26,15 @@ import type { Lease } from "@rently/validators";
 import { CreatePaymentSchema, toBusinessDateKey } from "@rently/validators";
 import { Controller, useForm } from "react-hook-form";
 import z from "zod";
-import { entityLabel } from "@/utils/display";
+import { entityLabel } from "../../utils/display";
 
 // ── Form-layer schema ──
 // The DB stores amount in paise (integer), but the form collects rupees
 // We maintain a parallel form schema where `amount` is rupees (number),
 // then convert on submit. This is the "anti-corruption layer" for monetary values.
-const PaymentFormSchema = CreatePaymentSchema.extend({
+export const PaymentFormSchema = CreatePaymentSchema.omit({
+	idempotencyKey: true,
+}).extend({
 	leaseId: z.string({ error: "Please select a lease" }).min(1, {
 		error: "Please select a lease",
 	}),
@@ -98,8 +100,8 @@ export function PaymentForm({
 		// does not, so each newly selected lease starts with its own balance.
 		if (dirtyFields.amount && amountValue && amountValue > 0) return;
 		const due = rentDueByLease?.[leaseId];
-		if (due && due > 0) {
-			setValue("amount", due / 100, { shouldValidate: true });
+		if (due !== undefined) {
+			setValue("amount", Math.max(due, 0) / 100, { shouldValidate: true });
 		}
 	}
 

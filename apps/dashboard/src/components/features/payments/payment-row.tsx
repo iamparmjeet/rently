@@ -67,14 +67,14 @@ export function PaymentRow({
 						</span>
 					)}
 				</p>
-				<p className="mt-1 flex items-center gap-1.5 text-muted-foreground text-xs">
+				<p className="mt-1 flex min-w-0 items-center gap-1.5 text-muted-foreground text-xs">
 					<MethodIcon method={payment.paymentMethods} />
 					<span className="capitalize">
 						{payment.paymentMethods?.replace("_", " ") ?? "No method"}
 					</span>
 					<span>·</span>
-					<span className="font-mono">
-						#{payment.leaseId.slice(0, 8).toUpperCase()}
+					<span className="truncate">
+						Unit {payment.unitNumber} · {payment.propertyName}
 					</span>
 				</p>
 			</button>

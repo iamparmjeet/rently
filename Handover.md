@@ -82,7 +82,7 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
     terminate their stale parent/worker before any rerun. Ready to commit,
     push, and merge after final review.
 - Restore production-shaped data into local `rently_dev` and manually test the branch before opening a PR.
-- Updated the dashboard Payments summary (uncommitted): Collection health is month-scoped net payment activity and All time is all-time net payment activity. Both include signed payment reversals. Utility payment rows already equal the discounted amount due, so bill credits are not subtracted a second time. A separate Net discounts card reports discount credits (with reversals netted) without changing collection totals. Focused helper tests, dashboard type checking, and Biome pass.
+- Updated the dashboard Payments summary: Collection health is month-scoped net payment activity and All time is all-time net payment activity. Both include signed payment reversals. Utility payment rows already equal the discounted amount due, so bill credits are not subtracted a second time. Net discounts counts only settled discount credits, matching the Adjustments tab; an unpaid discounted bill reduces its amount due but contributes zero to the payment summary. Focused helper tests, dashboard type checking, and Biome pass.
 - Wired tenant meter readings for combined agreements (uncommitted): the readings tab selects an active unit, sends its `leaseId`, and scopes its prior-reading estimate/history to that unit. Manual verification remains: use an existing local tenant with two active leases, submit one reading per selected unit, then confirm separate owner-visible bills and unit-specific prior readings/estimates. Do not use a newly invited tenant.
 - Fixed the latest manual-test regressions (uncommitted): owner-prepared tenant profiles no longer duplicate against their pending invite; tenant list/detail lease joins are owner-scoped; tenant detail now excludes foreign lease IDs from its active lease mapper (preventing Owner-B's follow-up lease fetch from returning 403); tenant profile/invite edits work before a lease exists; terminated leases can be safely reactivated with the existing active-unit conflict guard; nested negative meter-reading validation is displayed; the dashboard greeting no longer hydrates session-dependent text from a different server value; and payment list rows no longer multiply when a shared tenant has profiles for multiple owners.
 - Payment cards and rows now show a `Paid` badge for positive payment records; reversal records remain distinct and unmarked.
@@ -857,7 +857,9 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Final review found that the Neon R6 prepayment CTE still interpreted lease dates as UTC while the future-charge helper used `Asia/Kolkata`. `f06d7f92` projects both lease boundaries to IST; merged as `30db4add`.
 - The full-suite failure in `rent-period-schema.test.ts` was a stale test, not a missing constraint: its duplicate case used a different period than `validCharge`, and the due-date case rejected the schema's valid following-period range. `44b43cb5` aligns the cases; `c29431b4` corrects the schema comment.
 - Final verification on `integ/phase-a-baseline`: `db:generate` no drift, `db:migrate:test`, `check-types --force` 6/6, focused Biome, and full Vitest 86 files / 479 tests pass.
-- `main` remains untouched. I02's full production-shaped reconciliation and Sol High review are still required before a `main` rollup.
+- `main` remained untouched at this point. I02's full production-shaped
+  reconciliation and Sol High review are required before an I02 rollup; this
+  policy was superseded for the separate `integ/phase-a-rollup` at line 874.
 
 ## Consolidation QA branch (2026-09-15, Muse Spark, branch rently/consolidated-local-qa-15-09, tag pre-consolidated-qa-15-09)
 
@@ -878,12 +880,108 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Owner stopped the suite at 8 verdicts to work other points: re-authored `d2a1b35d` as `4639cda0`, which passed 24/24 with 2 content assertions (workspace/sidebar, A-101/Maple cross-check; S-02 Available row exercised). Old nav-only test deleted. Un-run on this tree: `13ea57d9`, `4fc9ed47`, `bd43744e`, `5e3f3205`, `aebe81ff` (all green on the seed-only tree).
 - Session closed for the night with branch pushed and `integ/phase-a-baseline` fast-forwarded (rollback tag `pre-integ-qa-15-09`). Next: run the 5 un-run tests on this tree, then `main` rollup (still policy-blocked: Terra debt + I02/Sol review).
 
-## Sol rollup review and I02 audit (2026-09-16)
+## Phase A release rollup (2026-09-16)
 
-- Reviewed `origin/main...integ/phase-a-baseline` against manual-QA requirements and repository constraints. Fixed blockers found by review: owner-scoped UUID/KQ-CN lookup without invalid UUID casts; auto-prefill now follows lease switches unless the owner typed the amount; refund rows no longer expose independent Void; Record Payment copy matches Rent/Deposit/Other; lease utility due is floored at zero; demo adjustment moved to an actually outstanding lease.
-- Added focused credit-note scope/identifier and refund-action regressions. Focused result: 2 files / 15 tests pass; full typecheck 6/6 and focused Biome pass.
-- Demo seed now creates matching utility payments for rows marked paid. Reseed reduced utility paid-state discrepancies from 4 to 1; the remaining row belongs to the real owner and was not mutated.
-- Replaced the two-assertion I02 placeholder with `packages/db/src/reconciliation.sql`, covering 21 hard checks plus three review inventories. Disposable test DB: zero hard discrepancies. Demo rent payments and the demo adjustment now use the canonical accrual/allocation writers; all 47 seeded rent payments fully allocate.
-- Production-shaped local audit remains blocked: five historical refund credits have no linked negative refund payment; two rent backfill remainders total 2,710,000 paise; one real-owner utility has zero due but stale `is_paid=false`; one utility is overpaid by 8,000 paise; 59 compatibility/legacy payments are ungrouped. Exact evidence is in `docs/I02-Reconciliation-Report.md`.
-- No pre-remediation dump exists in the repo or home directory, so upgrade replay cannot be proven. Do not merge to `main`; use a dedicated financial migration slice for the five refund pairs and obtain owner decisions for the review rows.
-- Agreed sequence (2026-09-16): push approval → Terra/Sol batch review on the final integ branch → merge into `main` later. I02 stays `[~]` aside; it does not ride along with the `main` merge.
+- `integ/phase-a-rollup` starts at `2c5ddd4d`, deliberately before the I02 audit
+  commit. I02 remains on `integ/phase-a-baseline@a3f07b3f` until its dedicated
+  financial remediation and upgrade replay are complete.
+- Final review found that switching from an automatically prefilled positive-due
+  lease to a zero/negative-due lease retained the prior amount. The form now
+  resets untouched automatic amounts to zero; manually entered amounts still
+  survive a lease switch.
+- Verification: dashboard typecheck and focused Biome pass. TestSprite is
+  authenticated but blocked until the local dashboard is running on port 3002.
+
+## Payment submit + unit context (2026-09-16, branch integ/phase-a-rollup)
+
+- Silent Record Payment failure root-caused to the form schema requiring
+  parent-owned `idempotencyKey` before submit (`23f07de5`; regression
+  `payment-form.test.tsx`). Tenant re-registration was unrelated.
+- `PaymentListItem` now carries `unitNumber`/`propertyName` from
+  `listPayments` (`55d57b5a`); card/row/detail and tenant payments/utilities
+  tabs reuse those fields instead of bare lease IDs (`ed326adc`).
+- Verification: `db:generate` no drift, `db:migrate:test` pass,
+  `check-types` dashboard pass, Biome clean on 6 files, Vitest
+  `payment-form` + `payment-action-states` 10/10.
+- Manual: prefill reset to zero, Record Payment submission/toast, and payment
+  card Unit · Property context confirmed. Tenant Payments and Dues context is
+  a remaining optional visual check.
+- Final rollup review: no code blockers. The automatic prefill lease-switch
+  behavior has direct manual coverage but no focused component test; TestSprite
+  remains blocked by the local multi-port login redirect.
+- Merged and pushed to `main` as `a726d260` after final review. I02 remains
+  isolated on `integ/phase-a-baseline@a3f07b3f` and is still `[~]`.
+
+## I02 matrix hardening and fresh-production decision (2026-09-16)
+
+- Added the 25-check reconciliation matrix with transactional corrupt-fixture
+  regressions for reversal-group membership, allocation conservation, orphan
+  refund payments, and invalid positive refund-credit reversals.
+- The owner retired the prior production dataset and started with a new clean
+  database. The old historical findings are retained only as audit evidence;
+  before I02 is complete, the fresh database must pass the complete matrix and
+  deployment migration/rollback verification.
+- The production Payments summary now counts discounts only after their bill
+  is paid, and displays zero as `₹0.00`, never `-₹0.00`.
+
+## Admin console hardening (2026-09-17, branch feat/admin-hardening)
+
+- Branch `feat/admin-hardening` cut from clean `main@3c862720`; rollback tag
+  `pre-admin-hardening`. No migration (existing columns only).
+- Bugs fixed, each with a regression in
+  `packages/api/src/routers/test/admin-hardening.test.ts` (5):
+  1. Demo/sample identities leaked into `admin.users.list` and
+     `admin.subscriptions.list` while the overview hid them, and
+     `recordSubscriptionPayment` would extend a demo owner. Both lists now
+     filter `account_mode = standard`; the mutation refuses non-standard owners
+     with `PRECONDITION_FAILED`.
+  2. Month-end renewal overflow: JS `setUTCMonth` turned Jan 31 + 1 month into
+     Mar 3. Period math moved into SQL (`make_interval` clamps to Feb 28) and
+     now runs against the locked row.
+  3. Concurrent payments with different references lost one extension (both
+     read the same `current_period_end`; documented debt in the 2026-09-15
+     note). `recordSubscriptionPayment` is now two statements in one
+     transaction/batch — `pg_advisory_xact_lock` per owner, then a single
+     update+invoice+audit CTE that reads the post-lock snapshot; the same
+     statement runs on Neon batch and node transaction.
+  4. Beta-code history read `used_by_user_id`/`used_at`, which are null for
+     shared codes. User detail now reads `beta_code_redemptions`; new
+     `admin.betaCodes.listRedemptions` powers a per-code viewer.
+  5. `expireAdminBetaCode` allowed stamping an expiry on an exhausted code; the
+     server now refuses with `CONFLICT`.
+- Admin UI now reuses `StatsGrid` (extended with an optional `detail` line),
+  `EmptyState`, `PageLoader`, `DetailHeader`, plus a local `TableSkeleton`;
+  added route `error.tsx`/`loading.tsx`; audit log gained an actor filter.
+  Vercel-react pass: ternary renders (no `&&`), skeleton loading, labelled
+  controls, shared primitives.
+- Verification: `check-types` 6/6, focused Biome clean, admin `next build`
+  green, Vitest admin+beta redemption 30/30.
+- Deliberately NOT built: pause/cancel/extend/refund subscription actions.
+  Entitlement is read from `plans.tenant_limit` only (`tenant-limit.ts`) — it
+  ignores subscription status/`expired`, so those actions would be dead buttons
+  without an enforcement slice; refund needs a ledger/reversal decision. Flag
+  to owner.
+- Known limitation: the Neon `db.batch` path for the payment lock is not
+  exercised by tests (local test DB uses node transaction). The SQL is
+  identical on both; the batch/lock ordering follows the B10 precedent.
+
+### Follow-up: dashboard "Managed rent volume" demo leak (2026-09-17)
+
+- Dashboard screenshot after the first pass showed Owners/Tenants 0 and platform
+  revenue ₹0 but Managed rent volume ₹9,76,700. Root cause: `admin/overview`
+  applied `account_mode = standard` to users, revenue, subscriptions, and plan
+  distribution, but the managed-rent-volume aggregate filtered only
+  `workspace_mode = live`. A public-demo identity keeps the default
+  `workspace_mode = live` (only `account_mode` is `public_demo`), so the seeded
+  showcase portfolio leaked into that one headline.
+- Fix: added `account_mode = standard` to the managed-rent-volume `where`
+  (both filters are required — `workspace_mode` excludes a standard owner's
+  disposable sample workspace). Regression:
+  `admin-hardening.test.ts` "counts a standard owner's rent but not a demo
+  identity's seeded portfolio".
+- Hydration fix from the same round: `TableSkeleton` returned a `<tbody>` while
+  nested inside a page `<tbody>` (invalid HTML → React hydration error); it now
+  returns rows only. Admin pages gate loading on React Query `isPending`
+  (SSR-stable) instead of `isLoading` (false during SSR, true on first client
+  paint). `apps/admin/.../layout.tsx` aligned to the `cn("font-sans", ...)` +
+  `antialiased` pattern.

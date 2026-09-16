@@ -26,11 +26,16 @@ export function AdminHeader() {
 
 	return (
 		<header className="flex h-16 items-center justify-between border-b bg-background px-4 sm:px-6">
-			<div className="flex items-center gap-3">
+			<div className="flex min-w-0 items-center gap-3">
 				<SidebarTrigger />
-				<div className="flex items-center gap-2 text-muted-foreground text-sm">
-					<IconShieldLock className="size-4 text-primary" />
-					<span>Private KeyHQ administration</span>
+				<div className="flex min-w-0 items-center gap-2 text-muted-foreground text-sm">
+					<IconShieldLock className="size-4 shrink-0 text-primary" />
+					{/* The full label overflows a 375px viewport next to the sign-out
+					    button; keep the icon as the mobile cue and reveal the text
+					    from sm. */}
+					<span className="hidden truncate sm:inline">
+						Private KeyHQ administration
+					</span>
 				</div>
 			</div>
 			<div className="flex items-center gap-3">

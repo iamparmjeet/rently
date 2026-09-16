@@ -227,6 +227,9 @@ function UtilityRow({
 				<p className="font-medium text-sm">
 					{label} · Unit {u.unitNumber} · {monthLabel}
 				</p>
+				<p className="truncate text-muted-foreground text-xs">
+					{u.propertyName}
+				</p>
 				<p className="text-muted-foreground text-xs">
 					{isElectricity
 						? `Prev: ${u.previousReading} kWh (${prevDateLabel}) → Current: ${u.currentReading} kWh (${currDateLabel})`

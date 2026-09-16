@@ -902,3 +902,5 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Final rollup review: no code blockers. The automatic prefill lease-switch
   behavior has direct manual coverage but no focused component test; TestSprite
   remains blocked by the local multi-port login redirect.
+- Merged and pushed to `main` as `a726d260` after final review. I02 remains
+  isolated on `integ/phase-a-baseline@a3f07b3f` and is still `[~]`.

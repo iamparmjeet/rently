@@ -75,7 +75,7 @@ export function PaymentForm({
 		control,
 		setValue,
 		watch,
-		formState: { errors },
+		formState: { dirtyFields, errors },
 	} = useForm<PaymentFormValues>({
 		resolver: zodResolver(PaymentFormSchema),
 		defaultValues: {
@@ -94,9 +94,9 @@ export function PaymentForm({
 	) {
 		onChange(leaseId);
 		if (!leaseId) return;
-		// WHY: prefill is a convenience for an untouched amount only — a
-		// deliberately typed (partial) amount must survive lease switches.
-		if (amountValue && amountValue > 0) return;
+		// A typed partial amount survives lease switches; an automatic prefill
+		// does not, so each newly selected lease starts with its own balance.
+		if (dirtyFields.amount && amountValue && amountValue > 0) return;
 		const due = rentDueByLease?.[leaseId];
 		if (due && due > 0) {
 			setValue("amount", due / 100, { shouldValidate: true });

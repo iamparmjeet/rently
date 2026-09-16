@@ -36,6 +36,7 @@ export function PaymentCard({
 }: PaymentCardProps) {
 	const config = getTypeConfig(payment.type);
 	const isReversal = payment.type === PAYMENT_TYPES.REVERSAL;
+	const isRefund = payment.type === PAYMENT_TYPES.REFUND;
 
 	return (
 		<Card
@@ -148,7 +149,7 @@ export function PaymentCard({
 					Recorded {format(new Date(payment.createdAt), "dd MMM yyyy")}
 				</p>
 				<div className="flex shrink-0 items-center gap-1">
-					{onVoid && !isReversal && !isReversed && (
+					{onVoid && !isReversal && !isRefund && !isReversed && (
 						<Button
 							variant="ghost"
 							size="sm"

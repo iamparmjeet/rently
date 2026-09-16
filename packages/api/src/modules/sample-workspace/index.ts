@@ -32,7 +32,12 @@ import {
 } from "@rently/db/schema/schema";
 import { invoices, subscriptions } from "@rently/db/schema/subscription";
 import { generatedId } from "@rently/db/utils/id";
-import { and, eq, inArray } from "drizzle-orm";
+import { and, eq, inArray, sql } from "drizzle-orm";
+import {
+	allocateRentCreditSql,
+	allocateRentPaymentsSql,
+	ensureAccruedChargesSql,
+} from "../../routers/helpers/rent-period";
 import { type WorkspaceCapabilities, workspaceCapabilities } from "./policy";
 
 export type WorkspaceExperience = {
@@ -411,6 +416,14 @@ async function seedPortfolio(options: {
 		];
 	});
 	await database.insert(payments).values(paymentRows);
+	for (const lease of leaseRows) {
+		await database.execute(ensureAccruedChargesSql({ leaseId: lease.id }));
+		await database.execute(
+			allocateRentPaymentsSql(
+				sql`p."lease_id" = ${lease.id} AND p."type" = 'rent' AND p."description" = 'Demo rent payment'`,
+			),
+		);
+	}
 	const utilityRows = leaseRows
 		.slice(0, minimumTenantOnly ? 1 : 3)
 		.flatMap((lease, index) => [
@@ -442,15 +455,31 @@ async function seedPortfolio(options: {
 			},
 		]);
 	await database.insert(utilities).values(utilityRows);
-	// One settled rent adjustment so Payments → Adjustments and the
-	// credit-note detail page have demo data. The seeded rent payments make
-	// it "settled" (see settledCredits in payments/page.tsx). The number
+	const paidUtilityRows = utilityRows.filter((utility) => utility.isPaid);
+	if (paidUtilityRows.length) {
+		await database.insert(payments).values(
+			paidUtilityRows.map((utility) => ({
+				id: generatedId(),
+				leaseId: utility.leaseId,
+				utilityId: utility.id,
+				amount: utility.totalAmount,
+				paymentDate: utility.currentReadingDate,
+				type: "utility" as const,
+				paymentMethods: "upi" as const,
+				description: "Demo utility payment",
+			})),
+		);
+	}
+	// One outstanding rent adjustment so Payments → Adjustments and the
+	// credit-note detail page have demo data. Lease 2 deliberately has no
+	// current-period payment, so the discount does not reduce a settled bill.
+	// The number
 	// mirrors getCreditNoteNo in routers/rent/credit.ts (kept inline to
 	// avoid a router↔module import cycle).
 	const seedCreditId = generatedId();
 	await database.insert(billCredits).values({
 		id: seedCreditId,
-		leaseId: at(ids.leases, 0),
+		leaseId: at(ids.leases, 2),
 		ownerId,
 		type: "discount",
 		amount: -10000,
@@ -459,6 +488,7 @@ async function seedPortfolio(options: {
 		appliedAs: "adjust",
 		createdBy: ownerId,
 	});
+	await database.execute(allocateRentCreditSql(seedCreditId));
 	if (!minimumTenantOnly) {
 		await database.insert(tenantInvites).values({
 			id: generatedId(),

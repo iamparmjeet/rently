@@ -65,6 +65,17 @@ describe("PaymentCard action states (H05)", () => {
 		expect(voidButton()).toBeNull();
 	});
 
+	it("hides Void for a cash refund", () => {
+		render(
+			<PaymentCard
+				payment={payment({ type: PAYMENT_TYPES.REFUND, amount: -100_000 })}
+				onVoid={vi.fn()}
+				onClick={vi.fn()}
+			/>,
+		);
+		expect(voidButton()).toBeNull();
+	});
+
 	it("hides Void and labels a voided original", () => {
 		render(
 			<PaymentCard
@@ -96,6 +107,17 @@ describe("PaymentRow action states (H05)", () => {
 		render(
 			<PaymentRow
 				payment={payment({ type: PAYMENT_TYPES.REVERSAL, amount: -100_000 })}
+				onVoid={vi.fn()}
+				onClick={vi.fn()}
+			/>,
+		);
+		expect(screen.queryByLabelText("Payment actions")).toBeNull();
+	});
+
+	it("offers no actions menu for a cash refund", () => {
+		render(
+			<PaymentRow
+				payment={payment({ type: PAYMENT_TYPES.REFUND, amount: -100_000 })}
 				onVoid={vi.fn()}
 				onClick={vi.fn()}
 			/>,

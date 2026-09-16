@@ -125,7 +125,7 @@ export function AddPaymentButton({
 				open={dialog.open}
 				onOpenChange={dialog.onOpenChange}
 				title="Record Payment"
-				description="Record a rent, deposit, or utility payment received."
+				description="Record a rent, deposit, or other payment received."
 				formId="add-payment-form"
 				isSubmitting={recordPayment.isPending}
 				submitLabel="Record Payment"

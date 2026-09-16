@@ -34,9 +34,11 @@ export function PaymentRow({
 }: PaymentRowProps) {
 	const config = getTypeConfig(payment.type);
 	const isReversal = payment.type === PAYMENT_TYPES.REVERSAL;
+	const isRefund = payment.type === PAYMENT_TYPES.REFUND;
 	// H05: reversals cannot be voided (server refuses) and voiding an
-	// already-reversed original is a no-op — offer no action for either.
-	const canVoid = !isReversal && !isReversed;
+	// already-reversed original is a no-op. Refunds are reversed through their
+	// credit note, never as independent payments.
+	const canVoid = !isReversal && !isRefund && !isReversed;
 
 	return (
 		<div

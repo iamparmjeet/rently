@@ -35,7 +35,7 @@ vi.mock("@rently/email", () => ({
 	sendUtilityBillEmail: vi.fn(),
 }));
 
-import { reverseCredit } from "../rent/credit";
+import { getCreditNote, reverseCredit } from "../rent/credit";
 
 const db = createDb();
 
@@ -118,8 +118,11 @@ async function createDiscountFixture() {
 		session: { id: "test-session" },
 	});
 	const context = { db, headers: new Headers() } as never;
-	const client = createRouterClient({ reverseCredit }, { context });
-	return { client, creditId, leaseId };
+	const client = createRouterClient(
+		{ getCreditNote, reverseCredit },
+		{ context },
+	);
+	return { client, creditId, leaseId, ownerId };
 }
 
 async function reversalRows(creditId: string) {
@@ -185,6 +188,25 @@ afterEach(async () => {
 });
 
 describe("atomic credit reversal (B06)", () => {
+	it("resolves an owner-scoped credit note by UUID or KQ-CN number", async () => {
+		const { client, creditId } = await createDiscountFixture();
+		const byId = await client.getCreditNote({ creditId });
+		const byNumber = await client.getCreditNote({ creditId: noteNo(creditId) });
+		expect(byId.creditNote.credit.id).toBe(creditId);
+		expect(byNumber.creditNote.credit.id).toBe(creditId);
+	});
+
+	it("does not reveal another owner's credit note", async () => {
+		const { client, creditId } = await createDiscountFixture();
+		mocks.getSession.mockResolvedValue({
+			user: { id: crypto.randomUUID(), role: "owner" },
+			session: { id: "other-owner-session" },
+		});
+		await expect(
+			client.getCreditNote({ creditId: noteNo(creditId) }),
+		).rejects.toMatchObject({ code: "NOT_FOUND" });
+	});
+
 	it("lets exactly one of two simultaneous reversals create the row", async () => {
 		const { client, creditId } = await createDiscountFixture();
 		const [first, second] = await Promise.all([

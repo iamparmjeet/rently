@@ -374,7 +374,9 @@ export default function LeaseDetailPage({
 											</p>
 										</div>
 										<p className="font-semibold">
-											{formatRupees(utility.amountDue ?? utility.totalAmount)}{" "}
+											{formatRupees(
+												Math.max(utility.amountDue ?? utility.totalAmount, 0),
+											)}{" "}
 											due
 										</p>
 									</div>

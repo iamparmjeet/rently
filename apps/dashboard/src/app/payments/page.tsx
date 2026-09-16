@@ -223,8 +223,11 @@ function PaymentDetailDialog({
 								{payment.tenantName ?? config.label}
 							</p>
 							<p className="mt-0.5 text-muted-foreground text-xs">
-								{config.label} · Lease #
-								{payment.leaseId.slice(0, 8).toUpperCase()}
+								{config.label} · Unit {payment.unitNumber} ·{" "}
+								{payment.propertyName}
+							</p>
+							<p className="mt-0.5 text-muted-foreground text-xs">
+								Lease #{payment.leaseId.slice(0, 8).toUpperCase()}
 							</p>
 						</div>
 					</div>
@@ -275,6 +278,10 @@ function PaymentDetailDialog({
 									? payment.paymentMethods.replace("_", " / ").toUpperCase()
 									: "—"
 							}
+						/>
+						<DetailField
+							label="Unit"
+							value={`Unit ${payment.unitNumber} · ${payment.propertyName}`}
 						/>
 						<DetailField
 							label="Lease ID"

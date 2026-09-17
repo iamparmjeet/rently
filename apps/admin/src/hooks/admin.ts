@@ -39,6 +39,20 @@ export function useAdminOutstandingInvoices(
 	);
 }
 
+export function useCancelSubscription() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (
+			input: Parameters<typeof client.admin.subscriptions.cancel>[0],
+		) => client.admin.subscriptions.cancel(input),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: orpc.admin.key() });
+			toast.success("Subscription cancelled at period end");
+		},
+		onError: (error) => toast.error(error.message),
+	});
+}
+
 export function usePlans() {
 	return useQuery(orpc.subscription.listPlans.queryOptions());
 }

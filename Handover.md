@@ -1042,6 +1042,6 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - TestSprite: authenticated, but the only project is `Rently Local Dashboard`
   and no existing test covers Admin. No TestSprite test was created or run:
   creating an Admin project/test needs owner confirmation.
-- Do not commit or push without approval. Next: review this diff, then design
-  the separate subscription-payment reversal/audit slice; do not delete or
-  rewrite payment history.
+- Committed as `be50b556` (`feat(admin): add operations visibility`); not pushed.
+  Next: merge this branch, then design the separate subscription-payment
+  reversal/audit slice; do not delete or rewrite payment history.

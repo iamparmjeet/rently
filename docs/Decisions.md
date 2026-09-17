@@ -1,5 +1,74 @@
 # Decisions
 
+## 2026-09-17 - Time-based subscription entitlement and cancel-at-period-end
+
+**Decision:** Owner entitlement is time-based, not status-based. The latest
+subscription grants its plan limit while `expired` is not true AND
+`current_period_end` is null or in the future; a lapsed subscription yields
+limit 0 and an owner with no subscription row keeps the legacy `TENANT_LIMIT`
+fallback. Cancellation is effective at the end of the paid period: the admin
+command flips `status` to `cancelled`, keeps `current_period_end`, and records
+one `subscription.cancelled` audit row with the prior status and effective date.
+No refund is issued.
+
+**Why:** The D04 seat guard and D07 invite quota read `plans.tenant_limit` and
+ignored subscription status and expiry, so a cancelled or lapsed owner kept full
+tenant capacity and any lifecycle control would have been a dead button. A
+time-based boundary makes cancellation meaningful without inventing a scheduled-
+cancel column, and keeps access exactly through the period the owner paid for.
+`paused` inside a paid period therefore stays entitled; `expired = true` denies
+even mid-period.
+
+**Alternatives:** A `cancelAtPeriodEnd` boolean plus a scheduler that flips
+status at the boundary (rejected: another column and a job for a rule the period
+end already expresses); denying access the moment status changes (rejected:
+contradicts the approved cancel-at-period-end policy); requiring a subscription
+for every owner (rejected: breaks first-run onboarding).
+
+**Tradeoff:** A lapsed owner cannot add tenants or send invites until they
+renew, which is a real behavior change for any past-due account and needs owner
+confirmation before deployment. Free/trial subscriptions have a null period end,
+so cancel refuses them rather than inventing an expiry. The predicates are
+duplicated in `getOwnerEntitlement` and in migration 0045's two SQL functions,
+so they must change together.
+
+**Model:** DeepSeek V4.1 Flash (implementer); Terra/Sol review owed per Fix-Plan
+§7.
+
+## 2026-09-17 - Linked-invoice subscription payment correction
+
+**Decision:** A mistaken subscription payment is corrected by inserting a new
+negative-amount `invoices` row linked to the original via
+`reverses_invoice_id`, decrementing `subscriptions.total_paid`, moving
+`current_period_end` / `next_billing_date` back to the original invoice's
+`period_start` to revoke the granted window, and writing a
+`subscription.payment_corrected` audit row. The original invoice keeps its
+amount, reference, timestamps, and actor. Only the latest paid invoice is
+correctable; a repeat is `CONFLICT`; a partial unique index enforces one
+reversal per original.
+
+**Why:** There was no correction path at all, so a mis-recorded payment could
+only be fixed by rewriting or deleting the invoice, which destroys financial
+history. A linked negative row keeps the paid-invoice sum truthful (it nets to
+zero) while the audit chain stays intact. Restricting to the latest paid invoice
+avoids guessing an entitlement rollback under later renewals, which are not
+recorded as a replayable history.
+
+**Alternatives:** Marking the original invoice `failed`/`unpaid` (rejected:
+in-place rewrite of financial history); deleting the invoice (rejected: destroys
+the audit trail); supporting arbitrary historical corrections now (rejected:
+later renewals sit on top and the prior period state is unrecoverable, so the
+rollback would corrupt entitlement).
+
+**Tradeoff:** `current_period_start` is set to the revoked window's start rather
+than a recovered pre-payment value, so the pre-payment start date is not exactly
+restored; the entitlement boundary (`current_period_end`) is exact. An older
+correction is refused until a separately designed replay model exists. The
+correction has no admin UI action yet.
+
+**Model:** DeepSeek V4.1 Flash (implementer); Terra/Sol review owed per Fix-Plan
+§7.
+
 ## 2026-09-07 - Cash-refund recovery
 
 **Decision:** Reversing a credit that issued cash creates a normal positive

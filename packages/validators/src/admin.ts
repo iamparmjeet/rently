@@ -268,6 +268,18 @@ export const RecordSubscriptionPaymentResponseSchema = z.object({
 	subscription: AdminSubscriptionSummarySchema,
 });
 
+export const CancelSubscriptionSchema = z.object({
+	ownerUserId: IdSchema,
+	reason: AdminMutationReasonSchema,
+});
+
+export const CancelSubscriptionResponseSchema = z.object({
+	subscription: AdminSubscriptionSummarySchema,
+	// The paid period end remains the access boundary: cancellation schedules
+	// the lapse, it does not end access early.
+	effectiveAt: z.date().nullable(),
+});
+
 export const AdminBetaCodeListInputSchema = AdminPaginationSchema.extend({
 	search: z.string().trim().min(1).max(200).optional(),
 	status: z.enum(BETA_CODE_FILTER_VALUES).default("all"),
@@ -376,6 +388,10 @@ export type AdminInvoiceListResponse = z.infer<
 >;
 export type RecordSubscriptionPaymentInput = z.infer<
 	typeof RecordSubscriptionPaymentSchema
+>;
+export type CancelSubscriptionInput = z.infer<typeof CancelSubscriptionSchema>;
+export type CancelSubscriptionResponse = z.infer<
+	typeof CancelSubscriptionResponseSchema
 >;
 export type AdminBetaCodeListInput = z.infer<
 	typeof AdminBetaCodeListInputSchema

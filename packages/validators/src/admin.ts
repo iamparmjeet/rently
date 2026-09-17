@@ -280,6 +280,18 @@ export const CancelSubscriptionResponseSchema = z.object({
 	effectiveAt: z.date().nullable(),
 });
 
+export const CorrectSubscriptionPaymentSchema = z.object({
+	ownerUserId: IdSchema,
+	invoiceId: IdSchema,
+	reason: AdminMutationReasonSchema,
+});
+
+export const CorrectSubscriptionPaymentResponseSchema = z.object({
+	originalInvoiceId: IdSchema,
+	reversal: AdminInvoiceSchema,
+	subscription: AdminSubscriptionSummarySchema,
+});
+
 export const AdminBetaCodeListInputSchema = AdminPaginationSchema.extend({
 	search: z.string().trim().min(1).max(200).optional(),
 	status: z.enum(BETA_CODE_FILTER_VALUES).default("all"),
@@ -392,6 +404,12 @@ export type RecordSubscriptionPaymentInput = z.infer<
 export type CancelSubscriptionInput = z.infer<typeof CancelSubscriptionSchema>;
 export type CancelSubscriptionResponse = z.infer<
 	typeof CancelSubscriptionResponseSchema
+>;
+export type CorrectSubscriptionPaymentInput = z.infer<
+	typeof CorrectSubscriptionPaymentSchema
+>;
+export type CorrectSubscriptionPaymentResponse = z.infer<
+	typeof CorrectSubscriptionPaymentResponseSchema
 >;
 export type AdminBetaCodeListInput = z.infer<
 	typeof AdminBetaCodeListInputSchema

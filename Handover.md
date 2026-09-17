@@ -1111,19 +1111,24 @@ is one slice with file-by-file conventional commits; none is merged to `main`.
 
 ### Pending and flagged (do these before or with deployment)
 
-Owner decisions required:
+Owner decisions (resolved 2026-09-17):
 
-1. Entitlement is now a real boundary: a lapsed owner gets tenant limit 0 and
-   cannot add tenants or send invites. Confirm this is intended, or define a
-   grace period before deploying.
-2. Free/trial subscriptions have a null `current_period_end`, so cancel
-   deliberately refuses them. Confirm refusal, or decide that cancel should end
-   access immediately for null-end subscriptions.
+1. Entitlement boundary confirmed: a lapsed owner cannot add tenants or send
+   invites; existing tenants and owner access are unaffected. A grace period that
+   keeps growth frozen while allowing a limited feature set is the intended
+   direction, not a design — it needs a named feature list, a window length, and a
+   decision on what (if anything) locks at the window's end. Any deferral of the
+   growth freeze changes migration 0045's two SQL functions and
+   `getOwnerEntitlement` together, so it lands as a follow-up slice on
+   `feat/subscription-entitlement`.
+2. Free/trial subscriptions with a null `current_period_end`: cancel keeps
+   refusing them; immediate-end is not wanted.
 
 Process and follow-ups:
 
-3. No PRs are open for any of the four branches; open and merge in order
-   (visibility → entitlement → cancel → correction) after Terra/Sol review.
+3. PRs #27-#30 are open (visibility -> entitlement -> cancel -> correction).
+   Merge in order after Terra/Sol review. CI is main-only, so #29/#30 run checks
+   only after their parents merge and GitHub retargets them to `main`.
 4. Migrations 0045/0046 are applied only to local `rently_test`. Apply to dev,
    then production, as a deploy step. 0046 is the only structural change
    (`invoices.reverses_invoice_id` + partial unique index); 0045 replaces two
@@ -1140,6 +1145,6 @@ Process and follow-ups:
    not replace the backend financial integration tests.
 9. I02 remains `[~]`: deployment migration replay and rollback rehearsal.
 
-Next: confirm items 1-2, open the stacked PRs, then the correction UI follow-up.
+Next: Terra/Sol review on PRs #27-#30, then the correction UI follow-up.
 Pause/resume and refund remain parked — now actionable because entitlement is
 enforced, but each still needs its own product decision.

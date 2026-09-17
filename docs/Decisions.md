@@ -32,6 +32,14 @@ so cancel refuses them rather than inventing an expiry. The predicates are
 duplicated in `getOwnerEntitlement` and in migration 0045's two SQL functions,
 so they must change together.
 
+**Owner decision (2026-09-17):** The hard growth boundary is confirmed: a lapsed
+owner cannot add tenants or send invites, while existing tenants and owner access
+are unaffected. A grace period that keeps growth frozen but keeps a limited
+feature set is the intended direction, not yet a design — it needs a named
+feature list, a window length, and a decision on what (if anything) locks when
+the window ends. Any deferral of the growth freeze must change migration 0045's
+two SQL functions and `getOwnerEntitlement` together. No refund on cancellation.
+
 **Model:** DeepSeek V4.1 Flash (implementer); Terra/Sol review owed per Fix-Plan
 §7.
 

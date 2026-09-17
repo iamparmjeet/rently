@@ -1139,8 +1139,11 @@ Process and follow-ups:
    `reversesInvoiceId` is on `AdminInvoiceSchema`, and the user-detail invoices
    table offers Correct on the latest paid, non-reversed invoice only, marking
    reversal and reversed rows. No migration.
-6. The Neon batch path for correction and cancel is not exercised locally. Run
-   both against a disposable Neon branch before deployment.
+6. Neon batch path verified: on a disposable Neon branch (`rently_test`,
+   `RENTRY_TEST_EXTRA_HOSTS`), migrations applied cleanly and the cancel +
+   correction suites passed 9/9 with `supportsDatabaseBatch` confirmed true, so
+   the `db.batch` path (not the node transaction) was the one exercised. The
+   branch self-deletes; no production data touched.
 7. Correction's `current_period_start` rollback is approximate (documented in
    `docs/Decisions.md`). Accept, or add a prior-period snapshot to make it exact.
 8. TestSprite has no Admin project. Creating one needs owner approval and does

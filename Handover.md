@@ -1045,3 +1045,71 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Committed as `be50b556` (`feat(admin): add operations visibility`); not pushed.
   Next: merge this branch, then design the separate subscription-payment
   reversal/audit slice; do not delete or rewrite payment history.
+## Subscription entitlement + lifecycle (2026-09-17)
+
+Three stacked branches implementing the admin roadmap's remaining slices. Each
+is one slice with file-by-file conventional commits; none is merged to `main`.
+
+### 1. `feat/subscription-entitlement` (tag `pre-subscription-entitlement`)
+
+- Migration `0045_subscription_entitlement` (hand-authored, function-only, no
+  schema drift) replaces `rently_assert_tenant_seat` and
+  `rently_assert_pending_invite_quota` so the plan limit is entitlement-gated.
+- Entitlement is TIME-based: the latest subscription grants its plan limit while
+  `expired` is not true and `current_period_end` is null or in the future. A
+  lapsed subscription yields limit 0 (refusal); no subscription row keeps the
+  legacy `TENANT_LIMIT` fallback. Status alone is not a boundary — this is what
+  makes cancel-at-period-end work.
+- `getOwnerEntitlement` in `tenant-limit.ts` mirrors the SQL predicates (comparing
+  in SQL against `now() at time zone 'utc'`, since `current_period_end` is a
+  zone-less UTC-wall-clock `timestamp`); `tenantPlanLimitError` /
+  `pendingInviteQuotaError` now report "subscription has ended" instead of
+  "plan limit of 0".
+- Tests: `subscription-entitlement.test.ts` (10) — fallback, active/trial,
+  cancelled-with-future-end still entitled, cancelled-past denied, expired,
+  paused-inside-period, plus both SQL arbiters refusing a lapsed subscription.
+- Verification: no drift, `check-types --force` 6/6, focused Biome, migrate:test,
+  focused 18/18, invite suite 25/25.
+
+### 2. `feat/subscription-cancel-at-period-end` (stacked on 1; tag `pre-subscription-cancel-at-period-end`)
+
+- No migration. New admin command `admin.subscriptions.cancel`
+  (`cancelSubscription`): flips `status` to `cancelled`, keeps
+  `current_period_end`, writes one `subscription.cancelled` audit row with prior
+  status and effective date. Refuses lapsed periods, subscriptions with no
+  period end, demo/sample identities, and non-owners. Repeat requests are
+  idempotent (one audit row). Shares the per-owner advisory lock with payment
+  recording.
+- Admin UI: per-row Cancel action + confirmation dialog showing the effective
+  date, disabled when already cancelled or lacking a period end.
+- Tests: `subscription-cancellation.test.ts` (5).
+- Verification: no drift, `check-types --force` 6/6, Biome, focused 15/15,
+  admin/tenant-limit suites 27/27, `build:admin` 5/5.
+
+### 3. `feat/subscription-payment-correction` (stacked on 2; tag `pre-subscription-payment-correction`)
+
+- Migration `0046` (generated): `invoices.reverses_invoice_id` self-FK + partial
+  unique index (one reversal per original).
+- New admin command `admin.subscriptions.correctPayment`
+  (`correctSubscriptionPayment`): inserts a linked NEGATIVE invoice, decrements
+  `total_paid`, revokes the granted window by moving `current_period_end` /
+  `next_billing_date` back to the original invoice's `period_start`, and audits
+  `subscription.payment_corrected`. The original invoice is never rewritten or
+  deleted; paid-invoice sums net to zero.
+- Restricted to the LATEST paid invoice: an older correction has later renewals
+  on top and no recorded prior state, so it is refused. Repeat is CONFLICT.
+- Tests: `subscription-payment-correction.test.ts` (4) covering linkage/netting,
+  revocation→not-entitled, idempotent conflict, non-latest refusal, demo/non-owner/
+  unknown refusals.
+- Verification: generate no drift, migrate:test, `check-types --force` 6/6,
+  Biome, focused 4/4, admin+reconciliation set 51/51, `build:admin` 5/5.
+- Soft spots for Terra review: the period-revocation approximation
+  (`current_period_start` is set to the revoked window's start, not a recovered
+  pre-payment value); no admin UI action yet for correction (API + audit only);
+  the Neon batch path shares the same lock/SQL shape but is only exercised on the
+  node transaction locally.
+
+Next: merge these three in order (1 → 2 → 3) after Terra/Sol review, then the
+UI follow-up for payment correction. Pause/resume and refund remain parked — now
+that entitlement is enforced they are actionable, but each still needs its own
+product decision.

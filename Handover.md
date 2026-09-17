@@ -1109,7 +1109,37 @@ is one slice with file-by-file conventional commits; none is merged to `main`.
   the Neon batch path shares the same lock/SQL shape but is only exercised on the
   node transaction locally.
 
-Next: merge these three in order (1 → 2 → 3) after Terra/Sol review, then the
-UI follow-up for payment correction. Pause/resume and refund remain parked — now
-that entitlement is enforced they are actionable, but each still needs its own
-product decision.
+### Pending and flagged (do these before or with deployment)
+
+Owner decisions required:
+
+1. Entitlement is now a real boundary: a lapsed owner gets tenant limit 0 and
+   cannot add tenants or send invites. Confirm this is intended, or define a
+   grace period before deploying.
+2. Free/trial subscriptions have a null `current_period_end`, so cancel
+   deliberately refuses them. Confirm refusal, or decide that cancel should end
+   access immediately for null-end subscriptions.
+
+Process and follow-ups:
+
+3. No PRs are open for any of the four branches; open and merge in order
+   (visibility → entitlement → cancel → correction) after Terra/Sol review.
+4. Migrations 0045/0046 are applied only to local `rently_test`. Apply to dev,
+   then production, as a deploy step. 0046 is the only structural change
+   (`invoices.reverses_invoice_id` + partial unique index); 0045 replaces two
+   SQL functions and reports no drift. Both are additive and forward-only —
+   rollback is app rollback plus forward correction.
+5. Payment correction has no admin UI action. Add one on the newest paid invoice
+   in the user-detail invoices table; expose `reversesInvoiceId` on the admin
+   invoice schema so already-corrected rows can be hidden.
+6. The Neon batch path for correction and cancel is not exercised locally. Run
+   both against a disposable Neon branch before deployment.
+7. Correction's `current_period_start` rollback is approximate (documented in
+   `docs/Decisions.md`). Accept, or add a prior-period snapshot to make it exact.
+8. TestSprite has no Admin project. Creating one needs owner approval and does
+   not replace the backend financial integration tests.
+9. I02 remains `[~]`: deployment migration replay and rollback rehearsal.
+
+Next: confirm items 1-2, open the stacked PRs, then the correction UI follow-up.
+Pause/resume and refund remain parked — now actionable because entitlement is
+enforced, but each still needs its own product decision.

@@ -1129,11 +1129,16 @@ Process and follow-ups:
 3. PRs #27-#30 are open (visibility -> entitlement -> cancel -> correction).
    Merge in order after Terra/Sol review. CI is main-only, so #29/#30 run checks
    only after their parents merge and GitHub retargets them to `main`.
-4. Migrations 0045/0046 are applied only to local `rently_test`. Apply to dev,
-   then production, as a deploy step. 0046 is the only structural change
-   (`invoices.reverses_invoice_id` + partial unique index); 0045 replaces two
-   SQL functions and reports no drift. Both are additive and forward-only —
-   rollback is app rollback plus forward correction.
+4. Migrations 0045/0046 are applied to production (`apps/server/.env` ->
+   `ep-icy-tree-azsnkw15`), previously head 0044 / 45 migrations, now 47, with
+   `reverses_invoice_id` + `invoices_reverses_invoice_unique` and both
+   entitlement-aware functions verified. Nothing is applied to a Neon dev branch
+   because none exists; the disposable branch and the local replay were the
+   rehearsals. 0046 is the only structural change (`invoices.reverses_invoice_id`
+   + partial unique index); both are additive and forward-only — rollback is app
+   rollback plus forward correction, or snapshot restore. At apply time
+   production had 2 owners with a subscription, both free/trial with a null
+   period end, so 0045 blocked nobody.
 5. Correction UI shipped on `feat/subscription-correction-ui` (stacked on
    `feat/subscription-payment-correction`, tag `pre-subscription-correction-ui`):
    `reversesInvoiceId` is on `AdminInvoiceSchema`, and the user-detail invoices

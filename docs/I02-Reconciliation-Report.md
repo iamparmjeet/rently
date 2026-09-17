@@ -125,12 +125,20 @@ deployment itself.
   re-applying 0045 restored it. 0046 adds a nullable column plus a partial unique
   index, so the pre-correction application insert shape still succeeds and
   multiple unlinked rows coexist (proved with a rolled-back insert).
-- **Still pending:** the actual deployment replay against dev then production
-  (part of the 0045/0046 rollout), so I02 remains `[~]`.
+- **Production replay:** migrations were applied to the production database
+  (`apps/server/.env` -> `ep-icy-tree-azsnkw15`) from head 0044 / 45 migrations
+  to 47. Verified after apply: `invoices.reverses_invoice_id`,
+  `invoices_reverses_invoice_unique`, the self-FK, and both entitlement-aware
+  guard functions. At apply time production held 2 subscriptions, both free/trial
+  with a null period end, so 0045 blocked no existing owner. Pre-apply state
+  (head 0044) is the rollback reference; no Neon restore point was taken because
+  no Neon API access is available from the workspace.
+- **Still pending:** Sol High review of I02 (required by the plan); the
+  deployment replay and rollback rehearsal themselves are complete.
 
 ## Approval
 
-Status: **VERIFIED locally; deployment replay pending**
+Status: **VERIFIED — production migrated; Sol High review outstanding**
 
-Remaining before `[x]`: replay migrations against dev and production, and confirm
-the rollback path on the deployed baseline.
+Remaining before `[x]`: Sol High review. Deployment replay and rollback
+rehearsal are done.

@@ -106,9 +106,31 @@ The matrix gate is therefore satisfied on the fresh dataset. The production
 reset supersedes row-by-row remediation of the retired rows; it does not waive
 the application, migration, or reconciliation gates.
 
+## Migration Replay and Rollback Rehearsal (2026-09-17, local)
+
+Performed against a dropped-and-recreated local `rently_test`, since no
+production clone is available locally. This validates the migrations, not the
+deployment itself.
+
+- **Replay:** all 47 migrations applied cleanly from an empty database.
+  `drizzle.__drizzle_migrations` = 47; `invoices.reverses_invoice_id`,
+  `invoices_reverses_invoice_unique`, and `rently_assert_tenant_seat` are all
+  present. The 25-check hard matrix (`reconciliation.test.ts`) passed 5/5 with
+  zero discrepancies on the fresh replay, and the entitlement, cancellation, and
+  correction suites passed 24/24.
+- **Rollback (app rollback + forward correction):** both pending migrations are
+  additive and forward-only. 0045 only `CREATE OR REPLACE`s two functions, so the
+  forward correction is the pre-0045 bodies from `0035_tenant_seat_guard.sql` and
+  `0036_green_wiccan.sql`; replacing them removed the entitlement predicate and
+  re-applying 0045 restored it. 0046 adds a nullable column plus a partial unique
+  index, so the pre-correction application insert shape still succeeds and
+  multiple unlinked rows coexist (proved with a rolled-back insert).
+- **Still pending:** the actual deployment replay against dev then production
+  (part of the 0045/0046 rollout), so I02 remains `[~]`.
+
 ## Approval
 
-Status: **VERIFIED pending migration/rollback rehearsal**
+Status: **VERIFIED locally; deployment replay pending**
 
-Remaining before `[x]`: replay deployment migrations and rehearse rollback
-against the new clean baseline.
+Remaining before `[x]`: replay migrations against dev and production, and confirm
+the rollback path on the deployed baseline.

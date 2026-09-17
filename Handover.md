@@ -1145,9 +1145,13 @@ Process and follow-ups:
    `docs/Decisions.md`). Accept, or add a prior-period snapshot to make it exact.
 8. TestSprite has no Admin project. Creating one needs owner approval and does
    not replace the backend financial integration tests.
-9. I02 remains `[~]`: deployment migration replay and rollback rehearsal.
+9. I02 local rehearsal done on a dropped/recreated `rently_test`: all 47
+   migrations replayed cleanly, matrix 5/5, and the 0045/0046 rollback path
+   (forward correction of the replaced functions, additive-schema app rollback)
+   rehearse green — recorded in `docs/I02-Reconciliation-Report.md`. I02 stays
+   `[~]` only for the real dev/production replay.
 
 Next: Terra/Sol review on PRs #27-#31, then Neon branch coverage, then apply
-0045/0046 to dev and production. Pause/resume and refund remain parked — now
-actionable because entitlement is enforced, but each still needs its own product
-decision.
+0045/0046 to dev and production (which also closes I02). Pause/resume and refund
+remain parked — now actionable because entitlement is enforced, but each still
+needs its own product decision.

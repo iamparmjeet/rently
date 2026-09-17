@@ -247,6 +247,7 @@ export async function queryAdminUserDetail(db: Database, userId: string) {
 				periodEnd: invoices.periodEnd,
 				paidAt: invoices.paidAt,
 				createdAt: invoices.createdAt,
+				reversesInvoiceId: invoices.reversesInvoiceId,
 			})
 			.from(invoices)
 			.where(eq(invoices.userId, userId))

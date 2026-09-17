@@ -1134,9 +1134,11 @@ Process and follow-ups:
    (`invoices.reverses_invoice_id` + partial unique index); 0045 replaces two
    SQL functions and reports no drift. Both are additive and forward-only —
    rollback is app rollback plus forward correction.
-5. Payment correction has no admin UI action. Add one on the newest paid invoice
-   in the user-detail invoices table; expose `reversesInvoiceId` on the admin
-   invoice schema so already-corrected rows can be hidden.
+5. Correction UI shipped on `feat/subscription-correction-ui` (stacked on
+   `feat/subscription-payment-correction`, tag `pre-subscription-correction-ui`):
+   `reversesInvoiceId` is on `AdminInvoiceSchema`, and the user-detail invoices
+   table offers Correct on the latest paid, non-reversed invoice only, marking
+   reversal and reversed rows. No migration.
 6. The Neon batch path for correction and cancel is not exercised locally. Run
    both against a disposable Neon branch before deployment.
 7. Correction's `current_period_start` rollback is approximate (documented in
@@ -1145,6 +1147,7 @@ Process and follow-ups:
    not replace the backend financial integration tests.
 9. I02 remains `[~]`: deployment migration replay and rollback rehearsal.
 
-Next: Terra/Sol review on PRs #27-#30, then the correction UI follow-up.
-Pause/resume and refund remain parked — now actionable because entitlement is
-enforced, but each still needs its own product decision.
+Next: Terra/Sol review on PRs #27-#31, then Neon branch coverage, then apply
+0045/0046 to dev and production. Pause/resume and refund remain parked — now
+actionable because entitlement is enforced, but each still needs its own product
+decision.

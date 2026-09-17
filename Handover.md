@@ -1007,16 +1007,28 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 
 ### Next chat: start here
 
-1. Close nothing else open — `main` is the only active line now.
-2. Next slice, recommended `feat/admin-ops-visibility` off `main` (tag
-   `pre-admin-ops-visibility`), read-only and migration-free: surface
-   `users.admins` + total match counts, add a global invoice list filtered by
-   `PAYMENT_STATUS` unpaid/failed, and a `not-found.tsx` for `/users/[id]`.
-3. Then design-first slice: void/correct a mistakenly recorded subscription
-   payment (needs a reversal record + audit; never delete).
-4. Parked pending product decision: subscription pause/cancel/extend/refund.
-   Entitlement is read from `plans.tenant_limit` only (`tenant-limit.ts`) and
-   ignores `status`/`expired`, so those actions would be dead buttons.
+State: `main` = `647b74e7`, clean. Five PRs are open and stacked; none is merged.
+Production already has migrations 0045/0046 applied.
+
+1. **Immediate work: Terra/Sol review of PRs #27-#31** (review brief below and in
+   Fix-Plan §7.1). Merge in order after review:
+   - #27 `feat/admin-ops-visibility` -> `main` (Terra Medium; read-only, no migration)
+   - #28 `feat/subscription-entitlement` -> `main` (Terra/Sol High; migration 0045)
+   - #29 `feat/subscription-cancel-at-period-end` -> #28 (Terra/Sol High)
+   - #30 `feat/subscription-payment-correction` -> #29 (Terra/Sol High; migration 0046)
+   - #31 `feat/subscription-correction-ui` -> #30 (Terra Medium; UI presenting money)
+   CI is main-only: #29/#30/#31 run checks only after their parents merge and
+   GitHub retargets them to `main`.
+2. **Deploy note:** production is already migrated (0045/0046, head 0044 -> 47),
+   but the app code is not deployed, so the entitlement boundary is live ahead of
+   the reviewed UI. Only 2 subscriptions existed at apply time and neither was
+   lapsed. Confirm nothing lapsed since before the app deploy.
+3. **Grace period is unresolved product design.** Owner wants growth frozen at
+   period end but a limited feature set during a grace window. Needs a named
+   feature list and window length; any deferral of the growth freeze changes
+   0045's two functions and `getOwnerEntitlement` together. Not started.
+4. Still parked: pause/resume and refund (each needs its own product decision);
+   Extend already works through verified payment recording.
 5. Local gotcha: a full local suite run can throw lease-ownership failures from
     stale `rently_test` state; those suites pass in isolation and CI is green on
     a fresh DB. Root `.env` targets Neon — use the localhost override.

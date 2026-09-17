@@ -36,6 +36,7 @@ import {
 	correctSubscriptionPayment,
 	recordSubscriptionPayment,
 } from "../../modules/admin/subscriptions";
+import { queryAdminUserDetail } from "../../modules/admin/users";
 import { getOwnerEntitlement } from "../helpers/tenant-limit";
 
 const db = createDb();
@@ -220,6 +221,16 @@ describe("correct subscription payment", () => {
 			originalInvoiceId: invoice.id,
 			amount: 49_900,
 		});
+
+		// The admin detail read exposes the reversal linkage so the console can
+		// mark reversed rows and hide a dead correction action.
+		const detail = await queryAdminUserDetail(db, ownerId);
+		const originalRow = detail.invoices.find((row) => row.id === invoice.id);
+		const reversalRow = detail.invoices.find(
+			(row) => row.id === result.reversal.id,
+		);
+		expect(originalRow?.reversesInvoiceId).toBeNull();
+		expect(reversalRow?.reversesInvoiceId).toBe(invoice.id);
 	});
 
 	it("refuses a repeat correction as a conflict", async () => {

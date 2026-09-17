@@ -1,12 +1,23 @@
 "use client";
 
+import { PAYMENT_STATUS } from "@rently/db/constants/payment-constants";
 import { Badge } from "@rently/ui/components/badge";
+import { Button } from "@rently/ui/components/button";
 import {
 	Card,
 	CardContent,
 	CardHeader,
 	CardTitle,
 } from "@rently/ui/components/card";
+import {
+	Dialog,
+	DialogContent,
+	DialogDescription,
+	DialogFooter,
+	DialogHeader,
+	DialogTitle,
+} from "@rently/ui/components/dialog";
+import { Label } from "@rently/ui/components/label";
 import {
 	Table,
 	TableBody,
@@ -15,18 +26,24 @@ import {
 	TableHeader,
 	TableRow,
 } from "@rently/ui/components/table";
+import { Textarea } from "@rently/ui/components/textarea";
 import { DetailHeader } from "@rently/ui/shared/detail-header";
 import { EmptyState } from "@rently/ui/shared/empty-state";
 import { PageLoader } from "@rently/ui/shared/page-loader";
+import type { AdminInvoice } from "@rently/validators";
 import { IconKey } from "@tabler/icons-react";
 import { notFound } from "next/navigation";
+import { useState } from "react";
 import { Container } from "@/components/shared/container";
 import { StatusBadge } from "@/components/shared/status-badge";
-import { useAdminUser } from "@/hooks/admin";
+import { useAdminUser, useCorrectSubscriptionPayment } from "@/hooks/admin";
 import { formatDate, formatMoney } from "@/utils/format";
 
 export function AdminUserDetail({ userId }: { userId: string }) {
 	const { data, error, isPending } = useAdminUser(userId);
+	const [selectedInvoice, setSelectedInvoice] = useState<AdminInvoice | null>(
+		null,
+	);
 	if (isPending) {
 		return (
 			<Container>
@@ -43,6 +60,27 @@ export function AdminUserDetail({ userId }: { userId: string }) {
 		notFound();
 	}
 	if (!data) return <Container>Account unavailable.</Container>;
+
+	// The server corrects only the latest paid, non-reversed invoice, so the UI
+	// offers the action on that row alone. Reversal rows are marked, and an
+	// invoice that already has a reversal linked to it is marked "reversed".
+	const reversedInvoiceIds = new Set(
+		data.invoices
+			.map((invoice) => invoice.reversesInvoiceId)
+			.filter((id): id is string => id !== null),
+	);
+	const correctableInvoice = data.invoices
+		.filter(
+			(invoice) =>
+				invoice.paymentStatus === PAYMENT_STATUS.PAID &&
+				invoice.amount > 0 &&
+				invoice.reversesInvoiceId === null,
+		)
+		.sort(
+			(a, b) =>
+				(b.paidAt ?? b.createdAt).getTime() -
+				(a.paidAt ?? a.createdAt).getTime(),
+		)[0];
 
 	return (
 		<Container className="space-y-6">
@@ -158,6 +196,7 @@ export function AdminUserDetail({ userId }: { userId: string }) {
 								<TableHead>Reference</TableHead>
 								<TableHead>Period</TableHead>
 								<TableHead>Paid</TableHead>
+								<TableHead>Correction</TableHead>
 							</TableRow>
 						</TableHeader>
 						<TableBody>
@@ -175,6 +214,21 @@ export function AdminUserDetail({ userId }: { userId: string }) {
 										{formatDate(invoice.periodEnd)}
 									</TableCell>
 									<TableCell>{formatDate(invoice.paidAt)}</TableCell>
+									<TableCell>
+										{invoice.reversesInvoiceId ? (
+											<StatusBadge value="reversal" />
+										) : reversedInvoiceIds.has(invoice.id) ? (
+											<StatusBadge value="reversed" />
+										) : correctableInvoice?.id === invoice.id ? (
+											<Button
+												size="sm"
+												variant="outline"
+												onClick={() => setSelectedInvoice(invoice)}
+											>
+												Correct
+											</Button>
+										) : null}
+									</TableCell>
 								</TableRow>
 							))}
 						</TableBody>
@@ -315,7 +369,95 @@ export function AdminUserDetail({ userId }: { userId: string }) {
 					</CardContent>
 				</Card>
 			</div>
+
+			<CorrectPaymentDialog
+				ownerUserId={userId}
+				invoice={selectedInvoice}
+				open={Boolean(selectedInvoice)}
+				onOpenChange={(open) => {
+					if (!open) setSelectedInvoice(null);
+				}}
+			/>
 		</Container>
+	);
+}
+
+function CorrectPaymentDialog({
+	ownerUserId,
+	invoice,
+	open,
+	onOpenChange,
+}: {
+	ownerUserId: string;
+	invoice: AdminInvoice | null;
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+}) {
+	const correctPayment = useCorrectSubscriptionPayment();
+	const [reason, setReason] = useState("");
+
+	function reset() {
+		setReason("");
+	}
+
+	function submit(event: React.FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		if (!invoice) return;
+
+		correctPayment.mutate(
+			{ ownerUserId, invoiceId: invoice.id, reason },
+			{
+				onSuccess: () => {
+					reset();
+					onOpenChange(false);
+				},
+			},
+		);
+	}
+
+	return (
+		<Dialog
+			open={open}
+			onOpenChange={(nextOpen) => {
+				if (!nextOpen && !correctPayment.isPending) reset();
+				onOpenChange(nextOpen);
+			}}
+		>
+			<DialogContent className="sm:max-w-lg">
+				<DialogHeader>
+					<DialogTitle>Correct subscription payment</DialogTitle>
+					<DialogDescription>
+						This adds a linked negative invoice for{" "}
+						{formatMoney(invoice?.amount)} and revokes the granted period. The
+						original invoice is kept unchanged and the correction is audited.
+						Only the latest paid invoice can be corrected.
+					</DialogDescription>
+				</DialogHeader>
+				<form className="space-y-4" onSubmit={submit}>
+					<div className="space-y-2">
+						<Label htmlFor="correct-reason">Operational reason</Label>
+						<Textarea
+							id="correct-reason"
+							value={reason}
+							onChange={(event) => setReason(event.target.value)}
+							placeholder="Payment recorded against the wrong UTR"
+							minLength={8}
+							maxLength={500}
+							required
+						/>
+					</div>
+					<DialogFooter>
+						<Button
+							type="submit"
+							variant="destructive"
+							disabled={correctPayment.isPending || reason.trim().length < 8}
+						>
+							{correctPayment.isPending ? "Correcting…" : "Correct payment"}
+						</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
 	);
 }
 

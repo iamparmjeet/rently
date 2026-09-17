@@ -53,6 +53,20 @@ export function useCancelSubscription() {
 	});
 }
 
+export function useCorrectSubscriptionPayment() {
+	const queryClient = useQueryClient();
+	return useMutation({
+		mutationFn: (
+			input: Parameters<typeof client.admin.subscriptions.correctPayment>[0],
+		) => client.admin.subscriptions.correctPayment(input),
+		onSuccess: () => {
+			queryClient.invalidateQueries({ queryKey: orpc.admin.key() });
+			toast.success("Subscription payment corrected");
+		},
+		onError: (error) => toast.error(error.message),
+	});
+}
+
 export function usePlans() {
 	return useQuery(orpc.subscription.listPlans.queryOptions());
 }

@@ -151,6 +151,10 @@ export const AdminInvoiceSchema = z.object({
 	periodEnd: z.date(),
 	paidAt: z.date().nullable(),
 	createdAt: z.date(),
+	// Set on a correction's negative reversal row; null on ordinary invoices.
+	// The admin UI uses it to mark reversed invoices and hide a dead correction
+	// action.
+	reversesInvoiceId: IdSchema.nullable(),
 });
 
 export const AdminBetaCodeRedemptionSchema = z.object({

@@ -1,0 +1,3 @@
+ALTER TABLE "invoices" ADD COLUMN "reverses_invoice_id" uuid;--> statement-breakpoint
+ALTER TABLE "invoices" ADD CONSTRAINT "invoices_reverses_invoice_id_invoices_id_fk" FOREIGN KEY ("reverses_invoice_id") REFERENCES "public"."invoices"("id") ON DELETE no action ON UPDATE no action;--> statement-breakpoint
+CREATE UNIQUE INDEX "invoices_reverses_invoice_unique" ON "invoices" USING btree ("reverses_invoice_id") WHERE "invoices"."reverses_invoice_id" is not null;

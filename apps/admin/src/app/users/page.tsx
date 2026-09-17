@@ -66,7 +66,7 @@ export default function AdminUsersPage() {
 		<Container className="space-y-6">
 			<PageHeader
 				title="Users"
-				description="Search accounts and inspect safe support metadata."
+				description={`${data?.total ?? 0} matching accounts. Search accounts and inspect safe support metadata.`}
 			/>
 			<Card>
 				<CardContent className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">

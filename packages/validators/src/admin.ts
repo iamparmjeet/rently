@@ -233,6 +233,20 @@ export const AdminSubscriptionListResponseSchema = z.object({
 	totalPages: z.number().int(),
 });
 
+export const AdminInvoiceListItemSchema = AdminInvoiceSchema.extend({
+	ownerId: IdSchema,
+	ownerName: z.string(),
+	ownerEmail: z.email(),
+});
+
+export const AdminInvoiceListResponseSchema = z.object({
+	items: z.array(AdminInvoiceListItemSchema),
+	page: z.number().int(),
+	pageSize: z.number().int(),
+	total: z.number().int(),
+	totalPages: z.number().int(),
+});
+
 export const RecordSubscriptionPaymentSchema = z.object({
 	ownerUserId: IdSchema,
 	planId: IdSchema,
@@ -356,6 +370,9 @@ export type AdminSubscriptionListResponse = z.infer<
 >;
 export type AdminSubscriptionListInput = z.infer<
 	typeof AdminSubscriptionListInputSchema
+>;
+export type AdminInvoiceListResponse = z.infer<
+	typeof AdminInvoiceListResponseSchema
 >;
 export type RecordSubscriptionPaymentInput = z.infer<
 	typeof RecordSubscriptionPaymentSchema

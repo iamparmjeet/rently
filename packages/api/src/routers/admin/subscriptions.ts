@@ -1,10 +1,13 @@
 import {
+	AdminInvoiceListResponseSchema,
+	AdminPaginationSchema,
 	AdminSubscriptionListInputSchema,
 	AdminSubscriptionListResponseSchema,
 	RecordSubscriptionPaymentResponseSchema,
 	RecordSubscriptionPaymentSchema,
 } from "@rently/validators";
 import {
+	queryAdminOutstandingInvoices,
 	queryAdminSubscriptions,
 	recordSubscriptionPayment,
 } from "../../modules/admin/subscriptions";
@@ -15,6 +18,14 @@ export const list = adminProcedure
 	.input(AdminSubscriptionListInputSchema)
 	.output(AdminSubscriptionListResponseSchema)
 	.handler(({ context, input }) => queryAdminSubscriptions(context.db, input));
+
+export const listOutstandingInvoices = adminProcedure
+	.route({ method: "GET", path: "/admin/subscriptions/outstanding-invoices" })
+	.input(AdminPaginationSchema)
+	.output(AdminInvoiceListResponseSchema)
+	.handler(({ context, input }) =>
+		queryAdminOutstandingInvoices(context.db, input),
+	);
 
 export const recordPayment = adminProcedure
 	.route({ method: "POST", path: "/admin/subscriptions/payment" })

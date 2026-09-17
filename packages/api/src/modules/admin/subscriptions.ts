@@ -20,11 +20,22 @@ import { invoices, plans, subscriptions } from "@rently/db/schema/subscription";
 import { generatedId } from "@rently/db/utils/id";
 import type {
 	AdminInvoice,
+	AdminInvoiceListResponse,
 	AdminSubscriptionListInput,
 	AdminSubscriptionSummary,
 	RecordSubscriptionPaymentInput,
 } from "@rently/validators";
-import { and, count, desc, eq, ilike, or, type SQL, sql } from "drizzle-orm";
+import {
+	and,
+	count,
+	desc,
+	eq,
+	ilike,
+	inArray,
+	or,
+	type SQL,
+	sql,
+} from "drizzle-orm";
 
 function latestSubscriptionQuery(db: Database) {
 	return db
@@ -127,6 +138,60 @@ export async function queryAdminSubscriptions(
 	]);
 
 	const total = totalRow?.value ?? 0;
+	return {
+		items: rows,
+		page: input.page,
+		pageSize: input.pageSize,
+		total,
+		totalPages: Math.ceil(total / input.pageSize),
+	};
+}
+
+export async function queryAdminOutstandingInvoices(
+	db: Database,
+	input: { page: number; pageSize: number },
+): Promise<AdminInvoiceListResponse> {
+	const whereCondition = and(
+		eq(user.role, USER_ROLES.OWNER),
+		eq(user.accountMode, ACCOUNT_MODES.STANDARD),
+		inArray(invoices.paymentStatus, [
+			PAYMENT_STATUS.UNPAID,
+			PAYMENT_STATUS.FAILED,
+		]),
+	);
+	const offset = (input.page - 1) * input.pageSize;
+	const [[totalRow], rows] = await Promise.all([
+		db
+			.select({ value: count() })
+			.from(invoices)
+			.innerJoin(user, eq(invoices.userId, user.id))
+			.where(whereCondition),
+		db
+			.select({
+				id: invoices.id,
+				subscriptionId: invoices.subscriptionId,
+				amount: invoices.amount,
+				currency: invoices.currency,
+				paymentStatus: invoices.paymentStatus,
+				paymentMethod: invoices.paymentMethod,
+				externalPaymentReference: invoices.externalPaymentReference,
+				periodStart: invoices.periodStart,
+				periodEnd: invoices.periodEnd,
+				paidAt: invoices.paidAt,
+				createdAt: invoices.createdAt,
+				ownerId: user.id,
+				ownerName: user.name,
+				ownerEmail: user.email,
+			})
+			.from(invoices)
+			.innerJoin(user, eq(invoices.userId, user.id))
+			.where(whereCondition)
+			.orderBy(desc(invoices.createdAt), desc(invoices.id))
+			.limit(input.pageSize)
+			.offset(offset),
+	]);
+	const total = totalRow?.value ?? 0;
+
 	return {
 		items: rows,
 		page: input.page,

@@ -53,6 +53,7 @@ import { Pagination } from "@/components/shared/pagination";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { TableSkeleton } from "@/components/shared/table-skeleton";
 import {
+	useAdminOutstandingInvoices,
 	useAdminSubscriptions,
 	usePlans,
 	useRecordSubscriptionPayment,
@@ -319,13 +320,16 @@ export default function AdminSubscriptionsPage() {
 		planSlug: planSlug || undefined,
 		status: status || undefined,
 	});
+	const [invoicePage, setInvoicePage] = useState(1);
+	const { data: outstandingInvoices, isPending: invoicesPending } =
+		useAdminOutstandingInvoices({ page: invoicePage, pageSize: 25 });
 	const { data: plansData } = usePlans();
 
 	return (
 		<Container className="space-y-6">
 			<PageHeader
 				title="Subscriptions"
-				description="Inspect owner access and record payments after independent verification."
+				description={`${data?.total ?? 0} matching subscriptions. Inspect owner access and record payments after independent verification.`}
 			/>
 			<Card>
 				<CardContent className="grid gap-3 sm:grid-cols-3">
@@ -448,6 +452,67 @@ export default function AdminSubscriptionsPage() {
 					totalPages={data?.totalPages ?? 0}
 					onPageChange={setPage}
 				/>
+			</Card>
+
+			<Card>
+				<CardContent className="pt-6">
+					<div className="mb-4">
+						<h2 className="font-semibold text-lg">Outstanding invoices</h2>
+						<p className="text-muted-foreground text-sm">
+							{outstandingInvoices?.total ?? 0} unpaid or failed invoices across
+							standard owner accounts.
+						</p>
+					</div>
+					<Table>
+						<TableHeader>
+							<TableRow>
+								<TableHead>Owner</TableHead>
+								<TableHead>Amount</TableHead>
+								<TableHead>Status</TableHead>
+								<TableHead>Period</TableHead>
+								<TableHead>Created</TableHead>
+							</TableRow>
+						</TableHeader>
+						<TableBody>
+							{invoicesPending ? (
+								<TableSkeleton columns={5} rows={4} />
+							) : outstandingInvoices &&
+								outstandingInvoices.items.length > 0 ? (
+								outstandingInvoices.items.map((invoice) => (
+									<TableRow key={invoice.id}>
+										<TableCell>
+											<p className="font-medium">{invoice.ownerName}</p>
+											<p className="text-muted-foreground">
+												{invoice.ownerEmail}
+											</p>
+										</TableCell>
+										<TableCell>{formatMoney(invoice.amount)}</TableCell>
+										<TableCell>
+											<StatusBadge value={invoice.paymentStatus} />
+										</TableCell>
+										<TableCell>
+											{formatDate(invoice.periodStart)} –{" "}
+											{formatDate(invoice.periodEnd)}
+										</TableCell>
+										<TableCell>{formatDate(invoice.createdAt)}</TableCell>
+									</TableRow>
+								))
+							) : null}
+						</TableBody>
+					</Table>
+					{!invoicesPending && outstandingInvoices?.items.length === 0 && (
+						<EmptyState
+							icon={IconCreditCard}
+							title="No outstanding invoices"
+							description="Unpaid or failed subscription invoices will appear here."
+						/>
+					)}
+					<Pagination
+						page={invoicePage}
+						totalPages={outstandingInvoices?.totalPages ?? 0}
+						onPageChange={setInvoicePage}
+					/>
+				</CardContent>
 			</Card>
 
 			<RecordPaymentDialog

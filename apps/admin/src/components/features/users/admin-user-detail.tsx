@@ -19,19 +19,28 @@ import { DetailHeader } from "@rently/ui/shared/detail-header";
 import { EmptyState } from "@rently/ui/shared/empty-state";
 import { PageLoader } from "@rently/ui/shared/page-loader";
 import { IconKey } from "@tabler/icons-react";
+import { notFound } from "next/navigation";
 import { Container } from "@/components/shared/container";
 import { StatusBadge } from "@/components/shared/status-badge";
 import { useAdminUser } from "@/hooks/admin";
 import { formatDate, formatMoney } from "@/utils/format";
 
 export function AdminUserDetail({ userId }: { userId: string }) {
-	const { data, isPending } = useAdminUser(userId);
+	const { data, error, isPending } = useAdminUser(userId);
 	if (isPending) {
 		return (
 			<Container>
 				<PageLoader rows={3} />
 			</Container>
 		);
+	}
+	if (
+		error &&
+		typeof error === "object" &&
+		"code" in error &&
+		error.code === "NOT_FOUND"
+	) {
+		notFound();
 	}
 	if (!data) return <Container>Account unavailable.</Container>;
 

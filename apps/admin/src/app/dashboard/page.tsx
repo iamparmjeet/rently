@@ -50,6 +50,12 @@ export default function AdminDashboardPage() {
 			icon: IconHome,
 		},
 		{
+			label: "Admins",
+			value: data?.users.admins ?? 0,
+			detail: "Platform operators",
+			icon: IconUsers,
+		},
+		{
 			label: "Platform revenue",
 			value: formatMoney(data?.revenue.platformRevenueLifetime),
 			detail: `${formatMoney(data?.revenue.platformRevenueLast30Days)} in 30 days`,
@@ -79,7 +85,7 @@ export default function AdminDashboardPage() {
 			<StatsGrid
 				stats={cards}
 				isLoading={isPending}
-				className="xl:grid-cols-5"
+				className="xl:grid-cols-6"
 			/>
 			<p className="text-muted-foreground text-xs">
 				Platform revenue is the sum of paid KeyHQ subscription invoices only.

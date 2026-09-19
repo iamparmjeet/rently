@@ -29,6 +29,16 @@ export function useAdminSubscriptions(
 	return useQuery(orpc.admin.subscriptions.list.queryOptions({ input }));
 }
 
+export function useAdminOutstandingInvoices(
+	input: Parameters<
+		typeof client.admin.subscriptions.listOutstandingInvoices
+	>[0],
+) {
+	return useQuery(
+		orpc.admin.subscriptions.listOutstandingInvoices.queryOptions({ input }),
+	);
+}
+
 export function usePlans() {
 	return useQuery(orpc.subscription.listPlans.queryOptions());
 }

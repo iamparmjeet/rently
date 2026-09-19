@@ -17,6 +17,7 @@ import { ADMIN_TARGET_TYPES } from "@rently/db/constants/admin-constants";
 import {
 	BILLING_INTERVAL,
 	PAYMENT_METHODS,
+	PAYMENT_STATUS,
 	PLAN_STATUS,
 } from "@rently/db/constants/payment-constants";
 import {
@@ -48,6 +49,7 @@ import {
 } from "../../modules/admin/beta-codes";
 import { queryAdminOverview } from "../../modules/admin/overview";
 import {
+	queryAdminOutstandingInvoices,
 	queryAdminSubscriptions,
 	recordSubscriptionPayment,
 } from "../../modules/admin/subscriptions";
@@ -410,6 +412,86 @@ describe("demo and sample identity isolation", () => {
 			.from(invoices)
 			.where(eq(invoices.userId, demoOwner.id));
 		expect(invoiceRows).toHaveLength(0);
+	});
+});
+
+describe("outstanding invoice visibility", () => {
+	it("lists only unpaid or failed invoices for standard owners", async () => {
+		const standardOwner = await createUser(USER_ROLES.OWNER, "Invoice Owner");
+		const demoOwner = await createUser(
+			USER_ROLES.OWNER,
+			"Demo Invoice Owner",
+			ACCOUNT_MODES.PUBLIC_DEMO,
+		);
+		const plan = await createPlan();
+		const standardSubscription = await createSubscription(
+			standardOwner.id,
+			plan.id,
+			{
+				start: null,
+				end: null,
+			},
+		);
+		const demoSubscription = await createSubscription(demoOwner.id, plan.id, {
+			start: null,
+			end: null,
+		});
+		const periodStart = new Date("2026-09-01T00:00:00.000Z");
+		const periodEnd = new Date("2026-10-01T00:00:00.000Z");
+
+		await db.insert(invoices).values([
+			{
+				id: generatedId(),
+				subscriptionId: standardSubscription.id,
+				userId: standardOwner.id,
+				amount: 49_900,
+				periodStart,
+				periodEnd,
+				paymentStatus: PAYMENT_STATUS.UNPAID,
+			},
+			{
+				id: generatedId(),
+				subscriptionId: standardSubscription.id,
+				userId: standardOwner.id,
+				amount: 49_900,
+				periodStart,
+				periodEnd,
+				paymentStatus: PAYMENT_STATUS.FAILED,
+			},
+			{
+				id: generatedId(),
+				subscriptionId: standardSubscription.id,
+				userId: standardOwner.id,
+				amount: 49_900,
+				periodStart,
+				periodEnd,
+				paymentStatus: PAYMENT_STATUS.PAID,
+			},
+			{
+				id: generatedId(),
+				subscriptionId: demoSubscription.id,
+				userId: demoOwner.id,
+				amount: 49_900,
+				periodStart,
+				periodEnd,
+				paymentStatus: PAYMENT_STATUS.UNPAID,
+			},
+		]);
+
+		const result = await queryAdminOutstandingInvoices(db, {
+			page: 1,
+			pageSize: 25,
+		});
+
+		expect(result).toMatchObject({ total: 2, totalPages: 1 });
+		expect(result.items).toHaveLength(2);
+		expect(
+			result.items.every((item) => item.ownerId === standardOwner.id),
+		).toBe(true);
+		expect(result.items.map((item) => item.paymentStatus).sort()).toEqual([
+			PAYMENT_STATUS.FAILED,
+			PAYMENT_STATUS.UNPAID,
+		]);
 	});
 });
 

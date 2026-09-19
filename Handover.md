@@ -1018,5 +1018,30 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
    Entitlement is read from `plans.tenant_limit` only (`tenant-limit.ts`) and
    ignores `status`/`expired`, so those actions would be dead buttons.
 5. Local gotcha: a full local suite run can throw lease-ownership failures from
-   stale `rently_test` state; those suites pass in isolation and CI is green on
-   a fresh DB. Root `.env` targets Neon — use the localhost override.
+    stale `rently_test` state; those suites pass in isolation and CI is green on
+    a fresh DB. Root `.env` targets Neon — use the localhost override.
+
+## Admin operations visibility (2026-09-17, branch feat/admin-ops-visibility)
+
+- Base: clean `main@647b74e7`; rollback tag `pre-admin-ops-visibility`.
+  Read-only, no migration.
+- Added the `users.admins` dashboard card and total-match counts to Users and
+  Subscriptions. Added a paginated global Outstanding invoices table for only
+  standard owners' `PAYMENT_STATUS.UNPAID` and `PAYMENT_STATUS.FAILED` invoices;
+  it excludes paid and demo records. The new
+  `admin.subscriptions.listOutstandingInvoices` route returns only safe owner
+  identity and invoice fields.
+- Added `/users/[id]/not-found.tsx`; the detail client routes an API NOT_FOUND
+  to that boundary.
+- Regression: `admin-hardening.test.ts` creates standard and demo owners with
+  unpaid, failed, and paid invoices, then proves only the two unresolved,
+  standard-owner invoices are listed.
+- Verification: `db:generate` no drift; `check-types --force` 6/6; focused
+  Biome clean; `db:migrate:test` after starting local Postgres; focused Vitest
+  7/7; `build:admin` green. `git diff --check` clean.
+- TestSprite: authenticated, but the only project is `Rently Local Dashboard`
+  and no existing test covers Admin. No TestSprite test was created or run:
+  creating an Admin project/test needs owner confirmation.
+- Committed as `be50b556` (`feat(admin): add operations visibility`); not pushed.
+  Next: merge this branch, then design the separate subscription-payment
+  reversal/audit slice; do not delete or rewrite payment history.

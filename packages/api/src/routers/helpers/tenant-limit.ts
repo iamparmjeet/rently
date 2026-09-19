@@ -2,7 +2,7 @@ import { ORPCError } from "@orpc/server";
 import type { Database } from "@rently/db";
 import { TENANT_LIMIT } from "@rently/db/constants/payment-constants";
 import { plans, subscriptions } from "@rently/db/schema/subscription";
-import { desc, eq, type SQL, sql } from "drizzle-orm";
+import { type SQL, sql } from "drizzle-orm";
 
 // D04: tenant-plan-limit enforcement. A "seat" is a distinct tenant with an
 // active lease under the owner's properties (the count previously read by
@@ -11,20 +11,66 @@ import { desc, eq, type SQL, sql } from "drizzle-orm";
 // and are freed automatically because the count is derived from live rows,
 // never materialized.
 
-/** The owner's plan tenant limit; TENANT_LIMIT when no subscription exists. */
+export type OwnerEntitlement = {
+	/** False once the paid period lapses or the subscription is marked expired. */
+	entitled: boolean;
+	/** The plan limit while entitled; 0 once lapsed. */
+	tenantLimit: number;
+};
+
+/**
+ * The owner's effective subscription entitlement. Entitlement is TIME-based:
+ * the latest subscription grants its plan limit while it is not `expired` and
+ * its paid period has not lapsed. Cancellation keeps `current_period_end`, so
+ * access survives to the end of the paid period. An owner with no subscription
+ * row keeps the legacy TENANT_LIMIT fallback, so onboarding is unchanged.
+ *
+ * The predicates are compared in SQL against `now() at time zone 'utc'`
+ * because `subscriptions.current_period_end` is a zone-less `timestamp`
+ * holding UTC wall clock (D03 convention). Migration 0045 mirrors these exact
+ * predicates in `rently_assert_tenant_seat` /
+ * `rently_assert_pending_invite_quota`; those guards, not this read, arbitrate.
+ */
+export async function getOwnerEntitlement(
+	db: Database,
+	ownerId: string,
+): Promise<OwnerEntitlement> {
+	const result = await db.execute<{
+		entitled: boolean;
+		tenant_limit: number | null;
+	}>(sql`
+		SELECT
+			(
+				s."expired" IS NOT TRUE
+				AND (
+					s."current_period_end" IS NULL
+					OR s."current_period_end" > (now() AT TIME ZONE 'utc')
+				)
+			) AS "entitled",
+			p."tenant_limit" AS "tenant_limit"
+		FROM ${subscriptions} s
+		JOIN ${plans} p ON p."id" = s."plan_id"
+		WHERE s."user_id" = ${ownerId}
+		ORDER BY s."created_at" DESC, s."id" DESC
+		LIMIT 1
+	`);
+
+	const row = result.rows[0];
+	if (!row) return { entitled: true, tenantLimit: TENANT_LIMIT };
+
+	const entitled = Boolean(row.entitled);
+	return {
+		entitled,
+		tenantLimit: entitled ? (row.tenant_limit ?? TENANT_LIMIT) : 0,
+	};
+}
+
+/** The owner's plan tenant limit; 0 once the subscription has lapsed. */
 export async function getOwnerTenantLimit(
 	db: Database,
 	ownerId: string,
 ): Promise<number> {
-	const [subRow] = await db
-		.select({ tenantLimit: plans.tenantLimit })
-		.from(subscriptions)
-		.innerJoin(plans, eq(subscriptions.planId, plans.id))
-		.where(eq(subscriptions.userId, ownerId))
-		.orderBy(desc(subscriptions.createdAt))
-		.limit(1);
-
-	return subRow?.tenantLimit ?? TENANT_LIMIT;
+	return (await getOwnerEntitlement(db, ownerId)).tenantLimit;
 }
 
 /**
@@ -63,8 +109,18 @@ export function isPendingInviteQuotaError(error: unknown): boolean {
 	return false;
 }
 
+// One refusal for a lapsed subscription, so a cancelled owner reads a
+// renewal prompt instead of a nonsensical "plan limit of 0".
+function subscriptionLapsedError() {
+	return new ORPCError("FORBIDDEN", {
+		message:
+			"Your subscription has ended. Renew your plan to keep managing tenants.",
+	});
+}
+
 export async function pendingInviteQuotaError(db: Database, ownerId: string) {
-	const tenantLimit = await getOwnerTenantLimit(db, ownerId);
+	const { entitled, tenantLimit } = await getOwnerEntitlement(db, ownerId);
+	if (!entitled) return subscriptionLapsedError();
 	return new ORPCError("FORBIDDEN", {
 		message: `You've reached your plan limit of ${tenantLimit} pending invitation${tenantLimit === 1 ? "" : "s"}. Revoke one or wait for expiry before inviting again.`,
 	});
@@ -95,7 +151,8 @@ export function isTenantPlanLimitError(error: unknown): boolean {
 
 /** The FORBIDDEN activation refusal, worded like the shipped invite check. */
 export async function tenantPlanLimitError(db: Database, ownerId: string) {
-	const tenantLimit = await getOwnerTenantLimit(db, ownerId);
+	const { entitled, tenantLimit } = await getOwnerEntitlement(db, ownerId);
+	if (!entitled) return subscriptionLapsedError();
 	return new ORPCError("FORBIDDEN", {
 		message: `You've reached your plan limit of ${tenantLimit} active tenant${tenantLimit === 1 ? "" : "s"}. Upgrade to Pro to add more.`,
 	});

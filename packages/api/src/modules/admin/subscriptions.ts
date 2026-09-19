@@ -23,6 +23,8 @@ import type {
 	AdminInvoiceListResponse,
 	AdminSubscriptionListInput,
 	AdminSubscriptionSummary,
+	CancelSubscriptionInput,
+	CancelSubscriptionResponse,
 	RecordSubscriptionPaymentInput,
 } from "@rently/validators";
 import {
@@ -198,6 +200,186 @@ export async function queryAdminOutstandingInvoices(
 		pageSize: input.pageSize,
 		total,
 		totalPages: Math.ceil(total / input.pageSize),
+	};
+}
+
+type CancelMutationParams = {
+	ownerUserId: string;
+	adminUserId: string;
+	reason: string;
+	auditId: string;
+};
+
+type CancelMutationRow = {
+	subscription: Record<string, unknown> | null;
+	target: Record<string, unknown> | null;
+};
+
+// Cancel-at-period-end: the subscription status flips to `cancelled` but the
+// paid period is untouched, so entitlement (0045) keeps granting access until
+// `current_period_end` and lapses afterwards. The conditional UPDATE is the
+// arbiter — a second request or a request after the period lapsed matches zero
+// rows, and the audit row is written only by the statement that actually
+// cancelled. Shares the per-owner advisory lock with payment recording so a
+// cancel racing a renewal serializes on one domain.
+function cancelSubscriptionSql(params: CancelMutationParams) {
+	return sql`
+		with target as materialized (
+			select s.*, p."name" as "plan_name", p."slug" as "plan_slug"
+			from ${subscriptions} s
+			join ${plans} p on p."id" = s."plan_id"
+			where s."user_id" = ${params.ownerUserId}
+			order by s."created_at" desc, s."id" desc
+			limit 1
+		),
+		cancelled as (
+			update ${subscriptions} s
+			set
+				"status" = ${PLAN_STATUS.CANCELLED},
+				"updated_at" = now()
+			from target t
+			where s."id" = t."id"
+				and t."status" <> ${PLAN_STATUS.CANCELLED}
+				and (
+					t."current_period_end" is null
+					or t."current_period_end" > (now() at time zone 'utc')
+				)
+			returning s.*
+		),
+		audited as (
+			insert into ${adminAuditLogs} (
+				"id", "actor_admin_user_id", "action", "target_type", "target_id",
+				"reason", "metadata"
+			)
+			select
+				${params.auditId}, ${params.adminUserId},
+				${ADMIN_AUDIT_ACTIONS.SUBSCRIPTION_CANCELLED},
+				${ADMIN_TARGET_TYPES.SUBSCRIPTION}, c."id", ${params.reason},
+				jsonb_build_object(
+					'ownerUserId', c."user_id",
+					'previousStatus', t."status",
+					'effectiveAt', c."current_period_end"
+				)
+			from cancelled c
+			join target t on t."id" = c."id"
+			returning "id"
+		)
+		select
+			(
+				select row_to_json(x)
+				from (
+					select c.*, t."plan_name", t."plan_slug"
+					from cancelled c
+					join target t on t."id" = c."id"
+				) x
+			) as "subscription",
+			(select row_to_json(t) from target t) as "target",
+			(select count(*) from audited) as "audit_count"
+	`;
+}
+
+export async function cancelSubscription(
+	db: Database,
+	adminUserId: string,
+	input: CancelSubscriptionInput,
+): Promise<CancelSubscriptionResponse> {
+	const [[owner], [currentSubscription]] = await Promise.all([
+		db
+			.select({
+				id: user.id,
+				role: user.role,
+				accountMode: user.accountMode,
+			})
+			.from(user)
+			.where(eq(user.id, input.ownerUserId))
+			.limit(1),
+		db
+			.select()
+			.from(subscriptions)
+			.where(eq(subscriptions.userId, input.ownerUserId))
+			.orderBy(desc(subscriptions.createdAt), desc(subscriptions.id))
+			.limit(1),
+	]);
+
+	if (!owner || owner.role !== USER_ROLES.OWNER) {
+		throw new ORPCError("NOT_FOUND", { message: "Owner account not found." });
+	}
+	if (owner.accountMode !== ACCOUNT_MODES.STANDARD) {
+		throw new ORPCError("PRECONDITION_FAILED", {
+			message: "Subscriptions cannot be changed for demo or sample identities.",
+		});
+	}
+	if (!currentSubscription) {
+		throw new ORPCError("PRECONDITION_FAILED", {
+			message:
+				"Owner has no subscription row. Repair account provisioning first.",
+		});
+	}
+	// Cancel-at-period-end needs a period end to end at. A subscription with no
+	// paid period (for example a free plan provisioned with a null end) would
+	// stay entitled forever, so refuse instead of inventing an expiry.
+	if (
+		currentSubscription.status !== PLAN_STATUS.CANCELLED &&
+		currentSubscription.currentPeriodEnd === null
+	) {
+		throw new ORPCError("PRECONDITION_FAILED", {
+			message:
+				"This subscription has no paid period end, so it cannot be cancelled at period end.",
+		});
+	}
+
+	const params: CancelMutationParams = {
+		ownerUserId: owner.id,
+		adminUserId,
+		reason: input.reason,
+		auditId: generatedId(),
+	};
+
+	let row: CancelMutationRow | undefined;
+
+	if (supportsDatabaseBatch(db)) {
+		const [, result] = await db.batch([
+			db.execute(ownerLockSql(input.ownerUserId)),
+			db.execute<CancelMutationRow>(cancelSubscriptionSql(params)),
+		]);
+		row = result.rows[0];
+	} else {
+		const result = await db.transaction(async (tx) => {
+			const transactionDb = tx as unknown as Database;
+			await transactionDb.execute(ownerLockSql(input.ownerUserId));
+			return transactionDb.execute<CancelMutationRow>(
+				cancelSubscriptionSql(params),
+			);
+		});
+		row = result.rows[0];
+	}
+
+	// The statement returns the freshly cancelled row, or — when it cancelled
+	// nothing — the target it inspected, so a repeat cancel is idempotent and a
+	// lapsed period reports a distinct precondition failure.
+	const cancelledRow = row?.subscription ?? null;
+	const targetRow = row?.target ?? null;
+	const subscriptionRow = cancelledRow ?? targetRow;
+
+	if (!subscriptionRow) {
+		throw new ORPCError("NOT_FOUND", { message: "Subscription not found." });
+	}
+	if (!cancelledRow) {
+		const targetStatus = asString(subscriptionRow.status);
+		if (targetStatus !== PLAN_STATUS.CANCELLED) {
+			throw new ORPCError("PRECONDITION_FAILED", {
+				message: "This subscription's paid period has already ended.",
+			});
+		}
+	}
+
+	return {
+		subscription: mapSubscription(
+			subscriptionRow,
+			String(subscriptionRow.plan_name ?? ""),
+			asString(subscriptionRow.plan_slug),
+		),
+		effectiveAt: asDate(subscriptionRow.current_period_end),
 	};
 }
 

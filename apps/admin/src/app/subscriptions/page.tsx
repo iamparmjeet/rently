@@ -11,6 +11,7 @@ import {
 	PAYMENT_METHOD_VALUES,
 	PAYMENT_METHODS,
 	type PaymentMethod,
+	PLAN_STATUS,
 } from "@rently/db/constants/payment-constants";
 import { Button } from "@rently/ui/components/button";
 import { Card, CardContent } from "@rently/ui/components/card";
@@ -55,6 +56,7 @@ import { TableSkeleton } from "@/components/shared/table-skeleton";
 import {
 	useAdminOutstandingInvoices,
 	useAdminSubscriptions,
+	useCancelSubscription,
 	usePlans,
 	useRecordSubscriptionPayment,
 } from "@/hooks/admin";
@@ -305,6 +307,86 @@ function RecordPaymentDialog({
 	);
 }
 
+function CancelSubscriptionDialog({
+	owner,
+	open,
+	onOpenChange,
+}: {
+	owner: SubscriptionRow | null;
+	open: boolean;
+	onOpenChange: (open: boolean) => void;
+}) {
+	const cancelSubscription = useCancelSubscription();
+	const [reason, setReason] = useState("");
+
+	function reset() {
+		setReason("");
+	}
+
+	function submit(event: React.FormEvent<HTMLFormElement>) {
+		event.preventDefault();
+		if (!owner) return;
+
+		cancelSubscription.mutate(
+			{ ownerUserId: owner.ownerId, reason },
+			{
+				onSuccess: () => {
+					reset();
+					onOpenChange(false);
+				},
+			},
+		);
+	}
+
+	return (
+		<Dialog
+			open={open}
+			onOpenChange={(nextOpen) => {
+				if (!nextOpen && !cancelSubscription.isPending) reset();
+				onOpenChange(nextOpen);
+			}}
+		>
+			<DialogContent className="sm:max-w-lg">
+				<DialogHeader>
+					<DialogTitle>Cancel subscription at period end</DialogTitle>
+					<DialogDescription>
+						{owner?.ownerName ?? "This owner"} keeps access until{" "}
+						{formatDate(owner?.subscription.currentPeriodEnd)}. No refund is
+						recorded and the invoice history is retained.
+					</DialogDescription>
+				</DialogHeader>
+				<form className="space-y-4" onSubmit={submit}>
+					<div className="space-y-2">
+						<Label htmlFor="cancel-reason">Operational reason</Label>
+						<Textarea
+							id="cancel-reason"
+							value={reason}
+							onChange={(event) => setReason(event.target.value)}
+							placeholder="Owner requested cancellation by phone"
+							minLength={8}
+							maxLength={500}
+							required
+						/>
+					</div>
+					<DialogFooter>
+						<Button
+							type="submit"
+							variant="destructive"
+							disabled={
+								cancelSubscription.isPending || reason.trim().length < 8
+							}
+						>
+							{cancelSubscription.isPending
+								? "Cancelling…"
+								: "Cancel at period end"}
+						</Button>
+					</DialogFooter>
+				</form>
+			</DialogContent>
+		</Dialog>
+	);
+}
+
 export default function AdminSubscriptionsPage() {
 	const [page, setPage] = useState(1);
 	const [search, setSearch] = useState("");
@@ -313,6 +395,8 @@ export default function AdminSubscriptionsPage() {
 	const [selectedOwner, setSelectedOwner] = useState<SubscriptionRow | null>(
 		null,
 	);
+	const [selectedCancelOwner, setSelectedCancelOwner] =
+		useState<SubscriptionRow | null>(null);
 	const { data, isPending } = useAdminSubscriptions({
 		page,
 		pageSize: 25,
@@ -431,9 +515,22 @@ export default function AdminSubscriptionsPage() {
 										{formatMoney(item.subscription.totalPaid)}
 									</TableCell>
 									<TableCell className="text-right">
-										<Button size="sm" onClick={() => setSelectedOwner(item)}>
-											Record payment
-										</Button>
+										<div className="flex justify-end gap-2">
+											<Button size="sm" onClick={() => setSelectedOwner(item)}>
+												Record payment
+											</Button>
+											<Button
+												size="sm"
+												variant="outline"
+												disabled={
+													item.subscription.status === PLAN_STATUS.CANCELLED ||
+													!item.subscription.currentPeriodEnd
+												}
+												onClick={() => setSelectedCancelOwner(item)}
+											>
+												Cancel
+											</Button>
+										</div>
 									</TableCell>
 								</TableRow>
 							))
@@ -521,6 +618,14 @@ export default function AdminSubscriptionsPage() {
 				open={Boolean(selectedOwner)}
 				onOpenChange={(open) => {
 					if (!open) setSelectedOwner(null);
+				}}
+			/>
+
+			<CancelSubscriptionDialog
+				owner={selectedCancelOwner}
+				open={Boolean(selectedCancelOwner)}
+				onOpenChange={(open) => {
+					if (!open) setSelectedCancelOwner(null);
 				}}
 			/>
 		</Container>

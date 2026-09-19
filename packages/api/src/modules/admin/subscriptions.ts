@@ -183,6 +183,7 @@ export async function queryAdminOutstandingInvoices(
 				periodEnd: invoices.periodEnd,
 				paidAt: invoices.paidAt,
 				createdAt: invoices.createdAt,
+				reversesInvoiceId: invoices.reversesInvoiceId,
 				ownerId: user.id,
 				ownerName: user.name,
 				ownerEmail: user.email,

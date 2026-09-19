@@ -429,6 +429,7 @@ function correctSubscriptionPaymentSql(params: PaymentCorrectionParams) {
 			where i."id" = ${params.invoiceId}
 				and i."user_id" = ${params.ownerUserId}
 				and i."payment_status" = ${PAYMENT_STATUS.PAID}
+				and i."amount" > 0
 				and i."reverses_invoice_id" is null
 		),
 		latest_paid as (
@@ -436,6 +437,7 @@ function correctSubscriptionPaymentSql(params: PaymentCorrectionParams) {
 			from ${invoices} i
 			where i."user_id" = ${params.ownerUserId}
 				and i."payment_status" = ${PAYMENT_STATUS.PAID}
+				and i."amount" > 0
 				and i."reverses_invoice_id" is null
 			order by
 				coalesce(i."paid_at", i."created_at") desc,

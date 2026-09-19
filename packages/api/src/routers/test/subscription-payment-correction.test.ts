@@ -319,6 +319,54 @@ describe("correct subscription payment", () => {
 		expect(stored?.totalPaid).toBe(49_900 * 2);
 	});
 
+	it("ignores a newer negative paid row when selecting the correctable payment", async () => {
+		const adminId = await createUser(USER_ROLES.ADMIN);
+		const ownerId = await createUser(USER_ROLES.OWNER);
+		const planId = await createPlan();
+		const subscriptionId = await createSubscription(
+			ownerId,
+			planId,
+			new Date("2026-08-01T00:00:00.000Z"),
+		);
+		const { invoice } = await recordSubscriptionPayment(
+			db,
+			adminId,
+			paymentInput(
+				ownerId,
+				planId,
+				49_900,
+				new Date("2026-09-05T08:00:00.000Z"),
+			),
+		);
+
+		// A malformed historical row must neither become the correction target nor
+		// hide the latest positive payment from the correction command.
+		await db.insert(invoices).values({
+			id: crypto.randomUUID(),
+			subscriptionId,
+			userId: ownerId,
+			amount: -49_900,
+			periodStart: new Date("2026-09-05T08:00:00.000Z"),
+			periodEnd: new Date("2026-10-05T08:00:00.000Z"),
+			paymentStatus: PAYMENT_STATUS.PAID,
+			paidAt: new Date("2026-09-06T08:00:00.000Z"),
+		});
+
+		const result = await correctSubscriptionPayment(db, adminId, {
+			ownerUserId: ownerId,
+			invoiceId: invoice.id,
+			reason:
+				"Remove the valid payment despite a malformed negative ledger row.",
+		});
+
+		expect(result.reversal.amount).toBe(-49_900);
+		const [stored] = await db
+			.select({ totalPaid: subscriptions.totalPaid })
+			.from(subscriptions)
+			.where(eq(subscriptions.id, subscriptionId));
+		expect(stored?.totalPaid).toBe(0);
+	});
+
 	it("refuses demo identities, non-owners, and unknown invoices", async () => {
 		const adminId = await createUser(USER_ROLES.ADMIN);
 		const demoOwnerId = await createUser(

@@ -1,5 +1,6 @@
 export const ADMIN_AUDIT_ACTIONS = {
 	SUBSCRIPTION_PAYMENT_RECORDED: "subscription.payment_recorded",
+	SUBSCRIPTION_PAYMENT_CORRECTED: "subscription.payment_corrected",
 	SUBSCRIPTION_CANCELLED: "subscription.cancelled",
 	BETA_CODE_CREATED: "beta_code.created",
 	BETA_CODE_EXPIRED: "beta_code.expired",

@@ -9,7 +9,9 @@ import {
 	PLAN_STATUS_VALUES,
 	TENANT_LIMIT,
 } from "@rently/db/constants/payment-constants";
+import { sql } from "drizzle-orm";
 import {
+	type AnyPgColumn,
 	boolean,
 	index,
 	integer,
@@ -105,11 +107,22 @@ export const invoices = pgTable(
 			() => user.id,
 			{ onDelete: "restrict" },
 		),
+		// Correction linkage: a mistaken paid invoice is never rewritten or
+		// deleted. It is corrected by a new negative-amount invoice that points
+		// at its original, so the paid-invoice sum nets to zero and the original
+		// row keeps its amount, reference, and timestamps. The partial unique
+		// index makes the correction idempotent — one reversal per original.
+		reversesInvoiceId: uuid("reverses_invoice_id").references(
+			(): AnyPgColumn => invoices.id,
+		),
 		createdAt: timestamp("created_at").defaultNow().notNull(),
 	},
 	(table) => [
 		index("invoices_user_created_at_idx").on(table.userId, table.createdAt),
 		index("invoices_paid_at_idx").on(table.paidAt),
+		uniqueIndex("invoices_reverses_invoice_unique")
+			.on(table.reversesInvoiceId)
+			.where(sql`${table.reversesInvoiceId} is not null`),
 	],
 );
 

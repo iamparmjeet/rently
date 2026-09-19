@@ -5,11 +5,14 @@ import {
 	AdminSubscriptionListResponseSchema,
 	CancelSubscriptionResponseSchema,
 	CancelSubscriptionSchema,
+	CorrectSubscriptionPaymentResponseSchema,
+	CorrectSubscriptionPaymentSchema,
 	RecordSubscriptionPaymentResponseSchema,
 	RecordSubscriptionPaymentSchema,
 } from "@rently/validators";
 import {
 	cancelSubscription,
+	correctSubscriptionPayment,
 	queryAdminOutstandingInvoices,
 	queryAdminSubscriptions,
 	recordSubscriptionPayment,
@@ -44,4 +47,12 @@ export const cancel = adminProcedure
 	.output(CancelSubscriptionResponseSchema)
 	.handler(({ context, input }) =>
 		cancelSubscription(context.db, context.user.id, input),
+	);
+
+export const correctPayment = adminProcedure
+	.route({ method: "POST", path: "/admin/subscriptions/correct-payment" })
+	.input(CorrectSubscriptionPaymentSchema)
+	.output(CorrectSubscriptionPaymentResponseSchema)
+	.handler(({ context, input }) =>
+		correctSubscriptionPayment(context.db, context.user.id, input),
 	);

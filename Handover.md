@@ -1045,3 +1045,106 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 - Committed as `be50b556` (`feat(admin): add operations visibility`); not pushed.
   Next: merge this branch, then design the separate subscription-payment
   reversal/audit slice; do not delete or rewrite payment history.
+## Subscription entitlement + lifecycle (2026-09-17)
+
+Three stacked branches implementing the admin roadmap's remaining slices. Each
+is one slice with file-by-file conventional commits; none is merged to `main`.
+
+### 1. `feat/subscription-entitlement` (tag `pre-subscription-entitlement`)
+
+- Migration `0045_subscription_entitlement` (hand-authored, function-only, no
+  schema drift) replaces `rently_assert_tenant_seat` and
+  `rently_assert_pending_invite_quota` so the plan limit is entitlement-gated.
+- Entitlement is TIME-based: the latest subscription grants its plan limit while
+  `expired` is not true and `current_period_end` is null or in the future. A
+  lapsed subscription yields limit 0 (refusal); no subscription row keeps the
+  legacy `TENANT_LIMIT` fallback. Status alone is not a boundary — this is what
+  makes cancel-at-period-end work.
+- `getOwnerEntitlement` in `tenant-limit.ts` mirrors the SQL predicates (comparing
+  in SQL against `now() at time zone 'utc'`, since `current_period_end` is a
+  zone-less UTC-wall-clock `timestamp`); `tenantPlanLimitError` /
+  `pendingInviteQuotaError` now report "subscription has ended" instead of
+  "plan limit of 0".
+- Tests: `subscription-entitlement.test.ts` (10) — fallback, active/trial,
+  cancelled-with-future-end still entitled, cancelled-past denied, expired,
+  paused-inside-period, plus both SQL arbiters refusing a lapsed subscription.
+- Verification: no drift, `check-types --force` 6/6, focused Biome, migrate:test,
+  focused 18/18, invite suite 25/25.
+
+### 2. `feat/subscription-cancel-at-period-end` (stacked on 1; tag `pre-subscription-cancel-at-period-end`)
+
+- No migration. New admin command `admin.subscriptions.cancel`
+  (`cancelSubscription`): flips `status` to `cancelled`, keeps
+  `current_period_end`, writes one `subscription.cancelled` audit row with prior
+  status and effective date. Refuses lapsed periods, subscriptions with no
+  period end, demo/sample identities, and non-owners. Repeat requests are
+  idempotent (one audit row). Shares the per-owner advisory lock with payment
+  recording.
+- Admin UI: per-row Cancel action + confirmation dialog showing the effective
+  date, disabled when already cancelled or lacking a period end.
+- Tests: `subscription-cancellation.test.ts` (5).
+- Verification: no drift, `check-types --force` 6/6, Biome, focused 15/15,
+  admin/tenant-limit suites 27/27, `build:admin` 5/5.
+
+### 3. `feat/subscription-payment-correction` (stacked on 2; tag `pre-subscription-payment-correction`)
+
+- Migration `0046` (generated): `invoices.reverses_invoice_id` self-FK + partial
+  unique index (one reversal per original).
+- New admin command `admin.subscriptions.correctPayment`
+  (`correctSubscriptionPayment`): inserts a linked NEGATIVE invoice, decrements
+  `total_paid`, revokes the granted window by moving `current_period_end` /
+  `next_billing_date` back to the original invoice's `period_start`, and audits
+  `subscription.payment_corrected`. The original invoice is never rewritten or
+  deleted; paid-invoice sums net to zero.
+- Restricted to the LATEST paid invoice: an older correction has later renewals
+  on top and no recorded prior state, so it is refused. Repeat is CONFLICT.
+- Tests: `subscription-payment-correction.test.ts` (4) covering linkage/netting,
+  revocation→not-entitled, idempotent conflict, non-latest refusal, demo/non-owner/
+  unknown refusals.
+- Verification: generate no drift, migrate:test, `check-types --force` 6/6,
+  Biome, focused 4/4, admin+reconciliation set 51/51, `build:admin` 5/5.
+- Soft spots for Terra review: the period-revocation approximation
+  (`current_period_start` is set to the revoked window's start, not a recovered
+  pre-payment value); no admin UI action yet for correction (API + audit only);
+  the Neon batch path shares the same lock/SQL shape but is only exercised on the
+  node transaction locally.
+
+### Pending and flagged (do these before or with deployment)
+
+Owner decisions (resolved 2026-09-17):
+
+1. Entitlement boundary confirmed: a lapsed owner cannot add tenants or send
+   invites; existing tenants and owner access are unaffected. A grace period that
+   keeps growth frozen while allowing a limited feature set is the intended
+   direction, not a design — it needs a named feature list, a window length, and a
+   decision on what (if anything) locks at the window's end. Any deferral of the
+   growth freeze changes migration 0045's two SQL functions and
+   `getOwnerEntitlement` together, so it lands as a follow-up slice on
+   `feat/subscription-entitlement`.
+2. Free/trial subscriptions with a null `current_period_end`: cancel keeps
+   refusing them; immediate-end is not wanted.
+
+Process and follow-ups:
+
+3. PRs #27-#30 are open (visibility -> entitlement -> cancel -> correction).
+   Merge in order after Terra/Sol review. CI is main-only, so #29/#30 run checks
+   only after their parents merge and GitHub retargets them to `main`.
+4. Migrations 0045/0046 are applied only to local `rently_test`. Apply to dev,
+   then production, as a deploy step. 0046 is the only structural change
+   (`invoices.reverses_invoice_id` + partial unique index); 0045 replaces two
+   SQL functions and reports no drift. Both are additive and forward-only —
+   rollback is app rollback plus forward correction.
+5. Payment correction has no admin UI action. Add one on the newest paid invoice
+   in the user-detail invoices table; expose `reversesInvoiceId` on the admin
+   invoice schema so already-corrected rows can be hidden.
+6. The Neon batch path for correction and cancel is not exercised locally. Run
+   both against a disposable Neon branch before deployment.
+7. Correction's `current_period_start` rollback is approximate (documented in
+   `docs/Decisions.md`). Accept, or add a prior-period snapshot to make it exact.
+8. TestSprite has no Admin project. Creating one needs owner approval and does
+   not replace the backend financial integration tests.
+9. I02 remains `[~]`: deployment migration replay and rollback rehearsal.
+
+Next: Terra/Sol review on PRs #27-#30, then the correction UI follow-up.
+Pause/resume and refund remain parked — now actionable because entitlement is
+enforced, but each still needs its own product decision.

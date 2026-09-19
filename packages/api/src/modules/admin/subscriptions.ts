@@ -183,6 +183,7 @@ export async function queryAdminOutstandingInvoices(
 				periodEnd: invoices.periodEnd,
 				paidAt: invoices.paidAt,
 				createdAt: invoices.createdAt,
+				reversesInvoiceId: invoices.reversesInvoiceId,
 				ownerId: user.id,
 				ownerName: user.name,
 				ownerEmail: user.email,
@@ -975,6 +976,7 @@ function mapInvoice(row: Record<string, unknown>): AdminInvoice {
 		periodEnd: asDate(row.period_end) as Date,
 		paidAt: asDate(row.paid_at),
 		createdAt: asDate(row.created_at) as Date,
+		reversesInvoiceId: asString(row.reverses_invoice_id),
 	};
 }
 

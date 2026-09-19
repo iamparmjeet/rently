@@ -1007,16 +1007,28 @@ Reconciles the stale `feat/multi-unit-lease-agreements` notes (that work is alre
 
 ### Next chat: start here
 
-1. Close nothing else open — `main` is the only active line now.
-2. Next slice, recommended `feat/admin-ops-visibility` off `main` (tag
-   `pre-admin-ops-visibility`), read-only and migration-free: surface
-   `users.admins` + total match counts, add a global invoice list filtered by
-   `PAYMENT_STATUS` unpaid/failed, and a `not-found.tsx` for `/users/[id]`.
-3. Then design-first slice: void/correct a mistakenly recorded subscription
-   payment (needs a reversal record + audit; never delete).
-4. Parked pending product decision: subscription pause/cancel/extend/refund.
-   Entitlement is read from `plans.tenant_limit` only (`tenant-limit.ts`) and
-   ignores `status`/`expired`, so those actions would be dead buttons.
+State: `main` = `647b74e7`, clean. Five PRs are open and stacked; none is merged.
+Production already has migrations 0045/0046 applied.
+
+1. **Immediate work: Terra/Sol review of PRs #27-#31** (review brief below and in
+   Fix-Plan §7.1). Merge in order after review:
+   - #27 `feat/admin-ops-visibility` -> `main` (Terra Medium; read-only, no migration)
+   - #28 `feat/subscription-entitlement` -> `main` (Terra/Sol High; migration 0045)
+   - #29 `feat/subscription-cancel-at-period-end` -> #28 (Terra/Sol High)
+   - #30 `feat/subscription-payment-correction` -> #29 (Terra/Sol High; migration 0046)
+   - #31 `feat/subscription-correction-ui` -> #30 (Terra Medium; UI presenting money)
+   CI is main-only: #29/#30/#31 run checks only after their parents merge and
+   GitHub retargets them to `main`.
+2. **Deploy note:** production is already migrated (0045/0046, head 0044 -> 47),
+   but the app code is not deployed, so the entitlement boundary is live ahead of
+   the reviewed UI. Only 2 subscriptions existed at apply time and neither was
+   lapsed. Confirm nothing lapsed since before the app deploy.
+3. **Grace period is unresolved product design.** Owner wants growth frozen at
+   period end but a limited feature set during a grace window. Needs a named
+   feature list and window length; any deferral of the growth freeze changes
+   0045's two functions and `getOwnerEntitlement` together. Not started.
+4. Still parked: pause/resume and refund (each needs its own product decision);
+   Extend already works through verified payment recording.
 5. Local gotcha: a full local suite run can throw lease-ownership failures from
     stale `rently_test` state; those suites pass in isolation and CI is green on
     a fresh DB. Root `.env` targets Neon — use the localhost override.
@@ -1129,22 +1141,37 @@ Process and follow-ups:
 3. PRs #27-#30 are open (visibility -> entitlement -> cancel -> correction).
    Merge in order after Terra/Sol review. CI is main-only, so #29/#30 run checks
    only after their parents merge and GitHub retargets them to `main`.
-4. Migrations 0045/0046 are applied only to local `rently_test`. Apply to dev,
-   then production, as a deploy step. 0046 is the only structural change
-   (`invoices.reverses_invoice_id` + partial unique index); 0045 replaces two
-   SQL functions and reports no drift. Both are additive and forward-only —
-   rollback is app rollback plus forward correction.
-5. Payment correction has no admin UI action. Add one on the newest paid invoice
-   in the user-detail invoices table; expose `reversesInvoiceId` on the admin
-   invoice schema so already-corrected rows can be hidden.
-6. The Neon batch path for correction and cancel is not exercised locally. Run
-   both against a disposable Neon branch before deployment.
+4. Migrations 0045/0046 are applied to production (`apps/server/.env` ->
+   `ep-icy-tree-azsnkw15`), previously head 0044 / 45 migrations, now 47, with
+   `reverses_invoice_id` + `invoices_reverses_invoice_unique` and both
+   entitlement-aware functions verified. Nothing is applied to a Neon dev branch
+   because none exists; the disposable branch and the local replay were the
+   rehearsals. 0046 is the only structural change (`invoices.reverses_invoice_id`
+   + partial unique index); both are additive and forward-only — rollback is app
+   rollback plus forward correction, or snapshot restore. At apply time
+   production had 2 owners with a subscription, both free/trial with a null
+   period end, so 0045 blocked nobody.
+5. Correction UI shipped on `feat/subscription-correction-ui` (stacked on
+   `feat/subscription-payment-correction`, tag `pre-subscription-correction-ui`):
+   `reversesInvoiceId` is on `AdminInvoiceSchema`, and the user-detail invoices
+   table offers Correct on the latest paid, non-reversed invoice only, marking
+   reversal and reversed rows. No migration.
+6. Neon batch path verified: on a disposable Neon branch (`rently_test`,
+   `RENTRY_TEST_EXTRA_HOSTS`), migrations applied cleanly and the cancel +
+   correction suites passed 9/9 with `supportsDatabaseBatch` confirmed true, so
+   the `db.batch` path (not the node transaction) was the one exercised. The
+   branch self-deletes; no production data touched.
 7. Correction's `current_period_start` rollback is approximate (documented in
    `docs/Decisions.md`). Accept, or add a prior-period snapshot to make it exact.
 8. TestSprite has no Admin project. Creating one needs owner approval and does
    not replace the backend financial integration tests.
-9. I02 remains `[~]`: deployment migration replay and rollback rehearsal.
+9. I02 local rehearsal done on a dropped/recreated `rently_test`: all 47
+   migrations replayed cleanly, matrix 5/5, and the 0045/0046 rollback path
+   (forward correction of the replaced functions, additive-schema app rollback)
+   rehearse green — recorded in `docs/I02-Reconciliation-Report.md`. I02 stays
+   `[~]` only for the real dev/production replay.
 
-Next: Terra/Sol review on PRs #27-#30, then the correction UI follow-up.
-Pause/resume and refund remain parked — now actionable because entitlement is
-enforced, but each still needs its own product decision.
+Next: Terra/Sol review on PRs #27-#31, then Neon branch coverage, then apply
+0045/0046 to dev and production (which also closes I02). Pause/resume and refund
+remain parked — now actionable because entitlement is enforced, but each still
+needs its own product decision.

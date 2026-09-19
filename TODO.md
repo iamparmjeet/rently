@@ -183,6 +183,22 @@
 
 > Implementation and learning notes: `docs/admin-v1.md`.
 
+### In review — Admin visibility + subscription lifecycle (2026-09-17)
+
+Five PRs open, stacked, **not merged**. Merge order #27 -> #28 -> #29 -> #30 -> #31
+after Terra/Sol review; review brief in `Handover.md` and `docs/Fix-Plan-2026-09-05.md` §7.1.
+
+- [ ] #27 `feat/admin-ops-visibility` — admin count, list totals, unpaid/failed invoice list, `/users/[id]` not-found. No migration. Terra Medium.
+- [ ] #28 `feat/subscription-entitlement` — migration `0045` (functions only): time-based entitlement in the seat guard and invite quota. Lapsed subscription -> limit 0; no subscription row keeps `TENANT_LIMIT`; null `current_period_end` stays entitled. Sol/Terra High.
+- [ ] #29 `feat/subscription-cancel-at-period-end` — `admin.subscriptions.cancel` + admin dialog; keeps the paid period, audited, idempotent, refuses lapsed/no-end/demo/non-owner. No migration. Sol/Terra High.
+- [ ] #30 `feat/subscription-payment-correction` — migration `0046` (structural): `invoices.reverses_invoice_id` + partial unique index; linked negative reversal, `total_paid` decrement, window revocation, audit. Latest paid invoice only; repeat is `CONFLICT`. Sol/Terra High.
+- [ ] #31 `feat/subscription-correction-ui` — exposes `reversesInvoiceId`, Correct action on the latest paid non-reversed invoice in the user-detail invoices table. No migration. Terra Medium.
+- [x] Migrations `0045`/`0046` applied to production (head `0044` -> 47) and replayed on a fresh local DB plus a disposable Neon branch.
+- [x] Cancel + correction `db.batch` paths verified on a disposable Neon branch (9/9, batch path confirmed).
+- [x] I02 deployment migration replay and rollback rehearsal complete; I02 `[~]` pending Sol High review only.
+- [ ] Grace period — owner wants growth frozen at period end with a limited feature set during a grace window. Needs a named feature list and window length before implementation.
+- [ ] Pause/resume and refund — parked; each needs its own product decision.
+
 ### Rent Cycle + Cloudflare Cron _(Milestone 7)_
 
 - [x] Create `queryRentCycleRows`, `computeRentCycleItem`, period-key generation, and configurable owner lead/grace days (defaults: 3 days before due and 2 days after due).

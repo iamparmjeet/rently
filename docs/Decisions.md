@@ -71,8 +71,9 @@ rollback would corrupt entitlement).
 **Tradeoff:** `current_period_start` is set to the revoked window's start rather
 than a recovered pre-payment value, so the pre-payment start date is not exactly
 restored; the entitlement boundary (`current_period_end`) is exact. An older
-correction is refused until a separately designed replay model exists. The
-correction has no admin UI action yet.
+correction is refused until a separately designed replay model exists. The admin
+UI exposes the server-authoritative correctable invoice and its reversal link;
+it does not broaden the correction rule.
 
 **Model:** DeepSeek V4.1 Flash (implementer); Terra/Sol review owed per Fix-Plan
 §7.

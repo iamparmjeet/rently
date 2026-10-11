@@ -1,5 +1,31 @@
 # Handover — 2026-09-06 — model: ZLM 5.3 Flash — branch: integ/phase-a-baseline (batching A03+; see workflow note)
 
+## Latest delivery (2026-09-19, GPT-5.6 Terra)
+
+- Subscription entitlement, cancel-at-period-end, payment-correction, and
+  correction-UI slices merged to `main` in order: PR #27
+  (`e9ec9f5b5f9daee0a9f8a5001c5327301e814552`), #28
+  (`f75e5bce07085f3ed4669b08323b71d024aed343`), #29
+  (`0cbce1e59aae0f78535588966a8b808d994abe09`), #30
+  (`5d1feef376bc104b67b044bcc58120f2cfb4da17`), and #31
+  (`e8d4f3dfc1961d94150e92549024f96dd482362f`).
+- Correction hardening now excludes non-positive invoices when choosing both
+  the correction target and the latest paid invoice. A focused regression
+  covers a newer malformed negative paid row, preventing it from being used to
+  bypass the latest-invoice constraint.
+- The outstanding-invoice admin read model includes `reversesInvoiceId`, so
+  the correction UI can display the linked reversal without a type or runtime
+  mismatch.
+- Local verification passed: `db:generate`, `db:migrate:test`,
+  `check-types --force`, focused Biome, `git diff --check`, and the focused
+  12-test admin-hardening/payment-correction suite. Fresh full CI passed for
+  #30 and #31; #31 run `35456482969` completed all schema, migration, type,
+  Biome, build, and Vitest stages.
+- Migrations `0045` and `0046` had already been applied in production before
+  this delivery. No applied migration was edited and no local deployment was
+  performed. TestSprite could not run locally because its `mise` Node version
+  is not configured.
+
 ## Workflow note (2026-09-05, owner-directed)
 - Batching: slices merge one-branch-per-slice into `integ/phase-a-baseline` (cut from clean `main@8e27688`, rollback tag `pre-integ-phase-a-baseline`), then one rollup PR into `main`. Rollback tags per slice retained. Lefthook is the fast local gate for integration PRs; GitHub CI runs only on PRs targeting `main` (PR-only, no per-commit runs).
 - A03 merged as PR #7 (CI green, merged 2026-09-05). Fix-Plan A03 stays `[~]` until Terra review.

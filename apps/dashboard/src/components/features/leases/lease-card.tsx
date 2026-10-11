@@ -87,7 +87,7 @@ export function LeaseCard({
 						</div>
 						<div className="min-w-0">
 							<p className="font-medium text-[10px] text-muted-foreground uppercase tracking-[0.14em]">
-								Lease agreement
+								{lease.agreementId ? "Combined agreement" : "Lease agreement"}
 							</p>
 							<span className="flex items-center gap-1.5 truncate font-medium text-sm">
 								{lease.tenantName ?? "Unknown Tenant"}

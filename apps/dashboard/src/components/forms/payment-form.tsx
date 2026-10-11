@@ -56,6 +56,7 @@ interface PaymentFormProps {
 	formId?: string;
 	leases: Pick<Lease, "id">[];
 	leaseLabels: Record<string, string>;
+	rentDueByLease?: Record<string, number>;
 }
 
 export function PaymentForm({
@@ -66,11 +67,13 @@ export function PaymentForm({
 	formId,
 	leases,
 	leaseLabels,
+	rentDueByLease,
 }: PaymentFormProps) {
 	const {
 		register,
 		handleSubmit,
 		control,
+		setValue,
 		watch,
 		formState: { errors },
 	} = useForm<PaymentFormValues>({
@@ -83,6 +86,18 @@ export function PaymentForm({
 	});
 
 	const selectedType = watch("type");
+
+	function selectLease(
+		leaseId: string | null,
+		onChange: (value: string | null) => void,
+	) {
+		onChange(leaseId);
+		if (!leaseId) return;
+		const due = rentDueByLease?.[leaseId];
+		if (due && due > 0) {
+			setValue("amount", due / 100, { shouldValidate: true });
+		}
+	}
 
 	return (
 		<form id={formId} onSubmit={handleSubmit(onSubmit)} className="space-y-6">
@@ -98,7 +113,9 @@ export function PaymentForm({
 							render={({ field }) => (
 								<Select
 									value={field.value ?? ""}
-									onValueChange={field.onChange}
+									onValueChange={(leaseId) =>
+										selectLease(leaseId, field.onChange)
+									}
 									disabled={isSubmitting || leases.length === 0}
 								>
 									<SelectTrigger id="leaseId">
@@ -156,7 +173,7 @@ export function PaymentForm({
 							type="number"
 							min={1}
 							step={1}
-							placeholder="10000"
+							placeholder="Enter amount"
 							disabled={isSubmitting}
 							{...register("amount", { valueAsNumber: true })}
 						/>

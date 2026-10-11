@@ -14,6 +14,7 @@ import {
 	PaymentForm,
 	type PaymentFormValues,
 } from "@/components/forms/payment-form";
+import { usePeriodBalance } from "@/hooks/balance/use-period-balance";
 import { useLeases } from "@/hooks/leases";
 import { useRecordPayment } from "@/hooks/payments";
 import { entityLabel } from "@/utils/display";
@@ -42,6 +43,9 @@ export function AddPaymentButton({
 	const idempotencyKey = useIdempotencyKey(dialog.open);
 
 	const { data: leasesData } = useLeases("active");
+	const { data: balanceData } = usePeriodBalance(
+		leaseId ? { leaseId } : { all: true },
+	);
 	const activeLeases = leasesData?.leases ?? [];
 	const selectableLeases = useMemo(
 		() =>
@@ -77,6 +81,15 @@ export function AddPaymentButton({
 			]),
 		);
 	}, [leaseId, selectableLeases]);
+	const defaultAmount = leaseId
+		? (balanceData?.leases[0]?.totalRentDue ?? 0) / 100
+		: undefined;
+	const rentDueByLease = Object.fromEntries(
+		(balanceData?.leases ?? []).map((balance) => [
+			balance.leaseId,
+			balance.totalRentDue,
+		]),
+	);
 
 	// ── Submit handler ──────
 	function handleSubmit(values: PaymentFormValues) {
@@ -123,7 +136,17 @@ export function AddPaymentButton({
 					formId="add-payment-form"
 					leases={leaseList}
 					leaseLabels={leaseLabels}
-					defaultValues={leaseId ? { leaseId } : undefined}
+					rentDueByLease={rentDueByLease}
+					defaultValues={
+						leaseId
+							? {
+									leaseId,
+									...(defaultAmount && defaultAmount > 0
+										? { amount: defaultAmount }
+										: {}),
+								}
+							: undefined
+					}
 					onSubmit={handleSubmit}
 					isSubmitting={recordPayment.isPending}
 				/>

@@ -129,7 +129,9 @@ export function PaymentsTab({ tenant, payments, stats }: PaymentsTabProps) {
 	// Sort newest first
 	const sorted = [...payments].sort(
 		(a, b) =>
-			new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime(),
+			new Date(b.paymentDate).getTime() - new Date(a.paymentDate).getTime() ||
+			new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime() ||
+			b.id.localeCompare(a.id),
 	);
 
 	// C06: pending is the period-aware outstanding (arrears + current period)
